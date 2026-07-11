@@ -1756,6 +1756,8 @@ html[data-scheme="light"] .md pre {
 }
 
 .panels {
+  position: relative;
+  z-index: 5;
   display: flex;
   width: min(calc(100% - 48px), var(--composer-max));
   max-height: 32%;
