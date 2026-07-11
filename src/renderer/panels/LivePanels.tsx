@@ -80,7 +80,7 @@ export function PlanCard({
     <div className="card plan">
       <h3>Plan approval</h3>
       {plan.ungrounded && (
-        <div className="notice warn">Plan may be under-researched</div>
+        <div className="notice warn">⚠ ungrounded — presented without the research this request required</div>
       )}
       <pre className="plan-text">
         {plan.text}

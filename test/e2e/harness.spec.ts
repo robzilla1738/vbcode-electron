@@ -121,7 +121,7 @@ test("resolves permission and plan cards from keyboard-accessible controls", asy
 
   await submit("fixture:plan");
   await expect(page.getByText("Plan approval")).toBeVisible();
-  await expect(page.getByText("Plan may be under-researched")).toBeVisible();
+  await expect(page.getByText("⚠ ungrounded — presented without the research this request required")).toBeVisible();
   await expect(page.getByText("The fixture is writable")).toBeVisible();
   await page.getByRole("button", { name: /Accept Enter/ }).click();
   await expect(page.getByText("plan accept")).toBeVisible();
