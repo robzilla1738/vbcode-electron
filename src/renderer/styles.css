@@ -41,7 +41,7 @@
   --text-subtle: color-mix(in oklab, var(--muted) 92%, var(--bg));
   --focus: var(--ring);
   /* Two-layer keyboard focus ring: surface gap + accent halo. */
-  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in oklab, var(--ring) 62%, transparent);
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in oklab, var(--focus) 62%, transparent);
   /* Faked top light-edge on raised dark surfaces (removed in light scheme). */
   --edge-highlight: inset 0 1px 0 color-mix(in oklab, #fff 5%, transparent);
 
