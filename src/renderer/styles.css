@@ -361,7 +361,7 @@ html[data-scheme="light"].electron-transparent .workspace {
   border-radius: var(--radius-xl);
   background: var(--bg);
   box-shadow: none;
-  transition: margin 240ms var(--ease-out), border-radius 240ms var(--ease-out);
+  transition: margin var(--dur-moderate) var(--ease-out), border-radius var(--dur-moderate) var(--ease-out);
 }
 
 .content-inset.is-expanded,
@@ -517,38 +517,6 @@ html[data-scheme="light"].electron-transparent .topbar {
   box-shadow: var(--edge-highlight);
 }
 
-.engine-state {
-  display: inline-flex;
-  min-height: 28px;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: 0 var(--space-sm);
-  margin-right: var(--space-2xs);
-  padding-right: var(--space-base);
-  border-right: 1px solid var(--border-soft);
-  color: var(--text-subtle);
-  font-size: var(--text-caption);
-  font-weight: 550;
-}
-
-.engine-state-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--task-done);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--task-done) 12%, transparent);
-}
-
-.engine-state.is-busy {
-  color: var(--accent);
-}
-
-.engine-state.is-busy .engine-state-dot {
-  background: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 14%, transparent);
-  animation: engine-pulse 1.8s ease-in-out infinite;
-}
-
 @keyframes engine-pulse {
   50% { opacity: 0.45; }
 }
@@ -648,7 +616,7 @@ html[data-platform="darwin"] .rail-chrome {
   font-size: var(--text-ui);
   font-weight: 500;
   text-align: left;
-  transition: color 140ms var(--ease-out), background-color 140ms var(--ease-out), transform 60ms;
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform 60ms;
 }
 
 .rail-action svg {
@@ -694,7 +662,7 @@ html[data-platform="darwin"] .rail-chrome {
   border-radius: var(--radius-sm);
   color: var(--text-subtle);
   background: color-mix(in oklab, var(--elevated) 82%, var(--rail));
-  transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .rail-filter:focus-within {
@@ -721,8 +689,7 @@ html[data-platform="darwin"] .rail-chrome {
   opacity: 0.55;
 }
 
-.rail-section-label,
-.eyebrow {
+.rail-section-label {
   color: var(--text-subtle);
   font-family: var(--font-mono);
   font-size: var(--text-micro);
@@ -757,7 +724,7 @@ html[data-platform="darwin"] .rail-chrome {
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-align: left;
-  transition: color 140ms var(--ease-out), background-color 140ms var(--ease-out), transform 60ms;
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform 60ms;
 }
 
 .project-heading:hover {
@@ -794,7 +761,7 @@ html[data-platform="darwin"] .rail-chrome {
 .icon-chevron {
   color: var(--text-subtle);
   opacity: 0.7;
-  transition: transform 140ms var(--ease-out), opacity 140ms var(--ease-out);
+  transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
 }
 
 .project-heading:hover .icon-chevron {
@@ -866,7 +833,7 @@ html[data-platform="darwin"] .rail-chrome {
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-align: left;
-  transition: color 140ms var(--ease-out), background-color 140ms var(--ease-out), transform 60ms;
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform 60ms;
 }
 
 .session-row-wrap:hover .session-time,
@@ -1050,7 +1017,7 @@ html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible
   border: 1px solid color-mix(in oklab, var(--del) 44%, var(--border));
   border-radius: var(--radius-sm);
   color: var(--del);
-  transition: border-color 140ms var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-out);
 }
 
 .rail-retry:hover {
@@ -1454,7 +1421,7 @@ html[data-scheme="light"] .md pre {
   border-bottom: 1.5px solid currentColor;
   opacity: 0.55;
   transform: rotate(-45deg);
-  transition: transform 140ms var(--ease-out);
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 
 .decision-details[open] summary::before {
@@ -1807,6 +1774,8 @@ html[data-scheme="light"] .card {
 }
 
 .card.perm h3 {
+  color: var(--notice);
+}
 
 .perm-tool-label {
   margin: 2px 0 0;
@@ -1814,8 +1783,6 @@ html[data-scheme="light"] .card {
   font-size: var(--text-ui);
   font-weight: 400;
   line-height: 1.4;
-}
-  color: var(--notice);
 }
 
 .card.plan {
@@ -1886,10 +1853,6 @@ html[data-scheme="light"] .card {
 
 .onboarding-copy .card-copy {
   margin: var(--space-2xs) 0 0;
-}
-
-.onboarding-card {
-  margin-top: 2px;
 }
 
 .decision-payload,
@@ -2073,11 +2036,6 @@ html[data-scheme="light"] .card {
   padding: 0 var(--space-sm);
 }
 
-.queue-row-active .queue-label {
-  color: var(--assistant);
-  font-weight: 500;
-}
-
 .queue-label {
   flex: 1;
   min-width: 0;
@@ -2102,7 +2060,7 @@ html[data-scheme="light"] .card {
   color: var(--text-subtle);
   font-size: var(--text-caption);
   font-weight: 500;
-  transition: color 140ms var(--ease-out), background-color 140ms var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .queue-action:hover {
@@ -2625,7 +2583,7 @@ html.electron-transparent .composer-wrap:focus-within {
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-align: left;
-  transition: color 120ms var(--ease-out), background-color 120ms var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .slash-item:hover,
@@ -2636,10 +2594,6 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .slash-item.selected {
   box-shadow: inset 2px 0 0 color-mix(in oklab, var(--primary) 80%, transparent);
-}
-
-.slash-item-icon {
-  display: none;
 }
 
 .slash-item-copy {
@@ -2892,7 +2846,7 @@ html.electron-transparent .sidebar-heading-row {
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
   text-align: left;
-  transition: color 140ms var(--ease-out), background-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .activity-button:hover {
@@ -2933,11 +2887,6 @@ html.electron-transparent .sidebar-heading-row {
 
 .diff-add-count { color: var(--add); }
 .diff-del-count { color: var(--del); }
-
-.queue-active {
-  color: var(--assistant);
-  font-weight: 500;
-}
 
 .subagent-activity {
   color: var(--text-subtle);
@@ -2982,10 +2931,6 @@ html.electron-transparent .sidebar-heading-row {
 
 .inspector-stream {
   max-height: 280px;
-}
-
-.compact-stream {
-  max-height: 100px;
 }
 
 .task-row {
@@ -3256,6 +3201,12 @@ html.electron-transparent .sidebar-heading-row {
   text-align: left;
 }
 
+/* The lone trailing starter spans both columns so an odd count reads as a
+   deliberate 2-over-1 layout instead of an unbalanced empty cell. */
+.starter:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .starter {
   display: flex;
   min-height: 42px;
@@ -3284,16 +3235,12 @@ html.electron-transparent .sidebar-heading-row {
   flex: 0 0 auto;
   color: var(--text-subtle);
   font-size: var(--text-prose);
-  transition: color 160ms var(--ease-out), transform 160ms var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 
 .starter:hover .starter-arrow {
   color: var(--assistant);
   transform: translateX(3px);
-}
-
-.gate-mark {
-  display: none;
 }
 
 .gate-topbar {
@@ -3492,7 +3439,7 @@ html.electron-transparent .sidebar-heading-row {
   background: color-mix(in oklab, var(--surface) 70%, transparent);
   font-size: var(--text-caption);
   font-weight: 500;
-  transition: color 120ms var(--ease-out), background-color 120ms var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .catalog-target:hover {
@@ -3559,7 +3506,7 @@ html.electron-transparent .sidebar-heading-row {
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-align: left;
-  transition: color 120ms var(--ease-out), background-color 120ms var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .catalog-row:hover,
