@@ -15,6 +15,20 @@ import { stripToolGlyph, ToolGlyph } from "../tool-glyph";
 import { IconBrain, IconChevron } from "../icons";
 import { CopyButton } from "../CopyButton";
 
+/** JS smooth-scroll must honor the OS reduced-motion setting (I19/P04); CSS
+ *  `scroll-behavior: smooth` is already disabled by the media query, but
+ *  `scrollTo({ behavior: "smooth" })` is not. */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function scrollBehavior(pref: ScrollBehavior): ScrollBehavior {
+  return pref === "smooth" && prefersReducedMotion() ? "auto" : pref;
+}
+
 function DiffBody({ lines }: { lines: string[] }) {
   const text = lines.join("\n");
   return (
@@ -97,14 +111,10 @@ function BlockView({
             aria-label={`${collapsed ? "Expand" : "Collapse"} ${block.label}`}
           >
             <span className="tool-label">
-              <IconChevron open={!collapsed} size={12} />
+              <IconChevron open={!collapsed} size={13} />
               <ToolGlyph toolName={block.toolName} />
               <span>
-                {!block.done ? (
-                  <span className="working-shimmer">{stripToolGlyph(block.label)}</span>
-                ) : (
-                  stripToolGlyph(block.label)
-                )}
+                {stripToolGlyph(block.label)}
               </span>
             </span>
             <span className="tool-meta">
@@ -163,7 +173,7 @@ function BlockView({
             aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
           >
             <span className="thinking-label">
-              <IconChevron open={!collapsed} size={12} />
+              <IconChevron open={!collapsed} size={13} />
               <IconBrain size={13} />
               <span>{label}</span>
             </span>
@@ -229,7 +239,7 @@ export function TranscriptView({
   const scrollToLatest = (behavior: ScrollBehavior = "auto") => {
     const element = scrollRef.current;
     if (!element) return;
-    element.scrollTo({ top: element.scrollHeight, behavior });
+    element.scrollTo({ top: element.scrollHeight, behavior: scrollBehavior(behavior) });
   };
 
   useEffect(() => {
@@ -265,16 +275,39 @@ export function TranscriptView({
         <div className="transcript-content">
           {hiddenCount > 0 && (
             <button type="button" className="earlier" onClick={onShowEarlier}>
-              {hiddenCount} earlier turn{hiddenCount === 1 ? "" : "s"} · load {revealPage} more
+              <span className="earlier-label">
+                Load {revealPage} earlier turn{revealPage === 1 ? "" : "s"}
+              </span>
+              <span className="earlier-meta">{hiddenCount} hidden</span>
             </button>
           )}
           {turns.map((turn) => {
             const folded = foldedTurns.has(turn.key);
             const itemWindow = itemWindowFor(turn.key, turn.items.length);
             const visibleItems = turn.items.slice(itemWindow.start);
+            // One-click expand-all-tools-in-turn (I23). Only meaningful when the
+            // density allows expansion (quiet forces all tools collapsed) and
+            // there are collapsed tool blocks to open — so it adds no standing chrome.
+            const collapsedToolIds =
+              density !== "quiet" && !folded
+                ? visibleItems
+                    .filter((b) => b.kind === "tool" && toolCollapsed(density, b))
+                    .map((b) => b.id)
+                : [];
             return (
               <section className="turn" key={turn.key} aria-label={turn.user ? "Conversation turn" : "Assistant activity"}>
                 <div className="turn-content" id={`turn-items-${turn.key}`}>
+                  {!turn.user && collapsedToolIds.length > 0 ? (
+                    <button
+                      type="button"
+                      className="turn-expand-all"
+                      onClick={() => collapsedToolIds.forEach((id) => { onToggleBlock(id); })}
+                      aria-label={`Expand all ${collapsedToolIds.length} tool${collapsedToolIds.length === 1 ? "" : "s"} in this turn`}
+                      title={`Expand all ${collapsedToolIds.length} tool${collapsedToolIds.length === 1 ? "" : "s"}`}
+                    >
+                      Expand all tools
+                    </button>
+                  ) : null}
                   {turn.user && (
                     <div className="block-user-row">
                       <div className="block-user">
@@ -291,7 +324,7 @@ export function TranscriptView({
                         aria-controls={`turn-items-${turn.key}`}
                         aria-label={folded ? "Expand turn" : "Collapse turn"}
                       >
-                        <IconChevron open={!folded} size={12} />
+                        <IconChevron open={!folded} size={13} />
                       </button>
                     </div>
                   )}
@@ -301,8 +334,8 @@ export function TranscriptView({
                       className="earlier earlier-items"
                       onClick={() => onRevealTurnItems(turn.key, itemWindow.hidden)}
                     >
-                      {itemWindow.hidden} earlier item{itemWindow.hidden === 1 ? "" : "s"} in this turn · load{" "}
-                      {itemWindow.revealPage} more
+                      Load {itemWindow.revealPage} earlier item{itemWindow.revealPage === 1 ? "" : "s"}
+                      <span className="earlier-meta"> · {itemWindow.hidden} hidden</span>
                     </button>
                   )}
                   {!folded &&

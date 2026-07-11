@@ -167,6 +167,9 @@ export function Composer({
   onAbort,
   onCycleDensity,
   onPasteError,
+  onOpenModel,
+  onOpenInspector,
+  onEditInEditor,
   emptyHome = false,
   planPending = false,
 }: {
@@ -195,6 +198,12 @@ export function Composer({
   /** Cycle transcript density (⌘D). */
   onCycleDensity?: () => void;
   onPasteError: (message: string) => void;
+  /** Open the model picker from the model chip (real affordance, I26). */
+  onOpenModel?: () => void;
+  /** Open the session inspector from the context chip (I26). */
+  onOpenInspector?: () => void;
+  /** Compose in $VISUAL/$EDITOR — surfaced in the insert menu (I27). */
+  onEditInEditor?: () => void;
   /** Empty-session home: taller input + /@-hint placeholder. */
   emptyHome?: boolean;
   /** Plan approval pending — composer submits revise the plan. */
@@ -210,8 +219,15 @@ export function Composer({
   const [sel, setSel] = useState(0);
   const [modeOpen, setModeOpen] = useState(false);
   const [modeSel, setModeSel] = useState(0);
+  const [insertOpen, setInsertOpen] = useState(false);
+  const [insertSel, setInsertSel] = useState(0);
+  const insertTriggerRef = useRef<HTMLButtonElement>(null);
+  const insertMenuRef = useRef<HTMLDivElement>(null);
+  const insertSelRef = useRef(0);
+  const insertActionsRef = useRef<{ id: string; label: string; hint?: string; run: () => void; disabled?: boolean }[]>([]);
   const busyElapsed = useBusyElapsed(busy);
   modeSelRef.current = modeSel;
+  insertSelRef.current = insertSel;
   const nameSet = useMemo(
     () => new Set(commandNames.map((n) => n.toLowerCase())),
     [commandNames],
@@ -280,36 +296,49 @@ export function Composer({
       if (modeTriggerRef.current?.contains(target)) return;
       setModeOpen(false);
     };
+    // The mode menu fully owns keyboard interaction while open. stopPropagation
+    // prevents App's window-level Esc stack from also firing (clearing the
+    // draft / denying a permission / aborting) when the user just wants to close
+    // the menu. document listeners fire before window in the bubble phase, so
+    // stopPropagation here reliably shields App's handler (I25/I58).
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         setModeOpen(false);
+        modeTriggerRef.current?.focus();
         return;
       }
       if (event.key === "ArrowDown") {
         event.preventDefault();
+        event.stopPropagation();
         setModeSel((i) => (i + 1) % MODE_OPTIONS.length);
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
+        event.stopPropagation();
         setModeSel((i) => (i - 1 + MODE_OPTIONS.length) % MODE_OPTIONS.length);
         return;
       }
       if (event.key === "Home") {
         event.preventDefault();
+        event.stopPropagation();
         setModeSel(0);
         return;
       }
       if (event.key === "End") {
         event.preventDefault();
+        event.stopPropagation();
         setModeSel(MODE_OPTIONS.length - 1);
         return;
       }
       if (event.key === "Enter") {
         event.preventDefault();
+        event.stopPropagation();
         onSelectMode(MODE_OPTIONS[modeSelRef.current]!);
         setModeOpen(false);
+        modeTriggerRef.current?.focus();
       }
     };
     document.addEventListener("mousedown", onPointer);
@@ -319,6 +348,72 @@ export function Composer({
       document.removeEventListener("keydown", onKey);
     };
   }, [modeOpen, uiMode, onSelectMode]);
+
+  useEffect(() => {
+    if (!insertOpen) return;
+    setInsertSel(0);
+    const onPointer = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (insertMenuRef.current?.contains(target)) return;
+      if (insertTriggerRef.current?.contains(target)) return;
+      setInsertOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      const actions = insertActionsRef.current;
+      const count = actions.length;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setInsertOpen(false);
+        insertTriggerRef.current?.focus();
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        setInsertSel((i) => (i + 1) % count);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        setInsertSel((i) => (i - 1 + count) % count);
+        return;
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        event.stopPropagation();
+        setInsertSel(0);
+        return;
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        event.stopPropagation();
+        setInsertSel(count - 1);
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        const action = actions[insertSelRef.current];
+        setInsertOpen(false);
+        insertTriggerRef.current?.focus();
+        action?.run();
+      }
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [insertOpen]);
+
+  useEffect(() => {
+    if (!insertOpen) return;
+    const selected = insertMenuRef.current?.querySelector<HTMLElement>(".insert-option.selected");
+    selected?.scrollIntoView({ block: "nearest" });
+  }, [insertSel, insertOpen]);
 
   const itemCount = atOpen
     ? files.length
@@ -331,10 +426,16 @@ export function Composer({
   const menuVisible = atOpen || (palette.open && itemCount > 0);
   const slashBox = useFloatingAnchor(wrapRef, menuVisible);
   const modeBox = useFloatingAnchor(modeTriggerRef, modeOpen);
+  const insertBox = useFloatingAnchor(insertTriggerRef, insertOpen);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (modeOpen && ["Enter", "ArrowDown", "ArrowUp", "Escape", "Home", "End"].includes(e.key)) {
       // Document listener owns the open mode menu; block composer submit/nav.
+      e.preventDefault();
+      return;
+    }
+    if (insertOpen && ["Enter", "ArrowDown", "ArrowUp", "Escape", "Home", "End"].includes(e.key)) {
+      // Document listener owns the open insert menu; block composer submit/nav.
       e.preventDefault();
       return;
     }
@@ -444,19 +545,17 @@ export function Composer({
     });
   };
 
-  const onPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    // Native browser paste and async IPC cannot race: own the transaction
-    // synchronously, then reinsert either text or the saved image mention.
-    event.preventDefault();
-    const textarea = event.currentTarget;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
+  /** Shared clipboard-paste flow for both native paste and the insert menu. */
+  const runPasteClipboard = (start: number, end: number) => {
     void window.vibe.pasteClipboard(cwd ?? undefined).then((result) => {
       if (result.kind === "error") {
         onPasteError(`Clipboard paste failed · ${result.error}`);
         return;
       }
-      if (result.kind === "none") return;
+      if (result.kind === "none") {
+        onPasteError("Clipboard has no image or text to paste.");
+        return;
+      }
       let caret = start;
       setDraft((current) => {
         const edit = applyComposerPaste(current, start, end, result);
@@ -469,6 +568,35 @@ export function Composer({
       });
     });
   };
+
+  const onPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // Native browser paste and async IPC cannot race: own the transaction
+    // synchronously, then reinsert either text or the saved image mention.
+    event.preventDefault();
+    const textarea = event.currentTarget;
+    runPasteClipboard(textarea.selectionStart, textarea.selectionEnd);
+  };
+
+  /** Paste from the system clipboard at the caret (insert-menu action, I27). */
+  const pasteFromMenu = () => {
+    const el = ref.current;
+    const start = el?.selectionStart ?? draft.length;
+    const end = el?.selectionEnd ?? draft.length;
+    runPasteClipboard(start, end);
+    el?.focus();
+  };
+  // Insert-menu actions (I27): surface paste + external editor beyond keyboard.
+  // Kept in a ref so the open-menu keydown effect can read the latest actions
+  // without re-subscribing (and resetting selection) on every render.
+  const insertActions: { id: string; label: string; hint?: string; run: () => void; disabled?: boolean }[] = [
+    { id: "mention", label: "Mention a file", hint: "@", run: insertAtMention },
+    { id: "paste", label: "Paste from clipboard", hint: "image / text", run: pasteFromMenu },
+  ];
+  if (onEditInEditor) {
+    insertActions.push({ id: "editor", label: "Edit in external editor", hint: "⌘G", run: onEditInEditor });
+  }
+  insertActionsRef.current = insertActions;
+
 
   const menuId = menuVisible
     ? atOpen
@@ -662,6 +790,51 @@ export function Composer({
         )
       : null;
 
+  const insertMenu =
+    insertOpen && insertBox
+      ? createPortal(
+          <div
+            className="insert-menu insert-menu-portal popover-surface"
+            ref={insertMenuRef}
+            role="listbox"
+            aria-label="Insert"
+            id="composer-insert-menu"
+            style={{
+              left: insertBox.left,
+              bottom: window.innerHeight - insertBox.top + 8,
+              minWidth: Math.max(220, insertBox.width),
+            }}
+          >
+            {insertActions.map((action, i) => {
+              const highlighted = i === insertSel;
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  id={`composer-insert-menu-option-${i}`}
+                  role="option"
+                  aria-selected={highlighted}
+                  className={`insert-option${highlighted ? " selected" : ""}`}
+                  disabled={action.disabled}
+                  onMouseEnter={() => setInsertSel(i)}
+                  onClick={() => {
+                    setInsertOpen(false);
+                    insertTriggerRef.current?.focus();
+                    action.run();
+                  }}
+                >
+                  <span className="insert-option-label">{action.label}</span>
+                  {action.hint ? (
+                    <kbd className="insert-option-hint">{action.hint}</kbd>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )
+      : null;
+
   const placeholder = emptyHome
     ? "Plan, build, / for commands, @ for files…"
     : planPending
@@ -673,6 +846,7 @@ export function Composer({
   return (
     <div className={`composer-wrap${busy ? " is-busy" : ""}${planPending ? " is-plan" : ""}`} ref={wrapRef}>
       {slashMenu}
+      {insertMenu}
       <div className="composer-row">
         <textarea
           ref={ref}
@@ -695,11 +869,15 @@ export function Composer({
         <div className="composer-status-actions">
           <button
             type="button"
-            className="composer-ghost"
-            onClick={insertAtMention}
+            ref={insertTriggerRef}
+            className={`composer-ghost${insertOpen ? " is-open" : ""}`}
+            onClick={() => setInsertOpen((open) => !open)}
             disabled={disabled}
-            aria-label="Mention a project file"
-            title="Mention a project file"
+            aria-haspopup="listbox"
+            aria-expanded={insertOpen}
+            aria-controls={insertOpen ? "composer-insert-menu" : undefined}
+            aria-label="Insert: mention a file, paste clipboard, or edit in external editor"
+            title="Insert — mention a file, paste clipboard, or edit in external editor"
           >
             <IconPaperclip size={13} />
           </button>
@@ -719,7 +897,7 @@ export function Composer({
               onClick={() => setModeOpen((open) => !open)}
             >
               <span>{displayModeLabel(uiMode)}</span>
-              <IconChevron open={modeOpen} size={12} />
+              <IconChevron open={modeOpen} size={13} />
             </button>
             {modeMenu}
           </div>
@@ -732,14 +910,11 @@ export function Composer({
             {busy ? (
               <span
                 className="composer-chip composer-busy-cue"
-                title={
-                  busyElapsed
-                    ? `Working ${busyElapsed} · Esc to interrupt`
-                    : "Working · Esc to interrupt"
-                }
+                title="Working · Esc to interrupt"
+                aria-label="Working"
               >
                 <span className="spinner composer-busy-spinner" aria-hidden />
-                <span className="working-shimmer">Esc</span>
+                <span>Working</span>
               </span>
             ) : null}
             {metrics.map((metric) => (
@@ -764,20 +939,29 @@ export function Composer({
             </button>
           ) : null}
           {typeof ctxPct === "number" && ctxPct > 0 && (
-            <span
+            <button
+              type="button"
               className={`composer-chip ctx-ring${ctxPct >= 95 ? " hot" : ctxPct >= 80 ? " warn" : ""}`}
               style={{ "--ctx-fill": ctxPct } as CSSProperties}
-              role="img"
-              aria-label={`Context window ${ctxPct} percent full`}
-              title={`Context window ${ctxPct}% full`}
+              onClick={onOpenInspector}
+              disabled={!onOpenInspector}
+              aria-label={`Context window ${ctxPct} percent full. Open session panel.`}
+              title={`Context window ${ctxPct}% full${onOpenInspector ? " · open session panel" : ""}`}
             >
               <span className="ctx-ring-dial" aria-hidden />
               {ctxPct}%
-            </span>
+            </button>
           )}
-          <span className="composer-chip composer-model" title={model}>
+          <button
+            type="button"
+            className="composer-chip composer-model"
+            onClick={onOpenModel}
+            disabled={!onOpenModel}
+            title={onOpenModel ? `${model} · change model` : model}
+            aria-label={onOpenModel ? `${model}. Change model` : model}
+          >
             {model.split("/").at(-1) || model}
-          </span>
+          </button>
           <div className="composer-submit-slot">
             {busy ? (
               <button

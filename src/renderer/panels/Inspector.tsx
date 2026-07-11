@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SessionChrome } from "../hooks/useSession";
 import type { ChangedFile } from "../../shared/reducer";
 import { hasUnfinishedTasks } from "../../shared/task-window";
+import { belowBreakpoint } from "../../shared/breakpoints";
 import { IconClose, IconFolderOpen } from "../icons";
 import {
   MetaRow,
@@ -36,12 +37,13 @@ export function Inspector({
   onUndo: () => void;
   onRedo: () => void;
   onRevealFile: (path: string) => void;
-  onSelectSubagent: (id: string) => void;
+  onSelectSubagent: (id: string | null) => void;
 }) {
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewText, setPreviewText] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewTruncated, setPreviewTruncated] = useState(false);
+  const [confirmCp, setConfirmCp] = useState<"undo" | "redo" | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const ctxPct =
@@ -55,6 +57,68 @@ export function Inspector({
   const gitLine = formatGitLine(chrome.git, { showClean: true });
   const goalLine = formatGoalLine(chrome.goal, chrome.goalRun);
   const selected = chrome.subagents.find((s) => s.id === selectedSubagent) ?? null;
+  const latestCpLabel = chrome.checkpoints.length > 0
+    ? chrome.checkpoints[chrome.checkpoints.length - 1]!.label
+    : null;
+  const rootRef = useRef<HTMLElement>(null);
+
+  // Focus trap only when the inspector is a modal drawer (≤ compact) — when
+  // docked it behaves as a side panel and should not capture Tab (I49).
+  const [isDrawer, setIsDrawer] = useState(() => belowBreakpoint("compact"));
+  useEffect(() => {
+    const onResize = () => setIsDrawer(belowBreakpoint("compact"));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !isDrawer) return;
+    const trigger = document.activeElement as HTMLElement | null;
+    const close = root.querySelector<HTMLButtonElement>(".sidebar-close");
+    close?.focus();
+
+    const focusable = (): HTMLElement[] =>
+      Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => {
+        const style = window.getComputedStyle(el);
+        return style.visibility !== "hidden" && style.display !== "none";
+      });
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const targets = focusable();
+      if (targets.length === 0) return;
+      const active = document.activeElement as HTMLElement | null;
+      const index = active ? targets.indexOf(active) : -1;
+      if (index < 0) return;
+      if (event.shiftKey && index === 0) {
+        event.preventDefault();
+        targets.at(-1)?.focus();
+      } else if (!event.shiftKey && index === targets.length - 1) {
+        event.preventDefault();
+        targets[0]?.focus();
+      }
+    };
+
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target as Node | null;
+      if (!target || root.contains(target)) return;
+      const targets = focusable();
+      (targets[0] ?? root).focus();
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("focusin", onFocusIn);
+      trigger?.focus();
+    };
+  }, [isDrawer]);
 
   useEffect(() => {
     if (!previewPath || !cwd) {
@@ -119,6 +183,7 @@ export function Inspector({
       className="activity-rail inspector-rail"
       aria-label="Session details"
       aria-labelledby="inspector-title"
+      ref={rootRef}
     >
       <div className="sidebar-heading-row">
         <div className="sidebar-heading-copy">
@@ -187,9 +252,13 @@ export function Inspector({
               {previewPath}
             </p>
             {previewLoading ? (
-              <p className="inspector-empty">Loading…</p>
+              <p className="inspector-empty">
+                <span className="spinner" aria-hidden /> Loading preview…
+              </p>
             ) : previewError ? (
-              <p className="inspector-empty">{previewError}</p>
+              <p className="inspector-empty is-error" role="alert">
+                Couldn’t load preview · {previewError}
+              </p>
             ) : (
               <pre
                 className="activity-stream inspector-stream file-preview"
@@ -197,7 +266,7 @@ export function Inspector({
                 tabIndex={0}
                 aria-label={`Preview of ${previewPath}`}
               >
-                {previewText || "(empty)"}
+                {previewText || "This file is empty."}
               </pre>
             )}
             {previewTruncated ? (
@@ -230,7 +299,7 @@ export function Inspector({
                     aria-label={`Reveal ${f.path} in Finder`}
                     title="Reveal in Finder"
                   >
-                    <IconFolderOpen size={12} />
+                    <IconFolderOpen size={13} />
                   </button>
                 </div>
               ))
@@ -252,12 +321,56 @@ export function Inspector({
                 </div>
               ))}
             <div className="card-actions compact">
-              <button type="button" className="button" onClick={onUndo} aria-label="Undo last checkpoint">
-                Undo
-              </button>
-              <button type="button" className="button" onClick={onRedo} aria-label="Redo checkpoint">
-                Redo
-              </button>
+              {confirmCp ? (
+                <span className="cp-confirm" role="status">
+                  <span className="cp-confirm-msg">
+                    {confirmCp === "undo"
+                      ? `Undo to “${latestCpLabel ?? "last checkpoint"}”?`
+                      : "Redo the undone checkpoint?"}
+                  </span>
+                  <button
+                    type="button"
+                    className="button"
+                    // biome-ignore lint/a11y/noAutofocus: focus the safe choice
+                    autoFocus
+                    onClick={() => setConfirmCp(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      const mode = confirmCp;
+                      setConfirmCp(null);
+                      if (mode === "undo") onUndo();
+                      else onRedo();
+                    }}
+                  >
+                    {confirmCp === "undo" ? "Undo" : "Redo"}
+                  </button>
+                </span>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => setConfirmCp("undo")}
+                    aria-label={`Undo last checkpoint${latestCpLabel ? ` · ${latestCpLabel}` : ""}`}
+                    title={`Undo to ${latestCpLabel ?? "last checkpoint"}`}
+                  >
+                    Undo
+                  </button>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => setConfirmCp("redo")}
+                    aria-label="Redo checkpoint"
+                  >
+                    Redo
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ) : null}
@@ -274,6 +387,15 @@ export function Inspector({
 
         {!previewPath && selected && (
           <div className="sidebar-section">
+            <div className="file-preview-toolbar">
+              <button
+                type="button"
+                className="button"
+                onClick={() => onSelectSubagent(null)}
+              >
+                Back
+              </button>
+            </div>
             <h4>{subagentLabel(selected.prompt, selected.id)}</h4>
             <pre
               className="activity-stream inspector-stream thinking-panel"

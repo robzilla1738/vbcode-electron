@@ -41,6 +41,14 @@ export type CatalogChoice =
   | { kind: "prefill"; draft: string; openModelsForAgent?: string }
   | { kind: "line"; line: string };
 
+/** Catalog picker plus an inline lifecycle status (I42): the popover stays
+ *  open across loading → ready / error so RPC failures show inline, not just
+ *  as a vanishing toast. */
+export type CatalogPickerState = CatalogPicker & {
+  status?: "loading" | "error";
+  error?: string;
+};
+
 function catalogOptions(picker: CatalogPicker): CatalogOption[] {
   switch (picker.kind) {
     case "models":
@@ -68,6 +76,14 @@ function toChoice(option: CatalogOption): CatalogChoice | null {
   if (option.line) return { kind: "line", line: option.line };
   return null;
 }
+
+const CATALOG_EMPTY_COPY: Record<string, string> = {
+  models: "No models match this filter.",
+  providers: "No providers match this filter.",
+  agents: "No agents match this filter.",
+  skills: "No skills match this filter.",
+  mcp: "No MCP servers match this filter.",
+};
 
 function isActionable(option: CatalogOption): boolean {
   if (isSectionOption(option)) return false;
@@ -103,8 +119,9 @@ export function CatalogModal({
   autoFocusSearch = true,
   draftLinked = false,
   anchorRef,
+  onRetry,
 }: {
-  picker: CatalogPicker;
+  picker: CatalogPickerState;
   onClose: () => void;
   onChoose: (choice: CatalogChoice) => void;
   onToggleModelTarget?: () => void;
@@ -113,6 +130,8 @@ export function CatalogModal({
   draftLinked?: boolean;
   /** Positions the portaled popover above this element (composer stack). */
   anchorRef: RefObject<HTMLElement | null>;
+  /** Re-run the catalog fetch from an inline error state (I42). */
+  onRetry?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -217,8 +236,6 @@ export function CatalogModal({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
-      // Models picker reserves Tab for main ⇄ sub target toggle.
-      if (canToggleTarget) return;
       const targets = trapTargets();
       if (targets.length === 0) return;
       const active = document.activeElement as HTMLElement | null;
@@ -331,9 +348,6 @@ export function CatalogModal({
         } else if (event.key === "End" && actionable.length) {
           event.preventDefault();
           focusOption(actionable.at(-1)!);
-        } else if (event.key === "Tab" && canToggleTarget) {
-          event.preventDefault();
-          onToggleModelTarget?.();
         } else if (event.key === "Escape") {
           event.preventDefault();
           onClose();
@@ -359,8 +373,8 @@ export function CatalogModal({
               type="button"
               className="catalog-target"
               onClick={onToggleModelTarget}
-              aria-label={`Model target ${picker.target === "main" ? "Main" : "Subagents"}. Press Tab to switch.`}
-              title="Tab to switch target"
+              aria-label={`Model target ${picker.target === "main" ? "Main" : "Subagents"}. Activate to switch.`}
+              title="Switch model target"
             >
               {picker.target === "main" ? "Main" : "Subagents"}
             </button>
@@ -398,7 +412,7 @@ export function CatalogModal({
             onClick={() => setQuery("")}
             aria-label="Clear filter"
           >
-            <IconClose size={12} />
+            <IconClose size={13} />
           </button>
         )}
       </label>
@@ -406,54 +420,74 @@ export function CatalogModal({
       <div
         id="catalog-results"
         className="catalog-list popover-body"
-        role={actionable.length ? "listbox" : "list"}
+        role={picker.status ? "status" : actionable.length ? "listbox" : "list"}
         aria-label={`${picker.kind} results`}
       >
-        {options.map((option, index) => {
-          if (!isActionable(option)) {
-            return (
-              <div key={option.key} className="catalog-section" role="presentation">
-                {option.primary}
-              </div>
-            );
-          }
-          const { tag, body } = splitSecondary(option.secondary);
-          return (
-            <button
-              key={option.key}
-              id={`catalog-option-${index}`}
-              type="button"
-              className={`catalog-row${index === selected ? " selected" : ""}`}
-              data-catalog-option
-              data-option-index={index}
-              role="option"
-              aria-selected={index === selected}
-              aria-current={picker.kind === "models" && option.key === picker.current ? "true" : undefined}
-              onFocus={() => setSelected(index)}
-              onMouseMove={() => setSelected(index)}
-              onClick={() => choose(option)}
-            >
-              <span className="catalog-row-primary">
-                {option.primary}
-                {option.free ? <span className="catalog-tag free">Free</span> : null}
-                {picker.kind === "models" && option.key === picker.current ? (
-                  <span className="catalog-current">Current</span>
-                ) : null}
-              </span>
-              {(tag || body) && (
-                <span className="catalog-row-secondary">
-                  {tag ? <span className="catalog-tag">{tag}</span> : null}
-                  {body}
-                </span>
-              )}
-            </button>
-          );
-        })}
-        {options.length === 0 && (
-          <div className="catalog-empty" role="status">
-            <div>Nothing matches this filter.</div>
-            {query && <div className="catalog-empty-hint">Try different keywords</div>}
+        {picker.status === "loading" ? (
+          <div className="catalog-status" role="status" aria-live="polite">
+            <span className="spinner catalog-status-spinner" aria-hidden />
+            <span>Loading {picker.kind}…</span>
           </div>
+        ) : picker.status === "error" ? (
+          <div className="catalog-status is-error" role="alert">
+            <div className="catalog-status-message">
+              {picker.error ? `Couldn’t load ${picker.kind} · ${picker.error}` : `Couldn’t load ${picker.kind}.`}
+            </div>
+            {onRetry ? (
+              <button type="button" className="catalog-retry" onClick={onRetry}>
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            {options.map((option, index) => {
+              if (!isActionable(option)) {
+                return (
+                  <div key={option.key} className="catalog-section" role="presentation">
+                    {option.primary}
+                  </div>
+                );
+              }
+              const { tag, body } = splitSecondary(option.secondary);
+              return (
+                <button
+                  key={option.key}
+                  id={`catalog-option-${index}`}
+                  type="button"
+                  className={`catalog-row${index === selected ? " selected" : ""}`}
+                  data-catalog-option
+                  data-option-index={index}
+                  role="option"
+                  aria-selected={index === selected}
+                  aria-current={picker.kind === "models" && option.key === picker.current ? "true" : undefined}
+                  onFocus={() => setSelected(index)}
+                  onMouseMove={() => setSelected(index)}
+                  onClick={() => choose(option)}
+                >
+                  <span className="catalog-row-primary">
+                    {option.primary}
+                    {option.free ? <span className="catalog-tag free">Free</span> : null}
+                    {picker.kind === "models" && option.key === picker.current ? (
+                      <span className="catalog-current">Current</span>
+                    ) : null}
+                  </span>
+                  {(tag || body) && (
+                    <span className="catalog-row-secondary">
+                      {tag ? <span className="catalog-tag">{tag}</span> : null}
+                      {body}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {options.length === 0 && (
+              <div className="catalog-empty" role="status">
+                <div>{CATALOG_EMPTY_COPY[picker.kind] ?? "Nothing matches this filter."}</div>
+                {query && <div className="catalog-empty-hint">Try different keywords or clear the filter</div>}
+              </div>
+            )}
+          </>
         )}
       </div>
 

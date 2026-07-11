@@ -33,6 +33,9 @@ export function JobsView({
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    // Capture the element that opened the drawer (e.g. the Jobs toggle) before
+    // moving focus inside, so we can restore it on close (I47 — no focus orphan).
+    const trigger = document.activeElement as HTMLElement | null;
     const close = root.querySelector<HTMLButtonElement>(".jobs-close");
     (close ?? root).focus();
 
@@ -64,6 +67,8 @@ export function JobsView({
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("focusin", onFocusIn);
+      // Restore focus to the opener on dismiss so keyboard users aren't orphaned.
+      trigger?.focus();
     };
   }, []);
 
@@ -148,7 +153,7 @@ export function JobsView({
               <div className="job-links" aria-label="Detected server URLs">
                 {j.servers.map((server) => (
                   <ExternalLink key={server} href={server}>
-                    <IconLink size={12} />
+                    <IconLink size={13} />
                     {server}
                   </ExternalLink>
                 ))}

@@ -19,34 +19,46 @@ export function CopyButton({
   className?: string;
   label?: string;
 }) {
-  const [copied, setCopied] = useState(false);
+  // "copied" | "failed" | null — surfaced so clipboard failures are not silent (I18).
+  const [state, setState] = useState<"copied" | "failed" | null>(null);
   const timer = useRef(0);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
+  const reset = (delay: number) => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setState(null), delay);
+  };
+
   const onCopy = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!text || copied) return;
+    if (!text || state) return;
     try {
       await writeClipboard(text);
-      setCopied(true);
-      timer.current = window.setTimeout(() => setCopied(false), 1600);
+      setState("copied");
+      reset(1600);
     } catch {
-      /* native select-to-copy still works if clipboard is blocked */
+      // Native select-to-copy still works if the Clipboard API is blocked; show
+      // a brief error state so the user knows the button itself did not copy.
+      setState("failed");
+      reset(2200);
     }
   };
+
+  const ariaLabel = state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : label;
+  const cls = `copy-btn${state === "copied" ? " is-copied" : ""}${state === "failed" ? " is-failed" : ""}${className ? ` ${className}` : ""}`;
 
   return (
     <button
       type="button"
-      className={`copy-btn${copied ? " is-copied" : ""}${className ? ` ${className}` : ""}`}
+      className={cls}
       onClick={onCopy}
       onMouseDown={(event) => event.stopPropagation()}
-      aria-label={copied ? "Copied" : label}
-      title={copied ? "Copied" : label}
+      aria-label={ariaLabel}
+      title={ariaLabel}
     >
-      {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
+      {state === "copied" ? <IconCheck size={13} /> : <IconCopy size={13} />}
     </button>
   );
 }

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ProjectSummary } from "../../shared/protocol";
 import { projectLabel, relativeSessionTime } from "../../shared/project-index";
 
@@ -24,17 +25,25 @@ export function WelcomeGate({
   bootError,
   pendingCwd,
   recentProjects = [],
+  projectsLoading = false,
+  projectsError = null,
   onOpenProject,
   onOpenRecent,
   onRetry,
+  onRetryProjects,
 }: {
   booting: boolean;
   bootError: string | null;
   pendingCwd: string | null;
   recentProjects?: ProjectSummary[];
+  /** Recent-projects RPC in flight — show a loading state, not an empty list (I05). */
+  projectsLoading?: boolean;
+  /** Recent-projects RPC failed — show an inline error + retry (I05). */
+  projectsError?: string | null;
   onOpenProject: () => void;
   onOpenRecent?: (cwd: string) => void;
   onRetry?: () => void;
+  onRetryProjects?: () => void;
 }) {
   const label = pendingCwd ? folderLabel(pendingCwd) : null;
   const title = booting
@@ -52,6 +61,12 @@ export function WelcomeGate({
     !booting && !bootError && recentProjects.length > 0
       ? recentProjects.slice(0, 5)
       : [];
+
+  const retryRef = useRef<HTMLButtonElement>(null);
+  // Move focus to Retry when a boot error appears so keyboard users can recover (I07).
+  useEffect(() => {
+    if (bootError) retryRef.current?.focus({ preventScroll: true });
+  }, [bootError]);
 
   return (
     <div className="app-shell">
@@ -78,7 +93,7 @@ export function WelcomeGate({
               {booting && (
                 <div className="gate-status" role="status" aria-live="polite">
                   <span className="gate-spinner" aria-hidden />
-                  <span>{bootHeading(label)}</span>
+                  <span className="sr-only">Starting the engine…</span>
                 </div>
               )}
 
@@ -88,37 +103,70 @@ export function WelcomeGate({
                 </pre>
               )}
 
-              {recents.length > 0 && (
-                <ul className="gate-recents" aria-label="Recent projects">
-                  {recents.map((project, index) => (
-                    <li key={project.cwd}>
-                      <button
-                        type="button"
-                        className="gate-recent"
-                        onClick={() => onOpenRecent?.(project.cwd)}
-                        title={project.cwd}
-                        // biome-ignore lint/a11y/noAutofocus: single autofocus owner — first recent when present
-                        autoFocus={index === 0}
-                      >
-                        <span className="gate-recent-name">
-                          {projectLabel(project, recentProjects)}
-                        </span>
-                        <time
-                          className="gate-recent-time"
-                          dateTime={new Date(project.updatedAt).toISOString()}
+              {(() => {
+                const showRecents = !booting && !bootError;
+                if (!showRecents) return null;
+                if (projectsError) {
+                  return (
+                    <div className="gate-recents-status is-error" role="alert">
+                      <p>Couldn’t load recent projects.</p>
+                      {onRetryProjects ? (
+                        <button
+                          type="button"
+                          className="button"
+                          onClick={onRetryProjects}
                         >
-                          {relativeSessionTime(project.updatedAt)}
-                        </time>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                          Retry
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                }
+                if (projectsLoading && recents.length === 0) {
+                  return (
+                    <div className="gate-recents-status" role="status" aria-live="polite">
+                      <span className="gate-spinner" aria-hidden />
+                      <span>Loading recent projects…</span>
+                    </div>
+                  );
+                }
+                if (recents.length === 0) {
+                  return (
+                    <p className="gate-recents-empty">No recent projects yet — open a folder to begin.</p>
+                  );
+                }
+                return (
+                  <ul className="gate-recents" aria-label="Recent projects">
+                    {recents.map((project, index) => (
+                      <li key={project.cwd}>
+                        <button
+                          type="button"
+                          className="gate-recent"
+                          onClick={() => onOpenRecent?.(project.cwd)}
+                          title={project.cwd}
+                          // biome-ignore lint/a11y/noAutofocus: single autofocus owner — first recent when present
+                          autoFocus={index === 0}
+                        >
+                          <span className="gate-recent-name">
+                            {projectLabel(project, recentProjects)}
+                          </span>
+                          <time
+                            className="gate-recent-time"
+                            dateTime={new Date(project.updatedAt).toISOString()}
+                          >
+                            {relativeSessionTime(project.updatedAt)}
+                          </time>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
 
               {!booting && (
                 <div className="gate-actions">
                   {bootError && pendingCwd && onRetry && (
-                    <button type="button" className="button" onClick={onRetry}>
+                    <button ref={retryRef} type="button" className="button" onClick={onRetry}>
                       Retry
                     </button>
                   )}

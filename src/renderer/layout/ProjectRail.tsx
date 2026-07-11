@@ -17,6 +17,7 @@ import {
   IconRename,
   IconSearch,
   IconSidebar,
+  IconStop,
 } from "../icons";
 
 type SessionMenu = {
@@ -43,6 +44,7 @@ export function ProjectRail({
   onRenameSession,
   onDeleteSession,
   onArchiveSession,
+  onStop,
 }: {
   projects: ProjectSummary[];
   activeCwd: string | null;
@@ -60,11 +62,13 @@ export function ProjectRail({
   onRenameSession: (cwd: string, id: string, title: string) => Promise<boolean>;
   onDeleteSession: (cwd: string, id: string) => Promise<boolean>;
   onArchiveSession: (cwd: string, id: string) => Promise<boolean>;
+  onStop: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<SessionMenu | null>(null);
   const [renaming, setRenaming] = useState<{ cwd: string; id: string; title: string } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"archive" | "delete" | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const renameRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -82,8 +86,14 @@ export function ProjectRail({
     first?.focus();
     const onPointer = (event: MouseEvent) => {
       if (menuRef.current?.contains(event.target as Node)) return;
+      setConfirmAction(null);
       setMenu(null);
     };
+    // The session menu fully owns keyboard interaction while open. The keydown
+    // listener lives on document (bubble phase) so it fires before App's
+    // window-level Esc stack; stopPropagation then shields App from also
+    // clearing the draft / denying a permission / aborting on the same Esc
+    // press (I13/I58).
     const onKey = (event: KeyboardEvent) => {
       const items = Array.from(
         menuRef.current?.querySelectorAll<HTMLButtonElement>("button[role='menuitem']") ?? [],
@@ -91,25 +101,30 @@ export function ProjectRail({
       const current = items.indexOf(document.activeElement as HTMLButtonElement);
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
+        event.stopPropagation();
         const direction = event.key === "ArrowDown" ? 1 : -1;
         items[(current + direction + items.length) % items.length]?.focus();
       } else if (event.key === "Home") {
         event.preventDefault();
+        event.stopPropagation();
         items[0]?.focus();
       } else if (event.key === "End") {
         event.preventDefault();
+        event.stopPropagation();
         items.at(-1)?.focus();
       } else if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
+        setConfirmAction(null);
         setMenu(null);
         window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
       }
     };
     window.addEventListener("mousedown", onPointer);
-    window.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("mousedown", onPointer);
-      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey);
     };
   }, [menu]);
 
@@ -220,7 +235,17 @@ export function ProjectRail({
 
       {busy ? (
         <div className="rail-busy-banner" role="status">
-          Working — stop the turn to switch sessions
+          <span className="rail-busy-text">Working — stop the turn to switch sessions</span>
+          <button
+            type="button"
+            className="rail-busy-stop"
+            onClick={onStop}
+            aria-label="Stop current turn"
+            title="Stop current turn"
+          >
+            <IconStop size={13} />
+            <span>Stop</span>
+          </button>
         </div>
       ) : null}
 
@@ -267,14 +292,15 @@ export function ProjectRail({
                 onClick={() => toggleProject(project.cwd)}
                 aria-expanded={isExpanded}
                 aria-controls={`project-sessions-${project.cwd.replace(/[^a-zA-Z0-9_-]/g, "_")}`}
-                title={project.cwd}
+                aria-label={`${isExpanded ? "Collapse" : "Expand"} sessions for ${projectLabel(project, projects)}`}
+                title={`${project.cwd} · ${isExpanded ? "collapse" : "expand"} sessions`}
               >
                 <span className="project-folder" aria-hidden>
                   {isExpanded ? <IconFolderOpen size={14} /> : <IconFolder size={14} />}
                 </span>
                 <span className="project-name">{projectLabel(project, projects)}</span>
                 <span className="project-heading-meta">
-                  <IconChevron open={isExpanded} size={12} />
+                  <IconChevron open={isExpanded} size={13} />
                 </span>
               </button>
               {isExpanded && (
@@ -308,7 +334,7 @@ export function ProjectRail({
                               onChange={(event) =>
                                 setRenaming({ ...renaming, title: event.target.value })
                               }
-                              onBlur={() => void commitRename()}
+                              onBlur={() => setRenaming(null)}
                               onKeyDown={(event) => {
                                 if (event.key === "Escape") {
                                   event.preventDefault();
@@ -377,49 +403,77 @@ export function ProjectRail({
           ref={menuRef}
           className="session-menu"
           style={{ left: menu.x, top: menu.y }}
-          role="menu"
-          aria-label={`Actions for ${menu.session.title}`}
+          role={confirmAction ? "alertdialog" : "menu"}
+          aria-label={
+            confirmAction
+              ? `${confirmAction === "delete" ? "Delete" : "Archive"} ${menu.session.title}`
+              : `Actions for ${menu.session.title}`
+          }
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setRenaming({ cwd: menu.cwd, id: menu.session.id, title: menu.session.title });
-              setMenu(null);
-            }}
-          >
-            <IconRename size={14} />
-            Rename
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              const { cwd, session } = menu;
-              setMenu(null);
-              if (!window.confirm(`Archive “${session.title}”? It will leave this project’s session list.`)) {
-                return;
-              }
-              void onArchiveSession(cwd, session.id);
-            }}
-          >
-            <IconArchive size={14} />
-            Archive
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="danger"
-            onClick={() => {
-              const { cwd, session } = menu;
-              setMenu(null);
-              if (!window.confirm(`Delete “${session.title}”? This cannot be undone.`)) return;
-              void onDeleteSession(cwd, session.id);
-            }}
-          >
-            <IconDelete size={14} />
-            Delete
-          </button>
+          {confirmAction ? (
+            <div className="session-menu-confirm">
+              <p className="session-menu-confirm-msg">
+                {confirmAction === "delete"
+                  ? `Delete “${menu.session.title}”? This cannot be undone.`
+                  : `Archive “${menu.session.title}”? It will leave this project’s session list.`}
+              </p>
+              <div className="session-menu-confirm-actions">
+                <button
+                  type="button"
+                  // biome-ignore lint/a11y/noAutofocus: focus the safe choice so Enter cancels, not confirms
+                  autoFocus
+                  onClick={() => setConfirmAction(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={confirmAction === "delete" ? "danger" : ""}
+                  onClick={() => {
+                    const { cwd, session } = menu;
+                    const mode = confirmAction;
+                    setMenu(null);
+                    setConfirmAction(null);
+                    if (mode === "delete") void onDeleteSession(cwd, session.id);
+                    else void onArchiveSession(cwd, session.id);
+                  }}
+                >
+                  {confirmAction === "delete" ? "Delete" : "Archive"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setRenaming({ cwd: menu.cwd, id: menu.session.id, title: menu.session.title });
+                  setMenu(null);
+                }}
+              >
+                <IconRename size={14} />
+                Rename
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => setConfirmAction("archive")}
+              >
+                <IconArchive size={14} />
+                Archive
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="danger"
+                onClick={() => setConfirmAction("delete")}
+              >
+                <IconDelete size={14} />
+                Delete
+              </button>
+            </>
+          )}
         </div>
       )}
     </aside>

@@ -10,8 +10,7 @@ import type { ProjectSummary } from "../shared/protocol";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
 import { RequestGate } from "./hooks/request-gate";
 import { lineToCommands, routePendingPermLine } from "../shared/slash";
-import { nextDensity } from "../shared/density";
-import { formatKeysHelp } from "../shared/keys-help";
+import { densityLabel, nextDensity } from "../shared/density";
 import {
   agentsPickerQuery,
   currentModelForTarget,
@@ -40,13 +39,14 @@ import { Composer, type ComposerMetric } from "./composer/Composer";
 import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
 import { JobsView } from "./panels/JobsView";
 import { OnboardingHint } from "./panels/OnboardingHint";
-import { CatalogModal, type CatalogChoice, type CatalogPicker } from "./pickers/CatalogModal";
+import { KeysOverlay } from "./panels/KeysOverlay";
+import { CatalogModal, type CatalogChoice, type CatalogPickerState } from "./pickers/CatalogModal";
 import { Inspector } from "./panels/Inspector";
 import { ProjectRail } from "./layout/ProjectRail";
 import { IconJobs, IconPanel, IconSidebar } from "./icons";
 import { hasUnfinishedTasks } from "../shared/task-window";
 
-type Picker = CatalogPicker | null;
+type Picker = CatalogPickerState | null;
 
 function pickerMatchesDraft(picker: Picker, draft: string, modelTarget: "main" | "sub"): boolean {
   if (!picker) return false;
@@ -99,10 +99,12 @@ export function App() {
   const skillsCache = useRef<SkillInfo[] | null>(null);
   const mcpCache = useRef<McpServerInfo[] | null>(null);
   const catalogGeneration = useRef(0);
+  const pickerRetryRef = useRef<(() => void) | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [keysOpen, setKeysOpen] = useState(false);
   const [projectRailOpen, setProjectRailOpen] = useState(true);
   const [followSignal, setFollowSignal] = useState(0);
   const didRestoreProject = useRef(false);
@@ -167,7 +169,13 @@ export function App() {
         if (prov.ok) {
           const items = (prov.value as ProviderInfo[]) ?? [];
           const anyReady = items.some((p) => p.configured || p.keyless);
-          setShowOnboarding(!anyReady);
+          let dismissed = false;
+          try {
+            dismissed = localStorage.getItem("vibe.onboardingDismissed") === "1";
+          } catch {
+            /* storage unavailable — fall back to per-session dismiss */
+          }
+          setShowOnboarding(!anyReady && !dismissed);
         }
       }
     },
@@ -176,7 +184,7 @@ export function App() {
 
   const openProject = useCallback(async () => {
     if (session.chrome.busy) {
-      session.showToast("Stop the current turn before switching projects.");
+      session.showToast("Stop the current turn before switching projects.", "warn");
       return;
     }
     const path = await window.vibe.openProject();
@@ -211,7 +219,7 @@ export function App() {
   const resumeSession = useCallback(
     async (projectCwd: string, id: string) => {
       if (session.chrome.busy) {
-        session.showToast("Stop the current turn before switching sessions.");
+        session.showToast("Stop the current turn before switching sessions.", "warn");
         return;
       }
       invalidateCatalogs();
@@ -225,7 +233,7 @@ export function App() {
   const continueLatest = useCallback(async () => {
     if (!cwd) return;
     if (session.chrome.busy) {
-      session.showToast("Stop the current turn before switching sessions.");
+      session.showToast("Stop the current turn before switching sessions.", "warn");
       return;
     }
     invalidateCatalogs();
@@ -250,7 +258,7 @@ export function App() {
     async (projectCwd: string, id: string, title: string) => {
       const res = await window.vibe.renameSession({ cwd: projectCwd, id, title });
       if (!res.ok) {
-        session.showToast(res.error || "Rename failed");
+        session.showToast(res.error || "Rename failed", "error");
         return false;
       }
       await refreshProjects();
@@ -270,7 +278,7 @@ export function App() {
           ? await window.vibe.deleteSession({ cwd: projectCwd, id })
           : await window.vibe.archiveSession({ cwd: projectCwd, id });
       if (!res.ok) {
-        session.showToast(res.error || `${mode === "delete" ? "Delete" : "Archive"} failed`);
+        session.showToast(res.error || `${mode === "delete" ? "Delete" : "Archive"} failed`, "error");
         return false;
       }
       await refreshProjects();
@@ -319,38 +327,116 @@ export function App() {
     [session],
   );
 
-  const openModelsPicker = useCallback(
-    async (target: ModelPickerTarget, query = ""): Promise<boolean> => {
+  // Centralized catalog presenter (I42): keeps the popover open across
+  // loading → ready / error so RPC failures show inline instead of as a
+  // vanishing toast. Each call site supplies its cache, fetch, and the
+  // loading/ready picker descriptors.
+  const presentCatalog = useCallback(
+    async <T,>(opts: {
+      cache: { current: T[] | null };
+      fetch: () => Promise<{ ok: true; value: T[] } | { ok: false; error: string }>;
+      loadingPicker: CatalogPickerState;
+      readyPicker: (items: T[]) => CatalogPickerState;
+      cancelled: () => boolean;
+    }): Promise<boolean> => {
       const generation = catalogGeneration.current;
-      let items = modelsCache.current;
+      let items = opts.cache.current;
       if (!items) {
-        const res = await window.vibe.rpc("listModels");
-        if (generation !== catalogGeneration.current) return false;
+        setPicker({ ...opts.loadingPicker, status: "loading" });
+        pickerRetryRef.current = () => {
+          void presentCatalog(opts);
+        };
+        const res = await opts.fetch();
+        if (opts.cancelled() || generation !== catalogGeneration.current) return false;
         if (!res.ok) {
-          showToastRef.current(`Couldn’t load models · ${res.error}`);
+          setPicker({ ...opts.loadingPicker, status: "error", error: res.error });
           return false;
         }
-        items = res.value as ModelSummary[];
-        modelsCache.current = items;
+        items = res.value;
+        opts.cache.current = items;
       }
-      if (generation !== catalogGeneration.current) return false;
-      const chrome = chromeRef.current;
-      setPicker({
-        kind: "models",
-        items,
-        target,
-        query,
-        current: currentModelForTarget(
-          target,
-          chrome.model,
-          chrome.subagentModel,
-          agentsCache.current ?? [],
-        ),
-      });
+      if (opts.cancelled() || generation !== catalogGeneration.current) return false;
+      setPicker(opts.readyPicker(items));
       return true;
     },
     [],
   );
+
+  const retryCatalog = useCallback(() => {
+    pickerRetryRef.current?.();
+  }, []);
+
+  const openModelsPicker = useCallback(
+    async (target: ModelPickerTarget, query = ""): Promise<boolean> => {
+      return presentCatalog<ModelSummary>({
+        cache: modelsCache,
+        fetch: async () => {
+          const res = await window.vibe.rpc("listModels");
+          return res.ok ? { ok: true, value: res.value as ModelSummary[] } : { ok: false, error: res.error };
+        },
+        loadingPicker: { kind: "models", items: [], target, query },
+        readyPicker: (items) => {
+          const chrome = chromeRef.current;
+          return {
+            kind: "models",
+            items,
+            target,
+            query,
+            current: currentModelForTarget(
+              target,
+              chrome.model,
+              chrome.subagentModel,
+              agentsCache.current ?? [],
+            ),
+          };
+        },
+        cancelled: () => false,
+      });
+    },
+    [presentCatalog],
+  );
+
+  // Compose in $VISUAL/$EDITOR (TUI parity: composeInEditor). Reused by the
+  // ⌘G shortcut and the composer insert menu so the affordance is discoverable
+  // beyond keyboard-only users (I27).
+  const composeInEditor = useCallback(async () => {
+    try {
+      const res = await window.vibe.composeInEditor(draft);
+      if (res.ok && res.text != null) {
+        if (res.text.trim().length > 0) {
+          setDraft(res.text);
+        } else {
+          session.dispatchTranscript({
+            type: "notice",
+            text: "Editor draft was empty — kept your prior text.",
+            level: "info",
+          });
+        }
+      } else if (res.reason === "failed") {
+        session.dispatchTranscript({
+          type: "notice",
+          text: `The external editor failed${res.error ? `: ${res.error}` : ""} — kept your prior text.`,
+          level: "warn",
+        });
+      } else if (res.reason === "no-editor") {
+        session.dispatchTranscript({
+          type: "notice",
+          text: "Set $VISUAL or $EDITOR to compose in an external editor.",
+          level: "warn",
+        });
+      } else if (res.reason === "kept") {
+        session.dispatchTranscript({
+          type: "notice",
+          text: "External editor made no replacement — kept your prior text.",
+          level: "info",
+        });
+      }
+    } finally {
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus();
+      });
+    }
+  }, [draft, session]);
 
   const submitLine = useCallback(
     async (line: string): Promise<boolean> => {
@@ -364,11 +450,7 @@ export function App() {
       }
 
       if (trimmed === "/keys") {
-        session.dispatchTranscript({
-          type: "notice",
-          text: formatKeysHelp(),
-          level: "info",
-        });
+        setKeysOpen(true);
         return true;
       }
 
@@ -400,57 +482,55 @@ export function App() {
         return true;
       }
       if (trimmed === "/providers") {
-        const res = await window.vibe.rpc("listProviders");
-        if (catalogRequestGeneration !== catalogGeneration.current) return false;
-        if (res.ok) {
-          providersCache.current = res.value as ProviderInfo[];
-          setPicker({ kind: "providers", items: providersCache.current });
-        } else {
-          showToastRef.current(`Couldn’t load providers · ${res.error}`);
-          return false;
-        }
-        return true;
+        return presentCatalog<ProviderInfo>({
+          cache: providersCache,
+          fetch: async () => {
+            const res = await window.vibe.rpc("listProviders");
+            return res.ok ? { ok: true, value: res.value as ProviderInfo[] } : { ok: false, error: res.error };
+          },
+          loadingPicker: { kind: "providers", items: [] },
+          readyPicker: (items) => ({ kind: "providers", items }),
+          cancelled: () => catalogRequestGeneration !== catalogGeneration.current,
+        });
       }
       if (trimmed === "/agents") {
-        const res = await window.vibe.rpc("listAgents");
-        if (catalogRequestGeneration !== catalogGeneration.current) return false;
-        if (res.ok) {
-          const items = res.value as AgentInfo[];
-          agentsCache.current = items;
-          setPicker({ kind: "agents", items });
-        } else {
-          showToastRef.current(`Couldn’t load agents · ${res.error}`);
-          return false;
-        }
-        return true;
+        return presentCatalog<AgentInfo>({
+          cache: agentsCache,
+          fetch: async () => {
+            const res = await window.vibe.rpc("listAgents");
+            return res.ok ? { ok: true, value: res.value as AgentInfo[] } : { ok: false, error: res.error };
+          },
+          loadingPicker: { kind: "agents", items: [] },
+          readyPicker: (items) => ({ kind: "agents", items }),
+          cancelled: () => catalogRequestGeneration !== catalogGeneration.current,
+        });
       }
       if (trimmed === "/skills" || trimmed.startsWith("/skills ")) {
-        const res = await window.vibe.rpc("listSkills");
-        if (catalogRequestGeneration !== catalogGeneration.current) return false;
-        if (res.ok) {
-          skillsCache.current = res.value as SkillInfo[];
-          setPicker({
-            kind: "skills",
-            items: skillsCache.current,
-            query: trimmed.slice("/skills".length).trim(),
-          });
-        } else {
-          showToastRef.current(`Couldn’t load skills · ${res.error}`);
-          return false;
-        }
-        return true;
+        const skillsQuery = trimmed.slice("/skills".length).trim();
+        return presentCatalog<SkillInfo>({
+          cache: skillsCache,
+          fetch: async () => {
+            const res = await window.vibe.rpc("listSkills");
+            return res.ok ? { ok: true, value: res.value as SkillInfo[] } : { ok: false, error: res.error };
+          },
+          loadingPicker: { kind: "skills", items: [], query: skillsQuery },
+          readyPicker: (items) => ({ kind: "skills", items, query: skillsQuery }),
+          cancelled: () => catalogRequestGeneration !== catalogGeneration.current,
+        });
       }
       if (trimmed === "/mcp") {
-        const res = await window.vibe.rpc("listMcp");
-        if (catalogRequestGeneration !== catalogGeneration.current) return false;
-        if (res.ok) {
-          mcpCache.current = asMcpList(res.value);
-          setPicker({ kind: "mcp", items: mcpCache.current });
-        } else {
-          showToastRef.current(`Couldn’t load MCP servers · ${res.error}`);
-          return false;
-        }
-        return true;
+        return presentCatalog<McpServerInfo>({
+          cache: mcpCache,
+          fetch: async () => {
+            const res = await window.vibe.rpc("listMcp");
+            return res.ok
+              ? { ok: true, value: asMcpList(res.value) }
+              : { ok: false, error: res.error };
+          },
+          loadingPicker: { kind: "mcp", items: [] },
+          readyPicker: (items) => ({ kind: "mcp", items }),
+          cancelled: () => catalogRequestGeneration !== catalogGeneration.current,
+        });
       }
 
       if (trimmed === "/exit" || trimmed === "/quit") {
@@ -470,7 +550,7 @@ export function App() {
       if (!sent) session.setBusy(false);
       return sent;
     },
-    [session, answerPerm, answerPlan, openModelsPicker],
+    [session, answerPerm, answerPlan, openModelsPicker, presentCatalog],
   );
 
   // Live draft catalogs — open/update pickers while typing (TUI parity).
@@ -478,105 +558,93 @@ export function App() {
     let cancelled = false;
 
     const sync = async () => {
-      const chrome = chromeRef.current;
+      const cancelledFn = () => cancelled;
       const pick = modelPicker(draft, modelTarget);
       if (pick) {
-        let items = modelsCache.current;
-        if (!items) {
-          const res = await window.vibe.rpc("listModels");
-          if (cancelled) return;
-          if (!res.ok) {
-            showToastRef.current(`Couldn’t load models · ${res.error}`);
-            return;
-          }
-          items = res.value as ModelSummary[];
-          modelsCache.current = items;
-        }
-        if (cancelled) return;
-        setPicker({
-          kind: "models",
-          items,
-          target: pick.target,
-          query: pick.query,
-          current: currentModelForTarget(
-            pick.target,
-            chrome.model,
-            chrome.subagentModel,
-            agentsCache.current ?? [],
-          ),
+        await presentCatalog<ModelSummary>({
+          cache: modelsCache,
+          fetch: async () => {
+            const res = await window.vibe.rpc("listModels");
+            return res.ok ? { ok: true, value: res.value as ModelSummary[] } : { ok: false, error: res.error };
+          },
+          loadingPicker: { kind: "models", items: [], target: pick.target, query: pick.query },
+          readyPicker: (items) => {
+            const chrome = chromeRef.current;
+            return {
+              kind: "models",
+              items,
+              target: pick.target,
+              query: pick.query,
+              current: currentModelForTarget(
+                pick.target,
+                chrome.model,
+                chrome.subagentModel,
+                agentsCache.current ?? [],
+              ),
+            };
+          },
+          cancelled: cancelledFn,
         });
         return;
       }
 
       const provQ = providersPickerQuery(draft);
       if (provQ !== null) {
-        let items = providersCache.current;
-        if (!items) {
-          const res = await window.vibe.rpc("listProviders");
-          if (cancelled) return;
-          if (!res.ok) {
-            showToastRef.current(`Couldn’t load providers · ${res.error}`);
-            return;
-          }
-          items = res.value as ProviderInfo[];
-          providersCache.current = items;
-        }
-        if (cancelled) return;
-        setPicker({ kind: "providers", items, query: provQ });
+        await presentCatalog<ProviderInfo>({
+          cache: providersCache,
+          fetch: async () => {
+            const res = await window.vibe.rpc("listProviders");
+            return res.ok ? { ok: true, value: res.value as ProviderInfo[] } : { ok: false, error: res.error };
+          },
+          loadingPicker: { kind: "providers", items: [], query: provQ },
+          readyPicker: (items) => ({ kind: "providers", items, query: provQ }),
+          cancelled: cancelledFn,
+        });
         return;
       }
 
       const agentsQ = agentsPickerQuery(draft);
       if (agentsQ !== null) {
-        let items = agentsCache.current;
-        if (!items) {
-          const res = await window.vibe.rpc("listAgents");
-          if (cancelled) return;
-          if (!res.ok) {
-            showToastRef.current(`Couldn’t load agents · ${res.error}`);
-            return;
-          }
-          items = res.value as AgentInfo[];
-          agentsCache.current = items;
-        }
-        if (cancelled) return;
-        setPicker({ kind: "agents", items, query: agentsQ });
+        await presentCatalog<AgentInfo>({
+          cache: agentsCache,
+          fetch: async () => {
+            const res = await window.vibe.rpc("listAgents");
+            return res.ok ? { ok: true, value: res.value as AgentInfo[] } : { ok: false, error: res.error };
+          },
+          loadingPicker: { kind: "agents", items: [], query: agentsQ },
+          readyPicker: (items) => ({ kind: "agents", items, query: agentsQ }),
+          cancelled: cancelledFn,
+        });
         return;
       }
 
       const skillsQ = skillsPickerFilter(draft);
       if (skillsQ !== null) {
-        let items = skillsCache.current;
-        if (!items) {
-          const res = await window.vibe.rpc("listSkills");
-          if (cancelled) return;
-          if (!res.ok) {
-            showToastRef.current(`Couldn’t load skills · ${res.error}`);
-            return;
-          }
-          items = res.value as SkillInfo[];
-          skillsCache.current = items;
-        }
-        if (cancelled) return;
-        setPicker({ kind: "skills", items, query: skillsQ });
+        await presentCatalog<SkillInfo>({
+          cache: skillsCache,
+          fetch: async () => {
+            const res = await window.vibe.rpc("listSkills");
+            return res.ok ? { ok: true, value: res.value as SkillInfo[] } : { ok: false, error: res.error };
+          },
+          loadingPicker: { kind: "skills", items: [], query: skillsQ },
+          readyPicker: (items) => ({ kind: "skills", items, query: skillsQ }),
+          cancelled: cancelledFn,
+        });
         return;
       }
 
       const mcpQ = mcpPickerQuery(draft);
       if (mcpQ !== null) {
-        let items = mcpCache.current;
-        if (!items) {
-          const res = await window.vibe.rpc("listMcp");
-          if (cancelled) return;
-          if (!res.ok) {
-            showToastRef.current(`Couldn’t load MCP servers · ${res.error}`);
-            return;
-          }
-          items = asMcpList(res.value);
-          mcpCache.current = items;
-        }
-        if (cancelled) return;
-        setPicker({ kind: "mcp", items, query: mcpQ });
+        await presentCatalog<McpServerInfo>({
+          cache: mcpCache,
+          fetch: async () => {
+            const res = await window.vibe.rpc("listMcp");
+            return res.ok ? { ok: true, value: asMcpList(res.value) } : { ok: false, error: res.error };
+          },
+          loadingPicker: { kind: "mcp", items: [], query: mcpQ },
+          readyPicker: (items) => ({ kind: "mcp", items, query: mcpQ }),
+          cancelled: cancelledFn,
+        });
         return;
       }
 
@@ -588,7 +656,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [draft, modelTarget, session.chrome.model, session.chrome.subagentModel]);
+  }, [draft, modelTarget, session.chrome.model, session.chrome.subagentModel, presentCatalog]);
 
   const onCatalogChoose = useCallback(
     (choice: CatalogChoice) => {
@@ -646,6 +714,7 @@ export function App() {
         e.preventDefault();
         const next = nextDensity(session.chrome.density);
         void session.send({ type: "run-slash", name: "details", args: next });
+        session.showToast(`Density · ${densityLabel(next)}`);
         return;
       }
       // Ctrl/Cmd+O fold all turns
@@ -657,45 +726,7 @@ export function App() {
       // Ctrl/Cmd+G external editor (TUI parity: composeInEditor)
       if (e.key.toLowerCase() === "g" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
         e.preventDefault();
-        void (async () => {
-          try {
-            const res = await window.vibe.composeInEditor(draft);
-            if (res.ok && res.text != null) {
-              if (res.text.trim().length > 0) {
-                setDraft(res.text);
-              } else {
-                // Empty file on exit → keep the prior draft (TUI parity: "kept" result)
-                session.dispatchTranscript({
-                  type: "notice",
-                  text: "Editor draft was empty — kept your prior text.",
-                  level: "info",
-                });
-              }
-            } else if (res.reason === "failed") {
-              session.dispatchTranscript({
-                type: "notice",
-                text: `The external editor failed${res.error ? `: ${res.error}` : ""} — kept your prior text.`,
-                level: "warn",
-              });
-            } else if (res.reason === "no-editor") {
-              session.dispatchTranscript({
-                type: "notice",
-                text: "Set $VISUAL or $EDITOR to compose in an external editor.",
-                level: "warn",
-              });
-            } else if (res.reason === "kept") {
-              session.dispatchTranscript({
-                type: "notice",
-                text: "External editor made no replacement — kept your prior text.",
-                level: "info",
-              });
-            }
-          } finally {
-            window.requestAnimationFrame(() => {
-              document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus();
-            });
-          }
-        })();
+        void composeInEditor();
         return;
       }
       // ⇧⌘N continue latest
@@ -772,6 +803,10 @@ export function App() {
       if (e.key === "Escape") {
         if (inInput && !inComposer) return;
         e.preventDefault();
+        if (keysOpen) {
+          setKeysOpen(false);
+          return;
+        }
         if (picker) {
           setPicker(null);
           return;
@@ -825,7 +860,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [session, draft, continueLatest, answerPerm, answerPlan, picker, cwd, projectRailOpen]);
+  }, [session, draft, continueLatest, answerPerm, answerPlan, composeInEditor, picker, keysOpen, cwd, projectRailOpen]);
 
   const chrome = session.chrome;
   const ctxPct =
@@ -885,8 +920,11 @@ export function App() {
         bootError={session.bootError}
         pendingCwd={null}
         recentProjects={projects}
+        projectsLoading={projectsLoading}
+        projectsError={projectsError}
         onOpenProject={() => void openProject()}
         onOpenRecent={(path) => void openProjectAt(path)}
+        onRetryProjects={() => void refreshProjects()}
       />
     );
   }
@@ -930,6 +968,7 @@ export function App() {
           onRenameSession={renameSession}
           onDeleteSession={(projectCwd, id) => removeSession(projectCwd, id, "delete")}
           onArchiveSession={(projectCwd, id) => removeSession(projectCwd, id, "archive")}
+          onStop={() => void session.send({ type: "abort" })}
         />
         {projectRailOpen && (
           <button
@@ -1116,7 +1155,14 @@ export function App() {
             <div className="panels">
               {showOnboarding && !chrome.perms[0] && !planPending && (
                 <OnboardingHint
-                  onDismiss={() => setShowOnboarding(false)}
+                  onDismiss={() => {
+                    try {
+                      localStorage.setItem("vibe.onboardingDismissed", "1");
+                    } catch {
+                      /* ignore */
+                    }
+                    setShowOnboarding(false);
+                  }}
                   onOpenProviders={() => void submitLine("/providers")}
                 />
               )}
@@ -1129,12 +1175,13 @@ export function App() {
                 <PermissionCard
                   perm={chrome.perms[0]}
                   count={chrome.perms.length}
-                  onDecide={(decision) => void answerPerm(decision)}
+                  onDecide={(decision, feedback) => void answerPerm(decision, feedback)}
                 />
               )}
               {planPending && (
                 <PlanCard
                   plan={chrome.plan!}
+                  hasDraft={!!draft.trim()}
                   onAccept={() => void answerPlan("accept")}
                   onAcceptYolo={() => void answerPlan("accept", undefined, "auto")}
                   onKeep={() => void answerPlan("keep-planning")}
@@ -1202,6 +1249,7 @@ export function App() {
                     setModelTarget("main");
                   }}
                   onChoose={onCatalogChoose}
+                  onRetry={retryCatalog}
                   onToggleModelTarget={
                     picker.kind === "models" && typeof picker.target === "string"
                       ? () => {
@@ -1246,8 +1294,12 @@ export function App() {
                 onCycleDensity={() => {
                   const next = nextDensity(chrome.density);
                   void session.send({ type: "run-slash", name: "details", args: next });
+                  session.showToast(`Density · ${densityLabel(next)}`);
                 }}
                 onPasteError={session.showToast}
+                onOpenModel={() => void openModelsPicker("main")}
+                onOpenInspector={() => session.setInspectorOpen(true)}
+                onEditInEditor={() => void composeInEditor()}
                 planPending={planPending}
                 emptyHome={
                   session.transcript.blocks.length === 0 &&
@@ -1257,7 +1309,16 @@ export function App() {
               {!session.jobsView &&
                 session.transcript.blocks.length === 0 &&
                 !chrome.busy && (
-                  <StarterPills onStarter={(t) => void submitLine(t)} />
+                  <StarterPills
+                    onStarter={(t) => {
+                      setDraft(t);
+                      window.requestAnimationFrame(() => {
+                        document
+                          .querySelector<HTMLTextAreaElement>(".composer-input")
+                          ?.focus();
+                      });
+                    }}
+                  />
                 )}
             </div>
             )}
@@ -1306,9 +1367,25 @@ export function App() {
         </div>
       </div>
 
+      {keysOpen && <KeysOverlay onClose={() => setKeysOpen(false)} />}
+
       {session.toast && (
-        <div className="toast" role="status" aria-live="polite" aria-atomic="true">
-          {session.toast}
+        <div
+          className={`toast toast-${session.toast.severity}`}
+          role="status"
+          aria-live={session.toast.severity === "error" ? "assertive" : "polite"}
+          aria-atomic="true"
+          data-severity={session.toast.severity}
+        >
+          <button
+            type="button"
+            className="toast-dismiss"
+            onClick={() => session.dismissToast()}
+            aria-label="Dismiss notification"
+            title="Dismiss"
+          >
+            {session.toast.message}
+          </button>
         </div>
       )}
     </div>

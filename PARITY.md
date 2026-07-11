@@ -42,7 +42,7 @@ Engine ownership stays in `@vibe/core`; this app is a presentation shell over ND
 - [x] `/jobs` opens a jobs drawer overlay (chat stays); Esc / Close dismisses
 - [x] Esc aborts in-flight turn
 - [x] Graceful quit finalizes session (`finalize` RPC + shutdown)
-- [x] Busy cue until engine-idle (composer Stop + Esc chip; no separate working strip)
+- [x] Busy cue until engine-idle (composer Stop button + quiet "Working" status; one interrupt language)
 - [x] `engine-idle.gate` red banner
 
 ## Transcript fidelity
@@ -154,7 +154,7 @@ npm run dev
 - [x] User message left accent border using --user color (TUI ❯ marker parity)
 - [x] Splash wordmark brand gradient sweep (TUI brandSpans parity via CSS background-clip)
 - [x] Busy cue shows elapsed time via workingLabel (TUI parity)
-- [x] Busy cue shows "Esc" interrupt chip (TUI parity)
+- [x] Busy cue: Stop button is the primary interrupt; quiet spinner + "Working" status (Esc hint via Stop title)
 - [x] Goal suffix: plan phase reads "planning" (not "plan"), no round/max until execute (TUI parity)
 - [x] CycleMode shows notice when plan-pending prevents mode switch (TUI parity)
 - [x] Stream flush interval matches TUI (24ms, was 32ms)
@@ -197,12 +197,12 @@ npm run dev
 - [x] ARIA combobox pattern in CatalogModal (aria-controls, aria-autocomplete, aria-activedescendant, target toggle label)
 - [x] Transcript aria-controls on expand/collapse buttons + aria-label on log and jump button
 - [x] WelcomeGate: aria-busy, aria-labelledby, aria-live, focus primary action button
-- [x] LivePanels (permission/plan cards): role=region, aria-labelledby, aria-keyshortcuts; no autofocus (composer keeps focus for revise/steer)
+- [x] LivePanels (permission/plan cards): role=region, aria-labelledby, aria-keyshortcuts; permission card autofocuses primary action, plan keeps composer focus for revise/steer
 - [x] JobsView: role=region, article elements, aria-label on status/output, keyboard-focusable output pre
 - [x] Inspector: h2 heading, aria-labels on file rows and subagent buttons, keyboard-scrollable subagent stream
 - [x] ProjectRail: h2 heading, aria-controls, role=group, first menu item focus on open
 - [x] Splash: section with aria-labelledby, aria-label on starter prompts
-- [x] Busy cue: composer Stop + Esc chip with elapsed; sr-only busy/idle live status (WorkingSpinner removed)
+- [x] Busy cue: composer Stop button + elapsed; quiet "Working" status; sr-only busy/idle live status
 - [x] OnboardingHint: aside with role=region, h2 heading; no autofocus (composer / perm / plan own focus)
 - [x] SourceList + MarkdownView: role=status on empty state, aria-label on list, title on external links
 - [x] App toast: aria-live and aria-atomic

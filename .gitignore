@@ -19,3 +19,6 @@ playwright-report/
 # UI preview harness artifacts
 tools/ui-preview/.vite-cache/
 tools/ui-preview/shots/
+
+# Agent goal-tracking artifacts
+.goalgraph/

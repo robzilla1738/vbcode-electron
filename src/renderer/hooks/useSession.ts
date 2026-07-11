@@ -42,6 +42,20 @@ function reduceTx(s: TranscriptState, a: TxAction): TranscriptState {
   return reduceTranscript(s, a);
 }
 
+export type ToastSeverity = "info" | "warn" | "error";
+
+export interface ToastState {
+  message: string;
+  severity: ToastSeverity;
+}
+
+/** Auto-dismiss delay by severity. Errors stay long enough to read (I55). */
+const TOAST_TTL: Record<ToastSeverity, number> = {
+  info: 3000,
+  warn: 4500,
+  error: 6000,
+};
+
 const WINDOW_TURNS = 40;
 const REVEAL_PAGE = 20;
 const TURN_ITEMS_MAX = 120;
@@ -57,7 +71,7 @@ export function useSession(cwd: string | null) {
   const [revealTurns, setRevealTurns] = useState(0);
   const [revealedTurnItems, setRevealedTurnItems] = useState<Map<number, number>>(() => new Map());
   const [jobsView, setJobsView] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
   const [booting, setBooting] = useState(false);
   const [ready, setReady] = useState(false);
@@ -648,20 +662,41 @@ export function useSession(cwd: string | null) {
     }
     if (!liveSidebar) return;
     setLiveSidebarClosing(true);
-    const timer = window.setTimeout(() => {
-      setLiveSidebar(false);
-      setLiveSidebarClosing(false);
-    }, 280);
+    // Honor prefers-reduced-motion: the slide-out CSS animation collapses to
+    // instant under the media query, so a 280ms unmount delay only adds lag (P04).
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(
+      () => {
+        setLiveSidebar(false);
+        setLiveSidebarClosing(false);
+      },
+      reduced ? 0 : 280,
+    );
     return () => window.clearTimeout(timer);
   }, [wide, liveSidebarWanted, liveSidebar]);
 
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
+  const dismissToast = useCallback(() => {
+    if (toastTimer.current != null) {
+      window.clearTimeout(toastTimer.current);
+      toastTimer.current = null;
+    }
+    setToast(null);
+  }, []);
+
+  const showToast = useCallback((msg: string, severity: ToastSeverity = "info") => {
     if (toastTimer.current != null) window.clearTimeout(toastTimer.current);
+    setToast({ message: msg, severity });
     toastTimer.current = window.setTimeout(() => {
       toastTimer.current = null;
       setToast(null);
-    }, 1600);
+    }, TOAST_TTL[severity]);
+  }, []);
+
+  // Clear any pending toast on unmount.
+  useEffect(() => () => {
+    if (toastTimer.current != null) window.clearTimeout(toastTimer.current);
   }, []);
 
   const getSubagentStream = useCallback(
@@ -683,6 +718,7 @@ export function useSession(cwd: string | null) {
     setJobsView,
     toast,
     showToast,
+    dismissToast,
     bootError,
     setBootError,
     booting,

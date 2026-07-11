@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { permissionPreview, toolLabel } from "../../shared/tool-icons";
 import type { PendingPerm } from "../../shared/reducer";
 import type { QueuedItem } from "../../shared/types";
@@ -20,12 +20,25 @@ export function PermissionCard({
 }: {
   perm: PendingPerm;
   count: number;
-  onDecide: (decision: "once" | "always" | "always-project" | "deny") => void;
+  onDecide: (decision: "once" | "always" | "always-project" | "deny", feedback?: string) => void;
 }) {
+  const onceRef = useRef<HTMLButtonElement>(null);
+  const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [denyReason, setDenyReason] = useState("");
+  // Move focus to the primary action when a new permission card appears so the
+  // decision is obvious instead of letting typed prose route into the composer
+  // (I35). preventScroll avoids yanking the viewport.
+  useEffect(() => {
+    onceRef.current?.focus({ preventScroll: true });
+  }, [perm.id]);
+
   const preview = permissionPreview(perm.toolName, perm.input);
   const payload = JSON.stringify(perm.input, null, 2).slice(0, 800);
-  const previewLines = preview?.lines.slice(0, PREVIEW_MAX_LINES) ?? [];
-  const previewClipped = (preview?.lines.length ?? 0) > PREVIEW_MAX_LINES;
+  const allPreviewLines = preview?.lines ?? [];
+  const previewLines = previewExpanded
+    ? allPreviewLines
+    : allPreviewLines.slice(0, PREVIEW_MAX_LINES);
+  const previewClipped = allPreviewLines.length > PREVIEW_MAX_LINES;
 
   const title = `Permission required${count > 1 ? ` · 1/${count}` : ""} · ${perm.toolName}`;
 
@@ -45,7 +58,24 @@ export function PermissionCard({
               {l}
             </div>
           ))}
-          {previewClipped ? <div className="permission-preview-more">…</div> : null}
+          {previewClipped && !previewExpanded ? (
+            <button
+              type="button"
+              className="permission-preview-more"
+              onClick={() => setPreviewExpanded(true)}
+            >
+              Show all {allPreviewLines.length} lines
+            </button>
+          ) : null}
+          {previewExpanded && allPreviewLines.length > PREVIEW_MAX_LINES ? (
+            <button
+              type="button"
+              className="permission-preview-more"
+              onClick={() => setPreviewExpanded(false)}
+            >
+              Show fewer
+            </button>
+          ) : null}
         </div>
       )}
       <details className="decision-details" open={!preview}>
@@ -55,6 +85,7 @@ export function PermissionCard({
       <div className="card-actions">
         <button
           type="button"
+          ref={onceRef}
           className="chip primary"
           onClick={() => onDecide("once")}
           aria-keyshortcuts="y"
@@ -80,18 +111,29 @@ export function PermissionCard({
         <button
           type="button"
           className="chip danger"
-          onClick={() => onDecide("deny")}
+          onClick={() => onDecide("deny", denyReason.trim() || undefined)}
           aria-keyshortcuts="n"
         >
           Deny <ActionKbd>N</ActionKbd>
         </button>
       </div>
+      <label className="perm-deny-reason">
+        <span className="sr-only">Optional deny reason</span>
+        <input
+          type="text"
+          value={denyReason}
+          onChange={(event) => setDenyReason(event.target.value)}
+          placeholder="Optional reason for denying"
+          aria-label="Optional reason for denying"
+        />
+      </label>
     </div>
   );
 }
 
 export function PlanCard({
   plan,
+  hasDraft,
   onAccept,
   onAcceptYolo,
   onKeep,
@@ -102,6 +144,8 @@ export function PlanCard({
     assumptions?: string[];
     ungrounded?: boolean;
   };
+  /** Whether the composer holds a revision in progress (honest Esc label, I36). */
+  hasDraft?: boolean;
   onAccept: () => void;
   onAcceptYolo: () => void;
   onKeep: () => void;
@@ -151,11 +195,13 @@ export function PlanCard({
         >
           Accept <ActionKbd>Enter</ActionKbd>
         </button>
+        <span className="card-actions-sep" aria-hidden />
         <button
           type="button"
-          className="chip"
+          className="chip caution"
           onClick={onAcceptYolo}
           aria-keyshortcuts="Meta+y"
+          title="Accept the plan and auto-approve all future tool calls this turn"
         >
           Accept + YOLO <ActionKbd>⌘Y</ActionKbd>
         </button>
@@ -164,8 +210,17 @@ export function PlanCard({
           className="chip"
           onClick={onKeep}
           aria-keyshortcuts="Escape"
+          title={hasDraft ? "Esc clears your feedback, press again to keep planning" : "Keep planning without accepting"}
         >
-          Keep planning <ActionKbd>Esc</ActionKbd>
+          Keep planning{" "}
+          {hasDraft ? (
+            <>
+              <ActionKbd>Esc</ActionKbd>
+              <span className="action-hint-inline">clears, again to keep</span>
+            </>
+          ) : (
+            <ActionKbd>Esc</ActionKbd>
+          )}
         </button>
         <span className="action-hint">Type feedback to revise</span>
       </div>
@@ -200,7 +255,7 @@ export function QueuePanel({
             aria-expanded={expanded}
             aria-controls="composer-queue-items"
           >
-            <IconChevron open={expanded} size={12} />
+            <IconChevron open={expanded} size={13} />
             {expanded ? "Show less" : `+${hiddenCount} more`}
           </button>
         ) : null}
