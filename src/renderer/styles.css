@@ -3148,8 +3148,16 @@ html.electron-transparent .sidebar-heading-row {
   max-width: 100%;
   margin: 0 auto;
   overflow: hidden;
-  color: var(--assistant);
-  background: transparent;
+  /* Brand gradient sweep (TUI parity: brandSpans rainbow). */
+  background: linear-gradient(
+    100deg,
+    color-mix(in oklab, var(--primary) 72%, var(--assistant)),
+    var(--primary),
+    color-mix(in oklab, var(--primary) 72%, var(--assistant))
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
   font-family: var(--font-mono);
   font-size: clamp(5.5px, 0.85vw + 2px, 9px);
   font-weight: 700;
