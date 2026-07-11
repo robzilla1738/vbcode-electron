@@ -994,7 +994,7 @@ export function App() {
               )}
               {!session.liveSidebar && !session.inspectorOpen && hasUnfinishedTasks(chrome.tasks) && (
                 <div className="card panel-strip">
-                  <h3>Tasks</h3>
+                  <h3>Tasks · {chrome.tasks.filter((t) => t.status === "completed").length}/{chrome.tasks.length}</h3>
                   {compactTasks.lead > 0 && <div className="sidebar-line task-summary">{compactTasks.lead} done</div>}
                   {compactTasks.visible.map((t) => (
                     <div
@@ -1025,7 +1025,12 @@ export function App() {
               )}
               {!session.liveSidebar && !session.inspectorOpen && chrome.subagents.length > 0 && (
                 <div className="card panel-strip">
-                  <h3>Subagents</h3>
+                  <h3>{(() => {
+                    const done = chrome.subagents.filter((s) => s.status === "done").length;
+                    return done > 0 && done < chrome.subagents.length
+                      ? `Subagents · ${done}/${chrome.subagents.length} done`
+                      : `Subagents · ${chrome.subagents.length}`;
+                  })()}</h3>
                   {chrome.subagents.map((s) => (
                     <button
                       key={s.id}
@@ -1042,6 +1047,17 @@ export function App() {
                           aria-hidden
                         />
                         <span>{s.prompt.slice(0, 60)}</span>
+                        {s.status === "running" && s.activity && (
+                          <span className="subagent-activity"> · {s.activity}</span>
+                        )}
+                        {s.status === "done" && s.result && (
+                          <span className="subagent-result"> ↳ {s.result.slice(0, 60)}</span>
+                        )}
+                        {s.elapsedMs != null && s.elapsedMs >= 1000 && (
+                          <span className="subagent-elapsed">
+                            {(s.elapsedMs / 1000).toFixed(s.elapsedMs >= 10_000 ? 0 : 1)}s
+                          </span>
+                        )}
                       </div>
                     </button>
                   ))}
