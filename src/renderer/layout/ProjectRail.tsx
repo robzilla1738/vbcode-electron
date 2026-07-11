@@ -6,12 +6,15 @@ import {
   relativeSessionTime,
 } from "../../shared/project-index";
 import {
+  IconArchive,
   IconChevron,
   IconContinue,
+  IconDelete,
   IconFolder,
   IconFolderOpen,
   IconMore,
   IconPlus,
+  IconRename,
   IconSearch,
   IconSidebar,
 } from "../icons";
@@ -343,6 +346,7 @@ export function ProjectRail({
               setMenu(null);
             }}
           >
+            <IconRename size={14} />
             Rename
           </button>
           <button
@@ -354,6 +358,7 @@ export function ProjectRail({
               void onArchiveSession(cwd, session.id);
             }}
           >
+            <IconArchive size={14} />
             Archive
           </button>
           <button
@@ -367,6 +372,7 @@ export function ProjectRail({
               void onDeleteSession(cwd, session.id);
             }}
           >
+            <IconDelete size={14} />
             Delete
           </button>
         </div>

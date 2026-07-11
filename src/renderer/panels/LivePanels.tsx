@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { permissionPreview, toolLabel } from "../../shared/tool-icons";
 import type { PendingPerm } from "../../shared/reducer";
 import type { QueuedItem } from "../../shared/types";
 import { externalHref } from "../../shared/sources";
+import { IconChevron, IconRemove, IconSteer } from "../icons";
 
 function ActionKbd({ children }: { children: string }) {
   return <kbd className="action-kbd">{children}</kbd>;
@@ -187,45 +189,59 @@ export function QueuePanel({
   onSteer: (id: string) => void;
   onDequeue: (id: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(true);
   if (!active && pending.length === 0) return null;
   const count = (active ? 1 : 0) + pending.length;
   const preview = active?.label ?? pending[0]?.label ?? "";
   return (
     <div className="composer-queue-tray" role="region" aria-label="Queued prompts">
-      <div className="queue-tray-header">
-        <span className="queue-tray-count">{count} queued</span>
-        {preview ? <span className="queue-tray-preview">{preview}</span> : null}
-      </div>
-      {active && (
-        <div className="queue-row is-active" aria-current="true">
-          <span className="queue-label">{active.label}</span>
-          <span className="queue-active-badge">Active</span>
-        </div>
-      )}
-      {pending.map((q) => (
-        <div key={q.id} className="queue-row">
-          <span className="queue-label">{q.label}</span>
-          <div className="queue-actions">
-            <button
-              type="button"
-              className="queue-action"
-              onClick={() => onSteer(q.id)}
-              title="Make this the active queued item"
-              aria-label={`Steer ${q.label} to front of queue`}
-            >
-              Steer
-            </button>
-            <button
-              type="button"
-              className="queue-action"
-              onClick={() => onDequeue(q.id)}
-              aria-label={`Remove ${q.label} from queue`}
-            >
-              Remove
-            </button>
+      <button
+        type="button"
+        className="queue-tray-header"
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        aria-controls="composer-queue-items"
+      >
+        <span className="queue-tray-count">
+          <IconChevron open={expanded} size={12} />
+          {count} queued
+        </span>
+        {!expanded && preview ? <span className="queue-tray-preview">{preview}</span> : null}
+      </button>
+      <div id="composer-queue-items" className={`queue-items${expanded ? "" : " is-collapsed"}`}>
+        {active && (
+          <div className="queue-row is-active" aria-current="true">
+            <span className="queue-label">{active.label}</span>
+            <span className="queue-active-badge">Active</span>
           </div>
-        </div>
-      ))}
+        )}
+        {pending.map((q) => (
+          <div key={q.id} className="queue-row">
+            <span className="queue-label">{q.label}</span>
+            <div className="queue-actions">
+              <button
+                type="button"
+                className="queue-action"
+                onClick={() => onSteer(q.id)}
+                title="Make this the active queued item"
+                aria-label={`Steer ${q.label} to front of queue`}
+              >
+                <IconSteer size={13} />
+                <span>Steer</span>
+              </button>
+              <button
+                type="button"
+                className="queue-action"
+                onClick={() => onDequeue(q.id)}
+                aria-label={`Remove ${q.label} from queue`}
+              >
+                <IconRemove size={13} />
+                <span>Remove</span>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

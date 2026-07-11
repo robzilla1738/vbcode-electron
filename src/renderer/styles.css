@@ -32,6 +32,7 @@
   --ctx: #828bb8;
   --mode: var(--accent);
   --ring: #eeeeee;
+  --shadow-ink: #000000;
 
   --rail: var(--bg);
   --surface: var(--elevated);
@@ -127,13 +128,13 @@ html[data-scheme="light"] {
   --border-active: color-mix(in oklab, var(--ring) 55%, var(--border));
   --text-subtle: color-mix(in oklab, var(--muted) 96%, var(--bg));
   --edge-highlight: inset 0 0 0 0 transparent;
-  --shadow-float: 0 1px 2px color-mix(in oklab, #1b2430 8%, transparent), 0 8px 24px color-mix(in oklab, #000 12%, transparent);
-  --shadow-menu: 0 1px 2px color-mix(in oklab, #1b2430 8%, transparent), 0 8px 24px color-mix(in oklab, #000 12%, transparent);
-  --shadow-modal: 0 4px 12px color-mix(in oklab, #000 12%, transparent), 0 20px 64px color-mix(in oklab, #000 18%, transparent);
-  --shadow-drawer: 16px 0 36px color-mix(in oklab, #000 14%, transparent);
-  --shadow-composer: 0 6px 18px color-mix(in oklab, #1b2430 8%, transparent);
+  --shadow-float: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 8%, transparent), 0 8px 24px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
+  --shadow-menu: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 8%, transparent), 0 8px 24px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
+  --shadow-modal: 0 4px 12px color-mix(in oklab, var(--shadow-ink) 12%, transparent), 0 20px 64px color-mix(in oklab, var(--shadow-ink) 18%, transparent);
+  --shadow-drawer: 16px 0 36px color-mix(in oklab, var(--shadow-ink) 14%, transparent);
+  --shadow-composer: 0 6px 18px color-mix(in oklab, var(--shadow-ink) 8%, transparent);
   --shadow-inset: none;
-  --shadow-jump: 0 4px 16px color-mix(in oklab, #000 10%, transparent);
+  --shadow-jump: 0 4px 16px color-mix(in oklab, var(--shadow-ink) 10%, transparent);
 }
 
 * {
@@ -384,7 +385,6 @@ html[data-scheme="light"].electron-transparent .workspace {
   border-radius: var(--radius-xl);
   background: var(--bg);
   box-shadow: none;
-  transition: margin var(--dur-moderate) var(--ease-out), border-radius var(--dur-moderate) var(--ease-out);
 }
 
 .content-inset.is-expanded,
@@ -904,6 +904,7 @@ html[data-platform="darwin"] .rail-chrome {
   display: flex;
   min-height: 30px;
   align-items: center;
+  gap: var(--space-sm);
   padding: 0 10px;
   border-radius: var(--radius-sm);
   color: var(--assistant);
@@ -1186,7 +1187,7 @@ html[data-scheme="light"] .block-user,
 html[data-scheme="light"].glass .block-user,
 html[data-scheme="light"].electron-transparent .block-user {
   background: var(--elevated);
-  box-shadow: 0 1px 2px color-mix(in oklab, #000 6%, transparent);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 6%, transparent);
 }
 
 .folded-hint {
@@ -1577,6 +1578,11 @@ html[data-scheme="light"] .md pre {
   gap: var(--space-xs);
 }
 
+.tool-label .icon-chevron,
+.thinking-label .icon-chevron {
+  opacity: 0.58;
+}
+
 .tool-glyph {
   flex: 0 0 auto;
   color: var(--tool);
@@ -1592,6 +1598,9 @@ html[data-scheme="light"] .md pre {
 }
 
 .thinking-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
   color: inherit;
   font-family: var(--font-sans);
   font-size: var(--text-caption);
@@ -1707,7 +1716,7 @@ html[data-scheme="light"] .md pre {
 .source-card:hover {
   border-color: color-mix(in oklab, var(--border-strong) 70%, transparent);
   background: color-mix(in oklab, var(--elevated) 96%, var(--surface));
-  box-shadow: 0 2px 8px color-mix(in oklab, #000 18%, transparent), var(--edge-highlight);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--shadow-ink) 18%, transparent), var(--edge-highlight);
   transform: translateY(-1px);
 }
 
@@ -2169,7 +2178,7 @@ html[data-scheme="light"] .card {
   align-items: center;
   gap: var(--space-sm);
   min-height: 28px;
-  padding: 0 var(--space-sm);
+  padding: var(--space-2xs) var(--space-md);
 }
 
 .queue-row.is-active {
@@ -2209,7 +2218,10 @@ html[data-scheme="light"] .card {
 }
 
 .queue-action {
+  display: inline-flex;
   min-height: 24px;
+  align-items: center;
+  gap: var(--space-2xs);
   padding: 0 6px;
   border-radius: var(--radius-xs);
   color: var(--text-subtle);
@@ -2288,13 +2300,34 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   gap: var(--space-sm);
   min-width: 0;
   padding: 0 var(--space-md);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-align: left;
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+
+.queue-tray-header:hover {
+  background: color-mix(in oklab, var(--surface) 38%, transparent);
 }
 
 .queue-tray-count {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-xs);
   color: var(--muted);
   font-size: var(--text-caption);
   font-weight: 600;
+}
+
+.queue-items {
+  display: grid;
+  gap: 1px;
+  padding-top: var(--space-2xs);
+}
+
+.queue-items.is-collapsed {
+  display: none;
 }
 
 .queue-tray-preview {
@@ -2699,7 +2732,7 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .composer-submit:not(:disabled):hover {
   background: color-mix(in oklab, var(--assistant) 92%, var(--muted));
-  box-shadow: 0 2px 8px color-mix(in oklab, #000 24%, transparent);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--shadow-ink) 24%, transparent);
 }
 
 .composer-submit.stop {
@@ -2805,7 +2838,6 @@ html.electron-transparent .composer-wrap:focus-within {
   transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
-.slash-item:hover,
 .slash-item:hover {
   color: var(--assistant);
   background: color-mix(in oklab, var(--surface) 74%, transparent);
@@ -3908,7 +3940,7 @@ html.electron-transparent .sidebar-heading-row {
     inset: 0;
     z-index: 35;
     border: 0;
-    background: color-mix(in oklab, #000 42%, transparent);
+    background: color-mix(in oklab, var(--shadow-ink) 42%, transparent);
     cursor: pointer;
   }
 
@@ -3937,7 +3969,7 @@ html.electron-transparent .sidebar-heading-row {
     min-width: 0;
     flex-basis: min(100%, 360px);
     background: var(--bg);
-    box-shadow: calc(-1 * 16px) 0 36px color-mix(in oklab, #000 28%, transparent);
+    box-shadow: calc(-1 * 16px) 0 36px color-mix(in oklab, var(--shadow-ink) 28%, transparent);
   }
 
   html.glass .inspector-rail,
@@ -3953,7 +3985,7 @@ html.electron-transparent .sidebar-heading-row {
     inset: 0;
     z-index: 35;
     border: 0;
-    background: color-mix(in oklab, #000 36%, transparent);
+    background: color-mix(in oklab, var(--shadow-ink) 36%, transparent);
     cursor: pointer;
   }
 

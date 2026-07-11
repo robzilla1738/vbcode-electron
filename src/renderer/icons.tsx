@@ -1,7 +1,10 @@
 import type { LucideProps } from "lucide-react";
 import {
+  Archive,
   ArrowUp,
+  Brain,
   ChevronRight,
+  CornerUpLeft,
   FileText,
   Folder,
   FolderOpen,
@@ -10,11 +13,14 @@ import {
   Paperclip,
   PanelLeft,
   PanelRight,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
   Square,
   Terminal,
+  Trash2,
+  X,
 } from "lucide-react";
 
 /** Shared Lucide stroke defaults — OpenCode-like thin chrome icons. */
@@ -99,4 +105,28 @@ export function IconMore(props: IconProps) {
 
 export function IconPanel(props: IconProps) {
   return <PanelRight {...lucide(props)} />;
+}
+
+export function IconBrain(props: IconProps) {
+  return <Brain {...lucide(props)} />;
+}
+
+export function IconSteer(props: IconProps) {
+  return <CornerUpLeft {...lucide(props)} />;
+}
+
+export function IconRemove(props: IconProps) {
+  return <X {...lucide(props)} />;
+}
+
+export function IconRename(props: IconProps) {
+  return <Pencil {...lucide(props)} />;
+}
+
+export function IconArchive(props: IconProps) {
+  return <Archive {...lucide(props)} />;
+}
+
+export function IconDelete(props: IconProps) {
+  return <Trash2 {...lucide(props)} />;
 }

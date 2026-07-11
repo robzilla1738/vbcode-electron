@@ -12,6 +12,7 @@ import { parseSearchResults } from "../../shared/sources";
 import { SourceList } from "./SourceList";
 import { MarkdownView } from "./MarkdownView";
 import { stripToolGlyph, ToolGlyph } from "../tool-glyph";
+import { IconBrain, IconChevron } from "../icons";
 
 function DiffBody({ lines }: { lines: string[] }) {
   return (
@@ -68,6 +69,7 @@ function BlockView({
             aria-label={`${collapsed ? "Expand" : "Collapse"} ${block.label}`}
           >
             <span className="tool-label">
+              <IconChevron open={!collapsed} size={12} />
               <ToolGlyph toolName={block.toolName} />
               <span>
                 {!block.done ? (
@@ -126,7 +128,11 @@ function BlockView({
             aria-controls={`thinking-body-${block.id}`}
             aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
           >
-            <span className="thinking-label">{label}</span>
+            <span className="thinking-label">
+              <IconChevron open={!collapsed} size={12} />
+              <IconBrain size={13} />
+              <span>{label}</span>
+            </span>
           </button>
           {!collapsed && (
             <div className="thinking-body" id={`thinking-body-${block.id}`}>
