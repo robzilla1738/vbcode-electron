@@ -1161,6 +1161,7 @@ html.electron-transparent .main-column {
   gap: var(--space-sm);
   padding: 10px 14px;
   border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  border-left: 3px solid var(--user);
   border-radius: var(--radius-lg);
   color: var(--assistant);
   background: color-mix(in oklab, var(--elevated) 92%, var(--surface));
