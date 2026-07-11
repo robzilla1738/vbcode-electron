@@ -1,5 +1,10 @@
 import { isValidElement, type ComponentPropsWithoutRef, type ReactNode } from "react";
-import { Streamdown, type Components, type ExtraProps } from "streamdown";
+import {
+  CodeBlock,
+  Streamdown,
+  type Components,
+  type ExtraProps,
+} from "streamdown";
 import { externalHref, parseSources } from "../../shared/sources";
 import { richKind } from "../../shared/rich-blocks";
 import { getTheme } from "../../shared/themes";
@@ -49,8 +54,8 @@ function fenceLang(className?: string): string {
 type CodeProps = ComponentPropsWithoutRef<"code"> & ExtraProps;
 
 /**
- * Plain semantic code — keeps our `.md` CSS in charge (no Tailwind chrome).
- * Rich fences (chart / sources / …) render as visual components.
+ * Rich fences (chart / sources / …) stay custom; normal fences use Streamdown’s
+ * Shiki CodeBlock so we get highlighting + line numbers.
  */
 function Code({ className, children, ...props }: CodeProps) {
   const isBlock = "data-block" in props;
@@ -70,9 +75,13 @@ function Code({ className, children, ...props }: CodeProps) {
   }
 
   return (
-    <pre>
-      <code className={className}>{children}</code>
-    </pre>
+    <CodeBlock
+      className="md-code-block"
+      code={body}
+      language={lang || "text"}
+      lineNumbers
+      isIncomplete={Boolean((props as { "data-incomplete"?: unknown })["data-incomplete"])}
+    />
   );
 }
 
@@ -94,7 +103,8 @@ export function MarkdownView({
       isAnimating={streaming}
       parseIncompleteMarkdown
       controls={false}
-      lineNumbers={false}
+      lineNumbers
+      shikiTheme={["github-dark", "github-light"]}
       animated={false}
       components={components}
     >

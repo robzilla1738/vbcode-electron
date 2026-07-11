@@ -293,6 +293,10 @@ export function ProjectRail({
                             disabled={busy}
                             title={busy ? busyTitle : `${session.title}\n${session.model}`}
                           >
+                            <span
+                              className={`session-active-dot${session.id === activeSessionId ? " is-on" : ""}`}
+                              aria-hidden
+                            />
                             <span className="session-title">{session.title}</span>
                             <time
                               className="session-time"

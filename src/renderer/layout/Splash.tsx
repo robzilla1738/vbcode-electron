@@ -1,12 +1,20 @@
 import { WORDMARK } from "../../shared/wordmark";
 
-const STARTERS = [
+export const STARTERS = [
   "Explain this codebase",
   "Fix the failing test",
   "Add a --json flag",
 ];
 
-export function Splash({ onStarter }: { onStarter: (text: string) => void }) {
+export function Splash({
+  projectLabel,
+  branch,
+}: {
+  projectLabel?: string | null;
+  branch?: string | null;
+}) {
+  const crumb = [projectLabel, branch].filter(Boolean).join(" / ");
+
   return (
     <section className="splash" aria-labelledby="splash-title">
       <div className="splash-inner">
@@ -21,30 +29,33 @@ export function Splash({ onStarter }: { onStarter: (text: string) => void }) {
 
         <div className="splash-copy">
           <h1 id="splash-title">What should we build?</h1>
-          <p>
-            Describe the outcome. Vibe Codr will inspect the project, make the change, and show its
-            work.
-          </p>
         </div>
 
-        <ul className="starters" aria-label="Starter prompts">
-          {STARTERS.map((s) => (
-            <li key={s} className="starter-item">
-              <button
-                type="button"
-                className="starter"
-                onClick={() => onStarter(s)}
-                aria-label={`Start with: ${s}`}
-              >
-                <span>{s}</span>
-                <span className="starter-arrow" aria-hidden>
-                  ›
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        {crumb ? (
+          <p className="empty-home-crumb" aria-label="Project context">
+            {crumb}
+          </p>
+        ) : null}
       </div>
     </section>
+  );
+}
+
+export function StarterPills({ onStarter }: { onStarter: (text: string) => void }) {
+  return (
+    <ul className="starter-pills" aria-label="Starter prompts">
+      {STARTERS.map((s) => (
+        <li key={s}>
+          <button
+            type="button"
+            className="starter-pill"
+            onClick={() => onStarter(s)}
+            aria-label={`Start with: ${s}`}
+          >
+            {s}
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

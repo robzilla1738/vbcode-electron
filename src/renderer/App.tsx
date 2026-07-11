@@ -23,7 +23,7 @@ import {
   type ModelPickerTarget,
 } from "../shared/catalog-draft";
 import { useSession } from "./hooks/useSession";
-import { Splash } from "./layout/Splash";
+import { Splash, StarterPills } from "./layout/Splash";
 import { SessionBoot, SessionBootError, WelcomeGate } from "./layout/WelcomeGate";
 import { LiveSidebar } from "./layout/Sidebar";
 import { TranscriptView } from "./transcript/TranscriptView";
@@ -963,7 +963,10 @@ export function App() {
               <JobsView jobs={chrome.jobs} />
             ) : session.transcript.blocks.length === 0 && !chrome.busy ? (
               <div className="transcript">
-                <Splash onStarter={(t) => void submitLine(t)} />
+                <Splash
+                  projectLabel={activeProject?.name ?? cwd.split("/").at(-1)}
+                  branch={chrome.git?.branch ?? null}
+                />
               </div>
             ) : (
               <TranscriptView
@@ -1124,11 +1127,12 @@ export function App() {
                 />
               )}
               <Composer
-                modeLabel={session.modeLabel}
+                uiMode={session.uiMode}
                 draft={draft}
                 setDraft={setDraft}
                 onSubmit={(line) => void submitLine(line)}
                 onCycleMode={session.cycleMode}
+                onSelectMode={session.selectMode}
                 disabled={!session.ready || session.booting}
                 commandNames={chrome.commandNames}
                 cwd={cwd}
@@ -1143,7 +1147,17 @@ export function App() {
                 busy={chrome.busy}
                 onAbort={() => void session.send({ type: "abort" })}
                 onPasteError={session.showToast}
+                emptyHome={
+                  !session.jobsView &&
+                  session.transcript.blocks.length === 0 &&
+                  !chrome.busy
+                }
               />
+              {!session.jobsView &&
+                session.transcript.blocks.length === 0 &&
+                !chrome.busy && (
+                  <StarterPills onStarter={(t) => void submitLine(t)} />
+                )}
             </div>
             )}
 

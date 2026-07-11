@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { lineToCommands, parsePermissionDecision, routePendingPermLine } from "./slash";
 import { reduceTranscript, initialTranscript, groupIntoTurns } from "./reducer";
 import { decodeOutbound, encodeInbound } from "./protocol";
-import { cycleModeAction, deriveUiMode } from "./modes";
+import { cycleModeAction, deriveUiMode, selectModeAction } from "./modes";
 import { getTheme, THEME_NAMES } from "./themes";
 import { toolCollapsed, nextDensity } from "./density";
 import { seedChromeFromSessionStart } from "./chrome-seed";
@@ -128,6 +128,16 @@ describe("modes & themes", () => {
     const a = cycleModeAction("plan", { planPending: true });
     expect(a.optimistic).toBeNull();
     expect(a.commands).toEqual([{ type: "set-mode", mode: "execute" }]);
+  });
+
+  it("selects a mode directly and no-ops when unchanged", () => {
+    expect(selectModeAction("execute", "execute").commands).toEqual([]);
+    const toYolo = selectModeAction("execute", "yolo");
+    expect(toYolo.optimistic?.uiMode).toBe("yolo");
+    expect(toYolo.commands.some((c) => c.type === "set-approvals")).toBe(true);
+    const gated = selectModeAction("plan", "yolo", { planPending: true });
+    expect(gated.optimistic).toBeNull();
+    expect(gated.commands).toEqual([{ type: "set-mode", mode: "execute" }]);
   });
 
   it("covers theme names", () => {

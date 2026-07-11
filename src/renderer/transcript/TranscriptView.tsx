@@ -11,6 +11,7 @@ import { isScrollAnchored } from "../../shared/scroll-anchor";
 import { parseSearchResults } from "../../shared/sources";
 import { SourceList } from "./SourceList";
 import { MarkdownView } from "./MarkdownView";
+import { stripToolGlyph, ToolGlyph } from "../tool-glyph";
 
 function DiffBody({ lines }: { lines: string[] }) {
   return (
@@ -67,7 +68,14 @@ function BlockView({
             aria-label={`${collapsed ? "Expand" : "Collapse"} ${block.label}`}
           >
             <span className="tool-label">
-              {!block.done ? <span className="working-shimmer">{block.label}</span> : block.label}
+              <ToolGlyph toolName={block.toolName} />
+              <span>
+                {!block.done ? (
+                  <span className="working-shimmer">{stripToolGlyph(block.label)}</span>
+                ) : (
+                  stripToolGlyph(block.label)
+                )}
+              </span>
             </span>
             <span className="tool-meta">
               {collapsed && block.done ? collapsedHint(block) : ""}

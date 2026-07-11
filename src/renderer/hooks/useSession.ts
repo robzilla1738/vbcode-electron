@@ -17,6 +17,7 @@ import {
   deriveUiMode,
   modeColor,
   modeWord,
+  selectModeAction,
   type UiMode,
 } from "../../shared/modes";
 import { GLYPH } from "../../shared/glyphs";
@@ -528,6 +529,28 @@ export function useSession(cwd: string | null) {
     }
   }, [uiMode, chrome.plan, sendMany]);
 
+  const selectMode = useCallback(
+    (target: UiMode) => {
+      const action = selectModeAction(uiMode, target, { planPending: !!chrome.plan });
+      if (action.commands.length === 0 && !action.optimistic) return;
+      void sendMany(action.commands);
+      if (action.optimistic) {
+        dispatchChrome({
+          type: "optimistic-mode",
+          mode: action.optimistic.mode,
+          approvals: action.optimistic.approvals,
+        });
+      } else if (chrome.plan && target !== "plan") {
+        dispatchTranscript({
+          type: "notice",
+          text: "Approve or revise the plan first (Enter / type / Esc) — mode stays PLAN.",
+          level: "info",
+        });
+      }
+    },
+    [uiMode, chrome.plan, sendMany],
+  );
+
   const foldAllTurns = useCallback(() => {
     setFoldedTurns((prev) => {
       const turns = groupIntoTurns(transcript.blocks);
@@ -624,6 +647,7 @@ export function useSession(cwd: string | null) {
     sendMany,
     bootstrap,
     cycleMode,
+    selectMode,
     dispatchChrome,
     clearSessionLocal,
     setBusy: (busy: boolean) => dispatchChrome({ type: "set-busy", busy }),

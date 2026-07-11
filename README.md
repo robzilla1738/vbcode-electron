@@ -6,7 +6,7 @@ macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/v
 
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
-**Visual target:** Codex Desktop-inspired workspace with OpenTUI-faithful behavior — a multi-project rail, centered transcript, anchored composer, terminal themes/accents, and a live activity rail at wide widths.
+**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project rail, centered empty-home composer, terminal themes/accents, and a live activity rail at wide widths.
 
 Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmacos) (SwiftUI). This repo is the Electron equivalent.
 
@@ -88,7 +88,7 @@ theme. See [tools/ui-preview/README.md](./tools/ui-preview/README.md).
 |---------|---------|
 | `npm run dev` | electron-vite + Electron window |
 | `npm run build` | Compile main / preload / renderer → `out/` |
-| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests (66) |
+| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests (67) |
 | `npm run test:e2e` | Hermetic Electron UI/IPC/bridge parity scenarios |
 | `npm run lint` | Biome correctness and maintainability gate |
 | `npm run verify` | Lint + unit + source parity + types + build + bundle budget |
@@ -116,7 +116,7 @@ theme. See [tools/ui-preview/README.md](./tools/ui-preview/README.md).
 - Content max ~130ch with a ~76ch reading measure; live activity appears only when the window can seat it without crushing the transcript
 - Projects and meaningful session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 15 palettes as OpenTUI); accents via `/accent`
-- Modes: **PLAN / AGENT / YOLO** (Shift+Tab)
+- Modes: **Plan | Agent | Yolo** segmented control in the composer (Shift+Tab still cycles)
 
 ### Design system
 
@@ -128,9 +128,11 @@ type scale, spacing/radii, a motion system (`--ease-enter/exit/standard`,
 `--dur-*`, press-down faster than release, `prefers-reduced-motion` collapse),
 two-layer keyboard focus rings (`--focus-ring`), and an elevation grammar of
 hairlines + inset edge-highlights at rest with layered shadows reserved for
-true overlays. Monospace is the voice of the machine (tool rows, paths, model,
-metrics, section labels); prose stays sans. The composer carries a Codex-style
-context-window gauge (amber ≥ 80%, red ≥ 95%).
+true overlays. **Sans is the UI voice**; monospace is reserved for real code
+(fenced blocks, tool/diff/job output, inline code, ASCII wordmark). Icons are
+Lucide stroke wrappers in `src/renderer/icons.tsx`. The composer carries a
+Codex-style context-window gauge (amber ≥ 80%, red ≥ 95%) and a segmented mode
+control; queue + composer share one card with no seam.
 
 ## Keyboard (essentials)
 
@@ -160,7 +162,7 @@ Everything the TUI exposes through `EngineCommand` / `UIEvent` — tools, MCP, m
 
 Shell-owned surfaces:
 
-- Streaming transcript (Streamdown markdown while generating, diffs, tools, thinking, notices)
+- Streaming transcript (Streamdown markdown with Shiki + line numbers while generating, diffs, tools, thinking, notices)
 - Permission + plan approval cards with toolLabel, prompt queue steer/dequeue
 - Slash palette (builtins + custom `commandNames`), catalog pickers (model context window shown)
 - Multi-project sessions rail (new / resume / continue latest / filter), `/jobs` with PID
@@ -169,7 +171,8 @@ Shell-owned surfaces:
 - Working spinner with elapsed time + "esc to interrupt" until `engine-idle`; green-gate RED notice
 - Inspector: context, changed files, checkpoints, DAG, subagent stream
 - Theme-faithful selection colors, headings, and user-message accent (violet band on default)
-- Splash wordmark with brand gradient sweep; starters matching the CLI
+- Empty-home splash: quieter ASCII wordmark, project/branch crumb, centered composer, pill starters
+- Lucide icons across chrome, composer, and tool-row glyphs
 - Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, screen-reader live regions, focus management on modal cards
 
 ## Parity & verification
@@ -182,7 +185,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AG
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-All gates: **66 unit tests**, **10 e2e tests**, **19 source-parity pairs**, Biome and `tsc` clean, build/bundle budget OK, and bridge/packaged smokes green. See [ACCEPTANCE.md](./ACCEPTANCE.md) for the full acceptance spec (40 criteria, all pass).
+All gates: **67 unit tests**, **10 e2e tests**, **19 source-parity pairs**, Biome and `tsc` clean, build/bundle budget OK, and bridge/packaged smokes green. See [ACCEPTANCE.md](./ACCEPTANCE.md) for the full acceptance spec (40 criteria, all pass).
 
 ## Project layout
 

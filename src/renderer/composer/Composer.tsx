@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
-import { ArrowUp, Paperclip, Square, Terminal } from "lucide-react";
 import {
   applyPalette,
   isExactCommand,
@@ -13,9 +12,13 @@ import {
   providersPickerQuery,
   skillsPickerFilter,
 } from "../../shared/catalog-draft";
+import { modeWord, type UiMode } from "../../shared/modes";
 import { accentNameOf } from "../../shared/themes";
 import { applyAtMention, useAtMention } from "../hooks/useAtMention";
 import { applyComposerPaste } from "../../shared/composer-edit";
+import { IconCommand, IconPaperclip, IconSend, IconStop } from "../icons";
+
+const MODE_OPTIONS: UiMode[] = ["plan", "execute", "yolo"];
 
 function isCatalogDraft(draft: string): boolean {
   return (
@@ -62,16 +65,18 @@ function fileParts(path: string): { base: string; dir: string } {
   return { base: normalized.slice(slash + 1), dir: normalized.slice(0, slash) };
 }
 
-function displayModeLabel(label: string): string {
+function displayModeLabel(mode: UiMode): string {
+  const label = modeWord(mode);
   return label.length > 1 ? `${label.slice(0, 1)}${label.slice(1).toLowerCase()}` : label;
 }
 
 export function Composer({
-  modeLabel,
+  uiMode,
   draft,
   setDraft,
   onSubmit,
   onCycleMode,
+  onSelectMode,
   disabled,
   commandNames,
   cwd,
@@ -86,12 +91,14 @@ export function Composer({
   busy,
   onAbort,
   onPasteError,
+  emptyHome = false,
 }: {
-  modeLabel: string;
+  uiMode: UiMode;
   draft: string;
   setDraft: Dispatch<SetStateAction<string>>;
   onSubmit: (line: string) => void;
   onCycleMode: () => void;
+  onSelectMode: (mode: UiMode) => void;
   disabled?: boolean;
   commandNames: string[];
   cwd: string | null;
@@ -107,6 +114,8 @@ export function Composer({
   busy: boolean;
   onAbort: () => void;
   onPasteError: (message: string) => void;
+  /** Empty-session home: taller input + /@-hint placeholder. */
+  emptyHome?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -445,7 +454,11 @@ export function Composer({
           className={`composer-input${exact ? " exact-cmd" : ""}`}
           value={draft}
           disabled={disabled}
-          placeholder="Ask Vibe Codr to build, fix, explain, or review…"
+          placeholder={
+            emptyHome
+              ? "Plan, build, / for commands, @ for files…"
+              : "Ask Vibe Codr to build, fix, explain, or review…"
+          }
           aria-label="Task message"
           aria-autocomplete="list"
           aria-expanded={menuId != null}
@@ -467,7 +480,7 @@ export function Composer({
             aria-label="Mention a project file"
             title="Mention a project file"
           >
-            <Paperclip size={15} strokeWidth={1.75} />
+            <IconPaperclip size={14} />
           </button>
           <button
             type="button"
@@ -477,17 +490,27 @@ export function Composer({
             aria-label="Browse commands"
             title="Browse commands (⌘K)"
           >
-            <Terminal size={15} strokeWidth={1.75} />
+            <IconCommand size={14} />
           </button>
-          <button
-            type="button"
-            className="mode-chip"
-            onClick={onCycleMode}
-            title="Cycle mode (Shift+Tab)"
-            aria-label={`Mode ${displayModeLabel(modeLabel)}. Cycle mode`}
-          >
-            {displayModeLabel(modeLabel)}
-          </button>
+          <div className="mode-segment" role="radiogroup" aria-label="Mode">
+            {MODE_OPTIONS.map((mode) => {
+              const active = uiMode === mode;
+              const label = displayModeLabel(mode);
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  className={`mode-seg${active ? " is-active" : ""}`}
+                  onClick={() => onSelectMode(mode)}
+                  title={`${label} mode (Shift+Tab to cycle)`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
           {status ? (
             <span className="composer-metrics" title={status}>{status}</span>
           ) : null}
@@ -508,7 +531,7 @@ export function Composer({
           <span className="composer-model" title={model}>{model.split("/").at(-1) || model}</span>
           {busy ? (
             <button type="button" className="composer-submit stop" onClick={onAbort} aria-label="Stop current turn">
-              <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+              <IconStop />
               Stop
             </button>
           ) : (
@@ -519,7 +542,7 @@ export function Composer({
               disabled={!draft.trim()}
               aria-label="Send message"
             >
-              <ArrowUp size={16} strokeWidth={2} aria-hidden="true" />
+              <IconSend />
             </button>
           )}
         </div>

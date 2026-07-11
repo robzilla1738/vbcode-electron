@@ -214,3 +214,14 @@ npm run dev
 - [x] StrictMode dev hang fixed: bootstrapGate.invalidate() removed from useEffect cleanup (redundant with begin() in bootstrap; was causing bootstrap to always return false in dev due to StrictMode double-invocation)
 - [x] Composer aria-expanded fixed: false when slash menu open but has 0 items (was always true when palette.open)
 - [x] Preview harness: orchestration-task events (running/completed/failed/skipped) added to busy scenario
+
+## Agent-home polish + typography (session 6)
+
+- [x] Empty-home composition: quieter ASCII wordmark, project/branch crumb, vertically centered composer, pill starters under input (same three TUI prompts)
+- [x] ProjectRail density polish + active session accent dot (`--user`)
+- [x] Composer: no status divider; queue tray + composer share one continuous card (no seam)
+- [x] Segmented Plan | Agent | Yolo mode control (`selectModeAction`); Shift+Tab still cycles; plan-pending guard unchanged
+- [x] Lucide stroke icons for chrome + composer; tool-row glyphs via renderer `tool-glyph.tsx` (shared unicode `toolIcon` labels unchanged)
+- [x] Sans UI chrome; mono reserved for real code (fences, tool/diff/job bodies, wordmark, rich charts)
+- [x] Streamdown markdown fences use Shiki `CodeBlock` + line numbers (`github-dark` / `github-light`)
+- [x] `selectModeAction` unit coverage (67 total unit tests)

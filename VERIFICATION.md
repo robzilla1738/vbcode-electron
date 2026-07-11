@@ -16,7 +16,7 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (66), upstream source pairs aligned, Biome and `tsc` clean, electron-vite build and renderer bundle budget OK, and smoke prints `ready` + `snapshot ok`. `npm run verify` runs the non-E2E subset as one gate.
+Expect: Vitest green (67), upstream source pairs aligned, Biome and `tsc` clean, electron-vite build and renderer bundle budget OK, and smoke prints `ready` + `snapshot ok`. `npm run verify` runs the non-E2E subset as one gate.
 
 GitHub CI repeats this gate plus Electron E2E on Linux and an unsigned bundled-host smoke on macOS. Public signing/notarization remains a release-credential step.
 

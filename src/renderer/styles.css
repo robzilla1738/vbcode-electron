@@ -263,9 +263,12 @@ a:hover {
 }
 
 code,
-pre,
-kbd {
+pre {
   font-family: var(--font-mono);
+}
+
+kbd {
+  font-family: var(--font-sans);
 }
 
 pre {
@@ -489,7 +492,6 @@ html[data-scheme="light"].electron-transparent .topbar {
 
 .topbar-separator {
   color: color-mix(in oklab, var(--text-subtle) 70%, transparent);
-  font-family: var(--font-mono);
   font-size: var(--text-label);
 }
 
@@ -603,12 +605,12 @@ html[data-platform="darwin"] .rail-chrome {
 .rail-product-name {
   margin: 0;
   min-width: 0;
-  color: var(--assistant);
+  color: color-mix(in oklab, var(--assistant) 90%, var(--muted));
   font-family: var(--font-sans);
-  font-size: var(--text-heading);
+  font-size: var(--text-ui);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
 }
 
 .rail-title-search {
@@ -621,19 +623,19 @@ html[data-platform="darwin"] .rail-chrome {
 
 .rail-actions {
   display: grid;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm) var(--space-lg);
+  gap: 2px;
+  padding: var(--space-2xs) var(--space-sm) var(--space-md);
 }
 
 .rail-action {
   display: grid;
   grid-template-columns: var(--rail-icon-size) minmax(0, 1fr);
-  min-height: 36px;
+  min-height: 30px;
   align-items: center;
   gap: var(--space-sm);
   padding: 0 var(--space-sm);
   border-radius: var(--radius-sm);
-  color: color-mix(in oklab, var(--assistant) 88%, var(--muted));
+  color: var(--muted);
   font-size: var(--text-ui);
   font-weight: var(--weight-medium);
   line-height: var(--leading-ui);
@@ -661,7 +663,7 @@ html[data-platform="darwin"] .rail-chrome {
   min-height: 36px;
   align-items: center;
   gap: var(--space-sm);
-  margin: 0 var(--space-sm) var(--space-lg);
+  margin: 0 var(--space-sm) var(--space-md);
   padding: 0 var(--space-sm);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
@@ -700,13 +702,13 @@ html[data-platform="darwin"] .rail-chrome {
 
 .rail-section-label {
   margin: 0;
-  padding: 0 var(--space-base) var(--space-sm);
-  color: var(--muted);
+  padding: 0 var(--space-base) var(--space-xs);
+  color: var(--text-subtle);
   font-family: var(--font-sans);
-  font-size: var(--text-title);
+  font-size: var(--text-micro);
   font-weight: var(--weight-medium);
-  letter-spacing: -0.015em;
-  text-transform: none;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .project-list {
@@ -723,7 +725,7 @@ html[data-platform="darwin"] .rail-chrome {
 .project-heading {
   display: grid;
   width: 100%;
-  min-height: 36px;
+  min-height: 30px;
   grid-template-columns: var(--rail-icon-size) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-xs);
@@ -794,7 +796,7 @@ html[data-platform="darwin"] .rail-chrome {
 
 .session-list {
   display: grid;
-  gap: var(--space-2xs);
+  gap: 1px;
   padding: var(--space-2xs) 0 var(--space-sm) calc(var(--rail-icon-size) + var(--space-xs));
 }
 
@@ -813,7 +815,7 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .session-row-wrap.active {
-  background: color-mix(in oklab, var(--surface) 88%, var(--rail));
+  background: color-mix(in oklab, var(--surface) 55%, transparent);
   box-shadow: none;
 }
 
@@ -821,13 +823,13 @@ html[data-platform="darwin"] .rail-chrome {
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 36px;
+  min-height: 30px;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
   padding: 0 var(--space-sm);
   border-radius: var(--radius-sm);
-  color: color-mix(in oklab, var(--assistant) 82%, var(--muted));
+  color: color-mix(in oklab, var(--assistant) 78%, var(--muted));
   text-align: left;
   transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform 60ms;
 }
@@ -968,14 +970,27 @@ html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible
 .session-title {
   min-width: 0;
   flex: 1 1 auto;
-  font-size: var(--text-ui);
+  font-size: var(--text-caption);
   font-weight: var(--weight-ui);
+}
+
+.session-active-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.session-active-dot.is-on {
+  background: color-mix(in oklab, var(--user) 88%, var(--assistant));
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--user) 18%, transparent);
 }
 
 .session-time {
   flex: 0 0 auto;
   color: var(--text-subtle);
-  font-size: var(--text-caption);
+  font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1051,8 +1066,23 @@ html.electron-transparent .main-column {
   flex-direction: column;
 }
 
+.chat-column.is-empty {
+  justify-content: center;
+  align-items: stretch;
+  gap: var(--space-md);
+}
+
+.chat-column.is-empty .transcript {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.chat-column.is-empty .panels:not(:has(*)) {
+  display: none;
+}
+
 .chat-column.is-empty .composer-stack {
-  margin-bottom: var(--space-xs);
+  margin-bottom: 0;
 }
 
 .context-line {
@@ -1089,11 +1119,11 @@ html.electron-transparent .main-column {
 .transcript:has(> .splash) {
   display: flex;
   flex-direction: column;
-  padding: var(--space-md) var(--space-lg) var(--space-sm);
+  padding: 0 var(--space-lg);
 }
 
 .transcript:has(> .splash) > .splash {
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
 }
 
@@ -1341,6 +1371,88 @@ html[data-scheme="light"] .md pre {
   font-size: inherit;
 }
 
+/* Streamdown CodeBlock (Shiki) — token colors are inline; layout is token-first. */
+[data-streamdown="code-block"] {
+  position: relative;
+  margin: var(--space-sm) 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--surface-subtle) 62%, var(--bg));
+  box-shadow: var(--edge-highlight);
+}
+
+[data-streamdown="code-block-header"] {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 var(--space-base);
+  color: var(--text-subtle);
+  background: color-mix(in oklab, var(--surface) 35%, transparent);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+
+[data-streamdown="code-block-body"] {
+  margin: 0;
+  overflow-x: auto;
+  padding: var(--space-sm) var(--space-base);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  scrollbar-width: thin;
+}
+
+[data-streamdown="code-block-body"] pre {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent !important;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: pre;
+}
+
+[data-streamdown="code-block-body"] code {
+  display: block;
+  padding: 0;
+  border: 0;
+  color: color-mix(in oklab, var(--assistant) 92%, var(--muted));
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  counter-reset: line;
+}
+
+[data-streamdown="code-block-body"] code > span {
+  display: block;
+  min-height: 1.55em;
+}
+
+[data-streamdown="code-block-body"] code > span::before {
+  content: counter(line);
+  counter-increment: line;
+  display: inline-block;
+  width: 2.25rem;
+  margin-right: var(--space-base);
+  color: color-mix(in oklab, var(--text-subtle) 78%, transparent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  user-select: none;
+}
+
+.md-code-block {
+  display: block;
+}
+
 .md a {
   color: color-mix(in oklab, var(--code) 78%, var(--assistant));
   text-decoration-color: color-mix(in oklab, var(--code) 28%, transparent);
@@ -1398,7 +1510,7 @@ html[data-scheme="light"] .md pre {
   border-radius: var(--radius-sm);
   color: var(--text-subtle);
   background: transparent;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
   text-align: left;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
@@ -1458,6 +1570,27 @@ html[data-scheme="light"] .md pre {
   white-space: nowrap;
 }
 
+.tool-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.tool-glyph {
+  flex: 0 0 auto;
+  color: var(--tool);
+  opacity: 0.9;
+}
+
+.tool-head.error .tool-glyph {
+  color: var(--del);
+}
+
+.tool-head.live .tool-glyph {
+  color: var(--tool);
+}
+
 .thinking-label {
   color: inherit;
   font-family: var(--font-sans);
@@ -1475,7 +1608,7 @@ html[data-scheme="light"] .md pre {
   margin-left: auto;
   overflow: hidden;
   color: color-mix(in oklab, var(--text-subtle) 80%, transparent);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
@@ -1485,9 +1618,7 @@ html[data-scheme="light"] .md pre {
 .tool-body,
 .decision-payload,
 .plan-text,
-.job-output,
-.activity-stream,
-.thinking-body {
+.job-output {
   font-family: var(--font-mono);
   font-size: var(--text-code);
   line-height: var(--leading-code);
@@ -1495,15 +1626,17 @@ html[data-scheme="light"] .md pre {
 }
 
 .tool-body {
-  max-height: 240px;
+  max-height: 320px;
   margin: var(--space-2xs) 0 var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-base);
   overflow: auto;
   overscroll-behavior: contain;
-  border: 1px solid color-mix(in oklab, var(--border) 32%, transparent);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  background: color-mix(in oklab, var(--surface-subtle) 38%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 38%, transparent);
+  border-radius: var(--radius-md);
+  color: color-mix(in oklab, var(--assistant) 88%, var(--muted));
+  background: color-mix(in oklab, var(--surface-subtle) 55%, var(--bg));
+  box-shadow: var(--edge-highlight);
+  scrollbar-width: thin;
 }
 
 .thinking-row {
@@ -1523,16 +1656,31 @@ html[data-scheme="light"] .md pre {
 .thinking-body {
   max-height: none;
   margin: var(--space-2xs) 0 0;
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-base);
   overflow: visible;
-  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  background: color-mix(in oklab, var(--surface-subtle) 30%, transparent);
+  border: 0;
+  border-radius: var(--radius-md);
+  color: color-mix(in oklab, var(--muted) 92%, var(--assistant));
+  background: color-mix(in oklab, var(--surface-subtle) 42%, transparent);
   font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  font-style: italic;
-  line-height: var(--leading-code);
+  font-size: var(--text-ui);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  white-space: pre-wrap;
+}
+
+.notice {
+  margin: var(--space-xs) 0;
+  padding: var(--space-sm) var(--space-base);
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  background: color-mix(in oklab, var(--surface-subtle) 55%, transparent);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  line-height: 1.5;
   white-space: pre-wrap;
 }
 
@@ -1588,7 +1736,7 @@ html[data-scheme="light"] .md pre {
 .source-domain {
   margin-top: 4px;
   color: var(--code);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
 }
 
@@ -1623,17 +1771,7 @@ html[data-scheme="light"] .md pre {
   margin: 2px 0;
   color: color-mix(in oklab, var(--ctx) 80%, var(--muted));
   font-size: var(--text-micro);
-}
-
-.notice {
-  margin: var(--space-xs) 0;
-  padding: var(--space-sm) 12px;
-  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  background: color-mix(in oklab, var(--surface-subtle) 72%, transparent);
-  font-size: var(--text-label);
-  white-space: pre-wrap;
+  font-family: var(--font-sans);
 }
 
 .notice.warn {
@@ -1817,7 +1955,7 @@ html[data-scheme="light"] .card {
   margin-bottom: var(--space-xs);
   padding: 0 var(--space-sm);
   color: var(--text-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -2046,7 +2184,7 @@ html[data-scheme="light"] .card {
 .queue-active-badge {
   flex: 0 0 auto;
   color: var(--muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -2096,28 +2234,50 @@ html[data-scheme="light"] .card {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
-.composer-queue-tray {
-  display: grid;
-  gap: var(--space-2xs);
-  padding: var(--space-sm) 0 var(--space-xs);
+/* One continuous card when a queue tray sits above the composer — no seam. */
+.composer-stack:has(.composer-queue-tray) {
+  overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-  border-bottom: 0;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  border-radius: var(--radius-xl);
   background: color-mix(in oklab, var(--elevated) 96%, var(--panel));
+  box-shadow: var(--shadow-composer), var(--edge-highlight);
 }
 
-html.glass .composer-queue-tray,
-html.electron-transparent .composer-queue-tray {
+html.glass .composer-stack:has(.composer-queue-tray),
+html.electron-transparent .composer-stack:has(.composer-queue-tray) {
   border-color: color-mix(in oklab, var(--border) 40%, transparent);
   background: color-mix(in oklab, var(--elevated) 58%, transparent);
+  box-shadow:
+    var(--shadow-composer),
+    inset 0 1px 0 color-mix(in oklab, white 8%, transparent);
   backdrop-filter: saturate(160%) blur(20px);
   -webkit-backdrop-filter: saturate(160%) blur(20px);
 }
 
-html[data-scheme="light"].glass .composer-queue-tray,
-html[data-scheme="light"].electron-transparent .composer-queue-tray {
+html[data-scheme="light"].glass .composer-stack:has(.composer-queue-tray),
+html[data-scheme="light"].electron-transparent .composer-stack:has(.composer-queue-tray) {
   border-color: var(--border-soft);
   background: var(--elevated);
+  box-shadow: var(--shadow-composer);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.composer-queue-tray {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-sm) 0 var(--space-xs);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+html.glass .composer-queue-tray,
+html.electron-transparent .composer-queue-tray,
+html[data-scheme="light"].glass .composer-queue-tray,
+html[data-scheme="light"].electron-transparent .composer-queue-tray {
+  border: 0;
+  background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -2237,8 +2397,36 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
 }
 
 .composer-stack:has(.composer-queue-tray) .composer-wrap {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.glass .composer-stack:has(.composer-queue-tray) .composer-wrap,
+html.electron-transparent .composer-stack:has(.composer-queue-tray) .composer-wrap,
+html[data-scheme="light"].glass .composer-stack:has(.composer-queue-tray) .composer-wrap,
+html[data-scheme="light"].electron-transparent .composer-stack:has(.composer-queue-tray) .composer-wrap {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.composer-stack:has(.composer-queue-tray) .composer-wrap:focus-within {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.composer-stack:has(.composer-queue-tray):has(.composer-wrap:focus-within) {
+  border-color: var(--border-active);
+  box-shadow:
+    var(--shadow-composer),
+    0 0 0 3px color-mix(in oklab, var(--ring) 10%, transparent),
+    var(--edge-highlight);
 }
 
 html.glass .composer-wrap,
@@ -2325,8 +2513,8 @@ html.electron-transparent .composer-wrap:focus-within {
   justify-content: space-between;
   gap: var(--space-sm);
   margin: 0;
-  padding: var(--space-xs) var(--space-sm);
-  border-top: 1px solid color-mix(in oklab, var(--border) 32%, transparent);
+  padding: var(--space-xs) var(--space-sm) var(--space-sm);
+  border-top: 0;
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   background: transparent;
   color: var(--text-subtle);
@@ -2338,7 +2526,7 @@ html.electron-transparent .composer-wrap:focus-within {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   min-width: 0;
   padding-left: var(--space-2xs);
 }
@@ -2350,37 +2538,57 @@ html.electron-transparent .composer-wrap:focus-within {
   gap: var(--space-xs);
 }
 
-.mode-chip {
+.mode-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  min-height: 28px;
+  padding: 2px;
+  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--surface-subtle) 40%, transparent);
+}
+
+.mode-seg {
   display: inline-flex;
   min-height: 24px;
   align-items: center;
-  padding: 0 var(--space-xs);
-  border-radius: var(--radius-sm);
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
   color: var(--muted);
   background: transparent;
-  font-size: var(--text-label);
+  font-size: var(--text-caption);
   font-weight: var(--weight-medium);
   letter-spacing: -0.01em;
-  text-transform: none;
-  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+  line-height: 1;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
-.mode-chip:hover {
+.mode-seg:hover {
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 62%, transparent);
+}
+
+.mode-seg.is-active {
+  color: var(--mode);
+  background: color-mix(in oklab, var(--mode) 14%, transparent);
+}
+
+.mode-seg:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* Two quiet, named actions: attach a file or browse commands. */
 .composer-ghost {
   display: inline-flex;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
   color: var(--text-subtle);
   background: transparent;
-  font-size: var(--text-label);
+  font-size: var(--text-caption);
   font-weight: var(--weight-medium);
   line-height: 1;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), transform 60ms;
@@ -2408,8 +2616,8 @@ html.electron-transparent .composer-wrap:focus-within {
   padding: 0 4px;
   border-radius: var(--radius-sm);
   color: var(--text-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2443,23 +2651,23 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .composer-model {
   max-width: 22ch;
-  min-height: 24px;
+  min-height: 28px;
   display: inline-flex;
   align-items: center;
   padding: 0 var(--space-xs);
   border-radius: var(--radius-sm);
   color: color-mix(in oklab, var(--muted) 88%, var(--assistant));
   background: transparent;
-  font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 
 .composer-metrics {
   min-width: 0;
   color: color-mix(in oklab, var(--text-subtle) 92%, transparent);
-  font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2558,7 +2766,7 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .slash-menu-hint {
   color: var(--text-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 500;
 }
 
@@ -2766,7 +2974,7 @@ html.electron-transparent .sidebar-heading-row {
   margin: 0 0 var(--space-sm);
   padding: 0;
   color: var(--text-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -2808,7 +3016,7 @@ html.electron-transparent .sidebar-heading-row {
 .meta-value {
   overflow: hidden;
   color: var(--assistant);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-weight: 450;
   line-height: 1.5;
@@ -2832,7 +3040,7 @@ html.electron-transparent .sidebar-heading-row {
   margin: var(--space-sm) 0 0;
   overflow: hidden;
   color: var(--text-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   line-height: 1.45;
   text-overflow: ellipsis;
@@ -2888,7 +3096,7 @@ html.electron-transparent .sidebar-heading-row {
   min-width: 0;
   overflow: hidden;
   color: var(--assistant);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-weight: 450;
   text-overflow: ellipsis;
@@ -2899,7 +3107,7 @@ html.electron-transparent .sidebar-heading-row {
   display: inline-flex;
   flex: 0 0 auto;
   gap: var(--space-xs);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
@@ -2936,16 +3144,22 @@ html.electron-transparent .sidebar-heading-row {
   margin: 0;
   overflow: auto;
   color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .thinking-panel {
   max-height: 180px;
   padding: var(--space-sm) var(--space-base);
-  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--surface-subtle) 40%, transparent);
-  font-size: var(--text-caption);
-  line-height: 1.5;
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--surface-subtle) 42%, transparent);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-style: normal;
+  line-height: 1.55;
 }
 
 .inspector-stream {
@@ -3142,8 +3356,8 @@ html.electron-transparent .sidebar-heading-row {
   min-height: 0;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: var(--space-lg) var(--space-md) var(--space-xl);
+  justify-content: flex-end;
+  padding: 0 var(--space-md);
 }
 
 .splash-inner {
@@ -3151,8 +3365,7 @@ html.electron-transparent .sidebar-heading-row {
   width: min(100%, var(--composer-max));
   flex-direction: column;
   align-items: center;
-  gap: var(--space-lg);
-  margin-top: -4vh;
+  gap: var(--space-md);
   text-align: center;
 }
 
@@ -3163,6 +3376,7 @@ html.electron-transparent .sidebar-heading-row {
   align-items: center;
   gap: 0;
   color: var(--assistant);
+  opacity: 0.88;
 }
 
 .splash-wordmark {
@@ -3171,18 +3385,18 @@ html.electron-transparent .sidebar-heading-row {
   max-width: 100%;
   margin: 0 auto;
   overflow: hidden;
-  /* Brand gradient sweep (TUI parity: brandSpans rainbow). */
+  /* Quieter brand sweep — still token-based, less optical weight than chat hero. */
   background: linear-gradient(
     100deg,
-    color-mix(in oklab, var(--primary) 72%, var(--assistant)),
-    var(--primary),
-    color-mix(in oklab, var(--primary) 72%, var(--assistant))
+    color-mix(in oklab, var(--primary) 48%, var(--muted)),
+    color-mix(in oklab, var(--primary) 78%, var(--assistant)),
+    color-mix(in oklab, var(--primary) 48%, var(--muted))
   );
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
   font-family: var(--font-mono);
-  font-size: clamp(5.5px, 0.85vw + 2px, 9px);
+  font-size: clamp(4.5px, 0.7vw + 1.5px, 7.5px);
   font-weight: 700;
   line-height: 0.92;
   letter-spacing: -0.06em;
@@ -3192,9 +3406,9 @@ html.electron-transparent .sidebar-heading-row {
 
 .splash-brand-compact {
   display: none;
-  color: var(--assistant);
+  color: color-mix(in oklab, var(--assistant) 88%, var(--muted));
   font-family: var(--font-sans);
-  font-size: clamp(32px, 5vw, 44px);
+  font-size: clamp(28px, 4.5vw, 38px);
   font-weight: 650;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -3203,86 +3417,78 @@ html.electron-transparent .sidebar-heading-row {
 .splash-copy {
   display: grid;
   justify-items: center;
-  gap: var(--space-sm);
+  gap: 0;
   width: 100%;
   max-width: 28rem;
 }
 
 .splash-copy h1 {
   margin: 0;
-  color: var(--assistant);
-  font-size: clamp(26px, 3vw, 34px);
-  font-weight: 620;
-  line-height: 1.15;
-  letter-spacing: -0.035em;
+  color: color-mix(in oklab, var(--assistant) 92%, var(--muted));
+  font-size: clamp(22px, 2.4vw, 28px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
   text-wrap: balance;
 }
 
-.splash-copy p {
+.empty-home-crumb {
   margin: 0;
-  color: var(--muted);
-  font-size: var(--text-prose);
-  line-height: 1.6;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.starters {
-  display: grid;
-  width: 100%;
-  max-width: 32rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.starter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--space-xs);
+  width: 100%;
+  margin: var(--space-sm) 0 0;
   padding: 0;
   border: 0;
-  text-align: left;
-}
-
-/* The lone trailing starter spans both columns so an odd count reads as a
-   deliberate 2-over-1 layout instead of an unbalanced empty cell. */
-.starter-item:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
-}
-
-.starter-item {
-  display: flex;
-  min-width: 0;
   list-style: none;
 }
 
-.starter {
-  display: flex;
-  width: 100%;
-  min-height: 42px;
+.starter-pill {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-base);
-  padding: var(--space-sm) var(--space-base);
-  border: 1px solid color-mix(in oklab, var(--border) 38%, transparent);
-  border-radius: var(--radius-md);
+  min-height: 32px;
+  padding: 0 var(--space-base);
+  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
+  border-radius: var(--radius-pill);
   color: var(--muted);
-  background: color-mix(in oklab, var(--surface-subtle) 45%, transparent);
+  background: color-mix(in oklab, var(--surface-subtle) 35%, transparent);
   box-shadow: var(--edge-highlight);
-  font-size: var(--text-ui);
+  font-size: var(--text-caption);
   font-weight: 500;
-  text-align: left;
+  line-height: 1;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), transform 60ms;
 }
 
-.starter:hover {
+.starter-pill:hover {
   color: var(--assistant);
   border-color: color-mix(in oklab, var(--border) 68%, transparent);
-  background: color-mix(in oklab, var(--surface) 62%, transparent);
+  background: color-mix(in oklab, var(--surface) 58%, transparent);
 }
 
-.starter-arrow {
-  flex: 0 0 auto;
-  color: var(--text-subtle);
-  font-size: var(--text-prose);
-  transition: color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+.starter-pill:active {
+  transform: scale(0.98);
 }
 
-.starter:hover .starter-arrow {
-  color: var(--assistant);
-  transform: translateX(3px);
+.chat-column.is-empty .composer-row {
+  min-height: 64px;
+  padding-top: var(--space-base);
+}
+
+.chat-column.is-empty .composer-input {
+  min-height: 44px;
 }
 
 .gate-topbar {
@@ -3532,7 +3738,7 @@ html.electron-transparent .sidebar-heading-row {
 .catalog-section {
   margin: 8px 8px 4px;
   color: var(--text-subtle);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -3774,10 +3980,6 @@ html.electron-transparent .sidebar-heading-row {
     width: calc(100% - 24px);
   }
 
-  .starters {
-    grid-template-columns: 1fr;
-  }
-
   .splash-wordmark {
     display: none;
   }
@@ -3796,7 +3998,7 @@ html.electron-transparent .sidebar-heading-row {
   .rail-action,
   .project-heading,
   .session-row,
-  .starter,
+  .starter-pill,
   .catalog-row {
     min-height: 44px;
   }
@@ -3999,7 +4201,7 @@ html.electron-transparent .sidebar-heading-row {
   gap: 0;
   overflow-y: auto;
   max-height: 60vh;
-  font-style: italic;
+  font-style: normal;
 }
 .trail-line {
   white-space: pre-wrap;

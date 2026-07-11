@@ -6,7 +6,7 @@
  * selected with `?scenario=<name>` and an optional `&theme=<name>`:
  *
  *   welcome     — no project open (WelcomeGate)
- *   splash      — project open, empty session (wordmark + starters)
+ *   splash      — project open, empty session (wordmark + centered composer + pill starters)
  *   chat        — a finished coding turn: tools, diff, markdown reply
  *   busy        — mid-turn: spinner, live tool, thinking, subagents, tasks
  *   permission  — pending permission card

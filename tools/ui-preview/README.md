@@ -15,9 +15,10 @@ open "http://localhost:4517/?scenario=chat"
 npm run ui:shots -- tools/ui-preview/shots
 ```
 
-Scenarios: `welcome`, `splash`, `chat`, `busy`, `permission`, `plan`, `slash`,
-`catalog`, `mention`, `jobs`, `inspector` — plus `&theme=<name>` for any
-registered TUI theme (e.g. `?scenario=chat&theme=opencode`).
+Scenarios: `welcome`, `splash` (centered empty home + pill starters), `chat`,
+`busy`, `permission`, `plan`, `slash`, `catalog`, `mention`, `jobs`, `inspector`
+— plus `&theme=<name>` for any registered TUI theme (e.g.
+`?scenario=chat&theme=opencode`).
 
 Dev tooling only: nothing in this folder ships in the app bundle, and the mock
 event timelines live entirely in `mock-vibe.ts`.

@@ -66,23 +66,28 @@ export function commandsForUiMode(target: UiMode): EngineCommand[] {
   }
 }
 
+export type ModeAction = {
+  commands: EngineCommand[];
+  /** Apply to local mirrors when non-null; null = keep current chip/state. */
+  optimistic: { mode: "plan" | "execute"; approvals: "ask" | "auto"; uiMode: UiMode } | null;
+};
+
 /**
- * Shift+Tab cycle action for the TUI. When a plan card is waiting, bare
+ * Direct mode selection (segmented control). When a plan card is waiting, bare
  * plan→execute/yolo is refused by the engine (no mode-changed, no approval).
  * In that case we only ping set-mode (so the engine can notice) and return
  * `optimistic: null` — the chip and approvals must NOT flip, or the chip lies
  * and a YOLO cycle would set approvalMode=auto while still planning (so the
  * next Enter would inherit unattended YOLO).
  */
-export function cycleModeAction(
+export function selectModeAction(
   cur: UiMode,
+  target: UiMode,
   opts: { planPending?: boolean } = {},
-): {
-  commands: EngineCommand[];
-  /** Apply to local mirrors when non-null; null = keep current chip/state. */
-  optimistic: { mode: "plan" | "execute"; approvals: "ask" | "auto"; uiMode: UiMode } | null;
-} {
-  const target = nextUiMode(cur);
+): ModeAction {
+  if (cur === target) {
+    return { commands: [], optimistic: null };
+  }
   if (opts.planPending && cur === "plan" && target !== "plan") {
     return {
       commands: [{ type: "set-mode", mode: "execute" }],
@@ -94,6 +99,14 @@ export function cycleModeAction(
     commands: commandsForUiMode(target),
     optimistic: { mode: state.mode, approvals: state.approvals, uiMode: target },
   };
+}
+
+/** Shift+Tab cycle action — advances to {@link nextUiMode}. */
+export function cycleModeAction(
+  cur: UiMode,
+  opts: { planPending?: boolean } = {},
+): ModeAction {
+  return selectModeAction(cur, nextUiMode(cur), opts);
 }
 
 /**

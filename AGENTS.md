@@ -22,6 +22,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | IPC surface | `src/preload/index.ts` → `window.vibe` |
 | Session / event wiring | `src/renderer/hooks/useSession.ts` |
 | Keyboard + submit routing | `src/renderer/App.tsx` |
+| Icons (Lucide wrappers) | `src/renderer/icons.tsx`, `tool-glyph.tsx` |
 | Contracts | `src/shared/commands.ts`, `events.ts`, `protocol.ts` |
 | Parity checklist | `PARITY.md` |
 
@@ -67,8 +68,11 @@ All renderer styling lives in `src/renderer/styles.css`, token-first. Rules:
 4. **Elevation grammar.** Resting surfaces: hairline border + `--edge-highlight`
    (auto-disabled in light scheme). Real layered shadows (`--shadow-menu`,
    `--shadow-modal`) only on true overlays. Menus/popovers sit on `--overlay`.
-5. **Mono is the machine voice.** Tool rows, paths, model/metrics, kbd chips,
-   uppercase section labels use `--font-mono`; prose stays `--font-sans`.
+5. **Sans is the UI voice; mono is code.** Electron chrome (tool headers,
+   paths, model/metrics, kbd chips, section labels, thinking/notices) uses
+   `--font-sans`. Reserve `--font-mono` for real code: fenced blocks, inline
+   `` `code` ``, tool/diff/job output bodies, ASCII wordmark, and rich chart
+   glyphs. (TUI still uses mono machine-voice labels in the CLI.)
 6. **Verify visually with the preview harness** (no engine needed):
    `npm run ui:preview`, then `?scenario=welcome|splash|chat|busy|permission|plan|slash|catalog|mention|jobs|inspector`
    plus `&theme=<name>`; `npm run ui:shots` captures the matrix headlessly
