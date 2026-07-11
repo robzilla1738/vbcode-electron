@@ -10,7 +10,7 @@ export function Splash({ onStarter }: { onStarter: (text: string) => void }) {
   return (
     <div className="splash">
       <div className="splash-inner">
-        <div className="splash-brand" aria-label="Vibe Codr">
+        <div className="splash-brand" role="img" aria-label="Vibe Codr">
           <pre className="splash-wordmark" aria-hidden>
             {WORDMARK.join("\n")}
           </pre>
@@ -27,22 +27,22 @@ export function Splash({ onStarter }: { onStarter: (text: string) => void }) {
           </p>
         </div>
 
-        <div className="starters" role="list">
+        <ul className="starters">
           {STARTERS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className="starter"
-              role="listitem"
-              onClick={() => onStarter(s)}
-            >
-              <span>{s}</span>
-              <span className="starter-arrow" aria-hidden>
-                ›
-              </span>
-            </button>
+            <li key={s} className="starter-item">
+              <button
+                type="button"
+                className="starter"
+                onClick={() => onStarter(s)}
+              >
+                <span>{s}</span>
+                <span className="starter-arrow" aria-hidden>
+                  ›
+                </span>
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     </div>
   );

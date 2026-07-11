@@ -42,6 +42,9 @@ async function submit(text: string) {
 }
 
 test("keeps empty, focus, and 200% zoom states usable", async () => {
+  const invalidRpc = await page.evaluate(() => (window as any).vibe.rpc("not-a-method"));
+  expect(invalidRpc).toMatchObject({ ok: false, error: "Invalid RPC request" });
+
   const jobs = page.getByRole("button", { name: "Toggle background jobs" });
   await jobs.focus();
   const focusStyle = await jobs.evaluate((element) => {
@@ -62,6 +65,34 @@ test("keeps empty, focus, and 200% zoom states usable", async () => {
   await expect(page.getByRole("textbox", { name: "Task message" })).toBeVisible();
   await expect(jobs).toBeVisible();
   await page.evaluate(() => { document.documentElement.style.zoom = ""; });
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const duration = await jobs.evaluate((element) => getComputedStyle(element).animationDuration);
+  expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.01);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+
+  await page.setViewportSize({ width: 820, height: 620 });
+  await expect(page.getByRole("textbox", { name: "Task message" })).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 820 });
+});
+
+test("renames, archives, and deletes saved sessions through host RPC", async () => {
+  await expect(page.getByText("Saved one", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^Saved one/ }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const rename = page.getByRole("textbox", { name: "Rename session" });
+  await rename.fill("Renamed fixture");
+  await rename.press("Enter");
+  await expect(page.getByText("Renamed fixture", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: /^Renamed fixture/ }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Archive" }).click();
+  await expect(page.getByText("Renamed fixture", { exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^Saved two/ }).click({ button: "right" });
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(page.getByText("Saved two", { exact: true })).toHaveCount(0);
 });
 
 test("streams reasoning, tools, diffs, markdown, telemetry, and engine-idle", async () => {
@@ -202,4 +233,13 @@ test("opens live model, provider, agent, skill, and MCP catalogs", async () => {
     await expect(page.getByText(expected, { exact: false }).first()).toBeVisible();
     await page.keyboard.press("Escape");
   }
+});
+
+test("recovers from a fatal host by starting a fresh session", async () => {
+  await submit("fixture:fatal");
+  await expect(page.getByText("fixture host failure", { exact: false }).first()).toBeVisible();
+  await page.getByRole("button", { name: "New session" }).click();
+  await expect(page.getByRole("textbox", { name: "Task message" })).toBeVisible();
+  await submit("recovered");
+  await expect(page.getByText("Echo: recovered")).toBeVisible();
 });

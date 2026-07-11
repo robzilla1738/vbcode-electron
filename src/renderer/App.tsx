@@ -7,6 +7,8 @@ import type {
   McpServerInfo,
 } from "../shared/types";
 import type { ProjectSummary } from "../shared/protocol";
+import { isProjectSummaryArray } from "../shared/runtime-guards";
+import { RequestGate } from "./hooks/request-gate";
 import { lineToCommands, routePendingPermLine } from "../shared/slash";
 import { nextDensity } from "../shared/density";
 import { formatKeysHelp } from "../shared/keys-help";
@@ -112,6 +114,7 @@ export function App() {
   const [projectRailOpen, setProjectRailOpen] = useState(true);
   const [followSignal, setFollowSignal] = useState(0);
   const didRestoreProject = useRef(false);
+  const projectRefreshGate = useRef(new RequestGate());
   const session = useSession(cwd);
   const showToastRef = useRef(session.showToast);
   showToastRef.current = session.showToast;
@@ -119,19 +122,23 @@ export function App() {
   chromeRef.current = session.chrome;
 
   const refreshProjects = useCallback(async () => {
+    const request = projectRefreshGate.current.begin();
     setProjectsLoading(true);
     try {
       const res = await window.vibe.listProjects();
-      if (res.ok) {
-        setProjects(res.value ?? []);
+      if (!projectRefreshGate.current.isCurrent(request)) return;
+      if (res.ok && isProjectSummaryArray(res.value)) {
+        setProjects(res.value);
         setProjectsError(null);
       } else {
         setProjectsError("Project history is unavailable.");
       }
     } catch {
-      setProjectsError("Project history is unavailable.");
+      if (projectRefreshGate.current.isCurrent(request)) {
+        setProjectsError("Project history is unavailable.");
+      }
     } finally {
-      setProjectsLoading(false);
+      if (projectRefreshGate.current.isCurrent(request)) setProjectsLoading(false);
     }
   }, []);
 
@@ -199,7 +206,7 @@ export function App() {
   }, [cwd, session, refreshProjects]);
 
   const newSession = useCallback(async () => {
-    if (!cwd) return;
+    if (!cwd) return false;
     if (session.chrome.busy) await session.send({ type: "abort" });
     const ok = await session.bootstrap({ cwd });
     if (ok) {
@@ -207,6 +214,7 @@ export function App() {
       setFollowSignal((value) => value + 1);
       await refreshProjects();
     }
+    return ok;
   }, [cwd, session, refreshProjects]);
 
   const renameSession = useCallback(
@@ -224,6 +232,10 @@ export function App() {
 
   const removeSession = useCallback(
     async (projectCwd: string, id: string, mode: "delete" | "archive") => {
+      const active = id === session.chrome.sessionId && projectCwd === cwd;
+      // Retire/finalize the active engine before removing its persisted record;
+      // otherwise shutdown can save the just-deleted session back to disk.
+      if (active && !(await newSession())) return false;
       const res =
         mode === "delete"
           ? await window.vibe.deleteSession({ cwd: projectCwd, id })
@@ -233,9 +245,6 @@ export function App() {
         return false;
       }
       await refreshProjects();
-      if (id === session.chrome.sessionId && projectCwd === cwd) {
-        await newSession();
-      }
       session.showToast(mode === "delete" ? "Session deleted" : "Session archived");
       return true;
     },

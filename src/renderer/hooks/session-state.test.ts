@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UIEvent } from "../../shared/events";
-import { initialChrome, reduceChrome } from "./useSession";
+import { initialChrome, reduceChrome } from "./session-state";
 
 function event(state: ReturnType<typeof initialChrome>, value: UIEvent) {
   return reduceChrome(state, { type: "event", event: value });

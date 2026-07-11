@@ -480,5 +480,3 @@ const mock = {
 
 (window as unknown as { vibe: typeof mock }).vibe = mock;
 (window as unknown as { __previewSettled: boolean }).__previewSettled = false;
-
-export {};

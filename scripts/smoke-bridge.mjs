@@ -24,11 +24,34 @@ const rl = createInterface({ input: proc.stdout });
 let ready = false;
 let snapshotOk = false;
 let projectsOk = false;
+let finishing = false;
+
+function finish(code, error) {
+  if (finishing) return;
+  finishing = true;
+  if (error) console.error(error);
+
+  const forceTimer = setTimeout(() => {
+    proc.kill("SIGKILL");
+  }, 2_000);
+  forceTimer.unref();
+
+  proc.once("exit", () => {
+    clearTimeout(forceTimer);
+    process.exit(code);
+  });
+
+  if (proc.exitCode !== null) process.exit(code);
+  if (code === 0 && proc.stdin.writable) {
+    proc.stdin.end(`${JSON.stringify({ op: "shutdown" })}\n`);
+  } else {
+    proc.kill();
+  }
+}
 
 function finishIfReady() {
   if (!snapshotOk || !projectsOk) return;
-  proc.stdin.write(JSON.stringify({ op: "shutdown" }) + "\n");
-  setTimeout(() => process.exit(0), 300);
+  finish(0);
 }
 
 rl.on("line", (line) => {
@@ -41,14 +64,13 @@ rl.on("line", (line) => {
   }
   if (msg.type === "ready") {
     ready = true;
-    proc.stdin.write(JSON.stringify({ op: "rpc", id: 1, method: "snapshot" }) + "\n");
-    proc.stdin.write(JSON.stringify({ op: "rpc", id: 2, method: "listProjects" }) + "\n");
+    proc.stdin.write(`${JSON.stringify({ op: "rpc", id: 1, method: "snapshot" })}\n`);
+    proc.stdin.write(`${JSON.stringify({ op: "rpc", id: 2, method: "listProjects" })}\n`);
   }
   if (msg.type === "resp" && msg.id === 1) {
     if (!msg.ok) {
-      console.error("snapshot failed", msg.error);
-      proc.kill();
-      process.exit(1);
+      finish(1, `snapshot failed: ${msg.error ?? "unknown error"}`);
+      return;
     }
     console.log("snapshot ok session=", msg.value?.sessionId);
     snapshotOk = true;
@@ -56,15 +78,13 @@ rl.on("line", (line) => {
   }
   if (msg.type === "resp" && msg.id === 2) {
     if (!msg.ok || !Array.isArray(msg.value)) {
-      console.error("project index failed", msg.error || "invalid response");
-      proc.kill();
-      process.exit(1);
+      finish(1, `project index failed: ${msg.error || "invalid response"}`);
+      return;
     }
     const active = msg.value.find((project) => project?.cwd === cwd);
     if (!active || !Array.isArray(active.sessions)) {
-      console.error("project index missing active cwd", cwd);
-      proc.kill();
-      process.exit(1);
+      finish(1, `project index missing active cwd: ${cwd}`);
+      return;
     }
     console.log("project index ok projects=", msg.value.length);
     projectsOk = true;
@@ -73,12 +93,14 @@ rl.on("line", (line) => {
 });
 
 proc.stderr.on("data", (d) => process.stderr.write(d));
-proc.stdin.write(JSON.stringify({ op: "bootstrap", cwd }) + "\n");
+proc.stdin.write(`${JSON.stringify({ op: "bootstrap", cwd })}\n`);
 
 setTimeout(() => {
   if (!ready) {
-    console.error("timeout waiting for ready");
-    proc.kill();
-    process.exit(1);
+    finish(1, "timeout waiting for ready");
   }
 }, 45000);
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, () => finish(1, `interrupted by ${signal}`));
+}

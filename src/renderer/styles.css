@@ -3200,12 +3200,19 @@ html.electron-transparent .sidebar-heading-row {
 
 /* The lone trailing starter spans both columns so an odd count reads as a
    deliberate 2-over-1 layout instead of an unbalanced empty cell. */
-.starter:last-child:nth-child(odd) {
+.starter-item:last-child:nth-child(odd) {
   grid-column: 1 / -1;
+}
+
+.starter-item {
+  display: flex;
+  min-width: 0;
+  list-style: none;
 }
 
 .starter {
   display: flex;
+  width: 100%;
   min-height: 42px;
   align-items: center;
   justify-content: space-between;

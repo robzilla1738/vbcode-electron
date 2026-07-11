@@ -57,7 +57,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | A32 | P0 | Accessibility | Desktop accessibility | Controls have names, focus indicators, semantic roles, reduced-motion support, AA contrast, and work at 200% zoom without lost actions. | e2e: role-based controls, flat focus state, 200% zoom; review: reduced-motion CSS | pass |
 | A33 | P0 | Resilience | Empty/error/narrow states | First run, no sessions, no catalog results, RPC errors, host disconnect, long text, and narrow window states remain understandable and recoverable. | test: bridge/error cases; e2e: empty jobs + 200% zoom; review: empty/error surfaces | pass |
 | A34 | P0 | Quality | Source parity guard | Pure modules ported from TUI have drift-detection coverage or shared fixtures so upstream changes cannot silently break parity. | script: source parity audit; test: shared behavioral vectors | pass |
-| A35 | P0 | Quality | Verification gates | Unit tests, typecheck, production build, bridge smoke, and focused UI smoke all pass from documented commands. | script:`npm test && npm run typecheck && npm run build && npm run smoke:bridge` | pass |
+| A35 | P0 | Quality | Verification gates | Lint, unit tests, source parity, typecheck, production build, bundle budget, bridge smoke, and focused UI smoke all pass from documented commands. | script:`npm run verify && npm run smoke:bridge && npm run test:e2e` | pass |
 | A36 | P0 | Packaging | Standalone app | Packaged app includes/resolves the engine host without `VIBE_CODR_ROOT`, launches, opens a project, runs a turn, and shuts down cleanly. | script:`npm run pack && npm run smoke:packaged` | pass |
 | A37 | P1 | Layout | Desktop composition | Rail, transcript, composer, and activity surfaces preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints. | review: responsive shell CSS; e2e: 200% zoom reachability | pass |
 | A38 | P1 | Typography | Dense readability | Prose, code, labels, metadata, and controls use a coherent scale with readable measures and no accidental all-monospace or oversized hierarchy. | review: locked tokens + shared CLI wordmark | pass |
@@ -71,6 +71,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | 2026-07-10 | Codex | 22/36 | 0/4 | Hermetic Electron E2E now proves streaming, plans, permissions, tools/diffs, hostile markdown containment, queues, catalogs, telemetry, and themes. Task is not done. |
 | 2026-07-10 | Codex | 36/36 | 4/4 | Eight Electron harness scenarios, 57 unit checks, 19 source-pair guards, bridge smoke, production pack, and clean-environment packaged smoke pass. |
 | 2026-07-11 | Claude | n/a | n/a | Presentation-only design-system pass (A32/A37–A40 surfaces): motion/focus/elevation tokens, mono system voice, context gauge, state coverage. 57/57 unit + typecheck green; `src/shared` untouched so parity gates unchanged; 13 UI states screenshot-compared before/after (dark, light, opencode) via the new `tools/ui-preview` harness. |
+| 2026-07-11 | Codex | 36/36 | 4/4 | Adversarial lifecycle/protocol/persistence hardening: 65 unit checks, 10 Electron E2E scenarios, runtime boundary guards, host-generation isolation, Biome/CI/bundle gates, live bridge and packaged smokes. |
 
 ## Sign-off
 
@@ -95,4 +96,8 @@ npm run test:e2e                 # 8/8 renderer/preload/bridge/host scenarios
 npm run smoke:bridge             # bundled protocol ready + snapshot + project index
 npm run pack                     # pass; release/mac-arm64/Vibe Codr.app
 npm run smoke:packaged           # no VIBE_CODR_ROOT; bundled host + restore + command pass
+npm run lint                     # Biome gate pass
+npm test                         # 65/65 pass
+npm run test:e2e                 # 10/10 renderer/preload/bridge/host scenarios
+npm run verify:bundle            # renderer JavaScript under budget
 ```

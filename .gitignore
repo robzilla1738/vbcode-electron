@@ -1,6 +1,8 @@
 node_modules
 out
 dist
+!test/fixtures/vibe-codr/dist/
+!test/fixtures/vibe-codr/dist/vibecodr-engine-host
 release
 resources/vibecodr-engine-host
 *.tsbuildinfo

@@ -8,6 +8,7 @@ import {
   type RpcMethod,
 } from "../shared/protocol";
 import { enrichedEnv, resolveHostLaunch, type HostLaunch } from "./host-resolver";
+import { isRpcResult } from "../shared/runtime-guards";
 
 const READY_TIMEOUT_MS = 45_000;
 const RPC_TIMEOUT_MS = 20_000;
@@ -23,14 +24,27 @@ export interface EngineBridgeOptions {
   readyTimeoutMs?: number;
   rpcTimeoutMs?: number;
   stopTimeoutMs?: number;
+  /** Test seam for deterministic stream/process failure injection. */
+  onSpawn?: (proc: ChildProcessWithoutNullStreams) => void;
+}
+
+export interface EngineStartOptions {
+  cwd: string;
+  resume?: string;
+  continueLatest?: boolean;
+  model?: string;
+  mode?: "plan" | "execute" | "yolo";
 }
 
 export class EngineBridge {
   private proc: ChildProcessWithoutNullStreams | null = null;
+  private generation = 0;
+  private startRequest = 0;
+  private lifecycle: Promise<void> = Promise.resolve();
   private nextRpcId = 1;
   private rpcWaiters = new Map<
     number,
-    { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }
+    { method: RpcMethod; resolve: (v: unknown) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }
   >();
   private readyWaiters: Array<{
     resolve: (sessionId: string) => void;
@@ -53,19 +67,26 @@ export class EngineBridge {
     return this.proc != null && !this.proc.killed;
   }
 
-  async start(opts: {
-    cwd: string;
-    resume?: string;
-    continueLatest?: boolean;
-    model?: string;
-    mode?: "plan" | "execute" | "yolo";
-  }): Promise<string> {
+  start(opts: EngineStartOptions): Promise<string> {
+    const request = ++this.startRequest;
+    this.generation += 1;
+    // Supersede a bootstrap that is waiting for ready immediately; its queued
+    // lifecycle step then releases so the newest request can retire its child.
+    this.failReady(new Error("Engine host stopped"));
+    this.failAllRpc(new Error("Engine host stopped"));
+    return this.schedule(async () => {
+      if (request !== this.startRequest) throw new Error("Engine host stopped");
+      if (this.proc) await this.stopCurrent();
+      if (request !== this.startRequest) throw new Error("Engine host stopped");
+      return this.startCurrent(opts);
+    });
+  }
+
+  private async startCurrent(opts: EngineStartOptions): Promise<string> {
     // A second bootstrap can arrive while the prior host is still starting.
     // Always retire any existing child before spawning another; checking only
     // `didReady` leaks two hosts and lets both write into the same renderer.
-    if (this.proc) {
-      await this.stop();
-    }
+    const generation = ++this.generation;
 
     this.lastFatal = null;
     this.lastStderr = "";
@@ -89,18 +110,31 @@ export class EngineBridge {
     });
     this.proc = proc;
 
+    const isCurrent = () => this.proc === proc && this.generation === generation;
     const rl = createInterface({ input: proc.stdout });
-    rl.on("line", (line) => this.handleLine(line));
+    rl.on("line", (line) => {
+      if (isCurrent()) this.handleLine(line, proc, generation);
+    });
 
     proc.stderr.on("data", (chunk: Buffer) => {
+      if (!isCurrent()) return;
       this.stderrBuf += chunk.toString("utf8");
       if (this.stderrBuf.length > 64_000) {
         this.stderrBuf = this.stderrBuf.slice(-32_000);
       }
     });
 
+    const streamFailure = (stream: string, error: Error) => {
+      if (isCurrent()) this.terminateFatal(`Engine host ${stream} failed: ${error.message}`, proc, generation);
+    };
+    proc.stdin.on("error", (error) => streamFailure("stdin", error));
+    proc.stdout.on("error", (error) => streamFailure("stdout", error));
+    proc.stderr.on("error", (error) => streamFailure("stderr", error));
+    this.options.onSpawn?.(proc);
+
     proc.on("exit", (code) => {
-      if (this.proc !== proc) return;
+      rl.close();
+      if (!isCurrent()) return;
       this.proc = null;
       const errText = this.consumeStderr();
       if (errText) this.lastStderr = errText;
@@ -117,7 +151,7 @@ export class EngineBridge {
     });
 
     proc.on("error", (error) => {
-      if (this.proc !== proc) return;
+      if (!isCurrent()) return;
       this.proc = null;
       const message = `Could not start engine host: ${error.message}`;
       this.lastFatal = message;
@@ -138,7 +172,16 @@ export class EngineBridge {
     return this.waitForReady(this.options.readyTimeoutMs ?? READY_TIMEOUT_MS);
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    this.startRequest += 1;
+    this.generation += 1;
+    this.failReady(new Error("Engine host stopped"));
+    this.failAllRpc(new Error("Engine host stopped"));
+    return this.schedule(() => this.stopCurrent());
+  }
+
+  private async stopCurrent(): Promise<void> {
+    this.generation += 1;
     this.failReady(new Error("Engine host stopped"));
     this.failAllRpc(new Error("Engine host stopped"));
     const proc = this.proc;
@@ -160,6 +203,12 @@ export class EngineBridge {
     this.didReady = false;
   }
 
+  private schedule<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.lifecycle.then(work);
+    this.lifecycle = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
   send(command: EngineCommand): void {
     this.write({ op: "send", command });
   }
@@ -172,7 +221,7 @@ export class EngineBridge {
         this.rpcWaiters.delete(id);
         reject(new Error(`RPC ${method} timed out`));
       }, this.options.rpcTimeoutMs ?? RPC_TIMEOUT_MS);
-      this.rpcWaiters.set(id, { resolve, reject, timer });
+      this.rpcWaiters.set(id, { method, resolve, reject, timer });
       try {
         this.write({
           op: "rpc",
@@ -193,12 +242,17 @@ export class EngineBridge {
     this.proc.stdin.write(encodeInbound(msg));
   }
 
-  private handleLine(line: string): void {
+  private handleLine(
+    line: string,
+    proc: ChildProcessWithoutNullStreams,
+    generation: number,
+  ): void {
+    if (this.proc !== proc || this.generation !== generation) return;
     const msg = decodeOutbound(line);
     if (!msg) {
       const excerpt = line.trim().slice(0, 160);
       const message = `Engine host emitted invalid protocol output${excerpt ? `: ${excerpt}` : ""}`;
-      this.terminateFatal(message);
+      this.terminateFatal(message, proc, generation);
       return;
     }
     switch (msg.type) {
@@ -217,12 +271,19 @@ export class EngineBridge {
         if (!waiter) break;
         clearTimeout(waiter.timer);
         this.rpcWaiters.delete(msg.id);
-        if (msg.ok) waiter.resolve(msg.value);
-        else waiter.reject(new Error(msg.error));
+        if (msg.ok) {
+          if (!isRpcResult(waiter.method, msg.value)) {
+            const message = `Engine host returned invalid ${waiter.method} response`;
+            waiter.reject(new Error(message));
+            this.terminateFatal(message, proc, generation);
+          } else {
+            waiter.resolve(msg.value);
+          }
+        } else waiter.reject(new Error(msg.error));
         break;
       }
       case "fatal":
-        this.terminateFatal(msg.message);
+        this.terminateFatal(msg.message, proc, generation);
         break;
     }
   }
@@ -279,13 +340,19 @@ export class EngineBridge {
     return t;
   }
 
-  private terminateFatal(message: string): void {
+  private terminateFatal(
+    message: string,
+    proc: ChildProcessWithoutNullStreams | null = this.proc,
+    generation = this.generation,
+  ): void {
+    if (!proc || this.proc !== proc || this.generation !== generation) return;
+    if (this.lastFatal) return;
     this.lastFatal = message;
     this.onFatal?.(message);
     const error = new Error(message);
     this.failReady(error);
     this.failAllRpc(error);
-    this.proc?.kill();
+    proc.kill();
   }
 }
 

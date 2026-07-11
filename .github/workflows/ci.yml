@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: robzilla1738/vibe-codr
+          path: vibe-codr
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build engine host
+        working-directory: vibe-codr
+        run: bun install --frozen-lockfile && bun run build:macos-bridge
+      - run: npm ci
+      - name: Verify source, types, tests, lint, and build
+        env:
+          VIBE_CODR_ROOT: ${{ github.workspace }}/vibe-codr
+        run: npm run verify
+      - name: Install Electron runtime dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Electron end-to-end tests
+        env:
+          VIBE_CODR_ROOT: ${{ github.workspace }}/vibe-codr
+        run: xvfb-run -a npm run test:e2e
+
+  packaged-smoke:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: robzilla1738/vibe-codr
+          path: vibe-codr
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build engine host
+        working-directory: vibe-codr
+        run: bun install --frozen-lockfile && bun run build:macos-bridge
+      - run: npm ci
+      - name: Build unsigned application bundle
+        env:
+          VIBE_CODR_ROOT: ${{ github.workspace }}/vibe-codr
+        run: npm run pack
+      - name: Verify bundled host without developer checkout fallback
+        env:
+          VIBE_CODR_ROOT: ""
+        run: npm run smoke:packaged

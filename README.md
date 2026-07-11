@@ -88,9 +88,12 @@ theme. See [tools/ui-preview/README.md](./tools/ui-preview/README.md).
 |---------|---------|
 | `npm run dev` | electron-vite + Electron window |
 | `npm run build` | Compile main / preload / renderer → `out/` |
-| `npm test` | Vitest parity, lifecycle, and editor-compose tests (57) |
+| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests (65) |
 | `npm run test:e2e` | Hermetic Electron UI/IPC/bridge parity scenarios |
+| `npm run lint` | Biome correctness and maintainability gate |
+| `npm run verify` | Lint + unit + source parity + types + build + bundle budget |
 | `npm run verify:source-parity` | AST drift gate against live CLI/shared/bridge sources |
+| `npm run verify:bundle` | Renderer JavaScript regression budget |
 | `npm run typecheck` | `tsc` for node + web projects |
 | `npm run ui:preview` | Renderer in a browser with a mocked bridge (no engine) |
 | `npm run ui:shots` | Headless screenshot matrix of every preview scenario |
@@ -175,10 +178,10 @@ See **[PARITY.md](./PARITY.md)** for the full CLI ↔ Electron checklist (modele
 Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AGENTS.md](./AGENTS.md)**.
 
 ```bash
-npm test && npm run typecheck && npm run build && npm run smoke:bridge && npm run test:e2e
+npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-All gates: **57 unit tests**, **8 e2e tests**, **19 source-parity pairs**, `tsc` clean, build OK, smoke prints `ready` + `snapshot ok`. See [ACCEPTANCE.md](./ACCEPTANCE.md) for the full acceptance spec (35 criteria, all pass).
+All gates: **65 unit tests**, **10 e2e tests**, **19 source-parity pairs**, Biome and `tsc` clean, build/bundle budget OK, and bridge/packaged smokes green. See [ACCEPTANCE.md](./ACCEPTANCE.md) for the full acceptance spec (40 criteria, all pass).
 
 ## Project layout
 

@@ -7,13 +7,34 @@ import { homedir, tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import liquidGlass from "electron-liquid-glass";
 import type { EngineCommand } from "../shared/commands";
-import type { RpcMethod } from "../shared/protocol";
+import { decodeInbound, type HostInbound, type RpcMethod } from "../shared/protocol";
 import { EngineBridge } from "./engine-bridge";
 import { listProjectFiles, rankPaths } from "../shared/file-fuzzy";
 import { composeInEditor } from "../shared/editor-compose";
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new EngineBridge();
+
+function inbound(value: unknown): HostInbound | null {
+  try {
+    const encoded = JSON.stringify(value);
+    return typeof encoded === "string" ? decodeInbound(encoded) : null;
+  } catch {
+    return null;
+  }
+}
+
+function assertTrustedIpc(event: Electron.IpcMainInvokeEvent): void {
+  if (!mainWindow || event.sender !== mainWindow.webContents) {
+    throw new Error("IPC request did not originate from the application renderer");
+  }
+}
+
+function assertTrustedSender(sender: Electron.WebContents): void {
+  if (!mainWindow || sender !== mainWindow.webContents) {
+    throw new Error("IPC message did not originate from the application renderer");
+  }
+}
 
 function safeExternalUrl(value: string): string | null {
   try {
@@ -119,7 +140,7 @@ function registerIpc(): void {
   ipcMain.handle(
     "engine:bootstrap",
     async (
-      _e,
+      event,
       opts: {
         cwd: string;
         resume?: string;
@@ -128,8 +149,19 @@ function registerIpc(): void {
         mode?: "plan" | "execute" | "yolo";
       },
     ) => {
+      assertTrustedIpc(event);
+      const message = inbound({ op: "bootstrap", ...opts });
+      if (message?.op !== "bootstrap") {
+        return { ok: false as const, error: "Invalid bootstrap request" };
+      }
       try {
-        const sessionId = await bridge.start(opts);
+        const sessionId = await bridge.start({
+          cwd: message.cwd,
+          resume: message.resume,
+          continueLatest: message.continue,
+          model: message.model,
+          mode: message.mode,
+        });
         return { ok: true as const, sessionId, launch: bridge.lastLaunchDescription };
       } catch (err) {
         return {
@@ -142,30 +174,38 @@ function registerIpc(): void {
     },
   );
 
-  ipcMain.handle("engine:send", (_e, command: EngineCommand) => {
+  ipcMain.handle("engine:send", (event, command: EngineCommand) => {
+    assertTrustedIpc(event);
+    const message = inbound({ op: "send", command });
+    if (message?.op !== "send") return { ok: false as const, error: "Invalid engine command" };
     try {
-      bridge.send(command);
+      bridge.send(message.command);
       return { ok: true as const };
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
   });
 
-  ipcMain.handle("engine:rpc", async (_e, method: RpcMethod, params?: Record<string, unknown>) => {
+  ipcMain.handle("engine:rpc", async (event, method: RpcMethod, params?: Record<string, unknown>) => {
+    assertTrustedIpc(event);
+    const message = inbound({ op: "rpc", id: 1, method, ...(params ? { params } : {}) });
+    if (message?.op !== "rpc") return { ok: false as const, error: "Invalid RPC request" };
     try {
-      const value = await bridge.rpc(method, params);
+      const value = await bridge.rpc(message.method, message.params);
       return { ok: true as const, value };
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
   });
 
-  ipcMain.handle("engine:stop", async () => {
+  ipcMain.handle("engine:stop", async (event) => {
+    assertTrustedIpc(event);
     await bridge.stop();
     return { ok: true as const };
   });
 
-  ipcMain.handle("dialog:openProject", async () => {
+  ipcMain.handle("dialog:openProject", async (event) => {
+    assertTrustedIpc(event);
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ["openDirectory", "createDirectory"],
       title: "Open Project",
@@ -174,19 +214,26 @@ function registerIpc(): void {
     return result.filePaths[0];
   });
 
-  ipcMain.handle("shell:openExternal", async (_e, url: string) => {
+  ipcMain.handle("shell:openExternal", async (event, url: string) => {
+    assertTrustedIpc(event);
     const safeUrl = safeExternalUrl(url);
     if (!safeUrl) throw new Error("Unsupported external URL");
     await shell.openExternal(safeUrl);
   });
 
-  ipcMain.handle("shell:showItem", async (_e, path: string) => {
+  ipcMain.handle("shell:showItem", async (event, path: string) => {
+    assertTrustedIpc(event);
+    if (typeof path !== "string" || !path) throw new Error("Invalid item path");
     shell.showItemInFolder(path);
   });
 
   ipcMain.handle(
     "clipboard:paste",
-    async (_e, opts?: { cwd?: string }) => {
+    async (event, opts?: { cwd?: string }) => {
+      assertTrustedIpc(event);
+      if (opts !== undefined && (typeof opts !== "object" || (opts.cwd !== undefined && typeof opts.cwd !== "string"))) {
+        return { kind: "error" as const, error: "Invalid clipboard request" };
+      }
       try {
         const img = clipboard.readImage();
         if (!img.isEmpty()) {
@@ -212,7 +259,9 @@ function registerIpc(): void {
     },
   );
 
-  ipcMain.handle("editor:compose", async (_e, draft: string) => {
+  ipcMain.handle("editor:compose", async (event, draft: string) => {
+    assertTrustedIpc(event);
+    if (typeof draft !== "string") return { ok: false, reason: "failed" as const, error: "Invalid editor draft" };
     const result = await composeInEditor({
       editor: process.env.VISUAL || process.env.EDITOR,
       draft,
@@ -228,14 +277,27 @@ function registerIpc(): void {
     return { ok: false, reason: "kept" };
   });
 
-  ipcMain.handle("app:getPath", (_e, name: "home" | "userData") => app.getPath(name));
-  ipcMain.on("app:quit", () => app.quit());
+  ipcMain.handle("app:getPath", (event, name: "home" | "userData") => {
+    assertTrustedIpc(event);
+    if (name !== "home" && name !== "userData") throw new Error("Unsupported app path");
+    return app.getPath(name);
+  });
+  ipcMain.on("app:quit", (event) => {
+    assertTrustedSender(event.sender);
+    app.quit();
+  });
 
   ipcMain.handle(
     "fs:listFiles",
-    async (_e, opts: { cwd: string; query: string; limit?: number }) => {
-      const limit = opts.limit ?? 40;
-      if (!existsSync(opts.cwd) || !statSync(opts.cwd).isDirectory()) return [];
+    async (event, opts: { cwd: string; query: string; limit?: number }) => {
+      assertTrustedIpc(event);
+      if (!opts || typeof opts.cwd !== "string" || typeof opts.query !== "string") return [];
+      const limit = Math.min(100, Math.max(1, Number.isFinite(opts.limit) ? Math.trunc(opts.limit!) : 40));
+      try {
+        if (!existsSync(opts.cwd) || !statSync(opts.cwd).isDirectory()) return [];
+      } catch {
+        return [];
+      }
       const all = listProjectFiles(opts.cwd, {
         maxFiles: 2000,
         maxDepth: 6,
@@ -254,7 +316,8 @@ function registerIpc(): void {
     },
   );
 
-  ipcMain.handle("config:globalPath", () => {
+  ipcMain.handle("config:globalPath", (event) => {
+    assertTrustedIpc(event);
     const xdg = process.env.XDG_CONFIG_HOME;
     return xdg
       ? join(xdg, "vibe-codr", "config.json")

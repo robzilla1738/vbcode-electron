@@ -7,14 +7,18 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 ```bash
 cd ~/Code/vbcode-electron   # or your clone of this repo
 npm test
+npm run lint
 npm run verify:source-parity
 npm run typecheck
 npm run build
+npm run verify:bundle
 npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT)
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (57), upstream source pairs aligned, `tsc` clean, electron-vite build OK, smoke prints `ready` + `snapshot ok`.
+Expect: Vitest green (65), upstream source pairs aligned, Biome and `tsc` clean, electron-vite build and renderer bundle budget OK, and smoke prints `ready` + `snapshot ok`. `npm run verify` runs the non-E2E subset as one gate.
+
+GitHub CI repeats this gate plus Electron E2E on Linux and an unsigned bundled-host smoke on macOS. Public signing/notarization remains a release-credential step.
 
 ## UI preview (renderer-only, no engine)
 

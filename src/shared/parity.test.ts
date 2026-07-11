@@ -436,7 +436,7 @@ describe("rich blocks rendering", () => {
 describe("theme palette parity", () => {
   it("DEFAULT palette matches Graphite (white chrome + violet)", async () => {
     const { THEMES } = await import("./themes");
-    const d = THEMES["default"]!;
+    const d = THEMES.default!;
     expect(d.background).toBe("#0a0a0a");
     expect(d.primary).toBe("#eeeeee");
     expect(d.selBg).toBe("#8b5cf6");
@@ -445,6 +445,6 @@ describe("theme palette parity", () => {
 
   it("OPENCODE palette has #eeeeee assistant (not #f7f7f8)", async () => {
     const { THEMES } = await import("./themes");
-    expect(THEMES["opencode"]!.assistant).toBe("#eeeeee");
+    expect(THEMES.opencode!.assistant).toBe("#eeeeee");
   });
 });

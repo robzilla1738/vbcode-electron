@@ -124,6 +124,7 @@ Engine ownership stays in `@vibe/core`; this app is a presentation shell over ND
 cd ~/Code/vibe-codr && bun run build:macos-bridge
 cd ~/Code/vbcode-electron
 npm install && npm test && npm run typecheck && npm run build
+npm run lint && npm run verify:bundle
 npm run smoke:bridge
 npm run dev
 ```
@@ -171,3 +172,16 @@ npm run dev
 - [x] Z-index on .panels + .composer-stack prevents transcript pointer interception
 - [x] E2e test assertions fixed: focus ring, ctx gauge, inspector label, thinking label
 - [x] editor-compose.ts synced with full TUI JSDoc comments
+
+## Hardening audit (session 4)
+
+- [x] Host generations isolate stale ready/event/RPC output during rapid restart
+- [x] Async child stdin/stdout/stderr failures become one actionable fatal state
+- [x] NDJSON inbound/outbound messages, UI events, RPC results, and IPC inputs are runtime validated
+- [x] Overlapping renderer bootstraps and project refreshes are latest-request-wins
+- [x] Stale session events cannot mutate the active renderer session
+- [x] Session mutation ids reject traversal/path components; missing delete/archive return failure
+- [x] Host-level mutation and malformed/pre-bootstrap RPC coverage
+- [x] Pure chrome/session state machine extracted from transport lifecycle
+- [x] Biome lint, renderer bundle budget, Linux CI, and macOS packaged smoke gates
+- [x] E2E session rename/archive/delete, fatal-host recovery, narrow layout, and reduced motion
