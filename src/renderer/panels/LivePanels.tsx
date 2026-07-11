@@ -1,4 +1,4 @@
-import { permissionPreview } from "../../shared/tool-icons";
+import { permissionPreview, toolLabel } from "../../shared/tool-icons";
 import type { PendingPerm } from "../../shared/reducer";
 import type { QueuedItem } from "../../shared/types";
 import { externalHref } from "../../shared/sources";
@@ -22,8 +22,9 @@ export function PermissionCard({
   return (
     <div className="card perm">
       <h3>
-        Permission {count > 1 ? `(${count})` : ""} · {perm.toolName}
+        Permission required{count > 1 ? ` · 1/${count}` : ""} · {perm.toolName}
       </h3>
+      <p className="perm-tool-label">{toolLabel(perm.toolName, perm.input)}</p>
       {preview && (
         <div className="tool-body permission-preview">
           {preview.lines.map((l, i) => (

@@ -1807,6 +1807,14 @@ html[data-scheme="light"] .card {
 }
 
 .card.perm h3 {
+
+.perm-tool-label {
+  margin: 2px 0 0;
+  color: var(--assistant);
+  font-size: var(--text-ui);
+  font-weight: 400;
+  line-height: 1.4;
+}
   color: var(--notice);
 }
 
