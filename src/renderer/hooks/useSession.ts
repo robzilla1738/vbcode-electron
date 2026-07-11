@@ -809,6 +809,13 @@ export function useSession(cwd: string | null) {
         mode: action.optimistic.mode,
         approvals: action.optimistic.approvals,
       });
+    } else if (chrome.plan) {
+      // Silent no-op felt broken — surface why the chip didn't move (TUI parity).
+      dispatchTranscript({
+        type: "notice",
+        text: "Approve or revise the plan first (Enter / type / Esc) — mode stays PLAN.",
+        level: "info",
+      });
     }
   }, [uiMode, chrome.plan, sendMany]);
 

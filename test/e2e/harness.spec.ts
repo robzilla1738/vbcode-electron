@@ -49,7 +49,9 @@ test("keeps empty, focus, and 200% zoom states usable", async () => {
     return { outline: style.outlineStyle, shadow: style.boxShadow };
   });
   expect(focusStyle.outline).toBe("none");
-  expect(focusStyle.shadow).toContain("inset");
+  // Two-layer keyboard focus ring: surface gap + accent halo (no inset).
+  expect(focusStyle.shadow).not.toBe("none");
+  expect(focusStyle.shadow).toContain("0px 0px 0px 4px");
 
   await jobs.click();
   await expect(page.getByText("No background jobs are running.")).toBeVisible();
@@ -68,12 +70,12 @@ test("streams reasoning, tools, diffs, markdown, telemetry, and engine-idle", as
   await expect(page.getByRole("button", { name: /edited src\/example\.ts/ })).toBeVisible();
   await expect(page.getByText("fixture:stream")).toBeVisible();
   await expect(page.getByText(/15 tok/)).toBeVisible();
-  await expect(page.getByText(/ctx 10%/)).toBeVisible();
+  await expect(page.locator('.ctx-ring')).toContainText('10%');
   await expect(page.getByText("Vibe Codr is idle")).toBeAttached();
   await page.getByRole("button", { name: /Expand .*src\/example\.ts/ }).click();
   await expect(page.getByText("+ new")).toBeVisible();
   await expect(page.getByText("fixture command failed")).toBeVisible();
-  const reasoning = page.getByRole("button", { name: /Expand reasoning/ });
+  const reasoning = page.getByRole("button", { name: /Expand Thought/ });
   await expect(reasoning).toBeVisible();
   await reasoning.click();
   await expect(page.getByText("Inspecting the fixture.", { exact: false })).toBeVisible();
@@ -143,7 +145,7 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await page.getByRole("button", { name: "Toggle background jobs" }).click();
   await expect(page.getByText("npm run dev")).toBeVisible();
   await expect(page.getByRole("link", { name: "http://localhost:4310" })).toBeVisible();
-  await page.getByRole("button", { name: "Toggle inspector" }).click();
+  await page.getByRole("button", { name: "Toggle session panel" }).click();
   await expect(page.getByText("Before fixture change")).toBeVisible();
   await expect(page.getByText(/Run fixture child/)).toBeVisible();
   const subagent = page.getByRole("button", { name: /Review the fixture/ });
@@ -151,7 +153,7 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await subagent.click();
   await expect(page.getByText("Subagent report: looks healthy.")).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("complementary", { name: "Session inspector" })).toBeHidden();
+  await expect(page.getByRole("complementary", { name: "Session details" })).toBeHidden();
   await page.getByRole("button", { name: "Toggle background jobs" }).click();
   await page.getByRole("button", { name: /Expand.*search.*fixture/ }).click();
   await expect(page.getByRole("link", { name: "Fixture search" })).toBeVisible();

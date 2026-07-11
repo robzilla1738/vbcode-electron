@@ -439,8 +439,8 @@ describe("theme palette parity", () => {
     const d = THEMES["default"]!;
     expect(d.background).toBe("#0a0a0a");
     expect(d.primary).toBe("#eeeeee");
-    expect(d.selBg).toBe("#2a2a2a");
-    expect(d.heading).toBe("#eeeeee");
+    expect(d.selBg).toBe("#8b5cf6");
+    expect(d.heading).toBe("#8b5cf6");
   });
 
   it("OPENCODE palette has #eeeeee assistant (not #f7f7f8)", async () => {

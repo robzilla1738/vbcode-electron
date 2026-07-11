@@ -59,6 +59,9 @@ function goalSuffix(goal: string | null, run: { active: boolean; phase: string |
   if (!run) return `★ ${goal}`;
   if (run.met) return `★ ${goal} · met`;
   if (run.active) {
+    // TUI parity: plan phase reads planning (not plan) and does NOT show
+    // round/max until the execute phase begins.
+    if (run.phase === "plan") return `★ ${goal} · planning`;
     const phase = run.phase ? ` · ${run.phase}` : "";
     return `★ ${goal}${phase} · ${run.round}/${run.max}`;
   }

@@ -20,10 +20,10 @@
   --add-bg: #20303b;
   --del-bg: #37222c;
   --gutter: #484848;
-  --heading: #eeeeee;
+  --heading: #8b5cf6;
   --code: #56b6c2;
-  --sel-bg: #2a2a2a;
-  --sel-fg: #eeeeee;
+  --sel-bg: #8b5cf6;
+  --sel-fg: #0a0a0a;
   --task-done: #808080;
   --task-active: #56b6c2;
   --task-pending: #eeeeee;
@@ -2104,6 +2104,8 @@ html[data-scheme="light"] .card {
 }
 
 .composer-stack {
+  position: relative;
+  z-index: 5;
   display: flex;
   width: min(calc(100% - 48px), var(--composer-max));
   flex: 0 0 auto;
@@ -3667,6 +3669,8 @@ html.electron-transparent .sidebar-heading-row {
 
   .panels,
   .composer-stack {
+    position: relative;
+    z-index: 5;
     width: min(calc(100% - 32px), var(--composer-max));
   }
 }
@@ -3721,6 +3725,8 @@ html.electron-transparent .sidebar-heading-row {
 
   .panels,
   .composer-stack {
+    position: relative;
+    z-index: 5;
     width: calc(100% - 24px);
   }
 
