@@ -1293,7 +1293,7 @@ html[data-scheme="light"] .block-assistant {
 .md h2,
 .md h3 {
   margin: 1.4em 0 0.5em;
-  color: var(--assistant);
+  color: var(--heading);
   font-family: var(--font-sans);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -1313,11 +1313,7 @@ html[data-scheme="light"] .block-assistant {
   margin-top: 0.45em;
 }
 
-html[data-scheme="light"] .md h1,
-html[data-scheme="light"] .md h2,
-html[data-scheme="light"] .md h3 {
-  color: var(--assistant);
-}
+/* Markdown headings use --heading (theme-driven, already correct per scheme). */
 
 .md h1 { font-size: 1.2em; }
 .md h2 { font-size: 1.1em; }
@@ -1406,7 +1402,7 @@ html[data-scheme="light"] .md pre {
 }
 
 .md th {
-  color: var(--muted);
+  color: var(--heading);
   font-size: var(--text-caption);
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -2616,8 +2612,8 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .slash-item:hover,
 .slash-item.selected {
-  color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 68%, transparent);
+  color: var(--sel-fg);
+  background: color-mix(in oklab, var(--sel-bg) 88%, var(--assistant) 6%);
 }
 
 .slash-item.selected {
@@ -2659,7 +2655,7 @@ html.electron-transparent .composer-wrap:focus-within {
 }
 
 .slash-item.selected .desc {
-  color: color-mix(in oklab, var(--muted) 88%, var(--assistant));
+  color: color-mix(in oklab, var(--sel-fg) 72%, transparent);
 }
 
 .slash-badge {
@@ -3516,8 +3512,8 @@ html.electron-transparent .sidebar-heading-row {
 
 .catalog-row:hover,
 .catalog-row.selected {
-  color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  color: var(--sel-fg);
+  background: color-mix(in oklab, var(--sel-bg) 88%, var(--assistant) 6%);
 }
 
 .catalog-row.selected {
@@ -3548,6 +3544,11 @@ html.electron-transparent .sidebar-heading-row {
   font-weight: 600;
 }
 
+.catalog-row.selected .catalog-current {
+  color: color-mix(in oklab, var(--sel-fg) 80%, transparent);
+  background: color-mix(in oklab, var(--sel-fg) 12%, transparent);
+}
+
 .catalog-row-secondary {
   display: block;
   min-width: 0;
@@ -3561,7 +3562,7 @@ html.electron-transparent .sidebar-heading-row {
 
 .catalog-row.selected .catalog-row-secondary,
 .catalog-row:hover .catalog-row-secondary {
-  color: color-mix(in oklab, var(--muted) 92%, var(--assistant));
+  color: color-mix(in oklab, var(--sel-fg) 72%, transparent);
 }
 
 .catalog-tag {
