@@ -2,9 +2,8 @@ import { WORDMARK } from "../../shared/wordmark";
 
 const STARTERS = [
   "Explain this codebase",
-  "Find and fix a bug",
-  "Review recent changes",
-  "Write a new feature",
+  "Fix the failing test",
+  "Add a --json flag",
 ];
 
 export function Splash({ onStarter }: { onStarter: (text: string) => void }) {
