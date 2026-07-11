@@ -2190,27 +2190,41 @@ html[data-scheme="light"] .card {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  min-height: 28px;
-  padding: var(--space-2xs) var(--space-md);
+  min-height: 32px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-sm);
 }
 
 .queue-row.is-active {
   color: var(--assistant);
+  background: color-mix(in oklab, var(--surface) 32%, transparent);
 }
 
 .queue-row.is-active .queue-label {
+  flex: 0 1 auto;
   color: var(--assistant);
   font-weight: var(--weight-medium);
 }
 
 .queue-active-badge {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.queue-active-badge::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--task-active);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--task-active) 14%, transparent);
 }
 
 .queue-label {
@@ -2261,7 +2275,7 @@ html[data-scheme="light"] .card {
 
 /* One continuous card when a queue tray sits above the composer — no seam. */
 .composer-stack:has(.composer-queue-tray) {
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
   border-radius: var(--radius-xl);
   background: color-mix(in oklab, var(--elevated) 96%, var(--panel));
@@ -2290,18 +2304,27 @@ html[data-scheme="light"].electron-transparent .composer-stack:has(.composer-que
 
 .composer-queue-tray {
   display: grid;
-  gap: var(--space-2xs);
-  padding: var(--space-sm) 0 var(--space-xs);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-xs);
+  padding: 6px var(--space-xs);
   border: 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
   border-radius: 0;
   background: transparent;
+}
+
+.composer-queue-tray:first-child {
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 html.glass .composer-queue-tray,
 html.electron-transparent .composer-queue-tray,
 html[data-scheme="light"].glass .composer-queue-tray,
 html[data-scheme="light"].electron-transparent .composer-queue-tray {
-  border: 0;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -2311,8 +2334,9 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  min-height: 32px;
   min-width: 0;
-  padding: 0 var(--space-md);
+  padding: 0 var(--space-sm);
   border-radius: var(--radius-sm);
   color: inherit;
   text-align: left;
@@ -2336,11 +2360,15 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
 .queue-items {
   display: grid;
   gap: 1px;
-  padding-top: var(--space-2xs);
+  min-width: 0;
 }
 
 .queue-items.is-collapsed {
   display: none;
+}
+
+.composer-queue-tray:has(.queue-items.is-collapsed) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .queue-tray-preview {
@@ -2357,14 +2385,21 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  min-height: 28px;
-  margin: 0 0 var(--space-xs);
-  padding: 0 var(--space-sm);
+  min-height: 34px;
+  margin: 0 0 6px;
+  padding: 0 var(--space-base);
   width: 100%;
   border: 0;
   border-radius: 0;
   color: var(--muted);
   background: transparent;
+}
+
+.composer-stack:has(.composer-queue-tray) .working-strip {
+  margin: 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  background: color-mix(in oklab, var(--surface-subtle) 32%, transparent);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 .working-copy {
@@ -2413,8 +2448,8 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
 
 .spinner {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   flex: 0 0 auto;
   border: 1.5px solid color-mix(in oklab, var(--muted) 35%, transparent);
   border-top-color: var(--assistant);

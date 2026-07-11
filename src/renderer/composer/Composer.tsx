@@ -457,7 +457,9 @@ export function Composer({
           placeholder={
             emptyHome
               ? "Plan, build, / for commands, @ for files…"
-              : "Ask Vibe Codr to build, fix, explain, or review…"
+              : busy
+                ? "Add a follow-up or steer the current turn…"
+                : "Ask to build, fix, explain, or review…"
           }
           aria-label="Task message"
           aria-autocomplete="list"
@@ -516,7 +518,7 @@ export function Composer({
           ) : null}
         </div>
         <div className="composer-status-trailing">
-          {typeof ctxPct === "number" && (
+          {typeof ctxPct === "number" && ctxPct > 0 && (
             <span
               className={`ctx-ring${ctxPct >= 95 ? " hot" : ctxPct >= 80 ? " warn" : ""}`}
               style={{ "--ctx-fill": ctxPct } as CSSProperties}

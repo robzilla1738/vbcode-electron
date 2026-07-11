@@ -212,7 +212,7 @@ export function QueuePanel({
         {active && (
           <div className="queue-row is-active" aria-current="true">
             <span className="queue-label">{active.label}</span>
-            <span className="queue-active-badge">Active</span>
+            <span className="queue-active-badge">In progress</span>
           </div>
         )}
         {pending.map((q) => (
