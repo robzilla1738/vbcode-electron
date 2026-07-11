@@ -16,6 +16,20 @@ npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 
 Expect: Vitest green (50+), upstream source pairs aligned, `tsc` clean, electron-vite build OK, smoke prints `ready` + `snapshot ok`.
 
+## UI preview (renderer-only, no engine)
+
+```bash
+npm run ui:preview                        # http://localhost:4517/?scenario=chat
+npx playwright install chromium           # once
+npm run ui:shots -- tools/ui-preview/shots
+```
+
+Visually sweep the scenario matrix (`welcome`, `splash`, `chat`, `busy`,
+`permission`, `plan`, `slash`, `catalog`, `mention`, `jobs`, `inspector`) in the
+default theme, plus `&theme=light` and one accent theme (e.g.
+`&theme=opencode`). Focus rings must be visible keyboard-only, overlays must
+animate (and respect reduced motion), and no surface may lose theme colors.
+
 ## Packaged app
 
 ```bash

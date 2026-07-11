@@ -25,6 +25,8 @@
     "test:e2e": "npm run build && playwright test",
     "test:watch": "vitest",
     "verify:source-parity": "node scripts/check-source-parity.mjs",
+    "ui:preview": "vite --config tools/ui-preview/vite.config.ts",
+    "ui:shots": "node tools/ui-preview/shoot.mjs",
     "pack": "npm run copy-host && npm run build && electron-builder --mac --dir",
     "dist": "npm run copy-host && npm run build && electron-builder --mac",
     "copy-host": "node scripts/copy-engine-host.mjs",

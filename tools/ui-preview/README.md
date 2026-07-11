@@ -6,13 +6,13 @@ screenshotted deterministically.
 
 ```bash
 # serve the renderer with the mock bridge
-npx vite --config tools/ui-preview/vite.config.ts
+npm run ui:preview
 
 # open a scenario
 open "http://localhost:4517/?scenario=chat"
 
 # screenshot every scenario (needs `npx playwright install chromium` once)
-node tools/ui-preview/shoot.mjs tools/ui-preview/shots
+npm run ui:shots -- tools/ui-preview/shots
 ```
 
 Scenarios: `welcome`, `splash`, `chat`, `busy`, `permission`, `plan`, `slash`,

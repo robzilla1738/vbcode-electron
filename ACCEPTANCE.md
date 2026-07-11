@@ -70,6 +70,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 |------|---------|---------|---------|-------|
 | 2026-07-10 | Codex | 22/36 | 0/4 | Hermetic Electron E2E now proves streaming, plans, permissions, tools/diffs, hostile markdown containment, queues, catalogs, telemetry, and themes. Task is not done. |
 | 2026-07-10 | Codex | 36/36 | 4/4 | Eight Electron harness scenarios, 57 unit checks, 19 source-pair guards, bridge smoke, production pack, and clean-environment packaged smoke pass. |
+| 2026-07-11 | Claude | n/a | n/a | Presentation-only design-system pass (A32/A37–A40 surfaces): motion/focus/elevation tokens, mono system voice, context gauge, state coverage. 57/57 unit + typecheck green; `src/shared` untouched so parity gates unchanged; 13 UI states screenshot-compared before/after (dark, light, opencode) via the new `tools/ui-preview` harness. |
 
 ## Sign-off
 
