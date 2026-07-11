@@ -31,7 +31,9 @@ const pairs = [
   ].map((name) => [
     `packages/tui/src/${name}.ts`,
     `src/shared/${name}.ts`,
-    false,
+    // Electron's clickable segmented mode control adds direct-selection logic;
+    // every upstream declaration must still match exactly.
+    name === "modes",
   ]),
 ];
 

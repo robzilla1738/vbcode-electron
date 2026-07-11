@@ -8,7 +8,7 @@ import {
   type RpcMethod,
 } from "../shared/protocol";
 import { enrichedEnv, resolveHostLaunch, type HostLaunch } from "./host-resolver";
-import { isRpcResult } from "../shared/runtime-guards";
+import { isRenderableUIEvent, isRpcResult } from "../shared/runtime-guards";
 
 const READY_TIMEOUT_MS = 45_000;
 const RPC_TIMEOUT_MS = 20_000;
@@ -132,17 +132,21 @@ export class EngineBridge {
     proc.stderr.on("error", (error) => streamFailure("stderr", error));
     this.options.onSpawn?.(proc);
 
-    proc.on("exit", (code) => {
+    proc.on("exit", (code, signal) => {
       rl.close();
       if (!isCurrent()) return;
       this.proc = null;
       const errText = this.consumeStderr();
       if (errText) this.lastStderr = errText;
       const msg =
-        code && code !== 0
+        signal
+          ? errText || `Engine host exited on ${signal}`
+          : code && code !== 0
           ? errText || `Engine host exited (${code})`
           : "Engine host exited";
-      if (code && code !== 0 && !this.lastFatal) {
+      // Any exit from the current generation is unexpected. Planned stop/start
+      // paths increment generation first, so their exit handlers fail isCurrent.
+      if (!this.lastFatal) {
         this.lastFatal = msg;
         this.onFatal?.(msg);
       }
@@ -264,7 +268,11 @@ export class EngineBridge {
         this.readyWaiters = [];
         break;
       case "event":
-        this.onEvent?.(msg.event);
+        if (!isRenderableUIEvent(msg.event)) {
+          this.terminateFatal("Engine host emitted an invalid nested event payload", proc, generation);
+        } else {
+          this.onEvent?.(msg.event);
+        }
         break;
       case "resp": {
         const waiter = this.rpcWaiters.get(msg.id);

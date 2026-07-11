@@ -37,9 +37,17 @@ import { WorkingSpinner } from "./panels/WorkingSpinner";
 import { ProjectRail } from "./layout/ProjectRail";
 import { IconJobs, IconPanel, IconSidebar } from "./icons";
 import { hasUnfinishedTasks, windowTasks } from "../shared/task-window";
-import { toolLabel } from "../shared/tool-icons";
 
 type Picker = CatalogPicker | null;
+
+function pickerMatchesDraft(picker: Picker, draft: string, modelTarget: "main" | "sub"): boolean {
+  if (!picker) return false;
+  if (picker.kind === "models") return modelPicker(draft, modelTarget) !== null;
+  if (picker.kind === "providers") return providersPickerQuery(draft) !== null;
+  if (picker.kind === "agents") return agentsPickerQuery(draft) !== null;
+  if (picker.kind === "skills") return skillsPickerFilter(draft) !== null;
+  return mcpPickerQuery(draft) !== null;
+}
 
 function asMcpList(value: unknown): McpServerInfo[] {
   if (!Array.isArray(value)) return [];
@@ -107,6 +115,7 @@ export function App() {
   const providersCache = useRef<ProviderInfo[] | null>(null);
   const skillsCache = useRef<SkillInfo[] | null>(null);
   const mcpCache = useRef<McpServerInfo[] | null>(null);
+  const catalogGeneration = useRef(0);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
@@ -120,6 +129,17 @@ export function App() {
   showToastRef.current = session.showToast;
   const chromeRef = useRef(session.chrome);
   chromeRef.current = session.chrome;
+
+  const invalidateCatalogs = useCallback(() => {
+    catalogGeneration.current += 1;
+    agentsCache.current = null;
+    modelsCache.current = null;
+    providersCache.current = null;
+    skillsCache.current = null;
+    mcpCache.current = null;
+    setPicker(null);
+    setModelTarget("main");
+  }, []);
 
   const refreshProjects = useCallback(async () => {
     const request = projectRefreshGate.current.begin();
@@ -144,6 +164,7 @@ export function App() {
 
   const openProjectAt = useCallback(
     async (path: string) => {
+      invalidateCatalogs();
       setCwd(path);
       const ok = await session.bootstrap({ cwd: path });
       if (ok) {
@@ -156,7 +177,7 @@ export function App() {
         }
       }
     },
-    [session, refreshProjects],
+    [session, refreshProjects, invalidateCatalogs],
   );
 
   const openProject = useCallback(async () => {
@@ -188,11 +209,12 @@ export function App() {
         session.showToast("Stop the current turn before switching sessions.");
         return;
       }
+      invalidateCatalogs();
       setCwd(projectCwd);
       const ok = await session.bootstrap({ cwd: projectCwd, resume: id });
       if (ok) await refreshProjects();
     },
-    [session, refreshProjects],
+    [session, refreshProjects, invalidateCatalogs],
   );
 
   const continueLatest = useCallback(async () => {
@@ -201,13 +223,15 @@ export function App() {
       session.showToast("Stop the current turn before switching sessions.");
       return;
     }
+    invalidateCatalogs();
     const ok = await session.bootstrap({ cwd, continueLatest: true });
     if (ok) await refreshProjects();
-  }, [cwd, session, refreshProjects]);
+  }, [cwd, session, refreshProjects, invalidateCatalogs]);
 
   const newSession = useCallback(async () => {
     if (!cwd) return false;
     if (session.chrome.busy) await session.send({ type: "abort" });
+    invalidateCatalogs();
     const ok = await session.bootstrap({ cwd });
     if (ok) {
       setDraft("");
@@ -215,7 +239,7 @@ export function App() {
       await refreshProjects();
     }
     return ok;
-  }, [cwd, session, refreshProjects]);
+  }, [cwd, session, refreshProjects, invalidateCatalogs]);
 
   const renameSession = useCallback(
     async (projectCwd: string, id: string, title: string) => {
@@ -254,30 +278,19 @@ export function App() {
   const answerPerm = useCallback(
     async (decision: "once" | "always" | "always-project" | "deny", feedback?: string) => {
       const perm = session.chrome.perms[0];
-      if (!perm) return;
+      if (!perm) return false;
       const sent = await session.send({
         type: "resolve-permission",
         id: perm.id,
         decision,
         ...(feedback ? { feedback } : {}),
       });
-      if (!sent) return;
+      if (!sent) return false;
       session.dispatchChrome({ type: "drop-perm", id: perm.id });
-      // TUI parity: grants include the tool label so the scope is unambiguous;
-      // denials are surfaced by the engine's "Blocked …" notice (with feedback).
-      if (decision !== "deny") {
-        const scope =
-          decision === "always-project"
-            ? "always allowed (remembered for this project)"
-            : decision === "always"
-              ? "always allowed (this session)"
-              : "allowed once";
-        session.dispatchTranscript({
-          type: "notice",
-          text: `${scope} — ${toolLabel(perm.toolName, perm.input)}`,
-          level: "info",
-        });
-      }
+      // Do not synthesize an "allowed" transcript notice here. The IPC result
+      // only acknowledges transport; a concurrent permission-settled event may
+      // have already caused the engine to reject this stale id.
+      return true;
     },
     [session],
   );
@@ -294,24 +307,28 @@ export function App() {
         ...(edit ? { edit } : {}),
         ...(approvals ? { approvals } : {}),
       });
-      if (!sent) return;
+      if (!sent) return false;
       session.dispatchChrome({ type: "clear-plan" });
+      return true;
     },
     [session],
   );
 
   const openModelsPicker = useCallback(
-    async (target: ModelPickerTarget, query = "") => {
+    async (target: ModelPickerTarget, query = ""): Promise<boolean> => {
+      const generation = catalogGeneration.current;
       let items = modelsCache.current;
       if (!items) {
         const res = await window.vibe.rpc("listModels");
+        if (generation !== catalogGeneration.current) return false;
         if (!res.ok) {
           showToastRef.current(`Couldn’t load models · ${res.error}`);
-          return;
+          return false;
         }
         items = res.value as ModelSummary[];
         modelsCache.current = items;
       }
+      if (generation !== catalogGeneration.current) return false;
       const chrome = chromeRef.current;
       setPicker({
         kind: "models",
@@ -325,18 +342,20 @@ export function App() {
           agentsCache.current ?? [],
         ),
       });
+      return true;
     },
     [],
   );
 
   const submitLine = useCallback(
-    async (line: string) => {
+    async (line: string): Promise<boolean> => {
       const trimmed = line.trim();
-      if (!trimmed) return;
+      if (!trimmed) return false;
+      const catalogRequestGeneration = catalogGeneration.current;
 
       if (trimmed === "/jobs") {
         session.setJobsView((v) => !v);
-        return;
+        return true;
       }
 
       if (trimmed === "/keys") {
@@ -345,7 +364,7 @@ export function App() {
           text: formatKeysHelp(),
           level: "info",
         });
-        return;
+        return true;
       }
 
       setFollowSignal((value) => value + 1);
@@ -353,49 +372,56 @@ export function App() {
       if (session.chrome.perms[0] && !trimmed.startsWith("/")) {
         const route = routePendingPermLine(trimmed);
         if (route.kind === "perm") {
-          await answerPerm(route.decision, route.feedback);
-          return;
+          return await answerPerm(route.decision, route.feedback);
         }
       }
 
       if (session.chrome.plan && !trimmed.startsWith("/")) {
-        await answerPlan("edit", trimmed);
-        return;
+        return await answerPlan("edit", trimmed);
       }
 
       if (trimmed === "/clear" || trimmed === "/new") {
         if (session.chrome.busy) await session.send({ type: "abort" });
         session.clearSessionLocal();
-        await session.sendMany(lineToCommands(trimmed));
-        return;
+        return await session.sendMany(lineToCommands(trimmed));
       }
 
       // Bare catalog commands — keep Enter path for keyboard users; live draft also opens these.
       if (trimmed === "/model" || trimmed === "/models") {
         setModelTarget("main");
-        await openModelsPicker("main");
-        if (trimmed === "/models") await session.sendMany(lineToCommands(trimmed));
-        return;
+        const opened = await openModelsPicker("main");
+        if (!opened) return false;
+        if (trimmed === "/models") return await session.sendMany(lineToCommands(trimmed));
+        return true;
       }
       if (trimmed === "/providers") {
         const res = await window.vibe.rpc("listProviders");
+        if (catalogRequestGeneration !== catalogGeneration.current) return false;
         if (res.ok) {
           providersCache.current = res.value as ProviderInfo[];
           setPicker({ kind: "providers", items: providersCache.current });
-        } else showToastRef.current(`Couldn’t load providers · ${res.error}`);
-        return;
+        } else {
+          showToastRef.current(`Couldn’t load providers · ${res.error}`);
+          return false;
+        }
+        return true;
       }
       if (trimmed === "/agents") {
         const res = await window.vibe.rpc("listAgents");
+        if (catalogRequestGeneration !== catalogGeneration.current) return false;
         if (res.ok) {
           const items = res.value as AgentInfo[];
           agentsCache.current = items;
           setPicker({ kind: "agents", items });
-        } else showToastRef.current(`Couldn’t load agents · ${res.error}`);
-        return;
+        } else {
+          showToastRef.current(`Couldn’t load agents · ${res.error}`);
+          return false;
+        }
+        return true;
       }
       if (trimmed === "/skills" || trimmed.startsWith("/skills ")) {
         const res = await window.vibe.rpc("listSkills");
+        if (catalogRequestGeneration !== catalogGeneration.current) return false;
         if (res.ok) {
           skillsCache.current = res.value as SkillInfo[];
           setPicker({
@@ -403,21 +429,28 @@ export function App() {
             items: skillsCache.current,
             query: trimmed.slice("/skills".length).trim(),
           });
-        } else showToastRef.current(`Couldn’t load skills · ${res.error}`);
-        return;
+        } else {
+          showToastRef.current(`Couldn’t load skills · ${res.error}`);
+          return false;
+        }
+        return true;
       }
       if (trimmed === "/mcp") {
         const res = await window.vibe.rpc("listMcp");
+        if (catalogRequestGeneration !== catalogGeneration.current) return false;
         if (res.ok) {
           mcpCache.current = asMcpList(res.value);
           setPicker({ kind: "mcp", items: mcpCache.current });
-        } else showToastRef.current(`Couldn’t load MCP servers · ${res.error}`);
-        return;
+        } else {
+          showToastRef.current(`Couldn’t load MCP servers · ${res.error}`);
+          return false;
+        }
+        return true;
       }
 
       if (trimmed === "/exit" || trimmed === "/quit") {
         window.vibe.quit();
-        return;
+        return true;
       }
 
       // Invalidate model/provider caches after key/refresh
@@ -428,7 +461,9 @@ export function App() {
       }
 
       session.setBusy(true);
-      await session.sendMany(lineToCommands(trimmed));
+      const sent = await session.sendMany(lineToCommands(trimmed));
+      if (!sent) session.setBusy(false);
+      return sent;
     },
     [session, answerPerm, answerPlan, openModelsPicker],
   );
@@ -554,18 +589,23 @@ export function App() {
     (choice: CatalogChoice) => {
       if (choice.kind === "command") {
         const cmd = choice.command;
-        setPicker(null);
-        setDraft("");
-        setModelTarget("main");
-        if (cmd.type === "set-subagent-model") {
-          session.setSubagentModel(cmd.model ?? undefined);
-        }
-        if (cmd.type === "set-agent-model") {
-          agentsCache.current = (agentsCache.current ?? []).map((a) =>
-            a.name === cmd.name ? { ...a, model: cmd.model } : a,
-          );
-        }
-        void session.send(cmd);
+        void (async () => {
+          const sent = await session.send(cmd);
+          if (!sent) return;
+          setPicker(null);
+          setDraft("");
+          setModelTarget("main");
+          if (cmd.type === "set-subagent-model") {
+            // No dedicated event exists for this setting; update only after the
+            // host accepted the command, never before transport succeeds.
+            session.setSubagentModel(cmd.model ?? undefined);
+          }
+          if (cmd.type === "set-agent-model") {
+            // Persistence/reload is asynchronous engine-side. Invalidate rather
+            // than claiming a value the engine may reject or fail to persist.
+            agentsCache.current = null;
+          }
+        })();
         return;
       }
       if (choice.kind === "prefill") {
@@ -1132,7 +1172,8 @@ export function App() {
                 uiMode={session.uiMode}
                 draft={draft}
                 setDraft={setDraft}
-                onSubmit={(line) => void submitLine(line)}
+                onSubmit={submitLine}
+                catalogOpen={pickerMatchesDraft(picker, draft, modelTarget)}
                 onCycleMode={session.cycleMode}
                 onSelectMode={session.selectMode}
                 disabled={!session.ready || session.booting}

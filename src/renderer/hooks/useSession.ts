@@ -25,7 +25,7 @@ import { firstLine } from "../../shared/reducer";
 import { hydrateFromHistory } from "../../shared/history-hydrate";
 import { hasUnfinishedTasks } from "../../shared/task-window";
 import { isUIEvent } from "../../shared/protocol";
-import { isEngineSnapshot } from "../../shared/runtime-guards";
+import { isEngineSnapshot, isRenderableUIEvent } from "../../shared/runtime-guards";
 import { RequestGate } from "./request-gate";
 import { initialChrome, reduceChrome } from "./session-state";
 export type { OrchestrationRow, SessionChrome } from "./session-state";
@@ -76,6 +76,7 @@ export function useSession(cwd: string | null) {
   const bootstrapGate = useRef(new RequestGate());
   const activeSessionId = useRef("");
   const toastTimer = useRef<number | null>(null);
+  const bootstrapContext = useRef<{ usedTokens: number; contextWindow: number } | null>(null);
 
   const uiMode: UiMode = deriveUiMode(chrome.mode, chrome.approvals);
 
@@ -164,7 +165,7 @@ export function useSession(cwd: string | null) {
 
   const handleEvent = useCallback(
     (raw: unknown) => {
-      if (!isUIEvent(raw)) {
+      if (!isUIEvent(raw) || !isRenderableUIEvent(raw)) {
         dispatchTranscript({ type: "notice", text: "Engine emitted an invalid UI event", level: "error" });
         return;
       }
@@ -173,6 +174,15 @@ export function useSession(cwd: string | null) {
       // A throwing handler must not kill the event loop (TUI parity: try/catch
       // around the per-event switch that surfaces errors as transcript notices).
       try {
+
+      if (event.type === "context-updated") {
+        // The host starts its event pump before snapshot RPC completes. Keep the
+        // newest pre-seed context sample so snapshot seeding cannot erase it.
+        bootstrapContext.current = {
+          usedTokens: event.usedTokens,
+          contextWindow: event.contextWindow,
+        };
+      }
 
       // After /clear|/new, drop stale stream until the next user-message.
       // Stale events from the pre-clear turn are suppressed (streaming deltas,
@@ -432,6 +442,7 @@ export function useSession(cwd: string | null) {
     }) => {
       const request = bootstrapGate.current.begin();
       activeSessionId.current = "";
+      bootstrapContext.current = null;
       setBooting(true);
       setBootError(null);
       setReady(false);
@@ -444,6 +455,7 @@ export function useSession(cwd: string | null) {
       suppressAfterClear.current = false;
       lastSnap.current = null;
       deltaBuf.current = "";
+      progressBuf.current.clear();
       reasoningBuf.current = "";
       reasoningStarted.current = null;
       subagentTranscripts.current = {};
@@ -483,6 +495,22 @@ export function useSession(cwd: string | null) {
       activeSessionId.current = snap.sessionId;
       lastSnap.current = snap;
       dispatchChrome({ type: "seed", snap, cwd: opts.cwd });
+      const context = bootstrapContext.current as {
+        usedTokens: number;
+        contextWindow: number;
+      } | null;
+      if (context) {
+        dispatchChrome({
+          type: "event",
+          event: {
+            type: "context-updated",
+            sessionId: snap.sessionId,
+            usedTokens: context.usedTokens,
+            contextWindow: context.contextWindow,
+          },
+        });
+      }
+      bootstrapContext.current = null;
       if (snap.history?.length) {
         dispatchTranscript({ type: "replace", state: hydrateFromHistory(snap.history) });
       }

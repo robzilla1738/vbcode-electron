@@ -152,7 +152,7 @@ test("resolves permission and plan cards from keyboard-accessible controls", asy
 
   await submit("fixture:plan");
   await expect(page.getByText("Plan approval")).toBeVisible();
-  await expect(page.getByText("⚠ ungrounded — presented without the research this request required")).toBeVisible();
+  await expect(page.getByText("Ungrounded — presented without the research this request required")).toBeVisible();
   await expect(page.getByText("The fixture is writable")).toBeVisible();
   await page.getByRole("button", { name: /Accept Enter/ }).click();
   await expect(page.getByText("plan accept")).toBeVisible();
@@ -176,7 +176,7 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await page.getByRole("button", { name: "Toggle background jobs" }).click();
   await expect(page.getByText("npm run dev")).toBeVisible();
   await expect(page.getByRole("link", { name: "http://localhost:4310" })).toBeVisible();
-  await page.getByRole("button", { name: "Toggle session panel" }).click();
+  await page.getByRole("button", { name: "Show session panel" }).click();
   await expect(page.getByText("Before fixture change")).toBeVisible();
   await expect(page.getByText(/Run fixture child/)).toBeVisible();
   const subagent = page.getByRole("button", { name: /Review the fixture/ });

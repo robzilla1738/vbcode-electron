@@ -142,7 +142,7 @@ function submit(text) {
     sessionEvent({ type: "subagent-activity", subagentId: "sub-1", label: "reading README.md" });
     sessionEvent({ type: "assistant-text-delta", subagentId: "sub-1", delta: "Subagent report: looks healthy." });
     sessionEvent({ type: "subagent-finished", subagentId: "sub-1", result: "review complete" });
-    event({ type: "jobs-changed", sessionId, jobs: [{ id: "job-1", command: "npm run dev", status: "running", servers: ["http://localhost:4310"], outputTail: "ready" }] });
+    event({ type: "jobs-changed", sessionId, jobs: [{ id: "job-1", command: "npm run dev", status: "running", exitCode: null, servers: ["http://localhost:4310"], outputTail: "ready" }] });
     event({ type: "checkpoint-created", id: "checkpoint-1", label: "Before fixture change" });
     sessionEvent({ type: "tool-call-started", toolCallId: "search-1", toolName: "web_search", input: { query: "fixture" } });
     sessionEvent({ type: "tool-call-finished", toolCallId: "search-1", toolName: "web_search", output: "1. Fixture search\nhttps://example.com/search\nUseful result", isError: false });

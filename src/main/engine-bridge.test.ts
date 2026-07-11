@@ -28,7 +28,7 @@ const snapshot = {
   goal: null,
   history: [],
   tasks: [],
-  usage: { inputTokens: 0, outputTokens: 0 },
+  usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUSD: 0 },
   busy: false,
   theme: "default",
   accentColor: "",
@@ -84,6 +84,51 @@ describe("EngineBridge lifecycle", () => {
     });
     await expect(bridge.start({ cwd: process.cwd() })).rejects.toThrow("timed out waiting for ready");
     await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(bridge.isRunning).toBe(false);
+  });
+
+  it("reports an unexpected clean exit after ready as fatal", async () => {
+    const bridge = bridgeFor(String.raw`
+      const readline = require("node:readline");
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        const msg = JSON.parse(line);
+        if (msg.op === "bootstrap") {
+          process.stdout.write(JSON.stringify({ type: "ready", sessionId: "clean-exit" }) + "\n");
+          setTimeout(() => process.exit(0), 10);
+        }
+      });
+    `);
+    const fatals: string[] = [];
+    bridge.onFatal = (message) => fatals.push(message);
+
+    await bridge.start({ cwd: process.cwd() });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(fatals).toEqual(["Engine host exited"]);
+    expect(bridge.isRunning).toBe(false);
+  });
+
+  it("terminates the host on malformed nested event payloads", async () => {
+    const bridge = bridgeFor(String.raw`
+      const readline = require("node:readline");
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        const msg = JSON.parse(line);
+        if (msg.op === "bootstrap") {
+          process.stdout.write(JSON.stringify({ type: "ready", sessionId: "nested-invalid" }) + "\n");
+          setTimeout(() => process.stdout.write(JSON.stringify({
+            type: "event",
+            event: { type: "queue-changed", active: null, pending: [null] }
+          }) + "\n"), 10);
+        }
+      });
+    `);
+    const fatals: string[] = [];
+    bridge.onFatal = (message) => fatals.push(message);
+
+    await bridge.start({ cwd: process.cwd() });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(fatals).toEqual(["Engine host emitted an invalid nested event payload"]);
     expect(bridge.isRunning).toBe(false);
   });
 

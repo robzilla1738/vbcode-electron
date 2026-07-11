@@ -75,6 +75,7 @@ export function Composer({
   draft,
   setDraft,
   onSubmit,
+  catalogOpen,
   onCycleMode,
   onSelectMode,
   disabled,
@@ -96,7 +97,8 @@ export function Composer({
   uiMode: UiMode;
   draft: string;
   setDraft: Dispatch<SetStateAction<string>>;
-  onSubmit: (line: string) => void;
+  onSubmit: (line: string) => Promise<boolean>;
+  catalogOpen: boolean;
   onCycleMode: () => void;
   onSelectMode: (mode: UiMode) => void;
   disabled?: boolean;
@@ -119,6 +121,7 @@ export function Composer({
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const submitPending = useRef(false);
   const [sel, setSel] = useState(0);
   const nameSet = useMemo(
     () => new Set(commandNames.map((n) => n.toLowerCase())),
@@ -134,6 +137,19 @@ export function Composer({
   const currentValue = palette.open && palette.mode === "value"
     ? currentValueFor(palette.command.name, { theme, accent, approvals, density, reasoning })
     : undefined;
+
+  const submitAndClear = async (line: string, originalDraft = draft) => {
+    if (submitPending.current) return;
+    submitPending.current = true;
+    try {
+      const accepted = await onSubmit(line);
+      if (accepted) {
+        setDraft((current) => current === originalDraft ? "" : current);
+      }
+    } finally {
+      submitPending.current = false;
+    }
+  };
 
   useEffect(() => {
     setSel(0);
@@ -172,7 +188,7 @@ export function Composer({
       onCycleMode();
       return;
     }
-    if (isCatalogDraft(draft)) {
+    if (isCatalogDraft(draft) && catalogOpen) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         navigateCatalog(1);
@@ -234,8 +250,7 @@ export function Composer({
         if (applied) {
           e.preventDefault();
           if (applied.done) {
-            onSubmit(applied.draft);
-            setDraft("");
+            void submitAndClear(applied.draft);
           } else {
             setDraft(applied.draft);
           }
@@ -252,16 +267,14 @@ export function Composer({
       e.preventDefault();
       const line = draft.trim();
       if (!line) return;
-      onSubmit(line);
-      setDraft("");
+      void submitAndClear(line);
     }
   };
 
   const submitDraft = () => {
     const line = draft.trim();
     if (!line) return;
-    onSubmit(line);
-    setDraft("");
+    void submitAndClear(line);
   };
 
   /** Ghost `@` affordance — drops an at-mention token at the end of the draft. */
@@ -400,8 +413,7 @@ export function Composer({
                     const applied = applyPalette(palette, i);
                     if (!applied) return;
                     if (applied.done) {
-                      onSubmit(applied.draft);
-                      setDraft("");
+                      void submitAndClear(applied.draft);
                     } else setDraft(applied.draft);
                   }}
                 >
@@ -427,8 +439,7 @@ export function Composer({
                     ev.preventDefault();
                     const applied = applyPalette(palette, i);
                     if (!applied) return;
-                    onSubmit(applied.draft);
-                    setDraft("");
+                    void submitAndClear(applied.draft);
                   }}
                 >
                   <span className="slash-item-copy">

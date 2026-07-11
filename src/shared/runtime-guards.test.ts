@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isEngineSnapshot, isProjectSummaryArray, isRpcResult } from "./runtime-guards";
+import { isEngineSnapshot, isProjectSummaryArray, isRenderableUIEvent, isRpcResult } from "./runtime-guards";
 
 const snapshot = {
   sessionId: "ses_1", model: "provider/model", mode: "execute", goal: null,
-  history: [], tasks: [], usage: { inputTokens: 0, outputTokens: 0 }, busy: false,
+  history: [], tasks: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUSD: 0 }, busy: false,
   theme: "default", accentColor: "", details: "normal", mouse: false,
   approvalMode: "ask", commandNames: [],
 };
@@ -13,6 +13,8 @@ describe("RPC runtime guards", () => {
     expect(isEngineSnapshot(snapshot)).toBe(true);
     expect(isEngineSnapshot({ ...snapshot, sessionId: 4 })).toBe(false);
     expect(isEngineSnapshot({ ...snapshot, history: null })).toBe(false);
+    expect(isEngineSnapshot({ ...snapshot, history: [null] })).toBe(false);
+    expect(isEngineSnapshot({ ...snapshot, usage: { inputTokens: 0, outputTokens: 0 } })).toBe(false);
     expect(isRpcResult("snapshot", snapshot)).toBe(true);
   });
 
@@ -24,5 +26,29 @@ describe("RPC runtime guards", () => {
     expect(isRpcResult("listModels", [{ id: "m", providerId: 4 }])).toBe(false);
     expect(isRpcResult("listProviders", [{ id: "p", configured: true, keyless: false, env: ["KEY"] }])).toBe(true);
     expect(isRpcResult("listProviders", [{ id: "p", configured: "yes", keyless: false, env: [] }])).toBe(false);
+  });
+
+  it("rejects malformed nested renderer event payloads", () => {
+    expect(isRenderableUIEvent({
+      type: "queue-changed",
+      active: { id: "q1", label: "work" },
+      pending: [],
+    })).toBe(true);
+    expect(isRenderableUIEvent({
+      type: "queue-changed",
+      active: null,
+      pending: [null],
+    } as never)).toBe(false);
+    expect(isRenderableUIEvent({
+      type: "plan-presented",
+      sessionId: "s",
+      plan: "plan",
+      sources: [null],
+    } as never)).toBe(false);
+    expect(isRenderableUIEvent({
+      type: "jobs-changed",
+      sessionId: "s",
+      jobs: [{ id: "j", status: "running" }],
+    } as never)).toBe(false);
   });
 });

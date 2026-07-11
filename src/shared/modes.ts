@@ -105,8 +105,23 @@ export function selectModeAction(
 export function cycleModeAction(
   cur: UiMode,
   opts: { planPending?: boolean } = {},
-): ModeAction {
-  return selectModeAction(cur, nextUiMode(cur), opts);
+): {
+  commands: EngineCommand[];
+  /** Apply to local mirrors when non-null; null = keep current chip/state. */
+  optimistic: { mode: "plan" | "execute"; approvals: "ask" | "auto"; uiMode: UiMode } | null;
+} {
+  const target = nextUiMode(cur);
+  if (opts.planPending && cur === "plan" && target !== "plan") {
+    return {
+      commands: [{ type: "set-mode", mode: "execute" }],
+      optimistic: null,
+    };
+  }
+  const state = engineStateForUiMode(target);
+  return {
+    commands: commandsForUiMode(target),
+    optimistic: { mode: state.mode, approvals: state.approvals, uiMode: target },
+  };
 }
 
 /**
