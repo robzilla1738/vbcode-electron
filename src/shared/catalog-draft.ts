@@ -11,6 +11,16 @@ import type {
   SkillInfo,
 } from "./types";
 
+/** Format a context window as a compact label: `1M` / `400k` / `128k` (TUI parity: fmtContext). */
+function fmtContext(tokens: number | undefined): string {
+  if (!tokens) return "";
+  if (tokens >= 1_000_000) {
+    const m = tokens / 1_000_000;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+  }
+  return `${Math.round(tokens / 1000)}k`;
+}
+
 /** Model picker target: main session, shared subagent default, or a named agent. */
 export type ModelPickerTarget = "main" | "sub" | { agent: string };
 
@@ -128,7 +138,7 @@ export function modelCatalogOptions(
       return {
         key: full,
         primary: full,
-        secondary: model.name ?? "",
+        secondary: [model.name, fmtContext(model.contextWindow)].filter(Boolean).join(" · "),
         command: { type: "set-agent-model", name: target.agent, model: full },
       };
     }
@@ -136,7 +146,7 @@ export function modelCatalogOptions(
       return {
         key: full,
         primary: full,
-        secondary: model.name ?? "",
+        secondary: [model.name, fmtContext(model.contextWindow)].filter(Boolean).join(" · "),
         command: { type: "set-subagent-model", model: full },
       };
     }
