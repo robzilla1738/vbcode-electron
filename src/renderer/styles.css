@@ -2582,8 +2582,8 @@ html.electron-transparent .composer-wrap:focus-within {
 .slash-menu-header {
   justify-content: space-between;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
-  color: var(--muted);
-  font-weight: 550;
+  color: var(--heading);
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
