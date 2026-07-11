@@ -48,13 +48,22 @@
   /* Locked type scale — sizes only via these tokens */
   --text-display: 32px;
   --text-display-sm: 20px;
-  --text-title: 15px;
+  --text-heading: 18px;
+  --text-title: 16px;
   --text-prose: 15px;
   --text-ui: 13px;
   --text-label: 12px;
   --text-caption: 11px;
   --text-micro: 10px;
   --text-code: 12px;
+  --weight-regular: 400;
+  --weight-ui: 450;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --leading-tight: 1.2;
+  --leading-ui: 1.4;
+  --leading-prose: 1.6;
+  --leading-code: 1.55;
 
   --space-2xs: 4px;
   --space-xs: 8px;
@@ -76,6 +85,7 @@
   --rail-chrome-h: 40px;
   --rail-title-h: 44px;
   --project-rail-w: clamp(220px, 24vw, 272px);
+  --rail-icon-size: 18px;
   --activity-rail-w: clamp(300px, 28vw, 360px);
   --content-max: 100%;
   --reading-max: 52rem;
@@ -146,8 +156,8 @@ body {
   color: var(--assistant);
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 450;
-  line-height: 1.45;
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-ui);
   letter-spacing: -0.01em;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -178,6 +188,14 @@ textarea,
 input {
   color: inherit;
   font: inherit;
+}
+
+/* Controls use the interface face. Mono is reserved for literal commands,
+   paths, and telemetry—not for every compact bit of chrome. */
+button,
+input,
+textarea {
+  font-family: var(--font-sans);
 }
 
 button {
@@ -449,8 +467,8 @@ html[data-scheme="light"].electron-transparent .topbar {
   min-width: 0;
   gap: var(--space-sm);
   font-size: var(--text-title);
-  font-weight: 550;
-  line-height: 1.25;
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
   letter-spacing: -0.01em;
 }
 
@@ -495,7 +513,7 @@ html[data-scheme="light"].electron-transparent .topbar {
   border-radius: var(--radius-sm);
   color: var(--muted);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), transform 60ms;
 }
 
@@ -576,7 +594,7 @@ html[data-platform="darwin"] .rail-chrome {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
-  padding: 0 var(--space-base) var(--space-2xs);
+  padding: 0 var(--space-base) var(--space-xs);
 }
 
 .rail-product-name {
@@ -584,10 +602,10 @@ html[data-platform="darwin"] .rail-chrome {
   min-width: 0;
   color: var(--assistant);
   font-family: var(--font-sans);
-  font-size: var(--text-display-sm);
-  font-weight: 650;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
+  font-size: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.025em;
 }
 
 .rail-title-search {
@@ -600,27 +618,28 @@ html[data-platform="darwin"] .rail-chrome {
 
 .rail-actions {
   display: grid;
-  gap: var(--space-2xs);
-  padding: var(--space-xs) var(--space-sm) var(--space-base);
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm) var(--space-lg);
 }
 
 .rail-action {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  min-height: 34px;
+  grid-template-columns: var(--rail-icon-size) minmax(0, 1fr);
+  min-height: 36px;
   align-items: center;
   gap: var(--space-sm);
   padding: 0 var(--space-sm);
   border-radius: var(--radius-sm);
-  color: var(--muted);
+  color: color-mix(in oklab, var(--assistant) 88%, var(--muted));
   font-size: var(--text-ui);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-ui);
   text-align: left;
   transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform 60ms;
 }
 
 .rail-action svg {
-  color: var(--text-subtle);
+  color: var(--muted);
 }
 
 .rail-action:hover,
@@ -634,35 +653,22 @@ html[data-platform="darwin"] .rail-chrome {
   color: var(--assistant);
 }
 
-.rail-action.primary {
-  color: var(--assistant);
-  border: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
-  background: color-mix(in oklab, var(--surface) 72%, var(--rail));
-  box-shadow: var(--edge-highlight);
-}
-
-.rail-action.primary svg {
-  color: var(--assistant);
-}
-
-.rail-action.primary:hover,
-.rail-action.primary:focus-visible {
-  border-color: color-mix(in oklab, var(--border) 70%, transparent);
-  background: color-mix(in oklab, var(--surface) 92%, var(--rail));
-}
-
 .rail-filter {
-  display: flex;
+  display: none;
   min-height: 36px;
   align-items: center;
   gap: var(--space-sm);
-  margin: 0 var(--space-sm) var(--space-md);
+  margin: 0 var(--space-sm) var(--space-lg);
   padding: 0 var(--space-sm);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   color: var(--text-subtle);
   background: color-mix(in oklab, var(--elevated) 82%, var(--rail));
   transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+
+.rail-filter.is-open {
+  display: flex;
 }
 
 .rail-filter:focus-within {
@@ -690,16 +696,16 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .rail-section-label {
-  color: var(--text-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--text-micro);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-title);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.015em;
+  text-transform: none;
 }
 
 .rail-section-label {
-  padding: 0 var(--space-base) var(--space-2xs);
+  padding: 0 var(--space-base) var(--space-sm);
 }
 
 .project-list {
@@ -710,19 +716,19 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .project-group + .project-group {
-  margin-top: var(--space-2xs);
+  margin-top: var(--space-xs);
 }
 
 .project-heading {
   display: grid;
   width: 100%;
-  min-height: 32px;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  min-height: 36px;
+  grid-template-columns: var(--rail-icon-size) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-xs);
   padding: 0 var(--space-xs);
   border-radius: var(--radius-sm);
-  color: var(--muted);
+  color: color-mix(in oklab, var(--assistant) 88%, var(--muted));
   text-align: left;
   transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform 60ms;
 }
@@ -739,8 +745,8 @@ html[data-platform="darwin"] .rail-chrome {
 
 .project-folder {
   display: inline-flex;
-  width: 18px;
-  height: 18px;
+  width: var(--rail-icon-size);
+  height: var(--rail-icon-size);
   align-items: center;
   justify-content: center;
   color: var(--text-subtle);
@@ -782,13 +788,13 @@ html[data-platform="darwin"] .rail-chrome {
 .project-name {
   color: inherit;
   font-size: var(--text-ui);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .session-list {
   display: grid;
-  gap: 1px;
-  padding: 2px 0 8px 26px;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) 0 var(--space-sm) calc(var(--rail-icon-size) + var(--space-xs));
 }
 
 .session-row-wrap {
@@ -806,32 +812,21 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .session-row-wrap.active {
-  background: color-mix(in oklab, var(--surface) 78%, var(--rail));
-}
-
-/* Active-session marker: a slim accent bar hugging the row's left edge. */
-.session-row-wrap.active::before {
-  content: "";
-  position: absolute;
-  top: 7px;
-  bottom: 7px;
-  left: 0;
-  width: 2px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in oklab, var(--primary) 85%, transparent);
+  background: color-mix(in oklab, var(--surface) 88%, var(--rail));
+  box-shadow: none;
 }
 
 .session-row {
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 30px;
+  min-height: 36px;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
-  padding: 5px 8px;
+  padding: 0 var(--space-sm);
   border-radius: var(--radius-sm);
-  color: var(--muted);
+  color: color-mix(in oklab, var(--assistant) 82%, var(--muted));
   text-align: left;
   transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform 60ms;
 }
@@ -843,8 +838,8 @@ html[data-platform="darwin"] .rail-chrome {
 
 .session-more {
   display: none;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-xs);
@@ -956,7 +951,7 @@ html[data-platform="darwin"] .rail-chrome {
 
 html[data-platform="darwin"] .project-heading:hover:not(.active),
 html[data-platform="darwin"] .session-row-wrap:hover:not(.active),
-html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible) {
+html[data-platform="darwin"] .rail-action:hover:not(:focus-visible) {
   background: color-mix(in oklab, var(--surface) 28%, transparent);
 }
 
@@ -973,7 +968,7 @@ html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible
   min-width: 0;
   flex: 1 1 auto;
   font-size: var(--text-ui);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
 }
 
 .session-time {
@@ -1073,13 +1068,16 @@ html.electron-transparent .main-column {
 
 .transcript-shell {
   position: relative;
-  flex: 1;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .transcript {
-  flex: 1 1 auto;
-  height: auto;
+  flex: 1 1 0;
+  width: 100%;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1126,17 +1124,16 @@ html.electron-transparent .main-column {
   align-items: flex-start;
   justify-content: flex-start;
   gap: var(--space-sm);
-  padding: 10px 14px;
-  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
-  border-left: 3px solid var(--user);
+  padding: var(--space-sm) var(--space-base);
+  border: 1px solid color-mix(in oklab, var(--user) 30%, var(--border));
   border-radius: var(--radius-lg);
   color: var(--assistant);
   background: color-mix(in oklab, var(--elevated) 92%, var(--surface));
   box-shadow: var(--edge-highlight);
   font-family: var(--font-sans);
   font-size: var(--text-prose);
-  font-weight: 450;
-  line-height: 1.5;
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-prose);
   letter-spacing: -0.01em;
   text-align: left;
   white-space: pre-wrap;
@@ -1182,8 +1179,8 @@ html[data-scheme="light"].electron-transparent .block-user {
   color: var(--assistant);
   font-family: var(--font-sans);
   font-size: var(--text-prose);
-  font-weight: 400;
-  line-height: 1.65;
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-prose);
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -1261,11 +1258,11 @@ html[data-scheme="light"] .block-assistant {
 .md h2,
 .md h3 {
   margin: 1.4em 0 0.5em;
-  color: var(--heading);
+  color: var(--assistant);
   font-family: var(--font-sans);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
-  line-height: 1.25;
+  line-height: var(--leading-tight);
   text-wrap: pretty;
 }
 
@@ -1281,11 +1278,11 @@ html[data-scheme="light"] .block-assistant {
   margin-top: 0.45em;
 }
 
-/* Markdown headings use --heading (theme-driven, already correct per scheme). */
-
-.md h1 { font-size: 1.2em; }
-.md h2 { font-size: 1.1em; }
-.md h3 { font-size: 1.05em; }
+/* Headings are intentionally quiet in a working transcript; color never
+   competes with the message itself. */
+.md h1 { font-size: var(--text-heading); }
+.md h2 { font-size: var(--text-title); }
+.md h3 { font-size: var(--text-title); }
 
 .md hr {
   height: 1px;
@@ -1312,7 +1309,7 @@ html[data-scheme="light"] .block-assistant {
   background: color-mix(in oklab, var(--surface-subtle) 62%, transparent);
   font-family: var(--font-mono);
   font-size: var(--text-code);
-  line-height: 1.55;
+  line-height: var(--leading-code);
   white-space: pre;
 }
 
@@ -1328,7 +1325,7 @@ html[data-scheme="light"] .md pre {
   color: color-mix(in oklab, var(--code) 72%, var(--assistant));
   background: color-mix(in oklab, var(--code) 9%, transparent);
   font-family: var(--font-mono);
-  font-size: 0.86em;
+  font-size: var(--text-code);
   font-weight: 400;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -1370,7 +1367,7 @@ html[data-scheme="light"] .md pre {
 }
 
 .md th {
-  color: var(--heading);
+  color: var(--assistant);
   font-size: var(--text-caption);
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -1492,21 +1489,20 @@ html[data-scheme="light"] .md pre {
 .thinking-body {
   font-family: var(--font-mono);
   font-size: var(--text-code);
-  line-height: 1.55;
+  line-height: var(--leading-code);
   white-space: pre-wrap;
 }
 
 .tool-body {
   max-height: 240px;
-  margin: 4px 0 8px 2px;
-  padding: 0 0 0 var(--space-sm);
+  margin: var(--space-2xs) 0 var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
   overflow: auto;
   overscroll-behavior: contain;
-  border: 0;
-  border-left: 2px solid color-mix(in oklab, var(--gutter) 55%, transparent);
-  border-radius: 0;
+  border: 1px solid color-mix(in oklab, var(--border) 32%, transparent);
+  border-radius: var(--radius-sm);
   color: var(--muted);
-  background: transparent;
+  background: color-mix(in oklab, var(--surface-subtle) 38%, transparent);
 }
 
 .thinking-row {
@@ -1525,18 +1521,17 @@ html[data-scheme="light"] .md pre {
 
 .thinking-body {
   max-height: none;
-  margin: 4px 0 0 2px;
-  padding: 0 0 0 var(--space-sm);
+  margin: var(--space-2xs) 0 0;
+  padding: var(--space-xs) var(--space-sm);
   overflow: visible;
-  border: 0;
-  border-left: 2px solid color-mix(in oklab, var(--gutter) 40%, transparent);
-  border-radius: 0;
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  border-radius: var(--radius-sm);
   color: var(--muted);
-  background: transparent;
+  background: color-mix(in oklab, var(--surface-subtle) 30%, transparent);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-style: italic;
-  line-height: 1.55;
+  line-height: var(--leading-code);
   white-space: pre-wrap;
 }
 
@@ -1632,9 +1627,8 @@ html[data-scheme="light"] .md pre {
 .notice {
   margin: var(--space-xs) 0;
   padding: var(--space-sm) 12px;
-  border: 0;
-  border-left: 2px solid color-mix(in oklab, var(--muted) 35%, transparent);
-  border-radius: var(--radius-xs) var(--radius-sm) var(--radius-sm) var(--radius-xs);
+  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
+  border-radius: var(--radius-sm);
   color: var(--muted);
   background: color-mix(in oklab, var(--surface-subtle) 72%, transparent);
   font-size: var(--text-label);
@@ -1643,13 +1637,13 @@ html[data-scheme="light"] .md pre {
 
 .notice.warn {
   color: var(--notice);
-  border-left-color: color-mix(in oklab, var(--notice) 65%, transparent);
+  border-color: color-mix(in oklab, var(--notice) 34%, var(--border));
   background: color-mix(in oklab, var(--notice) 7%, var(--surface-subtle));
 }
 
 .notice.error {
   color: var(--del);
-  border-left-color: color-mix(in oklab, var(--del) 65%, transparent);
+  border-color: color-mix(in oklab, var(--del) 34%, var(--border));
   background: color-mix(in oklab, var(--del) 9%, var(--surface-subtle));
 }
 
@@ -1813,7 +1807,7 @@ html[data-scheme="light"] .card {
   margin: 0 0 var(--space-xs);
   color: var(--muted);
   font-size: var(--text-label);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   letter-spacing: 0.02em;
   line-height: 1.2;
 }
@@ -2026,6 +2020,8 @@ html[data-scheme="light"] .card {
   min-height: 32px;
   padding: 0 var(--space-base);
   font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-ui);
 }
 
 .queue-row {
@@ -2159,8 +2155,8 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   flex: 0 0 auto;
   color: var(--assistant);
   font-size: var(--text-ui);
-  font-weight: 500;
-  line-height: 1.3;
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-ui);
   letter-spacing: -0.01em;
 }
 
@@ -2281,7 +2277,7 @@ html.electron-transparent .composer-wrap:focus-within {
   background: transparent;
   font-family: var(--font-sans);
   font-size: var(--text-prose);
-  line-height: 1.55;
+  line-height: var(--leading-prose);
   letter-spacing: -0.01em;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -2308,8 +2304,8 @@ html.electron-transparent .composer-wrap:focus-within {
   justify-content: space-between;
   gap: var(--space-sm);
   margin: 0;
-  padding: var(--space-2xs) var(--space-sm) var(--space-sm) var(--space-sm);
-  border-top: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-top: 1px solid color-mix(in oklab, var(--border) 32%, transparent);
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   background: transparent;
   color: var(--text-subtle);
@@ -2321,7 +2317,7 @@ html.electron-transparent .composer-wrap:focus-within {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   min-width: 0;
   padding-left: var(--space-2xs);
 }
@@ -2335,48 +2331,36 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .mode-chip {
   display: inline-flex;
-  min-height: 28px;
+  min-height: 24px;
   align-items: center;
-  gap: 6px;
-  padding: 0 10px;
+  padding: 0 var(--space-xs);
   border-radius: var(--radius-sm);
-  color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 72%, transparent);
-  font-size: var(--text-caption);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.01em;
+  text-transform: none;
   transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
 }
 
-/* Live mode dot — follows the mode color (plan / execute / yolo). */
-.mode-chip::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  flex: 0 0 auto;
-  border-radius: var(--radius-pill);
-  background: var(--mode);
-  box-shadow: 0 0 0 2.5px color-mix(in oklab, var(--mode) 16%, transparent);
-}
-
 .mode-chip:hover {
-  background: color-mix(in oklab, var(--surface) 92%, transparent);
+  color: var(--assistant);
+  background: color-mix(in oklab, var(--surface) 62%, transparent);
 }
 
-/* Quiet ghost affordances in the composer's status row (@ attach, / commands). */
+/* Two quiet, named actions: attach a file or browse commands. */
 .composer-ghost {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
   color: var(--text-subtle);
   background: transparent;
-  font-family: var(--font-mono);
-  font-size: var(--text-ui);
-  font-weight: 500;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
   line-height: 1;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), transform 60ms;
 }
@@ -2384,6 +2368,10 @@ html.electron-transparent .composer-wrap:focus-within {
 .composer-ghost:hover {
   color: var(--assistant);
   background: color-mix(in oklab, var(--assistant) 8%, transparent);
+}
+
+.composer-ghost svg {
+  flex: 0 0 auto;
 }
 
 .composer-ghost:active:not(:disabled) {
@@ -2434,10 +2422,10 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .composer-model {
   max-width: 22ch;
-  min-height: 28px;
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
-  padding: 0 8px;
+  padding: 0 var(--space-xs);
   border-radius: var(--radius-sm);
   color: color-mix(in oklab, var(--muted) 88%, var(--assistant));
   background: transparent;
@@ -2469,7 +2457,7 @@ html.electron-transparent .composer-wrap:focus-within {
   color: var(--bg);
   background: var(--assistant);
   font-size: var(--text-prose);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   line-height: 1;
   transition: opacity var(--dur-fast) var(--ease-standard), transform 60ms, background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
 }
@@ -2491,6 +2479,7 @@ html.electron-transparent .composer-wrap:focus-within {
   height: 32px;
   min-height: 32px;
   padding: 0 12px;
+  gap: var(--space-xs);
   border: 1px solid color-mix(in oklab, var(--border-strong) 70%, transparent);
   border-radius: var(--radius-pill);
   color: var(--assistant);
@@ -2540,9 +2529,10 @@ html.electron-transparent .composer-wrap:focus-within {
 .slash-menu-header {
   justify-content: space-between;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
-  color: var(--heading);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  color: var(--assistant);
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
 }
 
 .slash-menu-hint {
@@ -2587,13 +2577,15 @@ html.electron-transparent .composer-wrap:focus-within {
 }
 
 .slash-item:hover,
-.slash-item.selected {
-  color: var(--sel-fg);
-  background: color-mix(in oklab, var(--sel-bg) 88%, var(--assistant) 6%);
+.slash-item:hover {
+  color: var(--assistant);
+  background: color-mix(in oklab, var(--surface) 74%, transparent);
 }
 
 .slash-item.selected {
-  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--primary) 80%, transparent);
+  color: var(--bg);
+  background: var(--assistant);
+  box-shadow: none;
 }
 
 .slash-item-copy {
@@ -2627,7 +2619,7 @@ html.electron-transparent .composer-wrap:focus-within {
 }
 
 .slash-item.selected .desc {
-  color: color-mix(in oklab, var(--sel-fg) 72%, transparent);
+  color: color-mix(in oklab, var(--bg) 62%, var(--assistant));
 }
 
 .slash-badge {
@@ -2640,6 +2632,11 @@ html.electron-transparent .composer-wrap:focus-within {
   font-size: var(--text-micro);
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.slash-item.selected .slash-badge {
+  color: color-mix(in oklab, var(--bg) 72%, var(--assistant));
+  background: color-mix(in oklab, var(--bg) 10%, transparent);
 }
 
 .slash-state {
@@ -3424,7 +3421,7 @@ html.electron-transparent .sidebar-heading-row {
 
 .catalog-popover-header h2 {
   margin: 0;
-  color: var(--heading);
+  color: var(--assistant);
   font-size: var(--text-caption);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -3516,7 +3513,7 @@ html.electron-transparent .sidebar-heading-row {
 }
 
 .catalog-row.selected {
-  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--primary) 80%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--sel-fg) 22%, transparent);
 }
 
 .catalog-row-primary {

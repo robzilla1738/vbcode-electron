@@ -59,6 +59,7 @@ export function ProjectRail({
   onArchiveSession: (cwd: string, id: string) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<SessionMenu | null>(null);
   const [renaming, setRenaming] = useState<{ cwd: string; id: string; title: string } | null>(null);
@@ -143,8 +144,12 @@ export function ProjectRail({
         <button
           type="button"
           className="icon-button rail-title-search no-drag"
-          onClick={() => filterRef.current?.focus()}
+          onClick={() => {
+            setSearchOpen(true);
+            window.requestAnimationFrame(() => filterRef.current?.focus());
+          }}
           aria-label="Search projects"
+          aria-expanded={searchOpen || query.length > 0}
         >
           <IconSearch size={15} />
         </button>
@@ -153,7 +158,7 @@ export function ProjectRail({
       <nav className="rail-actions" aria-label="Session actions">
         <button
           type="button"
-          className="rail-action primary"
+          className="rail-action"
           onClick={onNewSession}
           disabled={!activeCwd || busy}
           title={busy ? busyTitle : undefined}
@@ -183,7 +188,7 @@ export function ProjectRail({
         </button>
       </nav>
 
-      <label className="rail-filter">
+      <label className={`rail-filter${searchOpen || query ? " is-open" : ""}`}>
         <span className="sr-only">Filter projects and sessions</span>
         <IconSearch size={14} />
         <input
@@ -194,6 +199,7 @@ export function ProjectRail({
             if (event.key === "Escape") {
               event.preventDefault();
               if (query) setQuery("");
+              else if (searchOpen) setSearchOpen(false);
               else onClose();
             }
           }}

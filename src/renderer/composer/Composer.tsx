@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { ArrowUp, Paperclip, Square, Terminal } from "lucide-react";
 import {
   applyPalette,
   isExactCommand,
@@ -61,19 +62,8 @@ function fileParts(path: string): { base: string; dir: string } {
   return { base: normalized.slice(slash + 1), dir: normalized.slice(0, slash) };
 }
 
-function SendIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-      <path
-        d="M6 2.25v7.5M2.75 5.5 6 2.25 9.25 5.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+function displayModeLabel(label: string): string {
+  return label.length > 1 ? `${label.slice(0, 1)}${label.slice(1).toLowerCase()}` : label;
 }
 
 export function Composer({
@@ -449,7 +439,7 @@ export function Composer({
             aria-label="Mention a project file"
             title="Mention a project file"
           >
-            @
+            <Paperclip size={15} strokeWidth={1.75} />
           </button>
           <button
             type="button"
@@ -459,10 +449,10 @@ export function Composer({
             aria-label="Browse commands"
             title="Browse commands (⌘K)"
           >
-            /
+            <Terminal size={15} strokeWidth={1.75} />
           </button>
           <button type="button" className="mode-chip" onClick={onCycleMode} title="Cycle mode (Shift+Tab)">
-            {modeLabel}
+            {displayModeLabel(modeLabel)}
           </button>
           {status ? (
             <span className="composer-metrics" title={status}>{status}</span>
@@ -484,6 +474,7 @@ export function Composer({
           <span className="composer-model" title={model}>{model.split("/").at(-1) || model}</span>
           {busy ? (
             <button type="button" className="composer-submit stop" onClick={onAbort} aria-label="Stop current turn">
+              <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden="true" />
               Stop
             </button>
           ) : (
@@ -494,7 +485,7 @@ export function Composer({
               disabled={!draft.trim()}
               aria-label="Send message"
             >
-              <SendIcon />
+              <ArrowUp size={16} strokeWidth={2} aria-hidden="true" />
             </button>
           )}
         </div>
