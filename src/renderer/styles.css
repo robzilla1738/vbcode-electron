@@ -27,6 +27,8 @@
   --task-done: #808080;
   --task-active: #56b6c2;
   --task-pending: #eeeeee;
+  --task-failed: var(--del);
+  --task-skipped: var(--muted);
   --ctx: #828bb8;
   --mode: var(--accent);
   --ring: #eeeeee;
@@ -696,16 +698,14 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .rail-section-label {
+  margin: 0;
+  padding: 0 var(--space-base) var(--space-sm);
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--text-title);
   font-weight: var(--weight-medium);
   letter-spacing: -0.015em;
   text-transform: none;
-}
-
-.rail-section-label {
-  padding: 0 var(--space-base) var(--space-sm);
 }
 
 .project-list {
@@ -1155,7 +1155,7 @@ html[data-scheme="light"] .block-user,
 html[data-scheme="light"].glass .block-user,
 html[data-scheme="light"].electron-transparent .block-user {
   background: var(--elevated);
-  box-shadow: 0 1px 2px color-mix(in oklab, #1b2430 6%, transparent);
+  box-shadow: 0 1px 2px color-mix(in oklab, #000 6%, transparent);
 }
 
 .folded-hint {
@@ -1840,6 +1840,7 @@ html[data-scheme="light"] .card {
 }
 
 .onboarding-title {
+  margin: 0;
   color: var(--assistant);
   font-size: var(--text-label);
   font-weight: 600;
@@ -2030,6 +2031,25 @@ html[data-scheme="light"] .card {
   gap: var(--space-sm);
   min-height: 28px;
   padding: 0 var(--space-sm);
+}
+
+.queue-row.is-active {
+  color: var(--assistant);
+}
+
+.queue-row.is-active .queue-label {
+  color: var(--assistant);
+  font-weight: var(--weight-medium);
+}
+
+.queue-active-badge {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .queue-label {
@@ -2724,7 +2744,8 @@ html.electron-transparent .sidebar-heading-row {
   min-width: 0;
 }
 
-.sidebar-heading-row h4 {
+.sidebar-heading-row h4,
+.sidebar-heading-row .sidebar-heading-title {
   margin: 0;
   color: var(--assistant);
   font-size: var(--text-title);
@@ -2971,9 +2992,20 @@ html.electron-transparent .sidebar-heading-row {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--task-pending) 55%, transparent);
 }
 
+.status-dot-failed {
+  background: var(--task-failed);
+}
+
+.status-dot-skipped {
+  background: color-mix(in oklab, var(--task-skipped) 35%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--task-skipped) 55%, transparent);
+}
+
 .task-row.done { color: var(--task-done); }
 .task-row.active { color: var(--task-active); }
 .task-row.pending { color: var(--task-pending); }
+.task-row.failed { color: var(--task-failed); }
+.task-row.skipped { color: var(--task-skipped); }
 .ctx-hot { color: var(--notice) !important; }
 
 .jobs-view {
@@ -3096,6 +3128,11 @@ html.electron-transparent .sidebar-heading-row {
   margin: var(--space-sm) 0 0;
   overflow: auto;
   color: var(--muted);
+}
+
+.job-output:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .splash {

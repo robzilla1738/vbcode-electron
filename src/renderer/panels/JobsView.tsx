@@ -10,21 +10,36 @@ function statusLabel(status: JobInfo["status"]): string {
 export function JobsView({ jobs }: { jobs: JobInfo[] }) {
   if (jobs.length === 0) {
     return (
-      <div className="jobs-view transcript">
+      <div className="jobs-view transcript" role="region" aria-labelledby="jobs-empty-title">
         <div className="empty-state">
-          <h2>No background jobs are running.</h2>
+          <h2 id="jobs-empty-title">No background jobs are running.</h2>
           <p>Long-running commands and local servers will appear here.</p>
         </div>
       </div>
     );
   }
   return (
-    <div className="jobs-view transcript">
+    <div
+      className="jobs-view transcript"
+      role="region"
+      aria-label={`Background jobs, ${jobs.length} total`}
+    >
       {jobs.map((j) => (
-        <div key={j.id} className="job-card">
+        <article
+          key={j.id}
+          className="job-card"
+          aria-labelledby={`job-command-${j.id}`}
+        >
           <div className="job-header">
-            <span className={`job-status job-status-${j.status}`}>{statusLabel(j.status)}</span>
-            <span className="job-command">{j.command}</span>
+            <span
+              className={`job-status job-status-${j.status}`}
+              aria-label={`Status ${statusLabel(j.status)}`}
+            >
+              {statusLabel(j.status)}
+            </span>
+            <span className="job-command" id={`job-command-${j.id}`}>
+              {j.command}
+            </span>
             {j.status === "running" && j.pid != null && (
               <span className="job-pid">pid {j.pid}</span>
             )}
@@ -33,7 +48,7 @@ export function JobsView({ jobs }: { jobs: JobInfo[] }) {
             )}
           </div>
           {j.servers.length > 0 && (
-            <div className="job-links">
+            <div className="job-links" aria-label="Detected server URLs">
               {j.servers.map((server) => {
                 const href = externalHref(server);
                 return href ? (
@@ -52,11 +67,16 @@ export function JobsView({ jobs }: { jobs: JobInfo[] }) {
             </div>
           )}
           {j.outputTail && (
-            <pre className="job-output">
+            <pre
+              className="job-output"
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable output region for screen reader users
+              tabIndex={0}
+              aria-label="Job output tail"
+            >
               {j.outputTail.slice(-600)}
             </pre>
           )}
-        </div>
+        </article>
       ))}
     </div>
   );

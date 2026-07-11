@@ -300,10 +300,25 @@ export function Composer({
     });
   };
 
+  const menuVisible = atOpen || (palette.open && itemCount > 0);
+  const menuId = menuVisible
+    ? atOpen
+      ? "composer-mention-menu"
+      : "composer-slash-menu"
+    : undefined;
+  const activeOptionId =
+    itemCount > 0 && menuId ? `${menuId}-option-${sel}` : undefined;
+
   return (
     <div className="composer-wrap">
       {atOpen && (
-        <div className="slash-menu" ref={menuRef} role="listbox" aria-label="Matching project files">
+        <div
+          id="composer-mention-menu"
+          className="slash-menu"
+          ref={menuRef}
+          role="listbox"
+          aria-label="Matching project files"
+        >
           <div className="slash-menu-header">
             <span>Attach file</span>
             <span className="slash-menu-hint">@</span>
@@ -321,6 +336,7 @@ export function Composer({
               return (
                 <button
                   type="button"
+                  id={`composer-mention-menu-option-${i}`}
                   key={path}
                   className={`slash-item${i === sel ? " selected" : ""}`}
                   role="option"
@@ -349,7 +365,13 @@ export function Composer({
         </div>
       )}
       {palette.open && itemCount > 0 && !atOpen && (
-        <div className="slash-menu" ref={menuRef} role="listbox" aria-label="Slash commands">
+        <div
+          id="composer-slash-menu"
+          className="slash-menu"
+          ref={menuRef}
+          role="listbox"
+          aria-label="Slash commands"
+        >
           <div className="slash-menu-header">
             <span>{palette.mode === "value" ? `/${palette.command.name}` : "Commands"}</span>
             <span className="slash-menu-hint">{palette.mode === "value" ? "options" : "/"}</span>
@@ -359,6 +381,7 @@ export function Composer({
               palette.items.map((item, i) => (
                 <button
                   type="button"
+                  id={`composer-slash-menu-option-${i}`}
                   key={item.name}
                   className={`slash-item${i === sel ? " selected" : ""}`}
                   role="option"
@@ -383,6 +406,7 @@ export function Composer({
               palette.items.map((value, i) => (
                 <button
                   type="button"
+                  id={`composer-slash-menu-option-${i}`}
                   key={value}
                   className={`slash-item${i === sel ? " selected" : ""}${
                     currentValue === value ? " current" : ""
@@ -423,6 +447,10 @@ export function Composer({
           disabled={disabled}
           placeholder="Ask Vibe Codr to build, fix, explain, or review…"
           aria-label="Task message"
+          aria-autocomplete="list"
+          aria-expanded={menuId != null}
+          aria-controls={menuId}
+          aria-activedescendant={activeOptionId}
           rows={1}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
@@ -451,7 +479,13 @@ export function Composer({
           >
             <Terminal size={15} strokeWidth={1.75} />
           </button>
-          <button type="button" className="mode-chip" onClick={onCycleMode} title="Cycle mode (Shift+Tab)">
+          <button
+            type="button"
+            className="mode-chip"
+            onClick={onCycleMode}
+            title="Cycle mode (Shift+Tab)"
+            aria-label={`Mode ${displayModeLabel(modeLabel)}. Cycle mode`}
+          >
             {displayModeLabel(modeLabel)}
           </button>
           {status ? (

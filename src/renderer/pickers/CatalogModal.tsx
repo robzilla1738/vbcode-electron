@@ -216,7 +216,13 @@ export function CatalogModal({
       <div className="catalog-popover-header">
         <h2 id="catalog-title">{title}</h2>
         {canToggleTarget && (
-          <button type="button" className="catalog-target" onClick={onToggleModelTarget}>
+          <button
+            type="button"
+            className="catalog-target"
+            onClick={onToggleModelTarget}
+            aria-label={`Model target ${picker.target === "main" ? "Main" : "Subagents"}. Press Tab to switch.`}
+            title="Tab to switch target"
+          >
             {picker.target === "main" ? "Main" : "Subagents"}
           </button>
         )}
@@ -231,10 +237,16 @@ export function CatalogModal({
           onChange={(event) => setQuery(event.target.value)}
           placeholder={`Filter ${picker.kind}…`}
           autoComplete="off"
+          aria-controls="catalog-results"
+          aria-autocomplete="list"
+          aria-activedescendant={
+            actionable.length ? `catalog-option-${selected}` : undefined
+          }
         />
       </label>
 
       <div
+        id="catalog-results"
         className="catalog-list"
         role={actionable.length ? "listbox" : "list"}
         aria-label={`${picker.kind} results`}
@@ -251,6 +263,7 @@ export function CatalogModal({
           return (
             <button
               key={option.key}
+              id={`catalog-option-${index}`}
               type="button"
               className={`catalog-row${index === selected ? " selected" : ""}`}
               data-catalog-option
@@ -277,7 +290,11 @@ export function CatalogModal({
             </button>
           );
         })}
-        {options.length === 0 && <div className="catalog-empty">Nothing matches this filter.</div>}
+        {options.length === 0 && (
+          <div className="catalog-empty" role="status">
+            Nothing matches this filter.
+          </div>
+        )}
       </div>
 
       <div className="catalog-popover-footer">

@@ -7,15 +7,29 @@ function MetaRow({ label, value, hot }: { label: string; value: string; hot?: bo
   return (
     <div className={`meta-row${hot ? " ctx-hot" : ""}`}>
       <span className="meta-label">{label}</span>
-      <span className="meta-value" title={value}>
+      <span className="meta-value" title={value} aria-label={`${label}: ${value}`}>
         {value}
       </span>
     </div>
   );
 }
 
-function StatusDot({ status }: { status: "done" | "active" | "pending" }) {
-  return <span className={`status-dot status-dot-${status}`} aria-hidden />;
+function StatusDot({
+  status,
+}: {
+  status: "done" | "active" | "pending" | "running" | "completed" | "failed" | "skipped";
+}) {
+  const kind =
+    status === "done" || status === "completed"
+      ? "done"
+      : status === "failed"
+        ? "failed"
+        : status === "skipped"
+          ? "skipped"
+          : status === "active" || status === "running"
+            ? "active"
+            : "pending";
+  return <span className={`status-dot status-dot-${kind}`} aria-hidden />;
 }
 
 function projectName(cwd: string): string {
@@ -72,10 +86,14 @@ export function Inspector({
     !showTasks;
 
   return (
-    <aside className="activity-rail inspector-rail" aria-label="Session details">
+    <aside
+      className="activity-rail inspector-rail"
+      aria-label="Session details"
+      aria-labelledby="inspector-title"
+    >
       <div className="sidebar-heading-row">
         <div className="sidebar-heading-copy">
-          <h4>Session</h4>
+          <h2 id="inspector-title" className="sidebar-heading-title">Session</h2>
           <p className="sidebar-heading-sub">Model, context, and changes</p>
         </div>
         <button type="button" className="chip" onClick={onClose} aria-label="Close session panel">
@@ -149,9 +167,11 @@ export function Inspector({
                 type="button"
                 className="activity-button file-row"
                 onClick={() => onShowFile(f.path)}
+                aria-label={`Show ${f.path} in Finder, +${f.added} −${f.removed}`}
+                title={`Show ${f.path}`}
               >
                 <span className="file-path">{f.path}</span>
-                <span className="file-diff">
+                <span className="file-diff" aria-hidden>
                   <span className="diff-add-count">+{f.added}</span>
                   <span className="diff-del-count">−{f.removed}</span>
                 </span>
@@ -177,10 +197,10 @@ export function Inspector({
                 </div>
               ))}
             <div className="card-actions compact">
-              <button type="button" className="chip" onClick={onUndo}>
+              <button type="button" className="chip" onClick={onUndo} aria-label="Undo last checkpoint">
                 Undo
               </button>
-              <button type="button" className="chip" onClick={onRedo}>
+              <button type="button" className="chip" onClick={onRedo} aria-label="Redo checkpoint">
                 Redo
               </button>
             </div>
@@ -190,16 +210,16 @@ export function Inspector({
         {chrome.orchestration.length > 0 && (
           <div className="sidebar-section">
             <h4>Orchestration</h4>
-            {chrome.orchestration.map((o) => (
-              <div key={o.taskId} className="task-row">
-                <StatusDot
-                  status={
-                    o.status === "running" ? "active" : o.status === "completed" ? "done" : "pending"
-                  }
-                />
-                <span>{o.objective.slice(0, 48)}</span>
-              </div>
-            ))}
+            {chrome.orchestration.map((o) => {
+              const label =
+                o.objective.length > 48 ? `${o.objective.slice(0, 48)}…` : o.objective;
+              return (
+                <div key={o.taskId} className={`task-row orch-${o.status}`} title={o.objective}>
+                  <StatusDot status={o.status} />
+                  <span>{label}</span>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -212,6 +232,7 @@ export function Inspector({
                 type="button"
                 className={`activity-button${selectedSubagent === subagent.id ? " active" : ""}`}
                 aria-pressed={selectedSubagent === subagent.id}
+                aria-label={`Subagent ${firstLine(subagent.prompt) ?? subagent.id}, ${subagent.status}`}
                 onClick={() => onSelectSubagent(subagent.id)}
               >
                 <div className="task-row subagent-tone">
@@ -226,7 +247,12 @@ export function Inspector({
         {selectedSubagent && (
           <div className="sidebar-section">
             <h4>Subagent {selectedSubagent.slice(0, 8)}</h4>
-            <pre className="activity-stream inspector-stream thinking-panel">
+            <pre
+              className="activity-stream inspector-stream thinking-panel"
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable output region for screen reader users
+              tabIndex={0}
+              aria-label={`Stream for subagent ${selectedSubagent.slice(0, 8)}`}
+            >
               {subagentStream ||
                 chrome.subagents.find((s) => s.id === selectedSubagent)?.result ||
                 "(no stream yet)"}

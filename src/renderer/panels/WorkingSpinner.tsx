@@ -9,13 +9,24 @@ export function WorkingSpinner({ thinking }: { thinking: string }) {
     const timer = setInterval(() => setElapsed(Date.now() - start), 100);
     return () => clearInterval(timer);
   }, []);
+  const label = workingLabel(elapsed);
   return (
-    <div className="working-strip" role="status">
+    <div
+      className="working-strip"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label={`${label}. Press Escape to interrupt.`}
+    >
       <span className="spinner" aria-hidden />
       <div className="working-copy">
         <div className="working-title">
-          <span className="working-shimmer">{workingLabel(elapsed)}</span>
-          <span className="working-hint">esc to interrupt</span>
+          <span className="working-shimmer" aria-hidden>
+            {label}
+          </span>
+          <span className="working-hint" aria-hidden>
+            esc to interrupt
+          </span>
         </div>
         {thinking && (
           <div className="working-detail">

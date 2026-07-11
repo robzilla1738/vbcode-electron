@@ -886,11 +886,13 @@ export function App() {
                   <IconSidebar size={15} />
                 </button>
               )}
-              <div className="topbar-title" title={`${cwd}\n${activeSessionTitle}`}>
+              <h1 className="topbar-title" title={`${cwd}\n${activeSessionTitle}`}>
                 <span className="topbar-project">{activeProject?.name ?? cwd.split("/").at(-1)}</span>
-                <span className="topbar-separator">/</span>
+                <span className="topbar-separator" aria-hidden>
+                  /
+                </span>
                 <span className="topbar-session">{activeSessionTitle}</span>
-              </div>
+              </h1>
             </div>
             <div className="topbar-actions no-drag">
               <button
@@ -898,17 +900,26 @@ export function App() {
                 className={`icon-button${session.jobsView ? " active" : ""}`}
                 onClick={() => session.setJobsView((value) => !value)}
                 aria-pressed={session.jobsView}
-                aria-label="Toggle background jobs"
+                aria-label={
+                  chrome.jobs.filter((job) => job.status === "running").length
+                    ? `Toggle background jobs, ${chrome.jobs.filter((job) => job.status === "running").length} running`
+                    : "Toggle background jobs"
+                }
               >
                 <IconJobs size={14} />
-                <span>Jobs{chrome.jobs.filter((job) => job.status === "running").length ? ` ${chrome.jobs.filter((job) => job.status === "running").length}` : ""}</span>
+                <span>
+                  Jobs
+                  {chrome.jobs.filter((job) => job.status === "running").length
+                    ? ` ${chrome.jobs.filter((job) => job.status === "running").length}`
+                    : ""}
+                </span>
               </button>
               <button
                 type="button"
                 className={`icon-button${session.inspectorOpen ? " active" : ""}`}
                 onClick={() => session.setInspectorOpen((value) => !value)}
                 aria-pressed={session.inspectorOpen}
-                aria-label="Toggle session panel"
+                aria-label={session.inspectorOpen ? "Hide session panel" : "Show session panel"}
               >
                 <IconPanel size={14} />
                 <span>Session</span>
@@ -1174,7 +1185,11 @@ export function App() {
         </div>
       </div>
 
-      {session.toast && <div className="toast" role="status">{session.toast}</div>}
+      {session.toast && (
+        <div className="toast" role="status" aria-live="polite" aria-atomic="true">
+          {session.toast}
+        </div>
+      )}
     </div>
   );
 }

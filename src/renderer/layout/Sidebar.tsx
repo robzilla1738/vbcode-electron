@@ -6,18 +6,28 @@ function MetaRow({ label, value, hot }: { label: string; value: string; hot?: bo
   return (
     <div className={`meta-row${hot ? " ctx-hot" : ""}`}>
       <span className="meta-label">{label}</span>
-      <span className="meta-value" title={value}>{value}</span>
+      <span className="meta-value" title={value} aria-label={`${label}: ${value}`}>
+        {value}
+      </span>
     </div>
   );
 }
 
-function StatusDot({ status }: { status: "done" | "active" | "pending" | "running" | "completed" }) {
+function StatusDot({
+  status,
+}: {
+  status: "done" | "active" | "pending" | "running" | "completed" | "failed" | "skipped";
+}) {
   const kind =
     status === "done" || status === "completed"
       ? "done"
-      : status === "active" || status === "running"
-        ? "active"
-        : "pending";
+      : status === "failed"
+        ? "failed"
+        : status === "skipped"
+          ? "skipped"
+          : status === "active" || status === "running"
+            ? "active"
+            : "pending";
   return <span className={`status-dot status-dot-${kind}`} aria-hidden />;
 }
 
@@ -60,7 +70,7 @@ export function LiveSidebar({
     <aside className="activity-rail" aria-label="Live session activity">
       <div className="inspector-scroll">
       <div className="sidebar-section">
-        <h4>Session</h4>
+        <h4 id="live-sidebar-session">Session</h4>
         <div className="meta-block">
           <MetaRow label="Path" value={chrome.cwd} />
           <MetaRow label="Model" value={chrome.model} />
@@ -112,12 +122,16 @@ export function LiveSidebar({
       {chrome.orchestration.length > 0 && (
         <div className="sidebar-section">
           <h4>DAG</h4>
-          {chrome.orchestration.map((o) => (
-            <div key={o.taskId} className="task-row">
-              <StatusDot status={o.status === "running" ? "running" : o.status === "completed" ? "completed" : "pending"} />
-              <span>{o.objective.slice(0, 48)}</span>
-            </div>
-          ))}
+          {chrome.orchestration.map((o) => {
+            const label =
+              o.objective.length > 48 ? `${o.objective.slice(0, 48)}…` : o.objective;
+            return (
+              <div key={o.taskId} className={`task-row orch-${o.status}`} title={o.objective}>
+                <StatusDot status={o.status} />
+                <span>{label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -130,6 +144,8 @@ export function LiveSidebar({
               type="button"
               className="activity-button"
               onClick={() => onOpenSubagent?.(s.id)}
+              aria-label={`Open subagent ${firstLine(s.prompt) ?? s.id}, ${s.status}`}
+              title={s.prompt}
             >
               <div className="task-row subagent-tone">
                 <StatusDot status={s.status === "running" ? "running" : "completed"} />
@@ -146,7 +162,14 @@ export function LiveSidebar({
       {chrome.busy && chrome.thoughtLog.length > 0 && (
         <div className="sidebar-section">
           <h4>Thinking</h4>
-          <div className="activity-stream thinking-panel trail">
+          <div
+            className="activity-stream thinking-panel trail"
+            role="log"
+            aria-live="polite"
+            aria-label="Live thinking trail"
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable live region for screen reader users
+            tabIndex={0}
+          >
             {chrome.thoughtLog.map((line, i) => (
               <div key={i} className="trail-line">{line || " "}</div>
             ))}

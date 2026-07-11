@@ -63,6 +63,7 @@ function BlockView({
             className={`tool-head${block.isError ? " error" : ""}${!block.done ? " live" : ""}`}
             onClick={() => onToggle(block.id)}
             aria-expanded={!collapsed}
+            aria-controls={`tool-body-${block.id}`}
             aria-label={`${collapsed ? "Expand" : "Collapse"} ${block.label}`}
           >
             <span className="tool-label">
@@ -74,9 +75,13 @@ function BlockView({
               {dur ? ` ${dur}` : ""}
             </span>
           </button>
-          {!collapsed && block.isDiff && <DiffBody lines={block.output} />}
+          {!collapsed && block.isDiff && (
+            <div id={`tool-body-${block.id}`}>
+              <DiffBody lines={block.output} />
+            </div>
+          )}
           {!collapsed && !block.isDiff && block.output.length > 0 && (
-            <div className="tool-body">
+            <div className="tool-body" id={`tool-body-${block.id}`}>
               {block.isSources ? (
                 <SourceList sources={parseSearchResults(block.output.join("\n"))} />
               ) : block.isMarkdown ? (
@@ -89,7 +94,9 @@ function BlockView({
             </div>
           )}
           {!block.done && block.tail && (
-            <div className="tool-body">{block.tail.slice(-400)}</div>
+            <div className="tool-body" id={collapsed || block.output.length === 0 ? `tool-body-${block.id}` : undefined}>
+              {block.tail.slice(-400)}
+            </div>
           )}
         </div>
       );
@@ -108,11 +115,16 @@ function BlockView({
             className="thinking-head"
             onClick={() => onToggle(block.id)}
             aria-expanded={!collapsed}
+            aria-controls={`thinking-body-${block.id}`}
             aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
           >
             <span className="thinking-label">{label}</span>
           </button>
-          {!collapsed && <div className="thinking-body">{block.text}</div>}
+          {!collapsed && (
+            <div className="thinking-body" id={`thinking-body-${block.id}`}>
+              {block.text}
+            </div>
+          )}
         </div>
       );
     }
@@ -197,6 +209,7 @@ export function TranscriptView({
         ref={scrollRef}
         onScroll={handleScroll}
         role="log"
+        aria-label="Conversation transcript"
         aria-live="polite"
         aria-relevant="additions text"
       >
@@ -212,13 +225,15 @@ export function TranscriptView({
             const visibleItems = turn.items.slice(itemWindow.start);
             return (
               <section className="turn" key={turn.key} aria-label={turn.user ? "Conversation turn" : "Assistant activity"}>
-                <div className="turn-content">
+                <div className="turn-content" id={`turn-items-${turn.key}`}>
                   {turn.user && (
                     <button
                       type="button"
                       className="block-user"
                       onClick={() => onToggleTurn(turn.key)}
                       aria-expanded={!folded}
+                      aria-controls={`turn-items-${turn.key}`}
+                      aria-label={folded ? "Expand turn" : "Collapse turn"}
                     >
                       <span className="block-user-text">{turn.user.text}</span>
                       {folded ? <span className="folded-hint">{turn.items.length} hidden</span> : null}
@@ -258,6 +273,7 @@ export function TranscriptView({
             setAnchored(true);
             scrollToLatest("smooth");
           }}
+          aria-label="Jump to latest messages"
         >
           Jump to latest
         </button>

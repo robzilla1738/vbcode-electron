@@ -19,11 +19,11 @@ export function PermissionCard({
   const preview = permissionPreview(perm.toolName, perm.input);
   const payload = JSON.stringify(perm.input, null, 2).slice(0, 800);
 
+  const title = `Permission required${count > 1 ? ` · 1/${count}` : ""} · ${perm.toolName}`;
+
   return (
-    <div className="card perm">
-      <h3>
-        Permission required{count > 1 ? ` · 1/${count}` : ""} · {perm.toolName}
-      </h3>
+    <div className="card perm" role="region" aria-labelledby="permission-card-title">
+      <h3 id="permission-card-title">{title}</h3>
       <p className="perm-tool-label">{toolLabel(perm.toolName, perm.input)}</p>
       {preview && (
         <div className="tool-body permission-preview">
@@ -44,16 +44,38 @@ export function PermissionCard({
         <pre className="decision-payload">{payload}</pre>
       </details>
       <div className="card-actions">
-        <button type="button" className="chip primary" onClick={() => onDecide("once")}>
+        <button
+          type="button"
+          className="chip primary"
+          onClick={() => onDecide("once")}
+          // biome-ignore lint/a11y/noAutofocus: focus the default action so keyboard users can approve without tabbing
+          autoFocus
+          aria-keyshortcuts="y"
+        >
           Allow once <ActionKbd>Y</ActionKbd>
         </button>
-        <button type="button" className="chip" onClick={() => onDecide("always")}>
+        <button
+          type="button"
+          className="chip"
+          onClick={() => onDecide("always")}
+          aria-keyshortcuts="a"
+        >
           Allow for session <ActionKbd>A</ActionKbd>
         </button>
-        <button type="button" className="chip" onClick={() => onDecide("always-project")}>
+        <button
+          type="button"
+          className="chip"
+          onClick={() => onDecide("always-project")}
+          aria-keyshortcuts="Meta+p"
+        >
           Allow for project <ActionKbd>⌘P</ActionKbd>
         </button>
-        <button type="button" className="chip danger" onClick={() => onDecide("deny")}>
+        <button
+          type="button"
+          className="chip danger"
+          onClick={() => onDecide("deny")}
+          aria-keyshortcuts="n"
+        >
           Deny <ActionKbd>N</ActionKbd>
         </button>
       </div>
@@ -78,10 +100,12 @@ export function PlanCard({
   onKeep: () => void;
 }) {
   return (
-    <div className="card plan">
-      <h3>Plan approval</h3>
+    <div className="card plan" role="region" aria-labelledby="plan-card-title">
+      <h3 id="plan-card-title">Plan approval</h3>
       {plan.ungrounded && (
-        <div className="notice warn">⚠ ungrounded — presented without the research this request required</div>
+        <div className="notice warn" role="status">
+          Ungrounded — presented without the research this request required
+        </div>
       )}
       <pre className="plan-text">
         {plan.text}
@@ -120,18 +144,33 @@ export function PlanCard({
         </div>
       )}
       <div className="card-actions">
-        <button type="button" className="chip primary" onClick={onAccept}>
+        <button
+          type="button"
+          className="chip primary"
+          onClick={onAccept}
+          // biome-ignore lint/a11y/noAutofocus: focus the default action so keyboard users can accept without tabbing
+          autoFocus
+          aria-keyshortcuts="Enter"
+        >
           Accept <ActionKbd>Enter</ActionKbd>
         </button>
-        <button type="button" className="chip" onClick={onAcceptYolo}>
+        <button
+          type="button"
+          className="chip"
+          onClick={onAcceptYolo}
+          aria-keyshortcuts="Meta+y"
+        >
           Accept + YOLO <ActionKbd>⌘Y</ActionKbd>
         </button>
-        <button type="button" className="chip" onClick={onKeep}>
+        <button
+          type="button"
+          className="chip"
+          onClick={onKeep}
+          aria-keyshortcuts="Escape"
+        >
           Keep planning <ActionKbd>Esc</ActionKbd>
         </button>
-        <span className="action-hint">
-          Type feedback to revise
-        </span>
+        <span className="action-hint">Type feedback to revise</span>
       </div>
     </div>
   );
@@ -154,11 +193,15 @@ export function QueuePanel({
   return (
     <div className="composer-queue-tray" role="region" aria-label="Queued prompts">
       <div className="queue-tray-header">
-        <span className="queue-tray-count">
-          {count} queued
-        </span>
+        <span className="queue-tray-count">{count} queued</span>
         {preview ? <span className="queue-tray-preview">{preview}</span> : null}
       </div>
+      {active && (
+        <div className="queue-row is-active" aria-current="true">
+          <span className="queue-label">{active.label}</span>
+          <span className="queue-active-badge">Active</span>
+        </div>
+      )}
       {pending.map((q) => (
         <div key={q.id} className="queue-row">
           <span className="queue-label">{q.label}</span>
@@ -168,6 +211,7 @@ export function QueuePanel({
               className="queue-action"
               onClick={() => onSteer(q.id)}
               title="Make this the active queued item"
+              aria-label={`Steer ${q.label} to front of queue`}
             >
               Steer
             </button>

@@ -324,7 +324,7 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
       };
     case "user-message":
       // Subagents and the reasoning trail are per-turn — start each turn clean (TUI parity).
-      return { ...s, busy: true, plan: null, subagents: [], thoughtLog: [] };
+      return { ...s, busy: true, plan: null, subagents: [], thoughtLog: [], orchestration: [] };
     case "engine-error":
       return { ...s, busy: false, thinkingStream: "" };
     default:

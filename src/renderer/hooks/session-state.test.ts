@@ -129,6 +129,22 @@ describe("user-message per-turn reset", () => {
     state = event(state, { type: "user-message", sessionId: "s", text: "next" });
     expect(state.thoughtLog).toHaveLength(0);
   });
+
+  it("resets orchestration rows on new user message", () => {
+    let state = initialChrome("/repo");
+    state = event(state, {
+      type: "orchestration-task",
+      sessionId: "s",
+      taskId: "dag_1",
+      objective: "Recon existing structure",
+      status: "completed",
+      attempts: 1,
+      durationMs: 4200,
+    });
+    expect(state.orchestration).toHaveLength(1);
+    state = event(state, { type: "user-message", sessionId: "s", text: "next" });
+    expect(state.orchestration).toHaveLength(0);
+  });
 });
 
 describe("subagent-activity running-only", () => {

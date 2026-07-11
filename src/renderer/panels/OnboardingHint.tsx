@@ -20,9 +20,15 @@ export function OnboardingHint({
 
   if (!open) return null;
   return (
-    <div className="onboarding-strip">
+    <aside
+      className="onboarding-strip"
+      role="region"
+      aria-labelledby="onboarding-title"
+    >
       <div className="onboarding-copy">
-        <div className="onboarding-title">Setup</div>
+        <h2 className="onboarding-title" id="onboarding-title">
+          Setup
+        </h2>
         <p className="card-copy">
           No provider configured yet. Use <code>/providers</code> to add a key, or run{" "}
           <code>vibecodr setup</code>. Config is shared at <code>{configPath}</code>.
@@ -32,6 +38,8 @@ export function OnboardingHint({
         <button
           type="button"
           className="chip primary"
+          // biome-ignore lint/a11y/noAutofocus: focus the primary action so keyboard users can open providers immediately
+          autoFocus
           onClick={() => {
             onOpenProviders();
             setOpen(false);
@@ -51,6 +59,6 @@ export function OnboardingHint({
           Dismiss
         </button>
       </div>
-    </div>
+    </aside>
   );
 }

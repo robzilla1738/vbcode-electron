@@ -75,6 +75,8 @@ export function ProjectRail({
 
   useEffect(() => {
     if (!menu) return;
+    const first = menuRef.current?.querySelector<HTMLButtonElement>("button[role='menuitem']");
+    first?.focus();
     const onPointer = (event: MouseEvent) => {
       if (menuRef.current?.contains(event.target as Node)) return;
       setMenu(null);
@@ -208,8 +210,8 @@ export function ProjectRail({
         />
       </label>
 
-      <div className="rail-section-label">Projects</div>
-      <div className="project-list" aria-busy={loading}>
+      <h2 className="rail-section-label" id="rail-projects-heading">Projects</h2>
+      <div className="project-list" aria-busy={loading} aria-labelledby="rail-projects-heading">
         {loading && projects.length === 0 && <div className="rail-state">Loading projects…</div>}
         {loading && projects.length > 0 && <div className="rail-refresh" role="status">Refreshing…</div>}
         {error && (
@@ -231,6 +233,7 @@ export function ProjectRail({
                 className={`project-heading${isActiveProject ? " active" : ""}`}
                 onClick={() => toggleProject(project.cwd)}
                 aria-expanded={isExpanded}
+                aria-controls={`project-sessions-${project.cwd.replace(/[^a-zA-Z0-9_-]/g, "_")}`}
                 title={project.cwd}
               >
                 <span className="project-folder" aria-hidden>
@@ -242,7 +245,12 @@ export function ProjectRail({
                 </span>
               </button>
               {isExpanded && (
-                <div className="session-list">
+                <div
+                  className="session-list"
+                  id={`project-sessions-${project.cwd.replace(/[^a-zA-Z0-9_-]/g, "_")}`}
+                  role="group"
+                  aria-label={`Sessions in ${projectLabel(project, projects)}`}
+                >
                   {project.sessions.length === 0 && <div className="session-empty">No saved sessions.</div>}
                   {project.sessions.map((session) => {
                     const isRenaming = renaming?.cwd === project.cwd && renaming.id === session.id;
@@ -321,6 +329,7 @@ export function ProjectRail({
           className="session-menu"
           style={{ left: menu.x, top: menu.y }}
           role="menu"
+          aria-label={`Actions for ${menu.session.title}`}
         >
           <button
             type="button"

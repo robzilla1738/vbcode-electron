@@ -7,6 +7,7 @@ function ExternalLink({ href, children }: { href?: string; children?: ReactNode 
   return (
     <a
       href={safeHref}
+      title={safeHref}
       onClick={(event) => {
         event.preventDefault();
         void window.vibe.openExternal(safeHref);
@@ -18,9 +19,15 @@ function ExternalLink({ href, children }: { href?: string; children?: ReactNode 
 }
 
 export function SourceList({ sources }: { sources: SourceItem[] }) {
-  if (!sources.length) return <div className="source-empty">No sources returned.</div>;
+  if (!sources.length) {
+    return (
+      <div className="source-empty" role="status">
+        No sources returned.
+      </div>
+    );
+  }
   return (
-    <ol className="source-list">
+    <ol className="source-list" aria-label="Sources">
       {sources.map((source, index) => {
         const href = externalHref(source.url);
         return (

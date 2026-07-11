@@ -302,7 +302,14 @@ async function busyTurn(): Promise<void> {
   emit({ type: "subagent-activity", sessionId: SID, subagentId: "sub_tests", label: "$ vitest run billing --reporter=dot" });
   emit({ type: "subagent-started", sessionId: SID, subagentId: "sub_audit", prompt: "Audit handlers for non-idempotent side effects" });
   emit({ type: "subagent-activity", sessionId: SID, subagentId: "sub_audit", label: "read src/billing/handlers/invoice.ts" });
-  await sleep(40);
+  await sleep(20);
+
+  emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_recon", objective: "Recon existing webhook handler structure", status: "completed", attempts: 1, durationMs: 4200 });
+  emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_impl", objective: "Add idempotency guard to invoice handler", status: "running" });
+  emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_verify", objective: "Replay fixture stream and diff ledger rows", status: "pending" });
+  emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_skip", objective: "Migrate legacy Stripe events (already handled)", status: "skipped" });
+  emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_fail", objective: "Run chaos replay with corrupted payload", status: "failed", attempts: 3, durationMs: 8100 });
+  await sleep(20);
 
   emit({ type: "tool-call-started", sessionId: SID, toolCallId: "tc_mig", toolName: "bash", input: { command: "npm run db:migrate -- --name add-webhook-dedupe" } });
   emit({ type: "tool-call-progress", sessionId: SID, toolCallId: "tc_mig", chunk: "Applying 20260710_add_webhook_dedupe…\n" });
