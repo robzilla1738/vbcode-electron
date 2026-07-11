@@ -3102,6 +3102,12 @@ html.electron-transparent .sidebar-heading-row {
   overflow-wrap: anywhere;
 }
 
+.job-pid {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
 .job-exit {
   flex: 0 0 auto;
   color: var(--text-subtle);

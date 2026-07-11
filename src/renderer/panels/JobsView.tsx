@@ -25,6 +25,9 @@ export function JobsView({ jobs }: { jobs: JobInfo[] }) {
           <div className="job-header">
             <span className={`job-status job-status-${j.status}`}>{statusLabel(j.status)}</span>
             <span className="job-command">{j.command}</span>
+            {j.status === "running" && j.pid != null && (
+              <span className="job-pid">pid {j.pid}</span>
+            )}
             {j.exitCode != null && j.status !== "running" && (
               <span className="job-exit">exit {j.exitCode}</span>
             )}
