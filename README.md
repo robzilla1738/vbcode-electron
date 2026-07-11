@@ -88,7 +88,7 @@ theme. See [tools/ui-preview/README.md](./tools/ui-preview/README.md).
 |---------|---------|
 | `npm run dev` | electron-vite + Electron window |
 | `npm run build` | Compile main / preload / renderer → `out/` |
-| `npm test` | Vitest parity, lifecycle, and editor-compose tests (50+) |
+| `npm test` | Vitest parity, lifecycle, and editor-compose tests (57) |
 | `npm run test:e2e` | Hermetic Electron UI/IPC/bridge parity scenarios |
 | `npm run verify:source-parity` | AST drift gate against live CLI/shared/bridge sources |
 | `npm run typecheck` | `tsc` for node + web projects |
@@ -158,13 +158,15 @@ Everything the TUI exposes through `EngineCommand` / `UIEvent` — tools, MCP, m
 Shell-owned surfaces:
 
 - Streaming transcript (Streamdown markdown while generating, diffs, tools, thinking, notices)
-- Permission + plan approval cards, prompt queue steer/dequeue
-- Slash palette (builtins + custom `commandNames`), catalog pickers
-- Multi-project sessions rail (new / resume / continue latest / filter), `/jobs`
+- Permission + plan approval cards with toolLabel, prompt queue steer/dequeue
+- Slash palette (builtins + custom `commandNames`), catalog pickers (model context window shown)
+- Multi-project sessions rail (new / resume / continue latest / filter), `/jobs` with PID
 - Anchored streaming with intentional scroll disengagement and Jump to latest
 - `@` fuzzy attach, clipboard image paste, external editor
-- Working spinner until `engine-idle`; green-gate RED notice
+- Working spinner with elapsed time + "esc to interrupt" until `engine-idle`; green-gate RED notice
 - Inspector: context, changed files, checkpoints, DAG, subagent stream
+- Theme-faithful selection colors, headings, and user-message accent (violet band on default)
+- Splash wordmark with brand gradient sweep; starters matching the CLI
 
 ## Parity & verification
 
@@ -173,8 +175,10 @@ See **[PARITY.md](./PARITY.md)** for the full CLI ↔ Electron checklist (modele
 Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AGENTS.md](./AGENTS.md)**.
 
 ```bash
-npm test && npm run typecheck && npm run build && npm run smoke:bridge
+npm test && npm run typecheck && npm run build && npm run smoke:bridge && npm run test:e2e
 ```
+
+All gates: **57 unit tests**, **8 e2e tests**, **19 source-parity pairs**, `tsc` clean, build OK, smoke prints `ready` + `snapshot ok`. See [ACCEPTANCE.md](./ACCEPTANCE.md) for the full acceptance spec (35 criteria, all pass).
 
 ## Project layout
 

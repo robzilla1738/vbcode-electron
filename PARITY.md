@@ -142,3 +142,32 @@ npm run dev
 - [x] flushDeltas before tool-finish and file-changed (TUI enqueue→landPending parity)
 - [x] Source parity check covers themes, glyphs, wordmark (19 pairs)
 - [x] Session chrome state tests: mode/plan dismissal, user-message reset, subagent-activity guard
+
+## Additional parity items (session 3)
+
+- [x] Theme palette DEFAULT synced: violet selBg/selFg, heading, series ramp (source parity fix)
+- [x] CSS :root fallbacks match synced default palette (no first-paint flash)
+- [x] Selection colors: slash menu + catalog rows use --sel-bg/--sel-fg (violet band, TUI parity)
+- [x] Markdown headings use --heading (violet in default theme, TUI palette.heading)
+- [x] Table headers use --heading (TUI parity)
+- [x] User message left accent border using --user color (TUI ❯ marker parity)
+- [x] Splash wordmark brand gradient sweep (TUI brandSpans parity via CSS background-clip)
+- [x] Working spinner shows elapsed time via workingLabel (TUI parity)
+- [x] Working spinner shows "esc to interrupt" hint (TUI parity)
+- [x] Goal suffix: plan phase reads "planning" (not "plan"), no round/max until execute (TUI parity)
+- [x] CycleMode shows notice when plan-pending prevents mode switch (TUI parity)
+- [x] Stream flush interval matches TUI (24ms, was 32ms)
+- [x] Tool progress chunks coalesced on flush timer (TUI landPending parity)
+- [x] Model picker shows context window size via fmtContext (TUI parity)
+- [x] Splash starters match TUI: explain / fix failing test / add --json flag
+- [x] Ungrounded plan warning matches TUI wording: "⚠ ungrounded — presented without the research…"
+- [x] Jobs view shows PID when running (TUI parity)
+- [x] Inline panel titles show counts: "Tasks · N/M", "Subagents · N/M done" (TUI parity)
+- [x] Inline subagent rows show activity, result glimpse, elapsed time (TUI parity)
+- [x] Permission card shows toolLabel + TUI header wording "Permission required · 1/N"
+- [x] Slash menu + catalog headers use --heading color (TUI palette.heading)
+- [x] --focus CSS variable wired into --focus-ring (dead variable cleanup)
+- [x] Clipboard temp dir cleanup on quit (TUI cleanupClipboardTempDir parity)
+- [x] Z-index on .panels + .composer-stack prevents transcript pointer interception
+- [x] E2e test assertions fixed: focus ring, ctx gauge, inspector label, thinking label
+- [x] editor-compose.ts synced with full TUI JSDoc comments

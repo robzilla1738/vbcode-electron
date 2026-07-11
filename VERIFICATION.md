@@ -14,7 +14,7 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (50+), upstream source pairs aligned, `tsc` clean, electron-vite build OK, smoke prints `ready` + `snapshot ok`.
+Expect: Vitest green (57), upstream source pairs aligned, `tsc` clean, electron-vite build OK, smoke prints `ready` + `snapshot ok`.
 
 ## UI preview (renderer-only, no engine)
 
