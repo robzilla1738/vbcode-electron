@@ -12,6 +12,7 @@ function ExternalLink({ href, children }: { href?: string; children?: ReactNode 
   return (
     <a
       href={safeHref}
+      title={safeHref}
       onClick={(event) => {
         event.preventDefault();
         void window.vibe.openExternal(safeHref);

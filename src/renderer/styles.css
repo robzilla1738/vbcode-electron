@@ -467,6 +467,7 @@ html[data-scheme="light"].electron-transparent .topbar {
 .topbar-title {
   flex: 1 1 auto;
   min-width: 0;
+  margin: 0;
   gap: var(--space-sm);
   font-size: var(--text-title);
   font-weight: var(--weight-semibold);

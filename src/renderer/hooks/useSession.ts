@@ -502,7 +502,6 @@ export function useSession(cwd: string | null) {
       dispatchChrome({ type: "set-busy", busy: false });
     });
     return () => {
-      bootstrapGate.current.invalidate();
       offEvent();
       offFatal();
       if (flushTimer.current != null) window.clearTimeout(flushTimer.current);
