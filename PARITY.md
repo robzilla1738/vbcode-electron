@@ -185,3 +185,32 @@ npm run dev
 - [x] Pure chrome/session state machine extracted from transport lifecycle
 - [x] Biome lint, renderer bundle budget, Linux CI, and macOS packaged smoke gates
 - [x] E2E session rename/archive/delete, fatal-host recovery, narrow layout, and reduced motion
+
+## DAG status, accessibility, and StrictMode fix (session 5)
+
+- [x] DAG sidebar/inspector render failed and skipped statuses with distinct colors (--task-failed/--task-skipped CSS tokens derived from --del/--muted)
+- [x] StatusDot in both Sidebar and Inspector supports failed/skipped (was mapping to "pending" in Inspector — visual bug)
+- [x] DAG rows show ellipsis truncation + title tooltips for long objectives
+- [x] Orchestration rows cleared on user-message (per-turn clean slate, matching subagents reset)
+- [x] Test added for orchestration reset on user-message (66 total unit tests)
+- [x] ARIA combobox pattern in Composer (aria-autocomplete, aria-expanded, aria-controls, aria-activedescendant)
+- [x] ARIA combobox pattern in CatalogModal (aria-controls, aria-autocomplete, aria-activedescendant, target toggle label)
+- [x] Transcript aria-controls on expand/collapse buttons + aria-label on log and jump button
+- [x] WelcomeGate: aria-busy, aria-labelledby, aria-live, focus primary action button
+- [x] LivePanels (permission/plan cards): role=region, aria-labelledby, aria-keyshortcuts, focus default action
+- [x] JobsView: role=region, article elements, aria-label on status/output, keyboard-focusable output pre
+- [x] Inspector: h2 heading, aria-labels on file rows and subagent buttons, keyboard-scrollable subagent stream
+- [x] ProjectRail: h2 heading, aria-controls, role=group, first menu item focus on open
+- [x] Splash: section with aria-labelledby, aria-label on starter prompts
+- [x] WorkingSpinner: aria-live, aria-busy, aria-label with escape hint, visual elements aria-hidden
+- [x] OnboardingHint: aside with role=region, h2 heading, focus primary action
+- [x] SourceList + MarkdownView: role=status on empty state, aria-label on list, title on external links
+- [x] App toast: aria-live and aria-atomic
+- [x] Sidebar thinking trail: keyboard-scrollable live region (role=log, tabIndex, aria-live)
+- [x] CSS: margin:0 added to .rail-section-label, .onboarding-title, .topbar-title for h2/h1 elements
+- [x] CSS: :focus-visible on .job-output for keyboard focus ring
+- [x] CSS: literal hex #1b2430 replaced with #000 (design system rule: no literal hex outside :root)
+- [x] CSS: duplicate .rail-section-label and .topbar-title blocks merged
+- [x] StrictMode dev hang fixed: bootstrapGate.invalidate() removed from useEffect cleanup (redundant with begin() in bootstrap; was causing bootstrap to always return false in dev due to StrictMode double-invocation)
+- [x] Composer aria-expanded fixed: false when slash menu open but has 0 items (was always true when palette.open)
+- [x] Preview harness: orchestration-task events (running/completed/failed/skipped) added to busy scenario

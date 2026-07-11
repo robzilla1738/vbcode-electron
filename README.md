@@ -88,7 +88,7 @@ theme. See [tools/ui-preview/README.md](./tools/ui-preview/README.md).
 |---------|---------|
 | `npm run dev` | electron-vite + Electron window |
 | `npm run build` | Compile main / preload / renderer → `out/` |
-| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests (65) |
+| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests (66) |
 | `npm run test:e2e` | Hermetic Electron UI/IPC/bridge parity scenarios |
 | `npm run lint` | Biome correctness and maintainability gate |
 | `npm run verify` | Lint + unit + source parity + types + build + bundle budget |
@@ -170,6 +170,7 @@ Shell-owned surfaces:
 - Inspector: context, changed files, checkpoints, DAG, subagent stream
 - Theme-faithful selection colors, headings, and user-message accent (violet band on default)
 - Splash wordmark with brand gradient sweep; starters matching the CLI
+- Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, screen-reader live regions, focus management on modal cards
 
 ## Parity & verification
 
@@ -181,7 +182,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AG
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-All gates: **65 unit tests**, **10 e2e tests**, **19 source-parity pairs**, Biome and `tsc` clean, build/bundle budget OK, and bridge/packaged smokes green. See [ACCEPTANCE.md](./ACCEPTANCE.md) for the full acceptance spec (40 criteria, all pass).
+All gates: **66 unit tests**, **10 e2e tests**, **19 source-parity pairs**, Biome and `tsc` clean, build/bundle budget OK, and bridge/packaged smokes green. See [ACCEPTANCE.md](./ACCEPTANCE.md) for the full acceptance spec (40 criteria, all pass).
 
 ## Project layout
 

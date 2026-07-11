@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-10
+> Last updated: 2026-07-11
 > Status: ready-for-audit
 
 ## Summary
@@ -72,6 +72,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | 2026-07-10 | Codex | 36/36 | 4/4 | Eight Electron harness scenarios, 57 unit checks, 19 source-pair guards, bridge smoke, production pack, and clean-environment packaged smoke pass. |
 | 2026-07-11 | Claude | n/a | n/a | Presentation-only design-system pass (A32/A37–A40 surfaces): motion/focus/elevation tokens, mono system voice, context gauge, state coverage. 57/57 unit + typecheck green; `src/shared` untouched so parity gates unchanged; 13 UI states screenshot-compared before/after (dark, light, opencode) via the new `tools/ui-preview` harness. |
 | 2026-07-11 | Codex | 36/36 | 4/4 | Adversarial lifecycle/protocol/persistence hardening: 65 unit checks, 10 Electron E2E scenarios, runtime boundary guards, host-generation isolation, Biome/CI/bundle gates, live bridge and packaged smokes. |
+| 2026-07-11 | Codex | 36/36 | 4/4 | DAG failed/skipped status rendering (--task-failed/--task-skipped CSS tokens, Inspector StatusDot parity), orchestration rows cleared per-turn, ARIA accessibility pass (combobox pattern, labeled regions, keyboard focus, screen-reader live regions), StrictMode dev hang fix (bootstrapGate.invalidate removed from useEffect cleanup), CSS cleanup (margin:0 for heading elements, :focus-visible on scrollable pre, literal hex removal, duplicate block merge). 66 unit checks, all gates green. |
 
 ## Sign-off
 
@@ -100,4 +101,8 @@ npm run lint                     # Biome gate pass
 npm test                         # 65/65 pass
 npm run test:e2e                 # 10/10 renderer/preload/bridge/host scenarios
 npm run verify:bundle            # renderer JavaScript under budget
+npm test                         # 66/66 pass
+npm run verify                   # lint + unit + source parity + types + build + bundle
+npm run ui:shots                 # 13/13 screenshots (dark, light, opencode)
+npm run smoke:bridge             # ready + snapshot + 172-project index
 ```
