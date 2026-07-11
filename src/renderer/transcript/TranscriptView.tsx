@@ -20,7 +20,9 @@ function DiffBody({ lines }: { lines: string[] }) {
           ? "diff-add"
           : line.startsWith("-")
             ? "diff-del"
-            : undefined;
+            : line.startsWith("@@")
+              ? "diff-hunk"
+              : undefined;
         return (
           <div key={i} className={cls}>
             {line || " "}

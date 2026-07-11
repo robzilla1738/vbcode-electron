@@ -777,18 +777,19 @@ export function App() {
       : null;
   const hotCtx = ctxPct != null && ctxPct >= 80;
 
+  // Context fill moved out of the text run — it renders as the composer's
+  // gauge ring (same data, richer presentation).
   const footerLeft = useMemo(
     () =>
       [
         changedSummary(session.transcript.changedFiles),
-        ctxPct != null ? `ctx ${ctxPct}%` : null,
         formatUsage(chrome.usage),
         chrome.queuePending.length ? `queued ${chrome.queuePending.length}` : null,
         chrome.lastGate === "red" ? "gate RED" : null,
       ]
         .filter(Boolean)
         .join(" · "),
-    [chrome, session.transcript.changedFiles, ctxPct],
+    [chrome, session.transcript.changedFiles],
   );
 
   const activeProject = projects.find((project) => project.cwd === cwd);
@@ -1099,6 +1100,7 @@ export function App() {
                 density={chrome.density}
                 reasoning={chrome.reasoning}
                 status={footerLeft}
+                ctxPct={ctxPct}
                 busy={chrome.busy}
                 onAbort={() => void session.send({ type: "abort" })}
                 onPasteError={session.showToast}

@@ -13,3 +13,7 @@ test-results/
 playwright-report/
 .svvarm/
 .taste/
+
+# UI preview harness artifacts
+tools/ui-preview/.vite-cache/
+tools/ui-preview/shots/

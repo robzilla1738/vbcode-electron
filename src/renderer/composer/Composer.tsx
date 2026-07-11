@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import {
   applyPalette,
   isExactCommand,
@@ -92,6 +92,7 @@ export function Composer({
   density,
   reasoning,
   status,
+  ctxPct,
   busy,
   onAbort,
   onPasteError,
@@ -111,6 +112,8 @@ export function Composer({
   density: string;
   reasoning?: string;
   status: string;
+  /** Context-window fill 0–100, or null before the first turn. */
+  ctxPct?: number | null;
   busy: boolean;
   onAbort: () => void;
   onPasteError: (message: string) => void;
@@ -260,6 +263,25 @@ export function Composer({
     if (!line) return;
     onSubmit(line);
     setDraft("");
+  };
+
+  /** Ghost `@` affordance — drops an at-mention token at the end of the draft. */
+  const insertAtMention = () => {
+    const next = draft.length === 0 || /\s$/.test(draft) ? `${draft}@` : `${draft} @`;
+    setDraft(next);
+    window.requestAnimationFrame(() => {
+      const el = ref.current;
+      el?.focus();
+      el?.setSelectionRange(next.length, next.length);
+    });
+  };
+
+  /** Ghost `/` affordance — opens the command palette (empty drafts only,
+   * mirroring ⌘K, so typed text is never clobbered). */
+  const openCommands = () => {
+    if (draft.trim()) return;
+    setDraft("/");
+    window.requestAnimationFrame(() => ref.current?.focus());
   };
 
   const onPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -419,6 +441,26 @@ export function Composer({
       </div>
       <div className="composer-status">
         <div className="composer-status-actions">
+          <button
+            type="button"
+            className="composer-ghost"
+            onClick={insertAtMention}
+            disabled={disabled}
+            aria-label="Mention a project file"
+            title="Mention a project file"
+          >
+            @
+          </button>
+          <button
+            type="button"
+            className="composer-ghost"
+            onClick={openCommands}
+            disabled={disabled || !!draft.trim()}
+            aria-label="Browse commands"
+            title="Browse commands (⌘K)"
+          >
+            /
+          </button>
           <button type="button" className="mode-chip" onClick={onCycleMode} title="Cycle mode (Shift+Tab)">
             {modeLabel}
           </button>
@@ -427,6 +469,18 @@ export function Composer({
           ) : null}
         </div>
         <div className="composer-status-trailing">
+          {typeof ctxPct === "number" && (
+            <span
+              className={`ctx-ring${ctxPct >= 95 ? " hot" : ctxPct >= 80 ? " warn" : ""}`}
+              style={{ "--ctx-fill": ctxPct } as CSSProperties}
+              role="img"
+              aria-label={`Context window ${ctxPct} percent full`}
+              title={`Context window ${ctxPct}% full`}
+            >
+              <span className="ctx-ring-dial" aria-hidden />
+              {ctxPct}%
+            </span>
+          )}
           <span className="composer-model" title={model}>{model.split("/").at(-1) || model}</span>
           {busy ? (
             <button type="button" className="composer-submit stop" onClick={onAbort} aria-label="Stop current turn">
