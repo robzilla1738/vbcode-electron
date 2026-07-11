@@ -389,6 +389,7 @@ export function useSession(cwd: string | null) {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const deltaBuf = useRef("");
+  const progressBuf = useRef<Map<string, string>>(new Map());
   const reasoningBuf = useRef("");
   const reasoningStarted = useRef<number | null>(null);
   const flushTimer = useRef<number | null>(null);
@@ -440,6 +441,13 @@ export function useSession(cwd: string | null) {
 
   const flushDeltas = useCallback(() => {
     flushTimer.current = null;
+    // Flush buffered tool progress chunks first (TUI parity: landPending order).
+    if (progressBuf.current.size) {
+      for (const [toolCallId, chunk] of progressBuf.current) {
+        dispatchTranscript({ type: "tool-progress", toolCallId, chunk });
+      }
+      progressBuf.current.clear();
+    }
     if (deltaBuf.current) {
       const text = deltaBuf.current;
       deltaBuf.current = "";
@@ -557,11 +565,15 @@ export function useSession(cwd: string | null) {
           break;
         case "tool-call-progress":
           if (event.subagentId) break;
-          dispatchTranscript({
-            type: "tool-progress",
-            toolCallId: event.toolCallId,
-            chunk: event.chunk,
-          });
+          // Buffer progress chunks and flush on the same timer as text deltas
+          // (TUI parity: coalesce chatty tool output to avoid per-chunk re-renders).
+          {
+            const prev = progressBuf.current.get(event.toolCallId) ?? "";
+            progressBuf.current.set(event.toolCallId, prev + event.chunk);
+            if (flushTimer.current == null) {
+              flushTimer.current = window.setTimeout(flushDeltas, 24);
+            }
+          }
           break;
         case "tool-call-finished":
           if (event.subagentId) break;
@@ -711,6 +723,7 @@ export function useSession(cwd: string | null) {
   const clearSessionLocal = useCallback(() => {
     suppressAfterClear.current = true;
     deltaBuf.current = "";
+    progressBuf.current.clear();
     reasoningBuf.current = "";
     reasoningStarted.current = null;
     trail.current.reset();
