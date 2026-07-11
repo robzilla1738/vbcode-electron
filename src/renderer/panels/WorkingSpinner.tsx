@@ -15,6 +15,7 @@ export function WorkingSpinner({ thinking }: { thinking: string }) {
       <div className="working-copy">
         <div className="working-title">
           <span className="working-shimmer">{workingLabel(elapsed)}</span>
+          <span className="working-hint">esc to interrupt</span>
         </div>
         {thinking && (
           <div className="working-detail">
