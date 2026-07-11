@@ -1,0 +1,15 @@
+node_modules
+out
+dist
+release
+resources/vibecodr-engine-host
+*.tsbuildinfo
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/
+.svvarm/
+.taste/

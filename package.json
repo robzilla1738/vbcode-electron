@@ -1,0 +1,86 @@
+{
+  "name": "vbcode-electron",
+  "version": "0.1.0",
+  "private": true,
+  "author": "robzilla1738",
+  "license": "MIT",
+  "description": "Electron shell for vibe-codr — OpenTUI-faithful UI over the NDJSON engine host",
+  "homepage": "https://github.com/robzilla1738/vbcode-electron",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/robzilla1738/vbcode-electron.git"
+  },
+  "bugs": {
+    "url": "https://github.com/robzilla1738/vbcode-electron/issues"
+  },
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "build:icon": "node scripts/build-icon.mjs",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:e2e": "npm run build && playwright test",
+    "test:watch": "vitest",
+    "verify:source-parity": "node scripts/check-source-parity.mjs",
+    "pack": "npm run copy-host && npm run build && electron-builder --mac --dir",
+    "dist": "npm run copy-host && npm run build && electron-builder --mac",
+    "copy-host": "node scripts/copy-engine-host.mjs",
+    "smoke:bridge": "node scripts/smoke-bridge.mjs",
+    "smoke:packaged": "node scripts/smoke-packaged.mjs"
+  },
+  "dependencies": {
+    "electron-liquid-glass": "^1.1.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "streamdown": "^2.5.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^22.15.21",
+    "@types/react": "^19.1.5",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.5.0",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^3.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.1.4"
+  },
+  "build": {
+    "appId": "com.vibecodr.electron",
+    "productName": "Vibe Codr",
+    "afterPack": "./scripts/after-pack.mjs",
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "dir"
+      ],
+      "identity": null,
+      "extendInfo": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "icon": "assets/icon.icns",
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/vibecodr-engine-host",
+        "to": "vibecodr-engine-host"
+      }
+    ]
+  }
+}
