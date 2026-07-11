@@ -1,6 +1,7 @@
 /**
  * Catalog draft detectors + option builders — TUI-faithful picker semantics
  * ported from vibe-codr/packages/tui (app.tsx + commands-catalog).
+ * Enhanced with opencode-inspired grouping: favorites, recent, provider buckets.
  */
 
 import type {
@@ -10,6 +11,65 @@ import type {
   ProviderInfo,
   SkillInfo,
 } from "./types";
+
+/* ── Favorites / recent — localStorage backed, opencode-style ─────────── */
+
+const FAV_KEY = "vibe.models.favorites";
+const RECENT_KEY = "vibe.models.recent";
+const MAX_RECENTS = 8;
+
+function safeReadJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as unknown;
+    return (parsed ?? fallback) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeWriteJson(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // quota or no storage — ignore
+  }
+}
+
+export function getModelFavorites(): string[] {
+  if (typeof localStorage === "undefined") return [];
+  return safeReadJson<string[]>(FAV_KEY, []);
+}
+
+export function getModelRecents(): string[] {
+  if (typeof localStorage === "undefined") return [];
+  return safeReadJson<string[]>(RECENT_KEY, []);
+}
+
+export function toggleModelFavorite(fullId: string): boolean {
+  const list = getModelFavorites();
+  const next = list.includes(fullId)
+    ? list.filter((v) => v !== fullId)
+    : [fullId, ...list].slice(0, 24);
+  safeWriteJson(FAV_KEY, next);
+  return next.includes(fullId);
+}
+
+export function pushModelRecent(fullId: string): void {
+  const list = getModelRecents().filter((v) => v !== fullId);
+  list.unshift(fullId);
+  safeWriteJson(RECENT_KEY, list.slice(0, MAX_RECENTS));
+}
+
+export function isModelFree(model: ModelSummary): boolean {
+  const hay = `${model.id} ${model.name} ${(model as { variant?: string }).variant ?? ""}`.toLowerCase();
+  return hay.includes("free") || hay.includes(":free");
+}
+
+export function isSectionOption(opt: CatalogOption): boolean {
+  return Boolean(opt.section) || opt.key.startsWith("__section__");
+}
 
 /** Format a context window as a compact label: `1M` / `400k` / `128k` (TUI parity: fmtContext). */
 function fmtContext(tokens: number | undefined): string {
@@ -82,6 +142,12 @@ export interface CatalogOption {
   key: string;
   primary: string;
   secondary: string;
+  /** Render as non-actionable group header (section). */
+  section?: boolean;
+  /** True when model is free-tier — shows Free badge. */
+  free?: boolean;
+  /** Provider bucket for grouping (model list). */
+  providerId?: string;
   /** Submit this line to the engine (or via EngineCommand path). */
   line?: string;
   /** Prefill composer draft without submitting. */
@@ -132,13 +198,20 @@ export function modelCatalogOptions(
   target: ModelPickerTarget,
   current?: string | null,
 ): CatalogOption[] {
-  const rows: CatalogOption[] = items.map((model) => {
+  const byFull = new Map<string, ModelSummary>();
+  for (const m of items) byFull.set(`${m.providerId}/${m.id}`, m);
+
+  const makeRow = (model: ModelSummary): CatalogOption => {
     const full = `${model.providerId}/${model.id}`;
+    const sec = [model.name, fmtContext(model.contextWindow)].filter(Boolean).join(" · ");
+    const free = isModelFree(model);
     if (typeof target === "object") {
       return {
         key: full,
         primary: full,
-        secondary: [model.name, fmtContext(model.contextWindow)].filter(Boolean).join(" · "),
+        secondary: sec,
+        free,
+        providerId: model.providerId,
         command: { type: "set-agent-model", name: target.agent, model: full },
       };
     }
@@ -146,7 +219,9 @@ export function modelCatalogOptions(
       return {
         key: full,
         primary: full,
-        secondary: [model.name, fmtContext(model.contextWindow)].filter(Boolean).join(" · "),
+        secondary: sec,
+        free,
+        providerId: model.providerId,
         command: { type: "set-subagent-model", model: full },
       };
     }
@@ -154,11 +229,15 @@ export function modelCatalogOptions(
       key: full,
       primary: full,
       secondary: model.name ?? "",
+      free,
+      providerId: model.providerId,
       command: { type: "set-model", model: full },
     };
-  });
+  };
 
-  if (target === "sub" || typeof target === "object") {
+  // Agent/sub targets keep flat list + clear — no favorites/recent grouping
+  if (typeof target === "object" || target === "sub") {
+    const rows: CatalogOption[] = items.map(makeRow);
     rows.unshift({
       key: "__clear__",
       primary: "Clear → inherit",
@@ -171,10 +250,64 @@ export function modelCatalogOptions(
           ? { type: "set-agent-model", name: target.agent, model: null }
           : { type: "set-subagent-model", model: null },
     });
+    void current;
+    return rows;
   }
 
   void current;
-  return rows;
+  // Main model picker — opencode-inspired grouping: Favorites, Recent, by provider
+  const favFulls = getModelFavorites();
+  const recentFulls = getModelRecents().filter((f) => !favFulls.includes(f));
+
+  const favRows: CatalogOption[] = [];
+  for (const full of favFulls) {
+    const m = byFull.get(full);
+    if (m) favRows.push(makeRow(m));
+  }
+
+  const recentRows: CatalogOption[] = [];
+  for (const full of recentFulls) {
+    const m = byFull.get(full);
+    if (m) recentRows.push(makeRow(m));
+  }
+
+  // Remaining grouped by provider (opencode first, then alpha)
+  const seen = new Set([...favFulls, ...recentFulls]);
+  const byProvider = new Map<string, ModelSummary[]>();
+  for (const m of items) {
+    const full = `${m.providerId}/${m.id}`;
+    if (seen.has(full)) continue;
+    const arr = byProvider.get(m.providerId) ?? [];
+    arr.push(m);
+    byProvider.set(m.providerId, arr);
+  }
+
+  const providerKeys = [...byProvider.keys()].sort((a, b) => {
+    if (a === "opencode") return -1;
+    if (b === "opencode") return 1;
+    return a.localeCompare(b);
+  });
+
+  const out: CatalogOption[] = [];
+  if (favRows.length) {
+    out.push({ key: "__section__fav", primary: "Favorites", secondary: "", section: true });
+    out.push(...favRows);
+  }
+  if (recentRows.length) {
+    out.push({ key: "__section__recent", primary: "Recent", secondary: "", section: true });
+    out.push(...recentRows);
+  }
+  for (const pid of providerKeys) {
+    const models = byProvider.get(pid)!;
+    if (providerKeys.length > 1) {
+      out.push({ key: `__section__${pid}`, primary: pid, secondary: "", section: true });
+    }
+    for (const m of models) out.push(makeRow(m));
+  }
+
+  // Fallback: if no grouping produced anything (empty fav/recent only)
+  if (out.length === 0) return items.map(makeRow);
+  return out;
 }
 
 export function providerCatalogOptions(items: ProviderInfo[]): CatalogOption[] {

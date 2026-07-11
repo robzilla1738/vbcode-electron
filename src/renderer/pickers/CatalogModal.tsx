@@ -9,9 +9,11 @@ import type {
 import type { EngineCommand } from "../../shared/commands";
 import {
   agentCatalogOptions,
+  isSectionOption,
   mcpCatalogOptions,
   modelCatalogOptions,
   modelTargetLabel,
+  pushModelRecent,
   providerCatalogOptions,
   skillCatalogOptions,
   type CatalogOption,
@@ -66,10 +68,10 @@ function toChoice(option: CatalogOption): CatalogChoice | null {
 }
 
 function isActionable(option: CatalogOption): boolean {
+  if (isSectionOption(option)) return false;
   return Boolean(option.command || option.prefill != null || option.line);
 }
 
-/** Split leading `[tag]` from skill/provider secondary copy for quieter chrome. */
 function splitSecondary(secondary: string): { tag: string | null; body: string } {
   const m = secondary.match(/^\[([^\]]+)\]\s*(.*)$/);
   if (!m) return { tag: null, body: secondary };
@@ -87,7 +89,6 @@ export function CatalogModal({
   onClose: () => void;
   onChoose: (choice: CatalogChoice) => void;
   onToggleModelTarget?: () => void;
-  /** When false (live draft), keep focus in the composer. */
   autoFocusSearch?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -98,11 +99,43 @@ export function CatalogModal({
   const options = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return allOptions;
-    return allOptions.filter((option) => {
-      if (!isActionable(option)) return true;
-      return `${option.primary} ${option.secondary}`.toLowerCase().includes(normalized);
-    });
+    // Keep sections when they have matching children
+    const filtered: CatalogOption[] = [];
+    let currentSection: CatalogOption | null = null;
+    let sectionHasMatch = false;
+    let pendingSection: CatalogOption | null = null;
+
+    for (const opt of allOptions) {
+      if (isSectionOption(opt)) {
+        if (pendingSection && sectionHasMatch) {
+          filtered.push(pendingSection);
+        }
+        pendingSection = opt;
+        currentSection = opt;
+        sectionHasMatch = false;
+        continue;
+      }
+      if (!isActionable(opt)) {
+        continue;
+      }
+      if (`${opt.primary} ${opt.secondary}`.toLowerCase().includes(normalized)) {
+        if (pendingSection) {
+          // First match after a section header — emit the header
+          filtered.push(pendingSection);
+          pendingSection = null;
+          sectionHasMatch = true;
+        }
+        filtered.push(opt);
+        sectionHasMatch = true;
+      }
+    }
+
+    // If no sections matched but plain options did, filtered is already populated
+    // If sections exist but filter narrows to zero actionable, return empty
+    void currentSection;
+    return filtered;
   }, [allOptions, query]);
+
   const actionable = options.flatMap((option, index) => (isActionable(option) ? [index] : []));
 
   const focusOption = (index: number) => {
@@ -136,7 +169,14 @@ export function CatalogModal({
         ? options.findIndex((o) => o.key === picker.current && o.key !== "__clear__")
         : -1;
     setSelected(cur >= 0 ? cur : (actionable[0] ?? 0));
-  }, [query, picker.kind, picker.kind === "models" ? picker.target : "", picker.kind === "models" ? picker.current : ""]);
+  }, [
+    query,
+    picker.kind,
+    picker.kind === "models" ? picker.target : "",
+    picker.kind === "models" ? picker.current : "",
+    options,
+    actionable,
+  ]);
 
   useEffect(() => {
     const onNav = (event: Event) => {
@@ -168,6 +208,10 @@ export function CatalogModal({
   };
 
   const choose = (option: CatalogOption) => {
+    // Track recent for main model picker (opencode-style)
+    if (picker.kind === "models" && option.key && !option.key.startsWith("__")) {
+      pushModelRecent(option.key);
+    }
     const choice = toChoice(option);
     if (choice) onChoose(choice);
   };
@@ -250,6 +294,16 @@ export function CatalogModal({
             actionable.length ? `catalog-option-${selected}` : undefined
           }
         />
+        {query && (
+          <button
+            type="button"
+            className="catalog-search-clear"
+            onClick={() => setQuery("")}
+            aria-label="Clear filter"
+          >
+            <IconClose size={12} />
+          </button>
+        )}
       </label>
 
       <div
@@ -284,6 +338,7 @@ export function CatalogModal({
             >
               <span className="catalog-row-primary">
                 {option.primary}
+                {option.free ? <span className="catalog-tag free">Free</span> : null}
                 {picker.kind === "models" && option.key === picker.current ? (
                   <span className="catalog-current">Current</span>
                 ) : null}
@@ -299,7 +354,8 @@ export function CatalogModal({
         })}
         {options.length === 0 && (
           <div className="catalog-empty" role="status">
-            Nothing matches this filter.
+            <div>Nothing matches this filter.</div>
+            {query && <div className="catalog-empty-hint">Try different keywords</div>}
           </div>
         )}
       </div>
@@ -314,6 +370,11 @@ export function CatalogModal({
         <span>
           <kbd className="action-kbd">Esc</kbd> close
         </span>
+        {picker.kind === "models" && typeof picker.target === "string" ? (
+          <span>
+            <kbd className="action-kbd">Tab</kbd> {picker.target === "main" ? "subagents" : "main"}
+          </span>
+        ) : null}
       </div>
     </div>
   );

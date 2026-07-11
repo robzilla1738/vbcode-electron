@@ -70,6 +70,31 @@ function displayModeLabel(mode: UiMode): string {
   return label.length > 1 ? `${label.slice(0, 1)}${label.slice(1).toLowerCase()}` : label;
 }
 
+function highlightMatch(text: string, query: string): { before: string; match: string; after: string } | null {
+  if (!query) return null;
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase();
+  const idx = lower.indexOf(q);
+  if (idx < 0) return null;
+  return {
+    before: text.slice(0, idx),
+    match: text.slice(idx, idx + q.length),
+    after: text.slice(idx + q.length),
+  };
+}
+
+function HighlightedBase({ base, query }: { base: string; query: string }) {
+  const hl = highlightMatch(base, query);
+  if (!hl) return <>{base}</>;
+  return (
+    <>
+      {hl.before}
+      <span className="hl">{hl.match}</span>
+      {hl.after}
+    </>
+  );
+}
+
 export function Composer({
   uiMode,
   draft,
@@ -132,8 +157,8 @@ export function Composer({
     return paletteState(draft, commandNames);
   }, [draft, commandNames]);
   const exact = isExactCommand(draft, nameSet);
-  const { mention, files, loading: filesLoading, error: filesError } = useAtMention(draft, cwd);
-  const atOpen = mention != null && !palette.open;
+  const { mention: mentionQuery, files, loading: filesLoading, error: filesError } = useAtMention(draft, cwd);
+  const atOpen = mentionQuery != null && !palette.open;
   const currentValue = palette.open && palette.mode === "value"
     ? currentValueFor(palette.command.name, { theme, accent, approvals, density, reasoning })
     : undefined;
@@ -355,6 +380,7 @@ export function Composer({
             )}
             {files.map((path, i) => {
               const { base, dir } = fileParts(path);
+              const q = mentionQuery ?? "";
               return (
                 <button
                   type="button"
@@ -369,7 +395,10 @@ export function Composer({
                   }}
                 >
                   <span className="slash-item-copy">
-                    <span className="name">@{base}</span>
+                    <span className="name">
+                      @
+                      <HighlightedBase base={base} query={q} />
+                    </span>
                     {dir ? <span className="desc">{dir}</span> : null}
                   </span>
                 </button>
@@ -493,7 +522,7 @@ export function Composer({
             aria-label="Mention a project file"
             title="Mention a project file"
           >
-            <IconPaperclip size={14} />
+            <IconPaperclip size={13} />
           </button>
           <button
             type="button"
@@ -503,7 +532,7 @@ export function Composer({
             aria-label="Browse commands"
             title="Browse commands (⌘K)"
           >
-            <IconCommand size={14} />
+            <IconCommand size={13} />
           </button>
           <div className="mode-segment" role="radiogroup" aria-label="Mode">
             {MODE_OPTIONS.map((mode) => {
