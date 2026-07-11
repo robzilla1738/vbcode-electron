@@ -773,6 +773,10 @@ html[data-platform="darwin"] .rail-chrome {
   transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
 }
 
+.icon-chevron-left {
+  transform: rotate(180deg);
+}
+
 .project-heading:hover .icon-chevron {
   opacity: 1;
 }
@@ -803,15 +807,10 @@ html[data-platform="darwin"] .rail-chrome {
 .session-row-wrap {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 0;
+  grid-template-columns: minmax(0, 1fr) 28px;
   align-items: center;
   min-width: 0;
   border-radius: var(--radius-sm);
-}
-
-.session-row-wrap:hover,
-.session-row-wrap:focus-within {
-  grid-template-columns: minmax(0, 1fr) 28px;
 }
 
 .session-row-wrap.active {
@@ -840,18 +839,22 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .session-more {
-  display: none;
+  display: inline-flex;
   width: 32px;
   height: 32px;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-xs);
   color: var(--text-subtle);
+  opacity: 0;
+  pointer-events: none;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard);
 }
 
 .session-row-wrap:hover .session-more,
 .session-row-wrap:focus-within .session-more {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .session-more:hover {
@@ -1444,7 +1447,7 @@ html[data-scheme="light"] .md pre {
   margin-right: var(--space-base);
   color: color-mix(in oklab, var(--text-subtle) 78%, transparent);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-code);
   font-variant-numeric: tabular-nums;
   text-align: right;
   user-select: none;
@@ -1626,11 +1629,21 @@ html[data-scheme="light"] .md pre {
 
 .tool-body,
 .decision-payload,
-.plan-text,
 .job-output {
   font-family: var(--font-mono);
   font-size: var(--text-code);
   line-height: var(--leading-code);
+  white-space: pre-wrap;
+}
+
+.tool-body > .md,
+.plan-text {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  line-height: 1.58;
+}
+
+.plan-text {
   white-space: pre-wrap;
 }
 
@@ -2380,6 +2393,13 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   font-weight: 400;
 }
 
+.working-elapsed {
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  font-weight: 450;
+}
+
 .working-detail {
   flex: 1 1 auto;
   min-width: 0;
@@ -3002,6 +3022,13 @@ html.electron-transparent .sidebar-heading-row {
   line-height: 1.35;
 }
 
+.sidebar-close {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
 .sidebar-section > h4 {
   margin: 0 0 var(--space-sm);
   padding: 0;
@@ -3182,6 +3209,10 @@ html.electron-transparent .sidebar-heading-row {
   white-space: pre-wrap;
 }
 
+.activity-stream:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
 .thinking-panel {
   max-height: 180px;
   padding: var(--space-sm) var(--space-base);
@@ -3257,6 +3288,48 @@ html.electron-transparent .sidebar-heading-row {
 
 .jobs-view {
   width: 100%;
+}
+
+.jobs-heading {
+  display: flex;
+  width: min(100%, var(--reading-max));
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 auto var(--space-md);
+  padding: var(--space-xs) 0 var(--space-sm);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.jobs-heading-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: color-mix(in oklab, var(--surface-subtle) 72%, transparent);
+  box-shadow: var(--edge-highlight);
+}
+
+.jobs-heading h2,
+.jobs-heading p {
+  margin: 0;
+}
+
+.jobs-heading h2 {
+  color: var(--assistant);
+  font-size: var(--text-title);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.jobs-heading p {
+  margin-top: 2px;
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
 }
 
 .empty-state {
@@ -3365,16 +3438,45 @@ html.electron-transparent .sidebar-heading-row {
 }
 
 .job-links {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2xs);
   margin-top: var(--space-xs);
+}
+
+.job-links a {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2xs);
+  overflow: hidden;
+  padding: 3px var(--space-xs);
+  border-radius: var(--radius-xs);
+  color: var(--tool);
+  background: color-mix(in oklab, var(--tool) 8%, transparent);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
+.job-links a:hover {
+  color: color-mix(in oklab, var(--tool) 78%, var(--assistant));
+  background: color-mix(in oklab, var(--tool) 14%, transparent);
 }
 
 .job-output {
   max-height: 180px;
   margin: var(--space-sm) 0 0;
+  padding: var(--space-sm) var(--space-base);
   overflow: auto;
+  border: 1px solid color-mix(in oklab, var(--border) 32%, transparent);
+  border-radius: var(--radius-sm);
   color: var(--muted);
+  background: color-mix(in oklab, var(--bg) 58%, transparent);
+  scrollbar-width: thin;
 }
 
 .job-output:focus-visible {
@@ -3477,9 +3579,8 @@ html.electron-transparent .sidebar-heading-row {
 }
 
 .starter-pills {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-xs);
   width: 100%;
   margin: var(--space-sm) 0 0;
@@ -3489,25 +3590,61 @@ html.electron-transparent .sidebar-heading-row {
 }
 
 .starter-pill {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
-  min-height: 32px;
-  padding: 0 var(--space-base);
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: 62px;
+  padding: var(--space-sm) var(--space-base);
   border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   color: var(--muted);
   background: color-mix(in oklab, var(--surface-subtle) 35%, transparent);
   box-shadow: var(--edge-highlight);
-  font-size: var(--text-caption);
-  font-weight: 500;
-  line-height: 1;
+  text-align: left;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), transform 60ms;
+}
+
+.starter-pill > svg {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+  transition: color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+
+.starter-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.starter-title {
+  color: color-mix(in oklab, var(--assistant) 88%, var(--muted));
+  font-size: var(--text-label);
+  font-weight: 550;
+  line-height: 1.25;
+}
+
+.starter-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+  font-weight: 400;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .starter-pill:hover {
   color: var(--assistant);
   border-color: color-mix(in oklab, var(--border) 68%, transparent);
   background: color-mix(in oklab, var(--surface) 58%, transparent);
+}
+
+.starter-pill:hover > svg {
+  color: var(--assistant);
+  transform: translateX(2px);
 }
 
 .starter-pill:active {
@@ -3711,6 +3848,28 @@ html.electron-transparent .sidebar-heading-row {
   text-transform: uppercase;
 }
 
+.catalog-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.catalog-close {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  color: var(--text-subtle);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
+.catalog-close:hover {
+  color: var(--assistant);
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
+}
+
 .catalog-target {
   min-height: 22px;
   padding: 0 8px;
@@ -3737,6 +3896,12 @@ html.electron-transparent .sidebar-heading-row {
   border-radius: var(--radius-sm);
   background: color-mix(in oklab, var(--surface) 40%, transparent);
   font-size: var(--text-ui);
+}
+
+.catalog-search > svg {
+  flex: 0 0 auto;
+  margin-right: var(--space-xs);
+  color: var(--text-subtle);
 }
 
 .catalog-search:focus-within {
@@ -4018,6 +4183,18 @@ html.electron-transparent .sidebar-heading-row {
 
   .splash-brand-compact {
     display: block;
+  }
+
+  .starter-pills {
+    grid-template-columns: 1fr;
+  }
+
+  .starter-pill {
+    min-height: 54px;
+  }
+
+  .composer-model {
+    display: none;
   }
 
   .activity-rail,

@@ -1,6 +1,7 @@
 import type { LucideProps } from "lucide-react";
 import {
   Archive,
+  ArrowRight,
   ArrowUp,
   Brain,
   ChevronRight,
@@ -9,6 +10,7 @@ import {
   Folder,
   FolderOpen,
   LayoutDashboard,
+  Link,
   MoreVertical,
   Paperclip,
   PanelLeft,
@@ -60,7 +62,8 @@ export function IconSearch(props: IconProps) {
 }
 
 export function IconChevronLeft(props: IconProps) {
-  return <ChevronRight {...lucide(props)} style={{ transform: "rotate(180deg)" }} />;
+  const className = `icon-chevron-left${props.className ? ` ${props.className}` : ""}`;
+  return <ChevronRight {...lucide({ ...props, className })} />;
 }
 
 export function IconChevron({ open, className, size = 14 }: IconProps & { open?: boolean }) {
@@ -129,4 +132,16 @@ export function IconArchive(props: IconProps) {
 
 export function IconDelete(props: IconProps) {
   return <Trash2 {...lucide(props)} />;
+}
+
+export function IconClose(props: IconProps) {
+  return <X {...lucide(props)} />;
+}
+
+export function IconArrowRight(props: IconProps) {
+  return <ArrowRight {...lucide(props)} />;
+}
+
+export function IconLink(props: IconProps) {
+  return <Link {...lucide(props)} />;
 }

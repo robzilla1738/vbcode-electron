@@ -1,9 +1,22 @@
 import { WORDMARK } from "../../shared/wordmark";
+import { IconArrowRight } from "../icons";
 
 export const STARTERS = [
-  "Explain this codebase",
-  "Fix the failing test",
-  "Add a --json flag",
+  {
+    title: "Understand the codebase",
+    prompt: "Explain this codebase",
+    detail: "Map the architecture and important paths",
+  },
+  {
+    title: "Fix what’s broken",
+    prompt: "Fix the failing test",
+    detail: "Trace the failure and make the smallest sound fix",
+  },
+  {
+    title: "Build a feature",
+    prompt: "Add a --json flag",
+    detail: "Implement it cleanly with existing conventions",
+  },
 ];
 
 export function Splash({
@@ -44,15 +57,19 @@ export function Splash({
 export function StarterPills({ onStarter }: { onStarter: (text: string) => void }) {
   return (
     <ul className="starter-pills" aria-label="Starter prompts">
-      {STARTERS.map((s) => (
-        <li key={s}>
+      {STARTERS.map((starter) => (
+        <li key={starter.prompt}>
           <button
             type="button"
             className="starter-pill"
-            onClick={() => onStarter(s)}
-            aria-label={`Start with: ${s}`}
+            onClick={() => onStarter(starter.prompt)}
+            aria-label={`Start with: ${starter.prompt}`}
           >
-            {s}
+            <span className="starter-copy">
+              <span className="starter-title">{starter.title}</span>
+              <span className="starter-detail">{starter.detail}</span>
+            </span>
+            <IconArrowRight size={14} />
           </button>
         </li>
       ))}

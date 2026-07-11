@@ -899,6 +899,7 @@ export function App() {
                 type="button"
                 className={`icon-button${session.jobsView ? " active" : ""}`}
                 onClick={() => session.setJobsView((value) => !value)}
+                title="Background jobs"
                 aria-pressed={session.jobsView}
                 aria-label={
                   chrome.jobs.filter((job) => job.status === "running").length
@@ -918,6 +919,7 @@ export function App() {
                 type="button"
                 className={`icon-button${session.inspectorOpen ? " active" : ""}`}
                 onClick={() => session.setInspectorOpen((value) => !value)}
+                title="Session details"
                 aria-pressed={session.inspectorOpen}
                 aria-label={session.inspectorOpen ? "Hide session panel" : "Show session panel"}
               >

@@ -2,6 +2,7 @@ import type { SessionChrome } from "../hooks/useSession";
 import type { ChangedFile } from "../../shared/reducer";
 import { firstLine } from "../../shared/reducer";
 import { hasUnfinishedTasks, windowTasks } from "../../shared/task-window";
+import { IconClose } from "../icons";
 
 function MetaRow({ label, value, hot }: { label: string; value: string; hot?: boolean }) {
   return (
@@ -96,8 +97,8 @@ export function Inspector({
           <h2 id="inspector-title" className="sidebar-heading-title">Session</h2>
           <p className="sidebar-heading-sub">Model, context, and changes</p>
         </div>
-        <button type="button" className="chip" onClick={onClose} aria-label="Close session panel">
-          Close
+        <button type="button" className="icon-button sidebar-close" onClick={onClose} aria-label="Close session panel">
+          <IconClose size={15} />
         </button>
       </div>
 

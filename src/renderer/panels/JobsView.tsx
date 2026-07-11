@@ -1,5 +1,6 @@
 import type { JobInfo } from "../../shared/types";
 import { externalHref } from "../../shared/sources";
+import { IconJobs, IconLink } from "../icons";
 
 function statusLabel(status: JobInfo["status"]): string {
   if (status === "running") return "Running";
@@ -24,6 +25,13 @@ export function JobsView({ jobs }: { jobs: JobInfo[] }) {
       role="region"
       aria-label={`Background jobs, ${jobs.length} total`}
     >
+      <div className="jobs-heading">
+        <span className="jobs-heading-icon" aria-hidden><IconJobs size={15} /></span>
+        <div>
+          <h2>Background jobs</h2>
+          <p>{jobs.length} {jobs.length === 1 ? "process" : "processes"} from this session</p>
+        </div>
+      </div>
       {jobs.map((j) => (
         <article
           key={j.id}
@@ -60,6 +68,7 @@ export function JobsView({ jobs }: { jobs: JobInfo[] }) {
                       void window.vibe.openExternal(href);
                     }}
                   >
+                    <IconLink size={12} />
                     {server}
                   </a>
                 ) : null;

@@ -69,6 +69,7 @@ export function ProjectRail({
   const filterRef = useRef<HTMLInputElement>(null);
   const renameRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const visibleProjects = useMemo(() => filterProjects(projects, query), [projects, query]);
 
   useEffect(() => {
@@ -85,7 +86,25 @@ export function ProjectRail({
       setMenu(null);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenu(null);
+      const items = Array.from(
+        menuRef.current?.querySelectorAll<HTMLButtonElement>("button[role='menuitem']") ?? [],
+      );
+      const current = items.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        items[(current + direction + items.length) % items.length]?.focus();
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        items[0]?.focus();
+      } else if (event.key === "End") {
+        event.preventDefault();
+        items.at(-1)?.focus();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        setMenu(null);
+        window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
+      }
     };
     window.addEventListener("mousedown", onPointer);
     window.addEventListener("keydown", onKey);
@@ -117,6 +136,7 @@ export function ProjectRail({
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    menuTriggerRef.current = event.currentTarget as HTMLButtonElement;
     const pad = 8;
     const width = 168;
     const height = 120;

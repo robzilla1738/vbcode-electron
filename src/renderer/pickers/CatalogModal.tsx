@@ -17,6 +17,7 @@ import {
   type CatalogOption,
   type ModelPickerTarget,
 } from "../../shared/catalog-draft";
+import { IconClose, IconSearch } from "../icons";
 
 export type CatalogPicker =
   | {
@@ -215,21 +216,27 @@ export function CatalogModal({
     >
       <div className="catalog-popover-header">
         <h2 id="catalog-title">{title}</h2>
-        {canToggleTarget && (
-          <button
-            type="button"
-            className="catalog-target"
-            onClick={onToggleModelTarget}
-            aria-label={`Model target ${picker.target === "main" ? "Main" : "Subagents"}. Press Tab to switch.`}
-            title="Tab to switch target"
-          >
-            {picker.target === "main" ? "Main" : "Subagents"}
+        <div className="catalog-header-actions">
+          {canToggleTarget && (
+            <button
+              type="button"
+              className="catalog-target"
+              onClick={onToggleModelTarget}
+              aria-label={`Model target ${picker.target === "main" ? "Main" : "Subagents"}. Press Tab to switch.`}
+              title="Tab to switch target"
+            >
+              {picker.target === "main" ? "Main" : "Subagents"}
+            </button>
+          )}
+          <button type="button" className="catalog-close" onClick={onClose} aria-label={`Close ${title}`}>
+            <IconClose size={14} />
           </button>
-        )}
+        </div>
       </div>
 
       <label className="catalog-search">
         <span className="sr-only">Filter {picker.kind}</span>
+        <IconSearch size={14} />
         <input
           data-catalog-search
           type="search"
