@@ -60,6 +60,22 @@ npm run dev
 
 On first open: **Open Project** (or last cwd restores automatically). Use the same providers/keys as `vibecodr`.
 
+### UI preview (renderer only, no engine)
+
+Renderer work doesn't need the engine host. `tools/ui-preview/` serves the real
+React renderer in a plain browser with a mocked `window.vibe` bridge and
+scripted session states:
+
+```bash
+npm run ui:preview                       # http://localhost:4517/?scenario=chat
+npx playwright install chromium          # once, for screenshots
+npm run ui:shots -- tools/ui-preview/shots
+```
+
+Scenarios: `welcome`, `splash`, `chat`, `busy`, `permission`, `plan`, `slash`,
+`catalog`, `mention`, `jobs`, `inspector` — plus `&theme=<name>` for any TUI
+theme. See [tools/ui-preview/README.md](./tools/ui-preview/README.md).
+
 ### Host resolution order
 
 1. `$VIBE_CODR_ROOT/dist/vibecodr-engine-host` (or Bun source under that root)
@@ -76,6 +92,8 @@ On first open: **Open Project** (or last cwd restores automatically). Use the sa
 | `npm run test:e2e` | Hermetic Electron UI/IPC/bridge parity scenarios |
 | `npm run verify:source-parity` | AST drift gate against live CLI/shared/bridge sources |
 | `npm run typecheck` | `tsc` for node + web projects |
+| `npm run ui:preview` | Renderer in a browser with a mocked bridge (no engine) |
+| `npm run ui:shots` | Headless screenshot matrix of every preview scenario |
 | `npm run smoke:bridge` | NDJSON bootstrap → snapshot → shutdown |
 | `npm run copy-host` | Copy host binary into `resources/` |
 | `npm run pack` | macOS dir build (copies host first) |
@@ -96,6 +114,20 @@ On first open: **Open Project** (or last cwd restores automatically). Use the sa
 - Projects and meaningful session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 15 palettes as OpenTUI); accents via `/accent`
 - Modes: **PLAN / AGENT / YOLO** (Shift+Tab)
+
+### Design system
+
+All styling is token-first in `src/renderer/styles.css` — palette variables are
+written by `applyPalette` from the active TUI theme, and every other color is a
+`color-mix()` derivation, so all themes (and the light scheme) work with zero
+per-theme CSS. On top of the palette sit theme-independent tokens: a locked
+type scale, spacing/radii, a motion system (`--ease-enter/exit/standard`,
+`--dur-*`, press-down faster than release, `prefers-reduced-motion` collapse),
+two-layer keyboard focus rings (`--focus-ring`), and an elevation grammar of
+hairlines + inset edge-highlights at rest with layered shadows reserved for
+true overlays. Monospace is the voice of the machine (tool rows, paths, model,
+metrics, section labels); prose stays sans. The composer carries a Codex-style
+context-window gauge (amber ≥ 80%, red ≥ 95%).
 
 ## Keyboard (essentials)
 
@@ -154,6 +186,7 @@ vbcode-electron/
   src/shared/         # Pure ports from vibe-codr TUI / shared contracts
   scripts/            # copy-engine-host, smoke-bridge, pack helpers
   test/               # Playwright e2e + fixtures
+  tools/ui-preview/   # Browser renderer preview (mocked bridge) + screenshots
   PARITY.md
   ACCEPTANCE.md
   VERIFICATION.md

@@ -31,6 +31,8 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 npm run dev            # launch Electron
 npm test               # unit parity tests
 npm run typecheck
+npm run ui:preview     # renderer in a browser, mocked window.vibe (no engine)
+npm run ui:shots       # headless screenshots of every preview scenario
 npm run smoke:bridge   # host NDJSON smoke (needs vibe-codr dist host)
 npm run copy-host      # embed host for pack
 ```
@@ -46,6 +48,32 @@ cd ~/Code/vibe-codr && bun run build:macos-bridge
 - Mirror TUI `packages/tui/src/app.tsx` semantics first; then macOS `PARITY.md` for GUI-adapted cases.
 - Update `PARITY.md` checkboxes when you close a gap.
 - Add a Vitest case in `src/shared/parity.test.ts` for pure logic (slash, reducer, fuzzy, chrome-seed).
+
+## When changing UI presentation (design system)
+
+All renderer styling lives in `src/renderer/styles.css`, token-first. Rules:
+
+1. **No literal hex outside `:root` fallbacks.** Every color is `var(--token)`
+   or a `color-mix(in oklab, var(--token) …)` derivation so all TUI themes and
+   the light scheme keep working. The `:root` fallback values mirror the
+   Graphite default in `src/shared/themes.ts` (first paint must match what
+   `applyPalette` writes) — keep them in sync if the default palette changes.
+2. **Motion is tokenized and property-scoped.** Use `--ease-enter/exit/standard`
+   and `--dur-micro/fast/standard/moderate`; transition only
+   transform / opacity / color / box-shadow (never layout); press-down is a
+   fast 60ms; the global `prefers-reduced-motion` collapse must keep working.
+3. **Focus is keyboard-only and two-layer.** Use `--focus-ring` via
+   `:focus-visible`; inputs whose wrapper carries the focus treatment opt out.
+4. **Elevation grammar.** Resting surfaces: hairline border + `--edge-highlight`
+   (auto-disabled in light scheme). Real layered shadows (`--shadow-menu`,
+   `--shadow-modal`) only on true overlays. Menus/popovers sit on `--overlay`.
+5. **Mono is the machine voice.** Tool rows, paths, model/metrics, kbd chips,
+   uppercase section labels use `--font-mono`; prose stays `--font-sans`.
+6. **Verify visually with the preview harness** (no engine needed):
+   `npm run ui:preview`, then `?scenario=welcome|splash|chat|busy|permission|plan|slash|catalog|mention|jobs|inspector`
+   plus `&theme=<name>`; `npm run ui:shots` captures the matrix headlessly
+   (`npx playwright install chromium` once). Screenshot before/after when
+   touching shared primitives.
 
 ## Intentional non-parity
 
