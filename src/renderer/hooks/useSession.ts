@@ -530,7 +530,7 @@ export function useSession(cwd: string | null) {
           landReasoning();
           deltaBuf.current += event.delta;
           if (flushTimer.current == null) {
-            flushTimer.current = window.setTimeout(flushDeltas, 32);
+            flushTimer.current = window.setTimeout(flushDeltas, 24);
           }
           break;
         case "reasoning-delta":
