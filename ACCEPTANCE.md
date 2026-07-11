@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-11
+> Last updated: 2026-07-11 (Session 8: second-pass deep polish)
 > Status: ready-for-audit
 
 ## Summary
@@ -74,6 +74,8 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | 2026-07-11 | Codex | 36/36 | 4/4 | Adversarial lifecycle/protocol/persistence hardening: 65 unit checks, 10 Electron E2E scenarios, runtime boundary guards, host-generation isolation, Biome/CI/bundle gates, live bridge and packaged smokes. |
 | 2026-07-11 | Codex | 36/36 | 4/4 | DAG failed/skipped status rendering (--task-failed/--task-skipped CSS tokens, Inspector StatusDot parity), orchestration rows cleared per-turn, ARIA accessibility pass (combobox pattern, labeled regions, keyboard focus, screen-reader live regions), StrictMode dev hang fix (bootstrapGate.invalidate removed from useEffect cleanup), CSS cleanup (margin:0 for heading elements, :focus-visible on scrollable pre, literal hex removal, duplicate block merge). 66 unit checks, all gates green. |
 | 2026-07-11 | Codex | 36/36 | 4/4 | Agent-home + composer polish: centered empty home (wordmark/crumb/pills), ProjectRail density + active dot, segmented Plan\|Agent\|Yolo (`selectModeAction`), Lucide icons + tool-row glyphs, sans UI / mono-for-code, Streamdown Shiki fences + line numbers, seamless queue+composer card. 67 unit checks; docs (README/AGENTS/PARITY/ACCEPTANCE/VERIFICATION) updated. |
+| 2026-07-11 | Codex | 36/36 | 4/4 | Sleek modern Codex alternative — opencode-inspired: tokens (--thinking-opacity, --bg-menu, --ctx-track), slimmer rails 20vw/260, glass blur 24px/sat 140%, composer floating 14px + inner highlight + focus ring 32%/10%, ctx gauge pill with border + hot pulse, mode solid assistant/bg, ghost 26px subtle, user neutral, tool side-border indented, catalog grouping favorites/recent/providers + Free badge + clear ×, mention @.hl, diff 2.5px accent. 70 tests. |
+| 2026-07-11 | Codex | 36/36 | 4/4 | Second-pass deep polish: text input (auto-resize overflow toggle, inner gradient ::before, placeholder 52%→38% focus, 450 weight, caret-color, status top border 14% + 22% bg, model pill bordered 18%), ctx gauge pill with border + hover 36%→56%, mode segment 11px 600 uppercase, ghost 26px radius 7px scale 1.06 hover, slash/mention menu springy bottom-center origin 10px/0.98 + shadows 0/1px + 4/16 + 16/48, activity rail 94% bg sticky blurred heading, meta-block tighter 10px radius, catalog 14px radius 46vh, project active 2.5px solid + glow 2.2s, transcript 28px/10px gaps, diff 2.5px solid + 82%/88% bg. 70 tests, typecheck + lint + build green. |
 
 ## Sign-off
 

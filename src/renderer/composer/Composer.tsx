@@ -190,8 +190,11 @@ export function Composer({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // Reset to auto, measure, then clamp — avoids jumpy growth
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 192)}px`;
+    const next = Math.min(el.scrollHeight, 200);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > 200 ? "auto" : "hidden";
   }, [draft]);
 
   useEffect(() => {

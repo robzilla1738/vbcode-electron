@@ -225,3 +225,26 @@ npm run dev
 - [x] Sans UI chrome; mono reserved for real code (fences, tool/diff/job bodies, wordmark, rich charts)
 - [x] Streamdown markdown fences use Shiki `CodeBlock` + line numbers (`github-dark` / `github-light`)
 - [x] `selectModeAction` unit coverage (67 total unit tests)
+
+## Sleek modern Codex alternative — opencode-inspired polish (session 7)
+
+- [x] Token system: `--thinking-opacity`, `--bg-menu`, `--ctx-track`, `--composer-input-min`, rail widths 20vw/260 & 26vw/340, icon 16px, light shadows lifted, glass blur 24px/sat 140%
+- [x] Composer: floating surface 14px radius with inner highlight `::before`, focus ring 32%/10%, status top border + surface bg, mode segment solid assistant/bg, ghost actions 26px subtle with scale hover, context gauge pill with border + hot pulse, user bubble neutral
+- [x] Transcript: tool head 100% width no overflow hack, tool body side-border indented (Cursor-feel), thinking opacity token, code block 10px radius with bottom border header, diff 2.5px accent
+- [x] Menus: slash/mention springy entry bottom-center, header 10px bold uppercase, denser items 38px radius 8px, highlight `.hl`, catalog grouping (favorites via localStorage + recent 8 + provider buckets opencode-first, Free badge, clear ×)
+- [x] Rails: active session left accent bar solid user + glow keyframes, project row radius 7px, topbar 14px semibold, activity rail border 22% + blur 12px sticky header, meta-block tighter
+- [x] Secondary: cards compact 12px, queue dot pulse, working strip 32px spinner 14px 2px, jobs compact, earlier/jump pills refined, toast compact, toast + catalog origins bottom-center
+- [x] Model pill bordered 18% + hover 68%, transcript gap 28px/10px, code 12.5px
+
+## Second-pass deep polish (session 8)
+
+- [x] Text input: auto-resize overflow toggle (hidden until 200px then auto), floating surface `::before` inner gradient, placeholder 52% muted focus 38%, exact-cmd 500 weight, caret-color, status top border 14% + surface 22%, model pill bordered 18% + tabular-nums
+- [x] Context gauge: pill with border, bg 36% → 56% hover, dial 14px + box-shadow 1px border, warn/notice/hot with bg tint
+- [x] Mode segment: 26px track 22% border 48% bg, label 11px 600 uppercase 0.02em, active solid bg + shadow, ghost 26px radius 7px with scale 1.06 hover
+- [x] Slash/mention menu: entry 10px/0.98 bottom center, shadow 0 0 0 1px + 4/16 + 16/48, header 10px 700, body 6px padding, footer bg surface 18%
+- [x] Catalog popover: 46vh/440px max, 14px radius, origin bottom center, header/Footer borders 18%, section 10px 700, tag pill free variant, empty hint, clear button
+- [x] Project rail: active bar 2.5px solid user + glow 2.2s keyframes, row radius 7px, dot animation active-dot-glow, session row 72% assistant text
+- [x] Side popups: activity rail 94% bg, heading 14px sticky blur 12px, meta-block 2px padding 10px radius + 1px 6% highlight, meta-label 10px 700 0.06em upper, sidebar-heading 14px padding
+- [x] Transcript: user bubble max 92%/48rem, 14px radius + 1px 10% highlight, assistant prose optimizeLegibility, tool body margin 20px + 10px padding 36% bg, thinking 24% bg, source cards 10px radius softer, diff 2.5px solid + 82%/88% bg + 72% ctx, earlier/jump refined, composer-stack 14px radius 36% border + 1px 12% highlight
+- [x] Composer stack single surface when queue present: 14px radius 36% border, queue tray 22% divider, working strip 28% bg radius xl→0, spinner calmer shimmer 0.55→1
+- [x] Source parity, typecheck, lint, tests green (70 tests)

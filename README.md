@@ -130,9 +130,15 @@ two-layer keyboard focus rings (`--focus-ring`), and an elevation grammar of
 hairlines + inset edge-highlights at rest with layered shadows reserved for
 true overlays. **Sans is the UI voice**; monospace is reserved for real code
 (fenced blocks, tool/diff/job output, inline code, ASCII wordmark). Icons are
-Lucide stroke wrappers in `src/renderer/icons.tsx`. The composer carries a
-Codex-style context-window gauge (amber ≥ 80%, red ≥ 95%) and a segmented mode
-control; queue + composer share one card with no seam.
+Lucide stroke wrappers in `src/renderer/icons.tsx`. The composer is a floating
+surface (14px radius, inner highlight `::before`, focus ring 32%/10%, top border
+14% + surface 22% bg) with a Codex-style context gauge pill (14px dial, border
++ surface bg, hot pulse, amber ≥80% red ≥95%) and a segmented Plan/Agent/Yolo
+control (solid assistant/bg active, 11px uppercase 600). Queue + composer share
+one card with no seam. Slash/mention menus have springy bottom-center entry,
+activity rail has a blurred sticky heading, tool rows use side-border indented
+output (Cursor-feel), thinking uses opacity token, model picker groups favorites
+(localStorage) + recent 8 + provider buckets with Free badges.
 
 ## Keyboard (essentials)
 
