@@ -32,6 +32,14 @@ export interface VibeApi {
   openProject(): Promise<string | null>;
   openExternal(url: string): Promise<void>;
   showItem(path: string): Promise<void>;
+  readTextFile(opts: {
+    cwd: string;
+    path: string;
+    maxBytes?: number;
+  }): Promise<
+    | { ok: true; text: string; truncated: boolean }
+    | { ok: false; error: string }
+  >;
   composeInEditor(draft: string): Promise<{ ok: boolean; text?: string; reason?: "failed" | "no-editor" | "kept"; error?: string }>;
   getPath(name: "home" | "userData"): Promise<string>;
   listFiles(opts: { cwd: string; query: string; limit?: number }): Promise<string[]>;
@@ -72,6 +80,7 @@ const api: VibeApi = {
   openProject: () => ipcRenderer.invoke("dialog:openProject"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   showItem: (path) => ipcRenderer.invoke("shell:showItem", path),
+  readTextFile: (opts) => ipcRenderer.invoke("fs:readTextFile", opts),
   pasteClipboard: (cwd) => ipcRenderer.invoke("clipboard:paste", { cwd }),
   composeInEditor: (draft) => ipcRenderer.invoke("editor:compose", draft),
   getPath: (name) => ipcRenderer.invoke("app:getPath", name),

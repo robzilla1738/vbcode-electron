@@ -16,9 +16,12 @@ npm run ui:shots -- tools/ui-preview/shots
 ```
 
 Scenarios: `welcome`, `splash` (centered empty home + pill starters), `chat`,
-`busy`, `permission`, `plan`, `slash`, `catalog`, `mention`, `jobs`, `inspector`
+`busy`, `permission`, `plan`, `gate`, `mode`, `queue`, `onboarding`, `slash`,
+`catalog`, `catalog-draft`, `mention`, `jobs`, `inspector`, `toast`,
+`density-quiet`, `density-verbose`, `ctx-hot`
 — plus `&theme=<name>` for any registered TUI theme (e.g.
-`?scenario=chat&theme=opencode`).
+`?scenario=chat&theme=opencode`). Shots also capture `busy-narrow`, `busy-wide`,
+`light`, and `theme-opencode`.
 
 Dev tooling only: nothing in this folder ships in the app bundle, and the mock
 event timelines live entirely in `mock-vibe.ts`.

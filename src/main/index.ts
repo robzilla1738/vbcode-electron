@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from "electron";
-import { join } from "node:path";
-import { writeFile, mkdir } from "node:fs/promises";
+import { join, resolve, relative, isAbsolute } from "node:path";
+import { writeFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync, statSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
@@ -313,6 +313,45 @@ function registerIpc(): void {
         },
       });
       return rankPaths(all, opts.query, limit);
+    },
+  );
+
+  ipcMain.handle(
+    "fs:readTextFile",
+    async (
+      event,
+      opts: { cwd: string; path: string; maxBytes?: number },
+    ): Promise<{ ok: true; text: string; truncated: boolean } | { ok: false; error: string }> => {
+      assertTrustedIpc(event);
+      if (!opts || typeof opts.cwd !== "string" || typeof opts.path !== "string") {
+        return { ok: false, error: "Invalid path" };
+      }
+      const maxBytes = Math.min(
+        256_000,
+        Math.max(1024, Number.isFinite(opts.maxBytes) ? Math.trunc(opts.maxBytes!) : 65_536),
+      );
+      try {
+        const root = resolve(opts.cwd);
+        const target = resolve(root, opts.path);
+        const rel = relative(root, target);
+        if (rel.startsWith("..") || isAbsolute(rel)) {
+          return { ok: false, error: "Path escapes the project" };
+        }
+        if (!existsSync(target) || !statSync(target).isFile()) {
+          return { ok: false, error: "File not found" };
+        }
+        const buf = await readFile(target);
+        const slice = buf.subarray(0, maxBytes + 1);
+        // Reject obvious binaries (NUL in the first chunk).
+        if (slice.includes(0)) {
+          return { ok: false, error: "Binary file — reveal in Finder instead" };
+        }
+        const truncated = buf.length > maxBytes;
+        const text = slice.subarray(0, maxBytes).toString("utf8");
+        return { ok: true, text, truncated };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : "Couldn’t read file" };
+      }
     },
   );
 

@@ -3,7 +3,7 @@ import { IconArrowRight } from "../icons";
 
 export const STARTERS = [
   {
-    title: "Understand the codebase",
+    title: "Explore the codebase",
     prompt: "Explain this codebase",
     detail: "Map the architecture and important paths",
   },
@@ -29,20 +29,17 @@ export function Splash({
   const crumb = [projectLabel, branch].filter(Boolean).join(" / ");
 
   return (
-    <section className="splash" aria-labelledby="splash-title">
+    <section className="splash" aria-labelledby="splash-brand-title">
       <div className="splash-inner">
-        <div className="splash-brand" role="img" aria-label="Vibe Codr">
-          <pre className="splash-wordmark" aria-hidden>
-            {WORDMARK.join("\n")}
-          </pre>
-          <div className="splash-brand-compact" aria-hidden>
-            Vibe Codr
-          </div>
+        <h1 id="splash-brand-title" className="sr-only">
+          Vibe Codr
+        </h1>
+        <div className="splash-brand" aria-hidden>
+          <pre className="splash-wordmark">{WORDMARK.join("\n")}</pre>
+          <div className="splash-brand-compact">Vibe Codr</div>
         </div>
 
-        <div className="splash-copy">
-          <h1 id="splash-title">What should we build?</h1>
-        </div>
+        <p className="splash-tagline">What should we build?</p>
 
         {crumb ? (
           <p className="empty-home-crumb" aria-label="Project context">
@@ -63,13 +60,11 @@ export function StarterPills({ onStarter }: { onStarter: (text: string) => void 
             type="button"
             className="starter-pill"
             onClick={() => onStarter(starter.prompt)}
+            title={starter.detail}
             aria-label={`Start with: ${starter.prompt}`}
           >
-            <span className="starter-copy">
-              <span className="starter-title">{starter.title}</span>
-              <span className="starter-detail">{starter.detail}</span>
-            </span>
-            <IconArrowRight size={14} />
+            <span className="starter-title">{starter.title}</span>
+            <IconArrowRight size={13} />
           </button>
         </li>
       ))}

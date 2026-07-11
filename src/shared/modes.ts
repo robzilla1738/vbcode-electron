@@ -73,7 +73,7 @@ export type ModeAction = {
 };
 
 /**
- * Direct mode selection (segmented control). When a plan card is waiting, bare
+ * Direct mode selection (composer mode dropdown). When a plan card is waiting, bare
  * plan→execute/yolo is refused by the engine (no mode-changed, no approval).
  * In that case we only ping set-mode (so the engine can notice) and return
  * `optimistic: null` — the chip and approvals must NOT flip, or the chip lies

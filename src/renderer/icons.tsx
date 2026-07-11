@@ -4,7 +4,9 @@ import {
   ArrowRight,
   ArrowUp,
   Brain,
+  Check,
   ChevronRight,
+  Copy,
   CornerUpLeft,
   FileText,
   Folder,
@@ -20,7 +22,6 @@ import {
   RotateCcw,
   Search,
   Square,
-  Terminal,
   Trash2,
   X,
 } from "lucide-react";
@@ -76,10 +77,6 @@ export function IconChevron({ open, className, size = 14 }: IconProps & { open?:
 
 export function IconFile(props: IconProps) {
   return <FileText {...lucide(props)} />;
-}
-
-export function IconCommand(props: IconProps) {
-  return <Terminal {...lucide(props)} />;
 }
 
 export function IconPaperclip(props: IconProps) {
@@ -144,4 +141,12 @@ export function IconArrowRight(props: IconProps) {
 
 export function IconLink(props: IconProps) {
   return <Link {...lucide(props)} />;
+}
+
+export function IconCopy(props: IconProps) {
+  return <Copy {...lucide(props)} />;
+}
+
+export function IconCheck(props: IconProps) {
+  return <Check {...lucide(props)} />;
 }

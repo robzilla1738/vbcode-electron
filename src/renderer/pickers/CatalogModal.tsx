@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type {
   AgentInfo,
   McpServerInfo,
@@ -19,6 +20,7 @@ import {
   type CatalogOption,
   type ModelPickerTarget,
 } from "../../shared/catalog-draft";
+import { useFloatingAnchor } from "../hooks/useFloatingAnchor";
 import { IconClose, IconSearch } from "../icons";
 
 export type CatalogPicker =
@@ -78,23 +80,45 @@ function splitSecondary(secondary: string): { tag: string | null; body: string }
   return { tag: m[1]!, body: m[2] ?? "" };
 }
 
+function focusableIn(root: ParentNode | null): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((el) => {
+    if (el.getAttribute("aria-hidden") === "true") return false;
+    // offsetParent is null for fixed/portaled nodes in some engines — keep
+    // visibly rendered controls even when portaled to document.body.
+    const style = window.getComputedStyle(el);
+    return style.visibility !== "hidden" && style.display !== "none";
+  });
+}
+
 export function CatalogModal({
   picker,
   onClose,
   onChoose,
   onToggleModelTarget,
   autoFocusSearch = true,
+  draftLinked = false,
+  anchorRef,
 }: {
   picker: CatalogPicker;
   onClose: () => void;
   onChoose: (choice: CatalogChoice) => void;
   onToggleModelTarget?: () => void;
   autoFocusSearch?: boolean;
+  /** Composer draft owns the filter — search looks linked, not idle. */
+  draftLinked?: boolean;
+  /** Positions the portaled popover above this element (composer stack). */
+  anchorRef: RefObject<HTMLElement | null>;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const [selected, setSelected] = useState(0);
   const [query, setQuery] = useState(picker.query ?? "");
+  const box = useFloatingAnchor(anchorRef, true);
   const allOptions = useMemo(() => catalogOptions(picker), [picker]);
   const options = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -138,6 +162,9 @@ export function CatalogModal({
 
   const actionable = options.flatMap((option, index) => (isActionable(option) ? [index] : []));
 
+  const canToggleTarget =
+    picker.kind === "models" && typeof picker.target === "string" && Boolean(onToggleModelTarget);
+
   const focusOption = (index: number) => {
     setSelected(index);
     window.requestAnimationFrame(() => {
@@ -158,6 +185,61 @@ export function CatalogModal({
       if (autoFocusSearch) triggerRef.current?.focus();
     };
   }, [autoFocusSearch]);
+
+  // Keep keyboard focus inside the catalog (and composer when draft-linked).
+  useEffect(() => {
+    if (!box) return;
+
+    const trapTargets = (): HTMLElement[] => {
+      const catalog = focusableIn(rootRef.current);
+      if (!draftLinked) return catalog;
+      const composer = focusableIn(document.getElementById("composer"));
+      // Prefer catalog controls first so Tab cycles catalog → composer → catalog.
+      return [...catalog, ...composer];
+    };
+
+    const pullFocusBack = () => {
+      const targets = trapTargets();
+      const fallback =
+        rootRef.current?.querySelector<HTMLElement>("[data-catalog-search]") ??
+        targets[0] ??
+        rootRef.current;
+      fallback?.focus();
+    };
+
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (rootRef.current?.contains(target)) return;
+      if (draftLinked && document.getElementById("composer")?.contains(target)) return;
+      pullFocusBack();
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      // Models picker reserves Tab for main ⇄ sub target toggle.
+      if (canToggleTarget) return;
+      const targets = trapTargets();
+      if (targets.length === 0) return;
+      const active = document.activeElement as HTMLElement | null;
+      const index = active ? targets.indexOf(active) : -1;
+      if (index < 0) return;
+      if (event.shiftKey && index === 0) {
+        event.preventDefault();
+        targets.at(-1)?.focus();
+      } else if (!event.shiftKey && index === targets.length - 1) {
+        event.preventDefault();
+        targets[0]?.focus();
+      }
+    };
+
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [box, draftLinked, canToggleTarget]);
 
   useEffect(() => {
     setQuery(picker.query ?? "");
@@ -221,15 +303,21 @@ export function CatalogModal({
       ? `Models · ${modelTargetLabel(picker.target)}`
       : picker.kind[0]!.toUpperCase() + picker.kind.slice(1);
 
-  const canToggleTarget =
-    picker.kind === "models" && typeof picker.target === "string" && onToggleModelTarget;
+  if (!box) return null;
 
-  return (
+  return createPortal(
     <div
       ref={rootRef}
-      className="catalog-popover"
+      className="catalog-popover popover-surface catalog-popover-portal"
       role="dialog"
+      aria-modal="true"
       aria-labelledby="catalog-title"
+      style={{
+        left: box.left,
+        width: box.width,
+        bottom: window.innerHeight - box.top + 10,
+        maxHeight: Math.min(440, Math.max(180, box.top - 24)),
+      }}
       onKeyDown={(event) => {
         if (event.key === "ArrowDown") {
           event.preventDefault();
@@ -258,8 +346,13 @@ export function CatalogModal({
         }
       }}
     >
-      <div className="catalog-popover-header">
-        <h2 id="catalog-title">{title}</h2>
+      <div className="catalog-popover-header popover-header">
+        <div className="catalog-header-title">
+          <h2 id="catalog-title">{title}</h2>
+          {draftLinked ? (
+            <span className="catalog-draft-hint">Filtering from composer</span>
+          ) : null}
+        </div>
         <div className="catalog-header-actions">
           {canToggleTarget && (
             <button
@@ -278,7 +371,7 @@ export function CatalogModal({
         </div>
       </div>
 
-      <label className="catalog-search">
+      <label className={`catalog-search${draftLinked ? " is-draft-linked" : ""}`}>
         <span className="sr-only">Filter {picker.kind}</span>
         <IconSearch size={14} />
         <input
@@ -286,7 +379,11 @@ export function CatalogModal({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={`Filter ${picker.kind}…`}
+          placeholder={
+            draftLinked
+              ? "Type in composer to filter…"
+              : `Filter ${picker.kind}…`
+          }
           autoComplete="off"
           aria-controls="catalog-results"
           aria-autocomplete="list"
@@ -308,7 +405,7 @@ export function CatalogModal({
 
       <div
         id="catalog-results"
-        className="catalog-list"
+        className="catalog-list popover-body"
         role={actionable.length ? "listbox" : "list"}
         aria-label={`${picker.kind} results`}
       >
@@ -360,7 +457,7 @@ export function CatalogModal({
         )}
       </div>
 
-      <div className="catalog-popover-footer">
+      <div className="catalog-popover-footer popover-footer">
         <span>
           <kbd className="action-kbd">↑↓</kbd> navigate
         </span>
@@ -376,6 +473,7 @@ export function CatalogModal({
           </span>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

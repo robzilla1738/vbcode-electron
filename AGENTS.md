@@ -9,7 +9,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 ## Hard rules
 
 1. **No engine fork.** Features that belong in the agent loop stay in vibe-codr; this repo only renders `UIEvent`s and sends `EngineCommand`s.
-2. **TUI-faithful behavior + themes.** Layout constants: content ~130ch, sidebar ~42ch, wide breakpoint ~140ch. Themes from `src/shared/themes.ts`. macOS Liquid Glass may tint chrome (rails/topbar/composer); do not replace CLI theme semantics.
+2. **TUI-faithful behavior + themes.** Layout constants: content ~130ch, sidebar ~42ch, wide breakpoint ~1280px (`BREAKPOINTS.wide` in `src/shared/breakpoints.ts`). Themes from `src/shared/themes.ts`. macOS Liquid Glass may tint chrome (rails/topbar/composer); do not replace CLI theme semantics.
 3. **Busy until `engine-idle`.** Do not clear `busy` on `session-idle` / `turn-finished` alone — follow-up turns must not flicker idle.
 4. **`/clear` / `/new`:** abort if busy → `clearSessionLocal()` (transcript + overlays + `suppressAfterClear`) → forward slash to engine.
 5. Prefer porting pure modules from `vibe-codr/packages/tui` (`reducer`, `slash`, `modes`, `density`, `file-fuzzy`, `commands-catalog`) over rewriting behavior.
@@ -24,6 +24,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | Keyboard + submit routing | `src/renderer/App.tsx` |
 | Icons (Lucide wrappers) | `src/renderer/icons.tsx`, `tool-glyph.tsx` |
 | Contracts | `src/shared/commands.ts`, `events.ts`, `protocol.ts` |
+| Breakpoints | `src/shared/breakpoints.ts` (`wide` JS-only; laptop→narrow sync CSS `@media`) |
 | Parity checklist | `PARITY.md` |
 
 ## Commands
@@ -66,15 +67,18 @@ All renderer styling lives in `src/renderer/styles.css`, token-first. Rules:
 3. **Focus is keyboard-only and two-layer.** Use `--focus-ring` via
    `:focus-visible`; inputs whose wrapper carries the focus treatment opt out.
 4. **Elevation grammar.** Resting surfaces: hairline border + `--edge-highlight`
-   (auto-disabled in light scheme). Real layered shadows (`--shadow-menu`,
+   (light scheme uses a stronger `--edge-lit` inset so white surfaces still read
+   raised). Real layered shadows (`--shadow-menu`,
    `--shadow-modal`) only on true overlays. Menus/popovers sit on `--overlay`.
+   Light floating chrome may use soft frost; the shell stays opaque to avoid
+   desktop wash.
 5. **Sans is the UI voice; mono is code.** Electron chrome (tool headers,
    paths, model/metrics, kbd chips, section labels, thinking/notices) uses
    `--font-sans`. Reserve `--font-mono` for real code: fenced blocks, inline
    `` `code` ``, tool/diff/job output bodies, ASCII wordmark, and rich chart
    glyphs. (TUI still uses mono machine-voice labels in the CLI.)
 6. **Verify visually with the preview harness** (no engine needed):
-   `npm run ui:preview`, then `?scenario=welcome|splash|chat|busy|permission|plan|slash|catalog|mention|jobs|inspector`
+   `npm run ui:preview`, then `?scenario=welcome|splash|chat|busy|permission|plan|gate|mode|queue|onboarding|slash|catalog|catalog-draft|mention|jobs|inspector|toast|density-quiet|density-verbose|ctx-hot`
    plus `&theme=<name>`; `npm run ui:shots` captures the matrix headlessly
    (`npx playwright install chromium` once). Screenshot before/after when
    touching shared primitives.

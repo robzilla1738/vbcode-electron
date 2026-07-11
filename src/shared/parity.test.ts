@@ -15,6 +15,7 @@ import { isScrollAnchored } from "./scroll-anchor";
 import { externalHref, parseSearchResults, parseSources } from "./sources";
 import { hasUnfinishedTasks, windowTasks } from "./task-window";
 import { paletteColorScheme } from "./theme-scheme";
+import { shikiThemeFor, shikiThemeId, shikiThemesCoverRegistry } from "./shiki-theme";
 import {
   agentCatalogOptions,
   agentsPickerQuery,
@@ -149,6 +150,19 @@ describe("modes & themes", () => {
   it("sets native control color scheme from the active palette", () => {
     expect(paletteColorScheme(getTheme("light"))).toBe("light");
     expect(paletteColorScheme(getTheme("default"))).toBe("dark");
+  });
+
+  it("maps every theme name to a Shiki pair that follows the app scheme", () => {
+    expect(shikiThemesCoverRegistry()).toBe(true);
+    for (const name of THEME_NAMES) {
+      const [a, b] = shikiThemeFor(name);
+      expect(a).toBeTruthy();
+      expect(a).toBe(b);
+      expect(a).toBe(shikiThemeId(name));
+    }
+    expect(shikiThemeId("light")).toBe("github-light");
+    expect(shikiThemeId("tokyonight")).toBe("tokyo-night");
+    expect(shikiThemeId("catppuccin")).toBe("catppuccin-mocha");
   });
 
   it("density overlay", () => {
@@ -443,18 +457,54 @@ describe("rich blocks rendering", () => {
   });
 });
 
+describe("breakpoints", () => {
+  it("names layout thresholds used by CSS and JS", async () => {
+    const { BREAKPOINTS, atBreakpoint, belowBreakpoint } = await import("./breakpoints");
+    expect(BREAKPOINTS).toEqual({
+      wide: 1280,
+      laptop: 1100,
+      tablet: 900,
+      compact: 720,
+      narrow: 640,
+    });
+    expect(atBreakpoint("wide", 1280)).toBe(true);
+    expect(belowBreakpoint("tablet", 899)).toBe(true);
+    expect(belowBreakpoint("tablet", 900)).toBe(false);
+    expect(belowBreakpoint("narrow", 640)).toBe(false);
+  });
+});
+
 describe("theme palette parity", () => {
-  it("DEFAULT palette matches Graphite (white chrome + violet)", async () => {
+  it("DEFAULT palette matches Graphite (white chrome)", async () => {
     const { THEMES } = await import("./themes");
     const d = THEMES.default!;
     expect(d.background).toBe("#0a0a0a");
     expect(d.primary).toBe("#eeeeee");
-    expect(d.selBg).toBe("#8b5cf6");
-    expect(d.heading).toBe("#8b5cf6");
+    expect(d.selBg).toBe("#eeeeee");
+    expect(d.heading).toBe("#eeeeee");
   });
 
   it("OPENCODE palette has #eeeeee assistant (not #f7f7f8)", async () => {
     const { THEMES } = await import("./themes");
     expect(THEMES.opencode!.assistant).toBe("#eeeeee");
+  });
+
+  it("resolveChromeAccent keeps palette selection until /accent overrides", async () => {
+    const { THEMES } = await import("./themes");
+    const { contrastOn, resolveChromeAccent } = await import("./theme-scheme");
+    const d = THEMES.default!;
+    expect(resolveChromeAccent(d)).toMatchObject({
+      selBg: d.selBg,
+      selFg: d.selFg,
+      heading: d.heading,
+      ring: d.accent,
+    });
+    const violet = resolveChromeAccent(d, "#bb9af7");
+    expect(violet.selBg).toBe("#bb9af7");
+    expect(violet.selFg).toBe(contrastOn("#bb9af7"));
+    expect(violet.heading).toBe("#bb9af7");
+    expect(violet.focus).toBe("#bb9af7");
+    expect(contrastOn("#eeeeee")).toBe("#0a0a0a");
+    expect(contrastOn("#0a0a0a")).toBe("#eeeeee");
   });
 });

@@ -8,6 +8,7 @@
  * are braille plots or block sparklines, pie charts are a colored disc +
  * legend, weather is a card with chips, sources are external-link cards.
  */
+import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import {
   barChartLayout,
   barGlyphs,
@@ -40,13 +41,39 @@ function padLeft(s: string, n: number): string {
   return " ".repeat(Math.max(0, n - displayWidth(s))) + s;
 }
 
-// A sensible default width for the Electron rendering (the TUI uses terminal
-// column count; here we use a fixed monospace column budget so the ASCII
-// shapes look right in a <pre>).
+/** Fallback column budget before the host is measured (TUI uses terminal cols). */
 const DEFAULT_WIDTH = 72;
+const MIN_WIDTH = 24;
+
+function measureCols(el: HTMLElement): number {
+  const probe = document.createElement("span");
+  probe.style.cssText =
+    "position:absolute;visibility:hidden;pointer-events:none;white-space:pre;font:inherit";
+  probe.textContent = "0".repeat(10);
+  el.appendChild(probe);
+  const ch = probe.getBoundingClientRect().width / 10;
+  probe.remove();
+  if (!(ch > 0)) return DEFAULT_WIDTH;
+  return Math.max(MIN_WIDTH, Math.floor(el.clientWidth / ch));
+}
+
+function useHostCols(): { ref: RefObject<HTMLDivElement | null>; cols: number } {
+  const ref = useRef<HTMLDivElement>(null);
+  const [cols, setCols] = useState(DEFAULT_WIDTH);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setCols(measureCols(el));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return { ref, cols };
+}
 
 // ── Bar chart ─────────────────────────────────────────────────────────────────
-function BarChart({ body, palette }: { body: string; palette: Palette }) {
+function BarChart({ body, palette, cols }: { body: string; palette: Palette; cols: number }) {
   const model = parseChart(body);
   if (model.data.length === 0) {
     return <pre className="rich-fallback">{body}</pre>;
@@ -68,7 +95,7 @@ function BarChart({ body, palette }: { body: string; palette: Palette }) {
   const max = Math.max(1, ...model.data.map((d) => d.value));
   const { labelW, valueW, track } = barChartLayout(
     model.data.map((d) => ({ label: d.label, display: d.display })),
-    DEFAULT_WIDTH,
+    cols,
   );
   return (
     <div className="rich-bar">
@@ -110,10 +137,12 @@ function LineChart({
   body,
   palette,
   spark,
+  cols,
 }: {
   body: string;
   palette: Palette;
   spark?: boolean;
+  cols: number;
 }) {
   const model = parseSeries(body);
   if (model.series.length === 0) {
@@ -126,25 +155,25 @@ function LineChart({
     <div className="rich-line">
       {model.title && <div className="rich-title">{model.title}</div>}
       {useBraille ? (
-        <BraillePlot body={body} palette={palette} />
+        <BraillePlot body={body} palette={palette} cols={cols} />
       ) : (
-        <Sparklines body={body} palette={palette} />
+        <Sparklines body={body} palette={palette} cols={cols} />
       )}
     </div>
   );
 }
 
-function BraillePlot({ body, palette }: { body: string; palette: Palette }) {
+function BraillePlot({ body, palette, cols }: { body: string; palette: Palette; cols: number }) {
   const model = parseSeries(body);
   const pts = model.series[0]!.points;
   const min = Math.min(...pts);
   const max = Math.max(...pts);
   const axisW = Math.min(
     Math.max(displayWidth(compactNum(min)), displayWidth(compactNum(max))),
-    Math.max(4, DEFAULT_WIDTH - 5),
+    Math.max(4, cols - 5),
   );
   const h = 6;
-  const w = Math.max(4, DEFAULT_WIDTH - axisW - 1);
+  const w = Math.max(4, cols - axisW - 1);
   const rows = brailleChart(pts, w, h);
   const color = palette.series[0]!;
   return (
@@ -164,11 +193,11 @@ function BraillePlot({ body, palette }: { body: string; palette: Palette }) {
   );
 }
 
-function Sparklines({ body, palette }: { body: string; palette: Palette }) {
+function Sparklines({ body, palette, cols }: { body: string; palette: Palette; cols: number }) {
   const model = parseSeries(body);
   const { labelW, sparkW, showRange } = sparkLayout(
     model.series,
-    DEFAULT_WIDTH,
+    cols,
   );
   return (
     <pre className="rich-sparklines" aria-label="Sparkline chart">
@@ -192,18 +221,18 @@ function Sparklines({ body, palette }: { body: string; palette: Palette }) {
 }
 
 // ── Pie chart ─────────────────────────────────────────────────────────────────
-function PieChartView({ body, palette }: { body: string; palette: Palette }) {
+function PieChartView({ body, palette, cols }: { body: string; palette: Palette; cols: number }) {
   const model = parseChart(body);
   if (!model.data.some((d) => d.value > 0)) {
     return <pre className="rich-fallback">{body}</pre>;
   }
   const values = model.data.map((d) => d.value);
   const pct = sharePercents(values);
-  const { labelW, cols, rows: pieRows } = pieLayout(
+  const { labelW, cols: pieCols, rows: pieRows } = pieLayout(
     model.data.map((d) => d.label),
-    DEFAULT_WIDTH,
+    cols,
   );
-  const grid = cols > 0 ? pieGrid(values, cols, pieRows) : [];
+  const grid = pieCols > 0 ? pieGrid(values, pieCols, pieRows) : [];
 
   // Run-length encode each grid row (TUI parity: pieRuns in app.tsx)
   function pieRuns(row: number[]): { slice: number; len: number }[] {
@@ -346,16 +375,22 @@ export function RichBlockView({
   body: string;
   palette: Palette;
 }): React.ReactNode {
+  const { ref, cols } = useHostCols();
   const kind = richKind(lang);
+  let inner: React.ReactNode = null;
   switch (kind) {
     case "bar":
-      return <BarChart body={body} palette={palette} />;
+      inner = <BarChart body={body} palette={palette} cols={cols} />;
+      break;
     case "line":
-      return <LineChart body={body} palette={palette} />;
+      inner = <LineChart body={body} palette={palette} cols={cols} />;
+      break;
     case "sparkline":
-      return <LineChart body={body} palette={palette} spark />;
+      inner = <LineChart body={body} palette={palette} spark cols={cols} />;
+      break;
     case "pie":
-      return <PieChartView body={body} palette={palette} />;
+      inner = <PieChartView body={body} palette={palette} cols={cols} />;
+      break;
     case "weather":
       return <WeatherCardView body={body} palette={palette} />;
     case "sources":
@@ -363,6 +398,11 @@ export function RichBlockView({
     default:
       return null;
   }
+  return (
+    <div className="rich-block" ref={ref}>
+      {inner}
+    </div>
+  );
 }
 
 export { richKind };

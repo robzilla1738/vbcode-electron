@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 /**
  * Onboarding hint when no provider is configured. Points at the shared CLI
  * config path so Electron and vibecodr stay in sync.
+ * Quiet by design — never autofocus; App suppresses it while perm/plan cards
+ * need attention.
  */
 export function OnboardingHint({
   onDismiss,
@@ -34,12 +36,10 @@ export function OnboardingHint({
           <code>vibecodr setup</code>. Config is shared at <code>{configPath}</code>.
         </p>
       </div>
-      <div className="card-actions">
+      <div className="card-actions compact">
         <button
           type="button"
-          className="chip primary"
-          // biome-ignore lint/a11y/noAutofocus: focus the primary action so keyboard users can open providers immediately
-          autoFocus
+          className="chip"
           onClick={() => {
             onOpenProviders();
             setOpen(false);

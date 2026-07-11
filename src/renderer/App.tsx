@@ -22,21 +22,29 @@ import {
   skillsPickerFilter,
   type ModelPickerTarget,
 } from "../shared/catalog-draft";
+import { belowBreakpoint } from "../shared/breakpoints";
+import { projectLabel } from "../shared/project-index";
+import {
+  formatChromeSummary,
+  formatGitLine,
+  formatGoalLine,
+  projectName,
+  StatusDot,
+} from "./primitives";
 import { useSession } from "./hooks/useSession";
 import { Splash, StarterPills } from "./layout/Splash";
 import { SessionBoot, SessionBootError, WelcomeGate } from "./layout/WelcomeGate";
 import { LiveSidebar } from "./layout/Sidebar";
 import { TranscriptView } from "./transcript/TranscriptView";
-import { Composer } from "./composer/Composer";
+import { Composer, type ComposerMetric } from "./composer/Composer";
 import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
 import { JobsView } from "./panels/JobsView";
 import { OnboardingHint } from "./panels/OnboardingHint";
 import { CatalogModal, type CatalogChoice, type CatalogPicker } from "./pickers/CatalogModal";
 import { Inspector } from "./panels/Inspector";
-import { WorkingSpinner } from "./panels/WorkingSpinner";
 import { ProjectRail } from "./layout/ProjectRail";
 import { IconJobs, IconPanel, IconSidebar } from "./icons";
-import { hasUnfinishedTasks, windowTasks } from "../shared/task-window";
+import { hasUnfinishedTasks } from "../shared/task-window";
 
 type Picker = CatalogPicker | null;
 
@@ -52,31 +60,6 @@ function pickerMatchesDraft(picker: Picker, draft: string, modelTarget: "main" |
 function asMcpList(value: unknown): McpServerInfo[] {
   if (!Array.isArray(value)) return [];
   return value.map((row) => normalizeMcpServer((row ?? {}) as Record<string, unknown>));
-}
-
-function gitSummary(git: { branch: string; dirty: number; ahead: number; behind: number; worktree: boolean } | null): string | null {
-  if (!git) return null;
-  const bits = [git.branch];
-  if (git.dirty) bits.push(`${git.dirty} dirty`);
-  if (git.ahead) bits.push(`↑${git.ahead}`);
-  if (git.behind) bits.push(`↓${git.behind}`);
-  if (git.worktree) bits.push("worktree");
-  return bits.join(" ");
-}
-
-function goalSuffix(goal: string | null, run: { active: boolean; phase: string | null; round: number; max: number; pausedReason: string | null; met: boolean } | null): string | null {
-  if (!goal) return null;
-  if (!run) return `★ ${goal}`;
-  if (run.met) return `★ ${goal} · met`;
-  if (run.active) {
-    // TUI parity: plan phase reads planning (not plan) and does NOT show
-    // round/max until the execute phase begins.
-    if (run.phase === "plan") return `★ ${goal} · planning`;
-    const phase = run.phase ? ` · ${run.phase}` : "";
-    return `★ ${goal}${phase} · ${run.round}/${run.max}`;
-  }
-  if (run.pausedReason) return `★ ${goal} · paused`;
-  return `★ ${goal}`;
 }
 
 function changedSummary(files: { path: string; added: number; removed: number }[]): string | null {
@@ -124,9 +107,20 @@ export function App() {
   const [followSignal, setFollowSignal] = useState(0);
   const didRestoreProject = useRef(false);
   const projectRefreshGate = useRef(new RequestGate());
+  const composerStackRef = useRef<HTMLDivElement>(null);
   const session = useSession(cwd);
   const showToastRef = useRef(session.showToast);
   showToastRef.current = session.showToast;
+
+  useEffect(() => {
+    const onPreviewToast = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (typeof detail === "string" && detail.trim()) showToastRef.current(detail);
+    };
+    window.addEventListener("vibe-preview-toast", onPreviewToast);
+    return () => window.removeEventListener("vibe-preview-toast", onPreviewToast);
+  }, []);
+
   const chromeRef = useRef(session.chrome);
   chromeRef.current = session.chrome;
 
@@ -190,18 +184,29 @@ export function App() {
     await openProjectAt(path);
   }, [openProjectAt, session]);
 
-  // Restore last project on launch
+  // Restore last project on launch; otherwise load recent projects for the welcome gate.
   useEffect(() => {
     if (didRestoreProject.current) return;
     didRestoreProject.current = true;
     try {
       const last = localStorage.getItem("vibe.lastCwd");
-      if (last) void openProjectAt(last);
+      if (last) {
+        void openProjectAt(last);
+        return;
+      }
     } catch {
       /* ignore */
     }
+    void refreshProjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep welcome-gate recents fresh when still on the cold-start screen.
+  useEffect(() => {
+    if (cwd || session.booting) return;
+    if (projects.length > 0 || projectsLoading) return;
+    void refreshProjects();
+  }, [cwd, session.booting, projects.length, projectsLoading, refreshProjects]);
 
   const resumeSession = useCallback(
     async (projectCwd: string, id: string) => {
@@ -779,7 +784,7 @@ export function App() {
           session.setJobsView(false);
           return;
         }
-        if (projectRailOpen && window.innerWidth < 900) {
+        if (projectRailOpen && belowBreakpoint("tablet")) {
           setProjectRailOpen(false);
           return;
         }
@@ -829,26 +834,39 @@ export function App() {
       : null;
   const hotCtx = ctxPct != null && ctxPct >= 80;
 
-  // Context fill moved out of the text run — it renders as the composer's
-  // gauge ring (same data, richer presentation).
-  const footerLeft = useMemo(
-    () =>
-      [
-        changedSummary(session.transcript.changedFiles),
-        formatUsage(chrome.usage),
-        chrome.queuePending.length ? `queued ${chrome.queuePending.length}` : null,
-        chrome.lastGate === "red" ? "gate RED" : null,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-    [chrome, session.transcript.changedFiles],
-  );
+  // Usage / files as composer chips. Gate has its own banner; queue has the tray.
+  const composerMetrics = useMemo((): ComposerMetric[] => {
+    const chips: ComposerMetric[] = [];
+    const changed = changedSummary(session.transcript.changedFiles);
+    if (changed) chips.push({ key: "files", label: changed, title: changed });
+    const usage = formatUsage(chrome.usage);
+    if (usage) chips.push({ key: "usage", label: usage, title: usage });
+    return chips;
+  }, [chrome.usage, session.transcript.changedFiles]);
 
   const activeProject = projects.find((project) => project.cwd === cwd);
-  const compactTasks = windowTasks(chrome.tasks, 8);
+  const activeTask = chrome.tasks.find((t) => t.status === "in_progress");
+  const taskDone = chrome.tasks.filter((t) => t.status === "completed").length;
+  const runningJobs = chrome.jobs.filter((job) => job.status === "running").length;
+  const runningSubagents = chrome.subagents.filter((s) => s.status === "running").length;
+  const doneSubagents = chrome.subagents.filter((s) => s.status === "done").length;
   const activeSessionTitle =
     activeProject?.sessions.find((item) => item.id === chrome.sessionId)?.title ??
     (chrome.goal || "New session");
+  const topbarMetaChips = [
+    chrome.queuePending.length
+      ? { key: "queue", label: `queued ${chrome.queuePending.length}`, tone: "neutral" as const }
+      : null,
+    hotCtx && ctxPct != null
+      ? { key: "ctx", label: `ctx ${ctxPct}%`, tone: "warn" as const }
+      : null,
+  ].filter((chip): chip is { key: string; label: string; tone: "neutral" | "warn" } => chip != null);
+  const topbarMetaTitle = [
+    ...topbarMetaChips.map((chip) => chip.label),
+    ...composerMetrics.map((metric) => metric.label),
+  ].join(" · ");
+  const planPending = !!chrome.plan && !chrome.perms.length;
+  const showGateBanner = chrome.lastGate === "red" && !chrome.busy;
 
   const activeSessionIndexed = projects.some((project) =>
     project.sessions.some((item) => item.id === chrome.sessionId),
@@ -866,14 +884,25 @@ export function App() {
         booting={session.booting}
         bootError={session.bootError}
         pendingCwd={null}
+        recentProjects={projects}
         onOpenProject={() => void openProject()}
+        onOpenRecent={(path) => void openProjectAt(path)}
       />
     );
   }
 
   return (
     <div className="app-shell">
-      <a className="skip-link" href="#main-content">Skip to conversation</a>
+      <nav className="skip-links" aria-label="Skip links">
+        <a className="skip-link" href="#main-content">Skip to conversation</a>
+        <a className="skip-link" href="#composer">Skip to composer</a>
+        {projectRailOpen ? (
+          <a className="skip-link" href="#project-rail">Skip to projects</a>
+        ) : null}
+        {session.inspectorOpen ? (
+          <a className="skip-link" href="#session-panel">Skip to session panel</a>
+        ) : null}
+      </nav>
       <div className={`workspace${projectRailOpen ? " rail-open" : ""}${session.inspectorOpen ? " inspector-open" : ""}`}>
         <ProjectRail
           projects={projects}
@@ -887,15 +916,15 @@ export function App() {
           onRetry={() => void refreshProjects()}
           onOpenProject={() => void openProject()}
           onNewSession={() => {
-            if (window.innerWidth < 900) setProjectRailOpen(false);
+            if (belowBreakpoint("tablet")) setProjectRailOpen(false);
             void newSession();
           }}
           onContinueLatest={() => {
-            if (window.innerWidth < 900) setProjectRailOpen(false);
+            if (belowBreakpoint("tablet")) setProjectRailOpen(false);
             void continueLatest();
           }}
           onResume={(projectCwd, id) => {
-            if (window.innerWidth < 900) setProjectRailOpen(false);
+            if (belowBreakpoint("tablet")) setProjectRailOpen(false);
             void resumeSession(projectCwd, id);
           }}
           onRenameSession={renameSession}
@@ -905,7 +934,8 @@ export function App() {
         {projectRailOpen && (
           <button
             type="button"
-            className="rail-scrim"
+            className="drawer-scrim"
+            data-drawer="start"
             aria-label="Close project rail"
             onClick={() => setProjectRailOpen(false)}
           />
@@ -913,7 +943,8 @@ export function App() {
         {session.inspectorOpen && (
           <button
             type="button"
-            className="inspector-scrim"
+            className="drawer-scrim"
+            data-drawer="end"
             aria-label="Close inspector"
             onClick={() => session.setInspectorOpen(false)}
           />
@@ -926,34 +957,57 @@ export function App() {
                   <IconSidebar size={15} />
                 </button>
               )}
+              {!projectRailOpen && (
+                <span className="topbar-brand" aria-hidden={false}>
+                  Vibe Codr
+                </span>
+              )}
               <h1 className="topbar-title" title={`${cwd}\n${activeSessionTitle}`}>
-                <span className="topbar-project">{activeProject?.name ?? cwd.split("/").at(-1)}</span>
+                <span className="topbar-project">
+                  {activeProject
+                    ? projectLabel(activeProject, projects)
+                    : projectName(cwd)}
+                </span>
                 <span className="topbar-separator" aria-hidden>
                   /
                 </span>
                 <span className="topbar-session">{activeSessionTitle}</span>
               </h1>
+              {topbarMetaChips.length > 0 && (
+                <div className="topbar-meta no-drag" title={topbarMetaTitle || undefined}>
+                  {topbarMetaChips.map((chip) => (
+                    <span
+                      key={chip.key}
+                      className={`topbar-meta-chip${chip.tone === "warn" ? " is-warn" : ""}`}
+                    >
+                      {chip.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="topbar-actions no-drag">
               <button
                 type="button"
                 className={`icon-button${session.jobsView ? " active" : ""}`}
                 onClick={() => session.setJobsView((value) => !value)}
-                title="Background jobs"
+                title={
+                  runningJobs
+                    ? `Background jobs · ${runningJobs} running`
+                    : "Background jobs"
+                }
                 aria-pressed={session.jobsView}
                 aria-label={
-                  chrome.jobs.filter((job) => job.status === "running").length
-                    ? `Toggle background jobs, ${chrome.jobs.filter((job) => job.status === "running").length} running`
+                  runningJobs
+                    ? `Toggle background jobs, ${runningJobs} running`
                     : "Toggle background jobs"
                 }
               >
                 <IconJobs size={14} />
-                <span>
-                  Jobs
-                  {chrome.jobs.filter((job) => job.status === "running").length
-                    ? ` ${chrome.jobs.filter((job) => job.status === "running").length}`
-                    : ""}
-                </span>
+                <span className="topbar-action-label">Jobs</span>
+                {runningJobs > 0 ? (
+                  <span className="topbar-action-count">{runningJobs}</span>
+                ) : null}
               </button>
               <button
                 type="button"
@@ -964,7 +1018,7 @@ export function App() {
                 aria-label={session.inspectorOpen ? "Hide session panel" : "Show session panel"}
               >
                 <IconPanel size={14} />
-                <span>Session</span>
+                <span className="topbar-action-label">Session</span>
               </button>
             </div>
           </header>
@@ -973,7 +1027,6 @@ export function App() {
               className={`chat-column${
                 !session.booting &&
                 !(session.bootError && !session.ready) &&
-                !session.jobsView &&
                 session.transcript.blocks.length === 0 &&
                 !chrome.busy
                   ? " is-empty"
@@ -983,13 +1036,13 @@ export function App() {
             >
             {!session.liveSidebar && (session.transcript.blocks.length > 0 || chrome.busy) && (
               <div className="context-line">
-                {[
-                  chrome.cwd,
-                  gitSummary(chrome.git),
-                  goalSuffix(chrome.goal, chrome.goalRun),
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
+                {formatChromeSummary({
+                  project: activeProject
+                    ? projectLabel(activeProject, projects)
+                    : projectName(chrome.cwd),
+                  git: formatGitLine(chrome.git),
+                  goal: formatGoalLine(chrome.goal, chrome.goalRun, { style: "context" }),
+                })}
               </div>
             )}
 
@@ -1001,12 +1054,14 @@ export function App() {
                 onRetry={() => void openProjectAt(cwd)}
                 onOpenProject={() => void openProject()}
               />
-            ) : session.jobsView ? (
-              <JobsView jobs={chrome.jobs} />
             ) : session.transcript.blocks.length === 0 && !chrome.busy ? (
               <div className="transcript">
                 <Splash
-                  projectLabel={activeProject?.name ?? cwd.split("/").at(-1)}
+                  projectLabel={
+                    activeProject
+                      ? projectLabel(activeProject, projects)
+                      : projectName(cwd)
+                  }
                   branch={chrome.git?.branch ?? null}
                 />
               </div>
@@ -1017,6 +1072,7 @@ export function App() {
                 revealPage={session.revealPage}
                 foldedTurns={session.foldedTurns}
                 density={chrome.density}
+                theme={chrome.theme}
                 itemWindowFor={session.itemWindowFor}
                 onToggleBlock={(id) =>
                   session.dispatchTranscript({ type: "toggle", id })
@@ -1035,12 +1091,39 @@ export function App() {
               />
             )}
 
+            {session.jobsView && (
+              <div className="jobs-drawer-root">
+                <button
+                  type="button"
+                  className="jobs-drawer-backdrop"
+                  aria-label="Dismiss jobs"
+                  onClick={() => session.setJobsView(false)}
+                />
+                <div
+                  className="jobs-drawer"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="jobs-drawer-title"
+                >
+                  <JobsView
+                    jobs={chrome.jobs}
+                    onClose={() => session.setJobsView(false)}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="panels">
-              {showOnboarding && (
+              {showOnboarding && !chrome.perms[0] && !planPending && (
                 <OnboardingHint
                   onDismiss={() => setShowOnboarding(false)}
                   onOpenProviders={() => void submitLine("/providers")}
                 />
+              )}
+              {showGateBanner && (
+                <div className="notice error gate-banner" role="alert">
+                  Verify gate failed — review the last turn before continuing
+                </div>
               )}
               {chrome.perms[0] && (
                 <PermissionCard
@@ -1049,92 +1132,61 @@ export function App() {
                   onDecide={(decision) => void answerPerm(decision)}
                 />
               )}
-              {chrome.plan && !chrome.perms.length && (
+              {planPending && (
                 <PlanCard
-                  plan={chrome.plan}
+                  plan={chrome.plan!}
                   onAccept={() => void answerPlan("accept")}
                   onAcceptYolo={() => void answerPlan("accept", undefined, "auto")}
                   onKeep={() => void answerPlan("keep-planning")}
                 />
               )}
-              {!session.liveSidebar && !session.inspectorOpen && hasUnfinishedTasks(chrome.tasks) && (
-                <div className="card panel-strip">
-                  <h3>Tasks · {chrome.tasks.filter((t) => t.status === "completed").length}/{chrome.tasks.length}</h3>
-                  {compactTasks.lead > 0 && <div className="sidebar-line task-summary">{compactTasks.lead} done</div>}
-                  {compactTasks.visible.map((t) => (
-                    <div
-                      key={t.id}
-                      className={`task-row ${
-                        t.status === "completed"
-                          ? "done"
-                          : t.status === "in_progress"
-                            ? "active"
-                            : "pending"
-                      }`}
-                    >
-                      <span
-                        className={`status-dot status-dot-${
-                          t.status === "completed"
-                            ? "done"
-                            : t.status === "in_progress"
-                              ? "active"
-                              : "pending"
-                        }`}
-                        aria-hidden
-                      />
-                      <span>{t.title}</span>
-                    </div>
-                  ))}
-                  {compactTasks.trailing > 0 && <div className="sidebar-line task-summary">+{compactTasks.trailing} more</div>}
-                </div>
-              )}
-              {!session.liveSidebar && !session.inspectorOpen && chrome.subagents.length > 0 && (
-                <div className="card panel-strip">
-                  <h3>{(() => {
-                    const done = chrome.subagents.filter((s) => s.status === "done").length;
-                    return done > 0 && done < chrome.subagents.length
-                      ? `Subagents · ${done}/${chrome.subagents.length} done`
-                      : `Subagents · ${chrome.subagents.length}`;
-                  })()}</h3>
-                  {chrome.subagents.map((s) => (
+              {!session.liveSidebar &&
+                !session.inspectorOpen &&
+                (hasUnfinishedTasks(chrome.tasks) || chrome.subagents.length > 0) && (
+                <div className="panel-strip-compact" role="group" aria-label="Live activity">
+                  {hasUnfinishedTasks(chrome.tasks) && (
                     <button
-                      key={s.id}
                       type="button"
-                      className="activity-button"
+                      className="panel-strip-chip"
+                      onClick={() => session.setInspectorOpen(true)}
+                      title="Open session panel for full task list"
+                    >
+                      <StatusDot status={activeTask ? "active" : "pending"} />
+                      <span>
+                        Tasks · {taskDone}/{chrome.tasks.length}
+                        {activeTask ? ` · ${activeTask.title}` : ""}
+                      </span>
+                    </button>
+                  )}
+                  {chrome.subagents.length > 0 && (
+                    <button
+                      type="button"
+                      className="panel-strip-chip"
                       onClick={() => {
-                        session.setSelectedSubagent(s.id);
+                        const focus =
+                          chrome.subagents.find((s) => s.status === "running") ?? chrome.subagents[0];
+                        if (focus) session.setSelectedSubagent(focus.id);
                         session.setInspectorOpen(true);
                       }}
+                      title="Open session panel for subagents"
                     >
-                      <div className="task-row subagent-tone">
-                        <span
-                          className={`status-dot status-dot-${s.status === "running" ? "active" : "done"}`}
-                          aria-hidden
-                        />
-                        <span>{s.prompt.slice(0, 60)}</span>
-                        {s.status === "running" && s.activity && (
-                          <span className="subagent-activity"> · {s.activity}</span>
-                        )}
-                        {s.status === "done" && s.result && (
-                          <span className="subagent-result"> ↳ {s.result.slice(0, 60)}</span>
-                        )}
-                        {s.elapsedMs != null && s.elapsedMs >= 1000 && (
-                          <span className="subagent-elapsed">
-                            {(s.elapsedMs / 1000).toFixed(s.elapsedMs >= 10_000 ? 0 : 1)}s
-                          </span>
-                        )}
-                      </div>
+                      <StatusDot status={runningSubagents > 0 ? "active" : "done"} />
+                      <span>
+                        {runningSubagents > 0
+                          ? `Subagents · ${runningSubagents} running`
+                          : doneSubagents > 0 && doneSubagents < chrome.subagents.length
+                            ? `Subagents · ${doneSubagents}/${chrome.subagents.length} done`
+                            : `Subagents · ${chrome.subagents.length}`}
+                      </span>
                     </button>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
 
             {!(session.booting || (session.bootError && !session.ready)) && (
-            <div className="composer-stack">
-              {chrome.busy && <WorkingSpinner thinking={chrome.thinkingStream} />}
+            <div className="composer-stack" id="composer" ref={composerStackRef}>
               <QueuePanel
-                active={chrome.queueActive}
                 pending={chrome.queuePending}
                 onSteer={(id) => void session.send({ type: "steer", id })}
                 onDequeue={(id) => void session.send({ type: "dequeue", id })}
@@ -1142,7 +1194,9 @@ export function App() {
               {picker && (
                 <CatalogModal
                   picker={picker}
+                  anchorRef={composerStackRef}
                   autoFocusSearch={!draft.trim()}
+                  draftLinked={!!draft.trim()}
                   onClose={() => {
                     setPicker(null);
                     setModelTarget("main");
@@ -1185,13 +1239,17 @@ export function App() {
                 approvals={chrome.approvals}
                 density={chrome.density}
                 reasoning={chrome.reasoning}
-                status={footerLeft}
+                metrics={composerMetrics}
                 ctxPct={ctxPct}
                 busy={chrome.busy}
                 onAbort={() => void session.send({ type: "abort" })}
+                onCycleDensity={() => {
+                  const next = nextDensity(chrome.density);
+                  void session.send({ type: "run-slash", name: "details", args: next });
+                }}
                 onPasteError={session.showToast}
+                planPending={planPending}
                 emptyHome={
-                  !session.jobsView &&
                   session.transcript.blocks.length === 0 &&
                   !chrome.busy
                 }
@@ -1213,6 +1271,7 @@ export function App() {
           {!session.inspectorOpen && session.liveSidebar && (
             <LiveSidebar
               chrome={chrome}
+              closing={session.liveSidebarClosing}
               onOpenSubagent={(id) => {
                 session.setSelectedSubagent(id);
                 session.setInspectorOpen(true);
@@ -1229,11 +1288,16 @@ export function App() {
                   ? session.getSubagentStream(session.selectedSubagent)
                   : ""
               }
+              cwd={cwd}
               onClose={() => session.setInspectorOpen(false)}
               onUndo={() => void session.send({ type: "run-slash", name: "undo", args: "" })}
               onRedo={() => void session.send({ type: "run-slash", name: "redo", args: "" })}
-              onShowFile={(path) => {
-                if (cwd) void window.vibe.showItem(`${cwd}/${path}`);
+              onRevealFile={(path) => {
+                if (!cwd) return;
+                const absolute = path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)
+                  ? path
+                  : `${cwd}/${path}`;
+                void window.vibe.showItem(absolute);
               }}
               onSelectSubagent={session.setSelectedSubagent}
             />

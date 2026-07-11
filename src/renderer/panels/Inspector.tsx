@@ -1,64 +1,49 @@
+import { useEffect, useState } from "react";
 import type { SessionChrome } from "../hooks/useSession";
 import type { ChangedFile } from "../../shared/reducer";
-import { firstLine } from "../../shared/reducer";
-import { hasUnfinishedTasks, windowTasks } from "../../shared/task-window";
-import { IconClose } from "../icons";
-
-function MetaRow({ label, value, hot }: { label: string; value: string; hot?: boolean }) {
-  return (
-    <div className={`meta-row${hot ? " ctx-hot" : ""}`}>
-      <span className="meta-label">{label}</span>
-      <span className="meta-value" title={value} aria-label={`${label}: ${value}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function StatusDot({
-  status,
-}: {
-  status: "done" | "active" | "pending" | "running" | "completed" | "failed" | "skipped";
-}) {
-  const kind =
-    status === "done" || status === "completed"
-      ? "done"
-      : status === "failed"
-        ? "failed"
-        : status === "skipped"
-          ? "skipped"
-          : status === "active" || status === "running"
-            ? "active"
-            : "pending";
-  return <span className={`status-dot status-dot-${kind}`} aria-hidden />;
-}
-
-function projectName(cwd: string): string {
-  const parts = cwd.replace(/\\/g, "/").split("/").filter(Boolean);
-  return parts.at(-1) || cwd || "—";
-}
+import { hasUnfinishedTasks } from "../../shared/task-window";
+import { IconClose, IconFolderOpen } from "../icons";
+import {
+  MetaRow,
+  TasksSection,
+  OrchestrationSection,
+  SubagentsSection,
+  ThinkingTrail,
+  formatGitLine,
+  formatGoalLine,
+  projectName,
+  subagentLabel,
+} from "./activity-shared";
 
 export function Inspector({
   chrome,
   changedFiles,
   selectedSubagent,
   subagentStream,
+  cwd,
   onClose,
   onUndo,
   onRedo,
-  onShowFile,
+  onRevealFile,
   onSelectSubagent,
 }: {
   chrome: SessionChrome;
   changedFiles: ChangedFile[];
   selectedSubagent: string | null;
   subagentStream: string;
+  cwd: string | null;
   onClose: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  onShowFile: (path: string) => void;
+  onRevealFile: (path: string) => void;
   onSelectSubagent: (id: string) => void;
 }) {
+  const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewTruncated, setPreviewTruncated] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
   const ctxPct =
     chrome.ctxWindow > 0
       ? Math.min(100, Math.round((100 * chrome.ctxUsed) / chrome.ctxWindow))
@@ -67,126 +52,195 @@ export function Inspector({
     chrome.ctxWindow > 0
       ? `${chrome.ctxUsed.toLocaleString()} / ${chrome.ctxWindow.toLocaleString()} · ${ctxPct}%`
       : "No usage yet";
-  const gitLine = chrome.git
-    ? [
-        chrome.git.branch,
-        chrome.git.dirty ? `${chrome.git.dirty} dirty` : "clean",
-        chrome.git.ahead ? `↑${chrome.git.ahead}` : null,
-        chrome.git.behind ? `↓${chrome.git.behind}` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : null;
-  const taskWindow = windowTasks(chrome.tasks, 8);
-  const showTasks = hasUnfinishedTasks(chrome.tasks);
+  const gitLine = formatGitLine(chrome.git, { showClean: true });
+  const goalLine = formatGoalLine(chrome.goal, chrome.goalRun);
+  const selected = chrome.subagents.find((s) => s.id === selectedSubagent) ?? null;
+
+  useEffect(() => {
+    if (!previewPath || !cwd) {
+      setPreviewText(null);
+      setPreviewError(null);
+      setPreviewTruncated(false);
+      return;
+    }
+    let cancelled = false;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    void window.vibe
+      .readTextFile({ cwd, path: previewPath })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          setPreviewText(null);
+          setPreviewError(res.error);
+          setPreviewTruncated(false);
+          return;
+        }
+        setPreviewText(res.text);
+        setPreviewError(null);
+        setPreviewTruncated(res.truncated);
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewPath, cwd]);
+
+  // Clear stale preview when the file leaves the changed set.
+  useEffect(() => {
+    if (previewPath && !changedFiles.some((f) => f.path === previewPath)) {
+      setPreviewPath(null);
+    }
+  }, [changedFiles, previewPath]);
+
   const idle =
     changedFiles.length === 0 &&
     chrome.checkpoints.length === 0 &&
     chrome.orchestration.length === 0 &&
     chrome.subagents.length === 0 &&
-    !showTasks;
+    !hasUnfinishedTasks(chrome.tasks) &&
+    chrome.thoughtLog.length === 0;
+
+  let title = "Session";
+  let subtitle = "Model, context, and changes";
+  if (previewPath) {
+    title = previewPath.split(/[/\\]/).pop() || previewPath;
+    subtitle = "File preview";
+  } else if (selected) {
+    title = subagentLabel(selected.prompt, selected.id);
+    subtitle = `Subagent · ${selected.status}`;
+  }
 
   return (
     <aside
+      id="session-panel"
       className="activity-rail inspector-rail"
       aria-label="Session details"
       aria-labelledby="inspector-title"
     >
       <div className="sidebar-heading-row">
         <div className="sidebar-heading-copy">
-          <h2 id="inspector-title" className="sidebar-heading-title">Session</h2>
-          <p className="sidebar-heading-sub">Model, context, and changes</p>
+          <h2 id="inspector-title" className="sidebar-heading-title">
+            {title}
+          </h2>
+          <p className="sidebar-heading-sub">{subtitle}</p>
         </div>
-        <button type="button" className="icon-button sidebar-close" onClick={onClose} aria-label="Close session panel">
+        <button
+          type="button"
+          className="icon-button sidebar-close"
+          onClick={onClose}
+          aria-label="Close session panel"
+        >
           <IconClose size={15} />
         </button>
       </div>
 
       <div className="inspector-scroll">
-        <div className="sidebar-section">
-          <h4>Overview</h4>
-          <div className="meta-block">
-            <MetaRow label="Project" value={projectName(chrome.cwd)} />
-            <MetaRow label="Model" value={chrome.model || "—"} />
-            <MetaRow label="Mode" value={chrome.mode} />
-            <MetaRow label="Approvals" value={chrome.approvals} />
-            <MetaRow label="Context" value={ctxLine} hot={ctxPct != null && ctxPct >= 80} />
-            <MetaRow label="Cost" value={`$${chrome.usage.costUSD.toFixed(4)}`} />
-            {gitLine && <MetaRow label="Git" value={gitLine} />}
-            {chrome.reasoning && <MetaRow label="Reasoning" value={chrome.reasoning} />}
-            {chrome.lastGate && <MetaRow label="Gate" value={chrome.lastGate} />}
-            {chrome.goal && <MetaRow label="Goal" value={chrome.goal} />}
-          </div>
-          {chrome.cwd ? (
-            <p className="inspector-path" title={chrome.cwd}>
-              {chrome.cwd}
-            </p>
-          ) : null}
-        </div>
-
-        {showTasks && (
+        {!previewPath && !selected && (
           <div className="sidebar-section">
-            <h4>Tasks</h4>
-            {taskWindow.lead > 0 && (
-              <div className="sidebar-line task-summary">{taskWindow.lead} done</div>
-            )}
-            {taskWindow.visible.map((t) => (
-              <div
-                key={t.id}
-                className={`task-row ${
-                  t.status === "completed"
-                    ? "done"
-                    : t.status === "in_progress"
-                      ? "active"
-                      : "pending"
-                }`}
-              >
-                <StatusDot
-                  status={
-                    t.status === "completed"
-                      ? "done"
-                      : t.status === "in_progress"
-                        ? "active"
-                        : "pending"
-                  }
-                />
-                <span>{t.title}</span>
-              </div>
-            ))}
-            {taskWindow.trailing > 0 && (
-              <div className="sidebar-line task-summary">+{taskWindow.trailing} more</div>
-            )}
+            <h4>Overview</h4>
+            <div className="meta-block">
+              <MetaRow label="Project" value={projectName(chrome.cwd)} />
+              <MetaRow label="Model" value={chrome.model || "—"} />
+              <MetaRow label="Mode" value={chrome.mode} />
+              <MetaRow label="Approvals" value={chrome.approvals} />
+              <MetaRow label="Context" value={ctxLine} hot={ctxPct != null && ctxPct >= 80} />
+              <MetaRow label="Cost" value={`$${chrome.usage.costUSD.toFixed(4)}`} />
+              {gitLine && <MetaRow label="Git" value={gitLine} />}
+              {chrome.reasoning && <MetaRow label="Reasoning" value={chrome.reasoning} />}
+              {chrome.lastGate && <MetaRow label="Gate" value={chrome.lastGate} />}
+              {goalLine && <MetaRow label="Goal" value={goalLine} />}
+            </div>
+            {chrome.cwd ? (
+              <p className="inspector-path" title={chrome.cwd}>
+                {chrome.cwd}
+              </p>
+            ) : null}
           </div>
         )}
 
-        {changedFiles.length > 0 ? (
+        {!previewPath && <TasksSection tasks={chrome.tasks} />}
+
+        {previewPath ? (
           <div className="sidebar-section">
-            <h4>Changed files</h4>
-            {changedFiles.map((f) => (
+            <div className="file-preview-toolbar">
               <button
-                key={f.path}
                 type="button"
-                className="activity-button file-row"
-                onClick={() => onShowFile(f.path)}
-                aria-label={`Show ${f.path} in Finder, +${f.added} −${f.removed}`}
-                title={`Show ${f.path}`}
+                className="button"
+                onClick={() => setPreviewPath(null)}
               >
-                <span className="file-path">{f.path}</span>
-                <span className="file-diff" aria-hidden>
-                  <span className="diff-add-count">+{f.added}</span>
-                  <span className="diff-del-count">−{f.removed}</span>
-                </span>
+                Back
               </button>
-            ))}
+              <button
+                type="button"
+                className="button"
+                onClick={() => onRevealFile(previewPath)}
+                title="Reveal in Finder"
+              >
+                <IconFolderOpen size={13} />
+                Reveal
+              </button>
+            </div>
+            <p className="inspector-path" title={previewPath}>
+              {previewPath}
+            </p>
+            {previewLoading ? (
+              <p className="inspector-empty">Loading…</p>
+            ) : previewError ? (
+              <p className="inspector-empty">{previewError}</p>
+            ) : (
+              <pre
+                className="activity-stream inspector-stream file-preview"
+                // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable preview
+                tabIndex={0}
+                aria-label={`Preview of ${previewPath}`}
+              >
+                {previewText || "(empty)"}
+              </pre>
+            )}
+            {previewTruncated ? (
+              <p className="inspector-hint">Preview truncated to the first 64 KB.</p>
+            ) : null}
           </div>
         ) : (
           <div className="sidebar-section">
             <h4>Changed files</h4>
-            <p className="inspector-empty">Edits from this session will show up here.</p>
+            {changedFiles.length > 0 ? (
+              changedFiles.map((f) => (
+                <div key={f.path} className="file-row-actions">
+                  <button
+                    type="button"
+                    className="activity-button file-row"
+                    onClick={() => setPreviewPath(f.path)}
+                    aria-label={`Preview ${f.path}, +${f.added} −${f.removed}`}
+                    title={`Preview ${f.path}`}
+                  >
+                    <span className="file-path">{f.path}</span>
+                    <span className="file-diff" aria-hidden>
+                      <span className="diff-add-count">+{f.added}</span>
+                      <span className="diff-del-count">−{f.removed}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="file-reveal"
+                    onClick={() => onRevealFile(f.path)}
+                    aria-label={`Reveal ${f.path} in Finder`}
+                    title="Reveal in Finder"
+                  >
+                    <IconFolderOpen size={12} />
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="inspector-empty">Edits from this session will show up here.</p>
+            )}
           </div>
         )}
 
-        {chrome.checkpoints.length > 0 ? (
+        {!previewPath && chrome.checkpoints.length > 0 ? (
           <div className="sidebar-section">
             <h4>Checkpoints</h4>
             {chrome.checkpoints
@@ -198,67 +252,42 @@ export function Inspector({
                 </div>
               ))}
             <div className="card-actions compact">
-              <button type="button" className="chip" onClick={onUndo} aria-label="Undo last checkpoint">
+              <button type="button" className="button" onClick={onUndo} aria-label="Undo last checkpoint">
                 Undo
               </button>
-              <button type="button" className="chip" onClick={onRedo} aria-label="Redo checkpoint">
+              <button type="button" className="button" onClick={onRedo} aria-label="Redo checkpoint">
                 Redo
               </button>
             </div>
           </div>
         ) : null}
 
-        {chrome.orchestration.length > 0 && (
-          <div className="sidebar-section">
-            <h4>Orchestration</h4>
-            {chrome.orchestration.map((o) => {
-              const label =
-                o.objective.length > 48 ? `${o.objective.slice(0, 48)}…` : o.objective;
-              return (
-                <div key={o.taskId} className={`task-row orch-${o.status}`} title={o.objective}>
-                  <StatusDot status={o.status} />
-                  <span>{label}</span>
-                </div>
-              );
-            })}
-          </div>
+        {!previewPath && <OrchestrationSection orchestration={chrome.orchestration} />}
+
+        {!previewPath && (
+          <SubagentsSection
+            subagents={chrome.subagents}
+            selectedId={selectedSubagent}
+            onSelect={onSelectSubagent}
+          />
         )}
 
-        {chrome.subagents.length > 0 && (
+        {!previewPath && selected && (
           <div className="sidebar-section">
-            <h4>Subagents</h4>
-            {chrome.subagents.map((subagent) => (
-              <button
-                key={subagent.id}
-                type="button"
-                className={`activity-button${selectedSubagent === subagent.id ? " active" : ""}`}
-                aria-pressed={selectedSubagent === subagent.id}
-                aria-label={`Subagent ${firstLine(subagent.prompt) ?? subagent.id}, ${subagent.status}`}
-                onClick={() => onSelectSubagent(subagent.id)}
-              >
-                <div className="task-row subagent-tone">
-                  <StatusDot status={subagent.status === "running" ? "active" : "done"} />
-                  <span>{firstLine(subagent.prompt) ?? subagent.id}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {selectedSubagent && (
-          <div className="sidebar-section">
-            <h4>Subagent {selectedSubagent.slice(0, 8)}</h4>
+            <h4>{subagentLabel(selected.prompt, selected.id)}</h4>
             <pre
               className="activity-stream inspector-stream thinking-panel"
-              // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable output region for screen reader users
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable output region
               tabIndex={0}
-              aria-label={`Stream for subagent ${selectedSubagent.slice(0, 8)}`}
+              aria-label={`Stream for ${subagentLabel(selected.prompt, selected.id)}`}
             >
-              {subagentStream ||
-                chrome.subagents.find((s) => s.id === selectedSubagent)?.result ||
-                "(no stream yet)"}
+              {subagentStream || selected.result || "(no stream yet)"}
             </pre>
           </div>
+        )}
+
+        {!previewPath && !selected && (
+          <ThinkingTrail lines={chrome.thoughtLog} live={chrome.busy} />
         )}
 
         {idle && (

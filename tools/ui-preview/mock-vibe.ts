@@ -11,11 +11,19 @@
  *   busy        — mid-turn: spinner, live tool, thinking, subagents, tasks
  *   permission  — pending permission card
  *   plan        — plan-approval card with sources + assumptions
+ *   gate        — finished turn with verify gate RED banner
+ *   mode        — mode dropdown open above the composer
+ *   queue       — busy turn with queued follow-ups in the composer tray
+ *   onboarding  — Setup hint when no provider is configured
  *   slash       — slash-command palette open
  *   catalog     — model catalog popover open
+ *   catalog-draft — catalog open while composer draft owns the filter
  *   mention     — `@` file-mention popover open
  *   jobs        — background jobs view
  *   inspector   — session inspector rail open
+ *   toast       — finished chat with a toast banner
+ *   density-quiet / density-verbose — details density cue in composer
+ *   ctx-hot     — high context % (topbar warn chip at laptop width)
  *
  * This file never ships in the app bundle — it is dev tooling only.
  */
@@ -180,7 +188,12 @@ function baseSnapshot(): EngineSnapshot {
     busy: false,
     theme: themeOverride ?? "default",
     accentColor: "",
-    details: "normal",
+    details:
+      scenario === "density-quiet"
+        ? "quiet"
+        : scenario === "density-verbose"
+          ? "verbose"
+          : "normal",
     mouse: false,
     approvalMode: "ask",
     commandNames: [
@@ -286,7 +299,11 @@ async function chatTurn(): Promise<void> {
   await sleep(60);
   emit({ type: "turn-finished", sessionId: SID });
   emit({ type: "session-idle", sessionId: SID });
-  emit({ type: "engine-idle", sessionId: SID, gate: "green" });
+  emit({
+    type: "engine-idle",
+    sessionId: SID,
+    gate: scenario === "gate" ? "red" : "green",
+  });
 }
 
 async function busyTurn(): Promise<void> {
@@ -357,6 +374,10 @@ async function planTurn(): Promise<void> {
     ],
     ungrounded: false,
   });
+  // Plan waits for user decision — turn is idle (matches engine after plan-presented).
+  emit({ type: "turn-finished", sessionId: SID });
+  emit({ type: "session-idle", sessionId: SID });
+  emit({ type: "engine-idle", sessionId: SID, gate: "green" });
 }
 
 async function inspectorExtras(): Promise<void> {
@@ -379,16 +400,35 @@ async function runTimeline(): Promise<void> {
       break;
     case "chat":
     case "light":
+    case "gate":
       await chatTurn();
       break;
     case "busy":
       await busyTurn();
+      break;
+    case "queue":
+      await busyTurn();
+      emit({
+        type: "queue-changed",
+        active: { id: "q_active", label: "Refactor billing webhook handlers" },
+        pending: [
+          { id: "q1", label: "Add integration coverage for duplicate deliveries" },
+          { id: "q2", label: "Document the new webhook_events table" },
+        ],
+      });
       break;
     case "permission":
       await permissionTurn();
       break;
     case "plan":
       await planTurn();
+      break;
+    case "mode":
+      await sleep(160);
+      document.querySelector<HTMLButtonElement>(".mode-trigger")?.click();
+      break;
+    case "onboarding":
+      // Providers mocked unconfigured below — splash + Setup strip.
       break;
     case "slash":
       await sleep(120);
@@ -398,6 +438,11 @@ async function runTimeline(): Promise<void> {
       await sleep(120);
       setComposerDraft("/model");
       await sleep(600); // live-draft effect fetches models and opens the picker
+      break;
+    case "catalog-draft":
+      await sleep(120);
+      setComposerDraft("/model opus");
+      await sleep(600);
       break;
     case "mention":
       await sleep(120);
@@ -415,6 +460,25 @@ async function runTimeline(): Promise<void> {
       await inspectorExtras();
       await sleep(80);
       document.querySelector<HTMLButtonElement>('[aria-label="Toggle session panel"]')?.click();
+      break;
+    case "toast":
+      await chatTurn();
+      window.dispatchEvent(
+        new CustomEvent("vibe-preview-toast", { detail: "Session archived" }),
+      );
+      break;
+    case "density-quiet":
+    case "density-verbose":
+      await chatTurn();
+      break;
+    case "ctx-hot":
+      await chatTurn();
+      emit({
+        type: "context-updated",
+        sessionId: SID,
+        usedTokens: 188_000,
+        contextWindow: 200_000,
+      });
       break;
     default:
       await chatTurn();
@@ -441,7 +505,10 @@ const rpcHandlers: Record<string, () => unknown> = {
   },
   listProjects: () => PROJECTS,
   listModels: () => MODELS,
-  listProviders: () => PROVIDERS,
+  listProviders: () =>
+    scenario === "onboarding"
+      ? PROVIDERS.map((p) => ({ ...p, configured: false, keyless: false }))
+      : PROVIDERS,
   listAgents: () => AGENTS,
   listSkills: () => SKILLS,
   listMcp: () => MCP,
@@ -475,6 +542,11 @@ const mock = {
   openProject: async () => CWD,
   openExternal: async () => undefined,
   showItem: async () => undefined,
+  readTextFile: async ({ path }: { cwd: string; path: string }) => ({
+    ok: true as const,
+    text: `// preview of ${path}\nexport function demo() {\n  return true;\n}\n`,
+    truncated: false,
+  }),
   composeInEditor: async () => ({ ok: false, reason: "no-editor" as const }),
   getPath: async () => "/Users/rob",
   listFiles: async ({ query }: { query: string }) => {

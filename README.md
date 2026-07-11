@@ -116,7 +116,7 @@ theme. See [tools/ui-preview/README.md](./tools/ui-preview/README.md).
 - Content max ~130ch with a ~76ch reading measure; live activity appears only when the window can seat it without crushing the transcript
 - Projects and meaningful session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 15 palettes as OpenTUI); accents via `/accent`
-- Modes: **Plan | Agent | Yolo** segmented control in the composer (Shift+Tab still cycles)
+- Modes: **Plan / Agent / Yolo** dropdown in the composer (Shift+Tab still cycles)
 
 ### Design system
 
@@ -133,12 +133,14 @@ true overlays. **Sans is the UI voice**; monospace is reserved for real code
 Lucide stroke wrappers in `src/renderer/icons.tsx`. The composer is a floating
 surface (14px radius, inner highlight `::before`, focus ring 32%/10%, top border
 14% + surface 22% bg) with a Codex-style context gauge pill (14px dial, border
-+ surface bg, hot pulse, amber ≥80% red ≥95%) and a segmented Plan/Agent/Yolo
-control (solid assistant/bg active, 11px uppercase 600). Queue + composer share
-one card with no seam. Slash/mention menus have springy bottom-center entry,
++ surface bg, hot pulse, amber ≥80% red ≥95%) and a Plan/Agent/Yolo mode
+dropdown (solid assistant/bg active, 11px uppercase 600). Queue + composer share
+one card with no seam. Slash/mention menus use a quiet surface enter,
 activity rail has a blurred sticky heading, tool rows use side-border indented
 output (Cursor-feel), thinking uses opacity token, model picker groups favorites
-(localStorage) + recent 8 + provider buckets with Free badges.
+(localStorage) + recent 8 + provider buckets with Free badges. Light scheme keeps
+edge-lit elevation and soft frost on floating chrome; `/accent` remaps selection
+and focus tokens together.
 
 ## Keyboard (essentials)
 
@@ -174,12 +176,12 @@ Shell-owned surfaces:
 - Multi-project sessions rail (new / resume / continue latest / filter), `/jobs` with PID
 - Anchored streaming with intentional scroll disengagement and Jump to latest
 - `@` fuzzy attach, clipboard image paste, external editor
-- Working spinner with elapsed time + "esc to interrupt" until `engine-idle`; green-gate RED notice
+- Working Stop control with elapsed time + Esc interrupt chip until `engine-idle`; green-gate RED notice
 - Inspector: context, changed files, checkpoints, DAG, subagent stream
-- Theme-faithful selection colors, headings, and user-message accent (violet band on default)
+- Theme-faithful selection colors, headings, and user-message accent (white band on Graphite; `/accent` remaps)
 - Empty-home splash: quieter ASCII wordmark, project/branch crumb, centered composer, pill starters
 - Lucide icons across chrome, composer, and tool-row glyphs
-- Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, screen-reader live regions, focus management on modal cards
+- Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, narrow busy/idle live status (transcript is not live), always-visible copy controls, busy-disabled rail labels, skip links to conversation/composer/projects/session panel, catalog focus trap
 
 ## Parity & verification
 

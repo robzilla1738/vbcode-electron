@@ -185,6 +185,7 @@ export function reduceChrome(s: SessionChrome, a: ChromeAction): SessionChrome {
         queuePending: [],
         tasks: [],
         thinkingStream: "",
+        thoughtLog: [],
         busy: false,
         lastGate: null,
         orchestration: [],

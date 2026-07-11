@@ -26,6 +26,7 @@ import { hydrateFromHistory } from "../../shared/history-hydrate";
 import { hasUnfinishedTasks } from "../../shared/task-window";
 import { isUIEvent } from "../../shared/protocol";
 import { isEngineSnapshot, isRenderableUIEvent } from "../../shared/runtime-guards";
+import { atBreakpoint } from "../../shared/breakpoints";
 import { RequestGate } from "./request-gate";
 import { initialChrome, reduceChrome } from "./session-state";
 export type { OrchestrationRow, SessionChrome } from "./session-state";
@@ -46,7 +47,6 @@ const REVEAL_PAGE = 20;
 const TURN_ITEMS_MAX = 120;
 const TURN_ITEMS_STEP = 24;
 const TURN_ITEM_REVEAL_PAGE = TURN_ITEMS_STEP;
-const SIDEBAR_MIN_PX = 1460;
 
 export function useSession(cwd: string | null) {
   const [chrome, dispatchChrome] = useReducer(reduceChrome, cwd ?? "", (c) =>
@@ -87,7 +87,7 @@ export function useSession(cwd: string | null) {
 
   useEffect(() => {
     const measure = () => {
-      setWide(window.innerWidth >= SIDEBAR_MIN_PX);
+      setWide(atBreakpoint("wide"));
     };
     measure();
     window.addEventListener("resize", measure);
@@ -623,13 +623,37 @@ export function useSession(cwd: string | null) {
     [revealedTurnItems],
   );
 
-  const liveSidebar =
+  const liveSidebarWanted =
     wide &&
     (chrome.busy ||
       hasUnfinishedTasks(chrome.tasks) ||
       chrome.subagents.some((s) => s.status === "running") ||
       chrome.orchestration.some((o) => o.status === "running") ||
-      !!chrome.thinkingStream);
+      !!chrome.thinkingStream ||
+      chrome.thoughtLog.length > 0);
+
+  const [liveSidebar, setLiveSidebar] = useState(false);
+  const [liveSidebarClosing, setLiveSidebarClosing] = useState(false);
+
+  useEffect(() => {
+    if (!wide) {
+      setLiveSidebar(false);
+      setLiveSidebarClosing(false);
+      return;
+    }
+    if (liveSidebarWanted) {
+      setLiveSidebar(true);
+      setLiveSidebarClosing(false);
+      return;
+    }
+    if (!liveSidebar) return;
+    setLiveSidebarClosing(true);
+    const timer = window.setTimeout(() => {
+      setLiveSidebar(false);
+      setLiveSidebarClosing(false);
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [wide, liveSidebarWanted, liveSidebar]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -665,6 +689,7 @@ export function useSession(cwd: string | null) {
     ready,
     wide,
     liveSidebar,
+    liveSidebarClosing,
     uiMode,
     modeLabel: modeWord(uiMode),
     turns: visibleTurns,

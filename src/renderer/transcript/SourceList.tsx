@@ -1,22 +1,5 @@
-import type { ReactNode } from "react";
-import { externalHref, type SourceItem } from "../../shared/sources";
-
-function ExternalLink({ href, children }: { href?: string; children?: ReactNode }) {
-  const safeHref = externalHref(href);
-  if (!safeHref) return <span>{children}</span>;
-  return (
-    <a
-      href={safeHref}
-      title={safeHref}
-      onClick={(event) => {
-        event.preventDefault();
-        void window.vibe.openExternal(safeHref);
-      }}
-    >
-      {children}
-    </a>
-  );
-}
+import type { SourceItem } from "../../shared/sources";
+import { ExternalLink } from "../primitives";
 
 export function SourceList({ sources }: { sources: SourceItem[] }) {
   if (!sources.length) {
@@ -28,20 +11,17 @@ export function SourceList({ sources }: { sources: SourceItem[] }) {
   }
   return (
     <ol className="source-list" aria-label="Sources">
-      {sources.map((source, index) => {
-        const href = externalHref(source.url);
-        return (
-          <li key={`${source.url ?? source.title}-${index}`} className="source-card">
-            {href ? (
-              <ExternalLink href={href}>{source.title}</ExternalLink>
-            ) : (
-              <span className="source-title">{source.title}</span>
-            )}
-            {source.domain && <span className="source-domain">{source.domain}</span>}
-            {source.snippet && <span className="source-snippet">{source.snippet}</span>}
-          </li>
-        );
-      })}
+      {sources.map((source, index) => (
+        <li key={`${source.url ?? source.title}-${index}`} className="source-card">
+          {source.url ? (
+            <ExternalLink href={source.url}>{source.title}</ExternalLink>
+          ) : (
+            <span className="source-title">{source.title}</span>
+          )}
+          {source.domain && <span className="source-domain">{source.domain}</span>}
+          {source.snippet && <span className="source-snippet">{source.snippet}</span>}
+        </li>
+      ))}
     </ol>
   );
 }

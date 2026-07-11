@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { createPortal } from "react-dom";
 import {
   applyPalette,
   isExactCommand,
@@ -13,12 +14,46 @@ import {
   skillsPickerFilter,
 } from "../../shared/catalog-draft";
 import { modeWord, type UiMode } from "../../shared/modes";
+import { densityLabel, isTranscriptDensity } from "../../shared/density";
 import { accentNameOf } from "../../shared/themes";
 import { applyAtMention, useAtMention } from "../hooks/useAtMention";
+import { useFloatingAnchor } from "../hooks/useFloatingAnchor";
 import { applyComposerPaste } from "../../shared/composer-edit";
-import { IconCommand, IconPaperclip, IconSend, IconStop } from "../icons";
+import { IconChevron, IconPaperclip, IconSend, IconStop } from "../icons";
 
 const MODE_OPTIONS: UiMode[] = ["plan", "execute", "yolo"];
+
+const MODE_HINT: Record<UiMode, string> = {
+  plan: "Read-only · propose a plan",
+  execute: "Tools ask before running",
+  yolo: "Tools run without asking",
+};
+
+/** Matches `--composer-input-max` — keep JS clamp and CSS in sync. */
+const COMPOSER_INPUT_MAX_PX = 320;
+
+export type ComposerMetric = {
+  key: string;
+  label: string;
+  title?: string;
+};
+
+function useBusyElapsed(busy: boolean): string | null {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!busy) {
+      setElapsed(0);
+      return;
+    }
+    const start = Date.now();
+    setElapsed(0);
+    const timer = window.setInterval(() => setElapsed(Date.now() - start), 200);
+    return () => window.clearInterval(timer);
+  }, [busy]);
+  if (!busy) return null;
+  // Always show a tabular elapsed once busy so the Stop control width stays stable.
+  return `${(elapsed / 1000).toFixed(elapsed >= 10_000 ? 0 : 1)}s`;
+}
 
 function isCatalogDraft(draft: string): boolean {
   return (
@@ -95,6 +130,20 @@ function HighlightedBase({ base, query }: { base: string; query: string }) {
   );
 }
 
+function MenuKeyHints({ action }: { action: string }) {
+  return (
+    <>
+      <kbd className="action-kbd">↑↓</kbd>
+      <span>navigate</span>
+      <kbd className="action-kbd">Tab</kbd>
+      <kbd className="action-kbd">Enter</kbd>
+      <span>{action}</span>
+      <kbd className="action-kbd">Esc</kbd>
+      <span>close</span>
+    </>
+  );
+}
+
 export function Composer({
   uiMode,
   draft,
@@ -112,12 +161,14 @@ export function Composer({
   approvals,
   density,
   reasoning,
-  status,
+  metrics = [],
   ctxPct,
   busy,
   onAbort,
+  onCycleDensity,
   onPasteError,
   emptyHome = false,
+  planPending = false,
 }: {
   uiMode: UiMode;
   draft: string;
@@ -135,19 +186,32 @@ export function Composer({
   approvals: "ask" | "auto";
   density: string;
   reasoning?: string;
-  status: string;
+  /** Usage / changed-file chips (stable slot; gate & queue have their own surfaces). */
+  metrics?: ComposerMetric[];
   /** Context-window fill 0–100, or null before the first turn. */
   ctxPct?: number | null;
   busy: boolean;
   onAbort: () => void;
+  /** Cycle transcript density (⌘D). */
+  onCycleDensity?: () => void;
   onPasteError: (message: string) => void;
   /** Empty-session home: taller input + /@-hint placeholder. */
   emptyHome?: boolean;
+  /** Plan approval pending — composer submits revise the plan. */
+  planPending?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const modeTriggerRef = useRef<HTMLButtonElement>(null);
+  const modeMenuRef = useRef<HTMLDivElement>(null);
+  const modeSelRef = useRef(0);
   const submitPending = useRef(false);
   const [sel, setSel] = useState(0);
+  const [modeOpen, setModeOpen] = useState(false);
+  const [modeSel, setModeSel] = useState(0);
+  const busyElapsed = useBusyElapsed(busy);
+  modeSelRef.current = modeSel;
   const nameSet = useMemo(
     () => new Set(commandNames.map((n) => n.toLowerCase())),
     [commandNames],
@@ -190,17 +254,71 @@ export function Composer({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    // Reset to auto, measure, then clamp — avoids jumpy growth
     el.style.height = "auto";
-    const next = Math.min(el.scrollHeight, 200);
+    const next = Math.min(el.scrollHeight, COMPOSER_INPUT_MAX_PX);
     el.style.height = `${next}px`;
-    el.style.overflowY = el.scrollHeight > 200 ? "auto" : "hidden";
+    el.style.overflowY = el.scrollHeight > COMPOSER_INPUT_MAX_PX ? "auto" : "hidden";
   }, [draft]);
 
   useEffect(() => {
     const selected = menuRef.current?.querySelector<HTMLElement>(".slash-item.selected");
     selected?.scrollIntoView({ block: "nearest" });
   }, [sel, atOpen, palette.open]);
+
+  useEffect(() => {
+    if (!modeOpen) return;
+    const selected = modeMenuRef.current?.querySelector<HTMLElement>(".mode-option.selected");
+    selected?.scrollIntoView({ block: "nearest" });
+  }, [modeSel, modeOpen]);
+
+  useEffect(() => {
+    if (!modeOpen) return;
+    setModeSel(Math.max(0, MODE_OPTIONS.indexOf(uiMode)));
+    const onPointer = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (modeMenuRef.current?.contains(target)) return;
+      if (modeTriggerRef.current?.contains(target)) return;
+      setModeOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setModeOpen(false);
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setModeSel((i) => (i + 1) % MODE_OPTIONS.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setModeSel((i) => (i - 1 + MODE_OPTIONS.length) % MODE_OPTIONS.length);
+        return;
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        setModeSel(0);
+        return;
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        setModeSel(MODE_OPTIONS.length - 1);
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        onSelectMode(MODE_OPTIONS[modeSelRef.current]!);
+        setModeOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [modeOpen, uiMode, onSelectMode]);
 
   const itemCount = atOpen
     ? files.length
@@ -210,9 +328,19 @@ export function Composer({
         ? palette.items.length
         : 0;
 
+  const menuVisible = atOpen || (palette.open && itemCount > 0);
+  const slashBox = useFloatingAnchor(wrapRef, menuVisible);
+  const modeBox = useFloatingAnchor(modeTriggerRef, modeOpen);
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (modeOpen && ["Enter", "ArrowDown", "ArrowUp", "Escape", "Home", "End"].includes(e.key)) {
+      // Document listener owns the open mode menu; block composer submit/nav.
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Tab" && e.shiftKey) {
       e.preventDefault();
+      setModeOpen(false);
       onCycleMode();
       return;
     }
@@ -316,14 +444,6 @@ export function Composer({
     });
   };
 
-  /** Ghost `/` affordance — opens the command palette (empty drafts only,
-   * mirroring ⌘K, so typed text is never clobbered). */
-  const openCommands = () => {
-    if (draft.trim()) return;
-    setDraft("/");
-    window.requestAnimationFrame(() => ref.current?.focus());
-  };
-
   const onPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     // Native browser paste and async IPC cannot race: own the transaction
     // synchronously, then reinsert either text or the saved image mention.
@@ -350,7 +470,6 @@ export function Composer({
     });
   };
 
-  const menuVisible = atOpen || (palette.open && itemCount > 0);
   const menuId = menuVisible
     ? atOpen
       ? "composer-mention-menu"
@@ -359,152 +478,209 @@ export function Composer({
   const activeOptionId =
     itemCount > 0 && menuId ? `${menuId}-option-${sel}` : undefined;
 
-  return (
-    <div className="composer-wrap">
-      {atOpen && (
-        <div
-          id="composer-mention-menu"
-          className="slash-menu"
-          ref={menuRef}
-          role="listbox"
-          aria-label="Matching project files"
-        >
-          <div className="slash-menu-header">
-            <span>Attach file</span>
-            <span className="slash-menu-hint">@</span>
-          </div>
-          <div className="slash-menu-body">
-            {filesLoading && <div className="slash-state" role="status">Searching project files…</div>}
-            {!filesLoading && filesError && (
-              <div className="slash-state error" role="status">Couldn’t search files · {filesError}</div>
-            )}
-            {!filesLoading && !filesError && files.length === 0 && (
-              <div className="slash-state" role="status">No matching project files.</div>
-            )}
-            {files.map((path, i) => {
-              const { base, dir } = fileParts(path);
-              const q = mentionQuery ?? "";
+  const slashMenu =
+    atOpen && slashBox
+      ? createPortal(
+          <div
+            id="composer-mention-menu"
+            className="slash-menu slash-menu-portal popover-surface"
+            ref={menuRef}
+            role="listbox"
+            aria-label="Matching project files"
+            style={{
+              left: slashBox.left,
+              width: slashBox.width,
+              bottom: window.innerHeight - slashBox.top + 10,
+              maxHeight: Math.min(440, Math.max(160, slashBox.top - 24)),
+            }}
+          >
+            <div className="slash-menu-header popover-header">
+              <span>Attach file</span>
+              <span className="slash-menu-hint">@</span>
+            </div>
+            <div className="slash-menu-body popover-body">
+              {filesLoading && <div className="slash-state" role="status">Searching project files…</div>}
+              {!filesLoading && filesError && (
+                <div className="slash-state error" role="status">Couldn’t search files · {filesError}</div>
+              )}
+              {!filesLoading && !filesError && files.length === 0 && (
+                <div className="slash-state" role="status">No matching project files.</div>
+              )}
+              {files.map((path, i) => {
+                const { base, dir } = fileParts(path);
+                const q = mentionQuery ?? "";
+                return (
+                  <button
+                    type="button"
+                    id={`composer-mention-menu-option-${i}`}
+                    key={path}
+                    className={`slash-item${i === sel ? " selected" : ""}`}
+                    role="option"
+                    aria-selected={i === sel}
+                    onMouseDown={(ev) => {
+                      ev.preventDefault();
+                      setDraft(applyAtMention(draft, path));
+                    }}
+                  >
+                    <span className="slash-item-copy">
+                      <span className="name">
+                        @
+                        <HighlightedBase base={base} query={q} />
+                      </span>
+                      {dir ? <span className="desc">{dir}</span> : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="slash-menu-footer popover-footer">
+              <MenuKeyHints action="select" />
+            </div>
+          </div>,
+          document.body,
+        )
+      : palette.open && itemCount > 0 && !atOpen && slashBox
+        ? createPortal(
+            <div
+              id="composer-slash-menu"
+              className="slash-menu slash-menu-portal popover-surface"
+              ref={menuRef}
+              role="listbox"
+              aria-label="Slash commands"
+              style={{
+                left: slashBox.left,
+                width: slashBox.width,
+                bottom: window.innerHeight - slashBox.top + 10,
+                maxHeight: Math.min(440, Math.max(160, slashBox.top - 24)),
+              }}
+            >
+              <div className="slash-menu-header popover-header">
+                <span>{palette.mode === "value" ? `/${palette.command.name}` : "Commands"}</span>
+                <span className="slash-menu-hint">{palette.mode === "value" ? "options" : "/"}</span>
+              </div>
+              <div className="slash-menu-body popover-body">
+                {palette.mode === "command" &&
+                  palette.items.map((item, i) => (
+                    <button
+                      type="button"
+                      id={`composer-slash-menu-option-${i}`}
+                      key={item.name}
+                      className={`slash-item${i === sel ? " selected" : ""}`}
+                      role="option"
+                      aria-selected={i === sel}
+                      onMouseDown={(ev) => {
+                        ev.preventDefault();
+                        const applied = applyPalette(palette, i);
+                        if (!applied) return;
+                        if (applied.done) {
+                          void submitAndClear(applied.draft);
+                        } else setDraft(applied.draft);
+                      }}
+                    >
+                      <span className="slash-item-copy">
+                        <span className="name">/{item.name}</span>
+                        <span className="desc">{item.description}</span>
+                      </span>
+                    </button>
+                  ))}
+                {palette.mode === "value" &&
+                  palette.items.map((value, i) => (
+                    <button
+                      type="button"
+                      id={`composer-slash-menu-option-${i}`}
+                      key={value}
+                      className={`slash-item${i === sel ? " selected" : ""}${
+                        currentValue === value ? " current" : ""
+                      }`}
+                      role="option"
+                      aria-selected={i === sel}
+                      aria-current={currentValue === value ? "true" : undefined}
+                      onMouseDown={(ev) => {
+                        ev.preventDefault();
+                        const applied = applyPalette(palette, i);
+                        if (!applied) return;
+                        void submitAndClear(applied.draft);
+                      }}
+                    >
+                      <span className="slash-item-copy">
+                        <span className="name">{value}</span>
+                      </span>
+                      {currentValue === value ? <span className="slash-badge">Current</span> : null}
+                    </button>
+                  ))}
+              </div>
+              <div className="slash-menu-footer popover-footer">
+                <MenuKeyHints action={palette.mode === "command" ? "run" : "select"} />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null;
+
+  const modeMenu =
+    modeOpen && modeBox
+      ? createPortal(
+          <div
+            className="mode-menu mode-menu-portal popover-surface"
+            ref={modeMenuRef}
+            role="listbox"
+            aria-label="Mode"
+            id="composer-mode-menu"
+            style={{
+              left: modeBox.left,
+              bottom: window.innerHeight - modeBox.top + 8,
+              minWidth: Math.max(196, modeBox.width),
+            }}
+          >
+            {MODE_OPTIONS.map((mode, i) => {
+              const active = uiMode === mode;
+              const highlighted = i === modeSel;
+              const label = displayModeLabel(mode);
               return (
                 <button
+                  key={mode}
                   type="button"
-                  id={`composer-mention-menu-option-${i}`}
-                  key={path}
-                  className={`slash-item${i === sel ? " selected" : ""}`}
+                  id={`composer-mode-menu-option-${i}`}
                   role="option"
-                  aria-selected={i === sel}
-                  onMouseDown={(ev) => {
-                    ev.preventDefault();
-                    setDraft(applyAtMention(draft, path));
+                  aria-selected={highlighted}
+                  aria-current={active ? "true" : undefined}
+                  className={`mode-option${highlighted ? " selected" : ""}${active ? " is-active" : ""}`}
+                  onMouseEnter={() => setModeSel(i)}
+                  onClick={() => {
+                    onSelectMode(mode);
+                    setModeOpen(false);
                   }}
                 >
-                  <span className="slash-item-copy">
-                    <span className="name">
-                      @
-                      <HighlightedBase base={base} query={q} />
-                    </span>
-                    {dir ? <span className="desc">{dir}</span> : null}
-                  </span>
+                  <span className="mode-option-label">{label}</span>
+                  <span className="mode-option-hint">{MODE_HINT[mode]}</span>
+                  {active ? <span className="mode-option-badge">Current</span> : null}
                 </button>
               );
             })}
-          </div>
-          <div className="slash-menu-footer">
-            <kbd className="action-kbd">↑↓</kbd>
-            <span>navigate</span>
-            <kbd className="action-kbd">Tab</kbd>
-            <span>select</span>
-            <kbd className="action-kbd">Esc</kbd>
-            <span>close</span>
-          </div>
-        </div>
-      )}
-      {palette.open && itemCount > 0 && !atOpen && (
-        <div
-          id="composer-slash-menu"
-          className="slash-menu"
-          ref={menuRef}
-          role="listbox"
-          aria-label="Slash commands"
-        >
-          <div className="slash-menu-header">
-            <span>{palette.mode === "value" ? `/${palette.command.name}` : "Commands"}</span>
-            <span className="slash-menu-hint">{palette.mode === "value" ? "options" : "/"}</span>
-          </div>
-          <div className="slash-menu-body">
-            {palette.mode === "command" &&
-              palette.items.map((item, i) => (
-                <button
-                  type="button"
-                  id={`composer-slash-menu-option-${i}`}
-                  key={item.name}
-                  className={`slash-item${i === sel ? " selected" : ""}`}
-                  role="option"
-                  aria-selected={i === sel}
-                  onMouseDown={(ev) => {
-                    ev.preventDefault();
-                    const applied = applyPalette(palette, i);
-                    if (!applied) return;
-                    if (applied.done) {
-                      void submitAndClear(applied.draft);
-                    } else setDraft(applied.draft);
-                  }}
-                >
-                  <span className="slash-item-copy">
-                    <span className="name">/{item.name}</span>
-                    <span className="desc">{item.description}</span>
-                  </span>
-                </button>
-              ))}
-            {palette.mode === "value" &&
-              palette.items.map((value, i) => (
-                <button
-                  type="button"
-                  id={`composer-slash-menu-option-${i}`}
-                  key={value}
-                  className={`slash-item${i === sel ? " selected" : ""}${
-                    currentValue === value ? " current" : ""
-                  }`}
-                  role="option"
-                  aria-selected={i === sel}
-                  aria-current={currentValue === value ? "true" : undefined}
-                  onMouseDown={(ev) => {
-                    ev.preventDefault();
-                    const applied = applyPalette(palette, i);
-                    if (!applied) return;
-                    void submitAndClear(applied.draft);
-                  }}
-                >
-                  <span className="slash-item-copy">
-                    <span className="name">{value}</span>
-                  </span>
-                  {currentValue === value ? <span className="slash-badge">Current</span> : null}
-                </button>
-              ))}
-          </div>
-          <div className="slash-menu-footer">
-            <kbd className="action-kbd">↑↓</kbd>
-            <span>navigate</span>
-            <kbd className="action-kbd">Enter</kbd>
-            <span>run</span>
-            <kbd className="action-kbd">Esc</kbd>
-            <span>close</span>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )
+      : null;
+
+  const placeholder = emptyHome
+    ? "Plan, build, / for commands, @ for files…"
+    : planPending
+      ? "Describe changes to revise the plan…"
+      : busy
+        ? "Add a follow-up or steer the current turn…"
+        : "Ask to build, fix, explain, or review…";
+
+  return (
+    <div className={`composer-wrap${busy ? " is-busy" : ""}${planPending ? " is-plan" : ""}`} ref={wrapRef}>
+      {slashMenu}
       <div className="composer-row">
         <textarea
           ref={ref}
           className={`composer-input${exact ? " exact-cmd" : ""}`}
           value={draft}
           disabled={disabled}
-          placeholder={
-            emptyHome
-              ? "Plan, build, / for commands, @ for files…"
-              : busy
-                ? "Add a follow-up or steer the current turn…"
-                : "Ask to build, fix, explain, or review…"
-          }
-          aria-label="Task message"
+          placeholder={placeholder}
+          aria-label={planPending ? "Plan revision feedback" : "Task message"}
           aria-autocomplete="list"
           aria-expanded={menuId != null}
           aria-controls={menuId}
@@ -527,43 +703,69 @@ export function Composer({
           >
             <IconPaperclip size={13} />
           </button>
-          <button
-            type="button"
-            className="composer-ghost"
-            onClick={openCommands}
-            disabled={disabled || !!draft.trim()}
-            aria-label="Browse commands"
-            title="Browse commands (⌘K)"
-          >
-            <IconCommand size={13} />
-          </button>
-          <div className="mode-segment" role="radiogroup" aria-label="Mode">
-            {MODE_OPTIONS.map((mode) => {
-              const active = uiMode === mode;
-              const label = displayModeLabel(mode);
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  className={`mode-seg${active ? " is-active" : ""}`}
-                  onClick={() => onSelectMode(mode)}
-                  title={`${label} mode (Shift+Tab to cycle)`}
-                >
-                  {label}
-                </button>
-              );
-            })}
+          <div className={`mode-dropdown${modeOpen ? " is-open" : ""}`}>
+            <button
+              type="button"
+              ref={modeTriggerRef}
+              className="mode-trigger composer-chip"
+              aria-haspopup="listbox"
+              aria-expanded={modeOpen}
+              aria-controls={modeOpen ? "composer-mode-menu" : undefined}
+              aria-activedescendant={
+                modeOpen ? `composer-mode-menu-option-${modeSel}` : undefined
+              }
+              aria-label={`Mode: ${displayModeLabel(uiMode)}. Shift+Tab to cycle.`}
+              title={`${displayModeLabel(uiMode)} mode · Shift+Tab to cycle`}
+              onClick={() => setModeOpen((open) => !open)}
+            >
+              <span>{displayModeLabel(uiMode)}</span>
+              <IconChevron open={modeOpen} size={12} />
+            </button>
+            {modeMenu}
           </div>
-          {status ? (
-            <span className="composer-metrics" title={status}>{status}</span>
-          ) : null}
         </div>
         <div className="composer-status-trailing">
+          <div
+            className={`composer-metrics-slot${busy || metrics.length ? " has-content" : ""}`}
+            aria-hidden={!busy && metrics.length === 0 ? true : undefined}
+          >
+            {busy ? (
+              <span
+                className="composer-chip composer-busy-cue"
+                title={
+                  busyElapsed
+                    ? `Working ${busyElapsed} · Esc to interrupt`
+                    : "Working · Esc to interrupt"
+                }
+              >
+                <span className="spinner composer-busy-spinner" aria-hidden />
+                <span className="working-shimmer">Esc</span>
+              </span>
+            ) : null}
+            {metrics.map((metric) => (
+              <span
+                key={metric.key}
+                className="composer-chip composer-metric"
+                title={metric.title ?? metric.label}
+              >
+                {metric.label}
+              </span>
+            ))}
+          </div>
+          {onCycleDensity ? (
+            <button
+              type="button"
+              className="composer-chip composer-density"
+              onClick={onCycleDensity}
+              title={`${isTranscriptDensity(density) ? densityLabel(density) : density} · ⌘D`}
+              aria-label={`Density ${density}. ${isTranscriptDensity(density) ? densityLabel(density) : ""}. Press to cycle.`}
+            >
+              {density}
+            </button>
+          ) : null}
           {typeof ctxPct === "number" && ctxPct > 0 && (
             <span
-              className={`ctx-ring${ctxPct >= 95 ? " hot" : ctxPct >= 80 ? " warn" : ""}`}
+              className={`composer-chip ctx-ring${ctxPct >= 95 ? " hot" : ctxPct >= 80 ? " warn" : ""}`}
               style={{ "--ctx-fill": ctxPct } as CSSProperties}
               role="img"
               aria-label={`Context window ${ctxPct} percent full`}
@@ -573,23 +775,40 @@ export function Composer({
               {ctxPct}%
             </span>
           )}
-          <span className="composer-model" title={model}>{model.split("/").at(-1) || model}</span>
-          {busy ? (
-            <button type="button" className="composer-submit stop" onClick={onAbort} aria-label="Stop current turn">
-              <IconStop />
-              Stop
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="composer-submit"
-              onClick={submitDraft}
-              disabled={!draft.trim()}
-              aria-label="Send message"
-            >
-              <IconSend />
-            </button>
-          )}
+          <span className="composer-chip composer-model" title={model}>
+            {model.split("/").at(-1) || model}
+          </span>
+          <div className="composer-submit-slot">
+            {busy ? (
+              <button
+                type="button"
+                className="composer-submit stop"
+                onClick={onAbort}
+                aria-label={
+                  busyElapsed ? `Stop current turn · ${busyElapsed}` : "Stop current turn"
+                }
+                title={
+                  busyElapsed
+                    ? `Working ${busyElapsed} · Esc to interrupt`
+                    : "Esc to interrupt"
+                }
+              >
+                <IconStop />
+                <span className="stop-label">Stop</span>
+                <span className="stop-elapsed">{busyElapsed ?? "0.0s"}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="composer-submit"
+                onClick={submitDraft}
+                disabled={!draft.trim()}
+                aria-label="Send message"
+              >
+                <IconSend />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

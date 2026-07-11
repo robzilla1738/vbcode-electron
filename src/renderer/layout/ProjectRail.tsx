@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ProjectSessionSummary, ProjectSummary } from "../../shared/protocol";
 import {
   filterProjects,
@@ -62,7 +62,6 @@ export function ProjectRail({
   onArchiveSession: (cwd: string, id: string) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<SessionMenu | null>(null);
   const [renaming, setRenaming] = useState<{ cwd: string; id: string; title: string } | null>(null);
@@ -114,6 +113,19 @@ export function ProjectRail({
     };
   }, [menu]);
 
+  // Clamp after paint so real menu size wins over a fixed estimate.
+  useLayoutEffect(() => {
+    if (!menu || !menuRef.current) return;
+    const el = menuRef.current;
+    const rect = el.getBoundingClientRect();
+    const pad = 8;
+    const x = Math.min(Math.max(pad, menu.x), Math.max(pad, window.innerWidth - rect.width - pad));
+    const y = Math.min(Math.max(pad, menu.y), Math.max(pad, window.innerHeight - rect.height - pad));
+    if (Math.abs(x - menu.x) > 0.5 || Math.abs(y - menu.y) > 0.5) {
+      setMenu((current) => (current ? { ...current, x, y } : null));
+    }
+  }, [menu]);
+
   useEffect(() => {
     if (!renaming) return;
     renameRef.current?.focus();
@@ -137,12 +149,7 @@ export function ProjectRail({
     event.preventDefault();
     event.stopPropagation();
     menuTriggerRef.current = event.currentTarget as HTMLButtonElement;
-    const pad = 8;
-    const width = 168;
-    const height = 120;
-    const x = Math.min(event.clientX, window.innerWidth - width - pad);
-    const y = Math.min(event.clientY, window.innerHeight - height - pad);
-    setMenu({ cwd, session, x: Math.max(pad, x), y: Math.max(pad, y) });
+    setMenu({ cwd, session, x: event.clientX, y: event.clientY });
   };
 
   const commitRename = async () => {
@@ -155,9 +162,16 @@ export function ProjectRail({
   };
 
   const busyTitle = "Stop the current turn before switching sessions";
+  const busyProjectTitle = "Stop the current turn before switching projects";
+  const busyActionLabel = (action: string, reason = busyTitle) =>
+    busy ? `${action}. ${reason}` : action;
 
   return (
-    <aside className={`project-rail${open ? " is-open" : ""}`} aria-label="Projects and sessions">
+    <aside
+      id="project-rail"
+      className={`project-rail${open ? " is-open" : ""}`}
+      aria-label="Projects and sessions"
+    >
       <div className="rail-chrome">
         <button type="button" className="icon-button rail-chrome-toggle no-drag" onClick={onClose} aria-label="Hide project rail">
           <IconSidebar size={15} />
@@ -166,18 +180,6 @@ export function ProjectRail({
 
       <div className="rail-title-row">
         <h1 className="rail-product-name">Vibe Codr</h1>
-        <button
-          type="button"
-          className="icon-button rail-title-search no-drag"
-          onClick={() => {
-            setSearchOpen(true);
-            window.requestAnimationFrame(() => filterRef.current?.focus());
-          }}
-          aria-label="Search projects"
-          aria-expanded={searchOpen || query.length > 0}
-        >
-          <IconSearch size={15} />
-        </button>
       </div>
 
       <nav className="rail-actions" aria-label="Session actions">
@@ -187,6 +189,7 @@ export function ProjectRail({
           onClick={onNewSession}
           disabled={!activeCwd || busy}
           title={busy ? busyTitle : undefined}
+          aria-label={busyActionLabel("New session")}
         >
           <IconPlus size={14} />
           <span>New session</span>
@@ -196,7 +199,8 @@ export function ProjectRail({
           className="rail-action"
           onClick={onOpenProject}
           disabled={busy}
-          title={busy ? "Stop the current turn before switching projects" : undefined}
+          title={busy ? busyProjectTitle : undefined}
+          aria-label={busyActionLabel("Open project", busyProjectTitle)}
         >
           <IconFolderOpen size={14} />
           <span>Open project</span>
@@ -207,13 +211,20 @@ export function ProjectRail({
           onClick={onContinueLatest}
           disabled={!activeCwd || busy}
           title={busy ? busyTitle : undefined}
+          aria-label={busyActionLabel("Continue latest")}
         >
           <IconContinue size={14} />
           <span>Continue latest</span>
         </button>
       </nav>
 
-      <label className={`rail-filter${searchOpen || query ? " is-open" : ""}`}>
+      {busy ? (
+        <div className="rail-busy-banner" role="status">
+          Working — stop the turn to switch sessions
+        </div>
+      ) : null}
+
+      <label className="rail-filter is-open">
         <span className="sr-only">Filter projects and sessions</span>
         <IconSearch size={14} />
         <input
@@ -224,7 +235,6 @@ export function ProjectRail({
             if (event.key === "Escape") {
               event.preventDefault();
               if (query) setQuery("");
-              else if (searchOpen) setSearchOpen(false);
               else onClose();
             }
           }}
@@ -277,10 +287,11 @@ export function ProjectRail({
                   {project.sessions.length === 0 && <div className="session-empty">No saved sessions.</div>}
                   {project.sessions.map((session) => {
                     const isRenaming = renaming?.cwd === project.cwd && renaming.id === session.id;
+                    const isActive = session.id === activeSessionId;
                     return (
                       <div
                         key={session.id}
-                        className={`session-row-wrap${session.id === activeSessionId ? " active" : ""}`}
+                        className={`session-row-wrap${isActive ? " active" : ""}`}
                       >
                         {isRenaming ? (
                           <form
@@ -310,14 +321,20 @@ export function ProjectRail({
                         ) : (
                           <button
                             type="button"
-                            className={`session-row${session.id === activeSessionId ? " active" : ""}`}
+                            className={`session-row${isActive ? " active" : ""}`}
                             onClick={() => onResume(project.cwd, session.id)}
                             onContextMenu={(event) => openMenu(event, project.cwd, session)}
                             disabled={busy}
+                            aria-current={isActive ? "true" : undefined}
+                            aria-label={
+                              busy
+                                ? `${session.title}. ${busyTitle}`
+                                : undefined
+                            }
                             title={busy ? busyTitle : `${session.title}\n${session.model}`}
                           >
                             <span
-                              className={`session-active-dot${session.id === activeSessionId ? " is-on" : ""}`}
+                              className={`session-active-dot${isActive ? " is-on" : ""}`}
                               aria-hidden
                             />
                             <span className="session-title">{session.title}</span>
@@ -333,8 +350,13 @@ export function ProjectRail({
                           <button
                             type="button"
                             className="session-more"
-                            aria-label={`Session actions for ${session.title}`}
+                            aria-label={
+                              busy
+                                ? `Session actions for ${session.title}. ${busyTitle}`
+                                : `Session actions for ${session.title}`
+                            }
                             disabled={busy}
+                            title={busy ? busyTitle : undefined}
                             onClick={(event) => openMenu(event, project.cwd, session)}
                           >
                             <IconMore size={14} />
@@ -375,6 +397,9 @@ export function ProjectRail({
             onClick={() => {
               const { cwd, session } = menu;
               setMenu(null);
+              if (!window.confirm(`Archive “${session.title}”? It will leave this project’s session list.`)) {
+                return;
+              }
               void onArchiveSession(cwd, session.id);
             }}
           >

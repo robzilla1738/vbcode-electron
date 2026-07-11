@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Block, Turn } from "../../shared/reducer";
 import { collapsedHint, toolDurationLabel } from "../../shared/reducer";
 import {
@@ -13,10 +13,13 @@ import { SourceList } from "./SourceList";
 import { MarkdownView } from "./MarkdownView";
 import { stripToolGlyph, ToolGlyph } from "../tool-glyph";
 import { IconBrain, IconChevron } from "../icons";
+import { CopyButton } from "../CopyButton";
 
 function DiffBody({ lines }: { lines: string[] }) {
+  const text = lines.join("\n");
   return (
-    <div className="tool-body">
+    <div className="tool-body has-copy">
+      <CopyButton text={text} label="Copy diff" />
       {lines.map((line, i) => {
         const cls = line.startsWith("+")
           ? "diff-add"
@@ -35,29 +38,54 @@ function DiffBody({ lines }: { lines: string[] }) {
   );
 }
 
+function PlainToolBody({
+  id,
+  text,
+  children,
+}: {
+  id?: string;
+  text: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="tool-body has-copy" id={id}>
+      {text ? <CopyButton text={text} label="Copy output" /> : null}
+      {children}
+    </div>
+  );
+}
+
 function BlockView({
   block,
   density,
+  theme,
   now,
   onToggle,
 }: {
   block: Block;
   density: TranscriptDensity;
+  theme: string;
   now: number;
   onToggle: (id: number) => void;
 }) {
   switch (block.kind) {
     case "assistant":
       return (
-        <div className={`block-assistant${block.streaming ? " streaming" : ""}`}>
+        <div className={`block-assistant has-copy${block.streaming ? " streaming" : ""}`}>
+          {!block.streaming && block.text ? (
+            <CopyButton text={block.text} label="Copy answer" />
+          ) : null}
           <div className="md">
-            <MarkdownView streaming={block.streaming}>{block.text}</MarkdownView>
+            <MarkdownView streaming={block.streaming} theme={theme}>
+              {block.text}
+            </MarkdownView>
           </div>
         </div>
       );
     case "tool": {
       const collapsed = toolCollapsed(density, block);
       const dur = toolDurationLabel(block, now);
+      const outputText = block.output.join("\n");
       return (
         <div className="tool-row">
           <button
@@ -91,22 +119,28 @@ function BlockView({
             </div>
           )}
           {!collapsed && !block.isDiff && block.output.length > 0 && (
-            <div className="tool-body" id={`tool-body-${block.id}`}>
+            <PlainToolBody
+              id={`tool-body-${block.id}`}
+              text={block.isSources ? "" : outputText}
+            >
               {block.isSources ? (
-                <SourceList sources={parseSearchResults(block.output.join("\n"))} />
+                <SourceList sources={parseSearchResults(outputText)} />
               ) : block.isMarkdown ? (
                 <div className="md">
-                  <MarkdownView>{block.output.join("\n")}</MarkdownView>
+                  <MarkdownView theme={theme}>{outputText}</MarkdownView>
                 </div>
               ) : (
-                block.output.join("\n")
+                outputText
               )}
-            </div>
+            </PlainToolBody>
           )}
           {!block.done && block.tail && (
-            <div className="tool-body" id={collapsed || block.output.length === 0 ? `tool-body-${block.id}` : undefined}>
+            <PlainToolBody
+              id={collapsed || block.output.length === 0 ? `tool-body-${block.id}` : undefined}
+              text={block.tail.slice(-400)}
+            >
               {block.tail.slice(-400)}
-            </div>
+            </PlainToolBody>
           )}
         </div>
       );
@@ -135,7 +169,8 @@ function BlockView({
             </span>
           </button>
           {!collapsed && (
-            <div className="thinking-body" id={`thinking-body-${block.id}`}>
+            <div className="thinking-body has-copy" id={`thinking-body-${block.id}`}>
+              {block.text ? <CopyButton text={block.text} label="Copy thinking" /> : null}
               {block.text}
             </div>
           )}
@@ -159,6 +194,7 @@ export function TranscriptView({
   revealPage,
   foldedTurns,
   density,
+  theme,
   itemWindowFor,
   onToggleBlock,
   onToggleTurn,
@@ -171,6 +207,7 @@ export function TranscriptView({
   revealPage: number;
   foldedTurns: Set<number>;
   density: TranscriptDensity;
+  theme: string;
   itemWindowFor: (turnKey: number, itemCount: number) => {
     start: number;
     hidden: number;
@@ -222,10 +259,8 @@ export function TranscriptView({
         className="transcript"
         ref={scrollRef}
         onScroll={handleScroll}
-        role="log"
+        role="region"
         aria-label="Conversation transcript"
-        aria-live="polite"
-        aria-relevant="additions text"
       >
         <div className="transcript-content">
           {hiddenCount > 0 && (
@@ -241,17 +276,24 @@ export function TranscriptView({
               <section className="turn" key={turn.key} aria-label={turn.user ? "Conversation turn" : "Assistant activity"}>
                 <div className="turn-content" id={`turn-items-${turn.key}`}>
                   {turn.user && (
-                    <button
-                      type="button"
-                      className="block-user"
-                      onClick={() => onToggleTurn(turn.key)}
-                      aria-expanded={!folded}
-                      aria-controls={`turn-items-${turn.key}`}
-                      aria-label={folded ? "Expand turn" : "Collapse turn"}
-                    >
-                      <span className="block-user-text">{turn.user.text}</span>
-                      {folded ? <span className="folded-hint">{turn.items.length} hidden</span> : null}
-                    </button>
+                    <div className="block-user-row">
+                      <div className="block-user">
+                        <span className="block-user-text">{turn.user.text}</span>
+                        {folded ? (
+                          <span className="folded-hint">{turn.items.length} hidden</span>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        className="turn-fold"
+                        onClick={() => onToggleTurn(turn.key)}
+                        aria-expanded={!folded}
+                        aria-controls={`turn-items-${turn.key}`}
+                        aria-label={folded ? "Expand turn" : "Collapse turn"}
+                      >
+                        <IconChevron open={!folded} size={12} />
+                      </button>
+                    </div>
                   )}
                   {!folded && itemWindow.hidden > 0 && (
                     <button
@@ -269,6 +311,7 @@ export function TranscriptView({
                         key={b.id}
                         block={b}
                         density={density}
+                        theme={theme}
                         now={now}
                         onToggle={onToggleBlock}
                       />

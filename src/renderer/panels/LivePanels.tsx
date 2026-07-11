@@ -2,12 +2,16 @@ import { useState } from "react";
 import { permissionPreview, toolLabel } from "../../shared/tool-icons";
 import type { PendingPerm } from "../../shared/reducer";
 import type { QueuedItem } from "../../shared/types";
-import { externalHref } from "../../shared/sources";
 import { IconChevron, IconRemove, IconSteer } from "../icons";
+import { CopyButton } from "../CopyButton";
+import { ExternalLink } from "../primitives";
+import { MarkdownView } from "../transcript/MarkdownView";
 
 function ActionKbd({ children }: { children: string }) {
   return <kbd className="action-kbd">{children}</kbd>;
 }
+
+const PREVIEW_MAX_LINES = 8;
 
 export function PermissionCard({
   perm,
@@ -20,6 +24,8 @@ export function PermissionCard({
 }) {
   const preview = permissionPreview(perm.toolName, perm.input);
   const payload = JSON.stringify(perm.input, null, 2).slice(0, 800);
+  const previewLines = preview?.lines.slice(0, PREVIEW_MAX_LINES) ?? [];
+  const previewClipped = (preview?.lines.length ?? 0) > PREVIEW_MAX_LINES;
 
   const title = `Permission required${count > 1 ? ` · 1/${count}` : ""} · ${perm.toolName}`;
 
@@ -27,9 +33,9 @@ export function PermissionCard({
     <div className="card perm" role="region" aria-labelledby="permission-card-title">
       <h3 id="permission-card-title">{title}</h3>
       <p className="perm-tool-label">{toolLabel(perm.toolName, perm.input)}</p>
-      {preview && (
+      {preview && previewLines.length > 0 && (
         <div className="tool-body permission-preview">
-          {preview.lines.map((l, i) => (
+          {previewLines.map((l, i) => (
             <div
               key={i}
               className={
@@ -39,6 +45,7 @@ export function PermissionCard({
               {l}
             </div>
           ))}
+          {previewClipped ? <div className="permission-preview-more">…</div> : null}
         </div>
       )}
       <details className="decision-details" open={!preview}>
@@ -50,8 +57,6 @@ export function PermissionCard({
           type="button"
           className="chip primary"
           onClick={() => onDecide("once")}
-          // biome-ignore lint/a11y/noAutofocus: focus the default action so keyboard users can approve without tabbing
-          autoFocus
           aria-keyshortcuts="y"
         >
           Allow once <ActionKbd>Y</ActionKbd>
@@ -109,31 +114,23 @@ export function PlanCard({
           Ungrounded — presented without the research this request required
         </div>
       )}
-      <pre className="plan-text">
-        {plan.text}
-      </pre>
+      <div className="plan-text has-copy">
+        {plan.text ? <CopyButton text={plan.text} label="Copy plan" /> : null}
+        <div className="md">
+          <MarkdownView>{plan.text}</MarkdownView>
+        </div>
+      </div>
       {plan.sources && plan.sources.length > 0 && (
         <div className="plan-evidence">
           <h4>Sources</h4>
           <ol className="plan-sources">
-            {plan.sources.map((source) => {
-              const href = externalHref(source.url);
-              return (
-                <li key={source.url}>
-                  {href ? (
-                    <a
-                      href={href}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        void window.vibe.openExternal(href);
-                      }}
-                    >
-                      {source.title || source.url}
-                    </a>
-                  ) : source.title || source.url}
-                </li>
-              );
-            })}
+            {plan.sources.map((source) => (
+              <li key={source.url}>
+                <ExternalLink href={source.url}>
+                  {source.title || source.url}
+                </ExternalLink>
+              </li>
+            ))}
           </ol>
         </div>
       )}
@@ -150,8 +147,6 @@ export function PlanCard({
           type="button"
           className="chip primary"
           onClick={onAccept}
-          // biome-ignore lint/a11y/noAutofocus: focus the default action so keyboard users can accept without tabbing
-          autoFocus
           aria-keyshortcuts="Enter"
         >
           Accept <ActionKbd>Enter</ActionKbd>
@@ -179,43 +174,39 @@ export function PlanCard({
 }
 
 export function QueuePanel({
-  active,
   pending,
   onSteer,
   onDequeue,
 }: {
-  active: QueuedItem | null;
   pending: QueuedItem[];
   onSteer: (id: string) => void;
   onDequeue: (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
-  if (!active && pending.length === 0) return null;
-  const count = (active ? 1 : 0) + pending.length;
-  const preview = active?.label ?? pending[0]?.label ?? "";
+  // Show the first queued item (with actions) always; expand for the rest.
+  const [expanded, setExpanded] = useState(false);
+  if (pending.length === 0) return null;
+  const visible = expanded ? pending : pending.slice(0, 1);
+  const hiddenCount = pending.length - visible.length;
+
   return (
     <div className="composer-queue-tray" role="region" aria-label="Queued prompts">
-      <button
-        type="button"
-        className="queue-tray-header"
-        onClick={() => setExpanded((value) => !value)}
-        aria-expanded={expanded}
-        aria-controls="composer-queue-items"
-      >
-        <span className="queue-tray-count">
-          <IconChevron open={expanded} size={12} />
-          {count} queued
-        </span>
-        {!expanded && preview ? <span className="queue-tray-preview">{preview}</span> : null}
-      </button>
-      <div id="composer-queue-items" className={`queue-items${expanded ? "" : " is-collapsed"}`}>
-        {active && (
-          <div className="queue-row is-active" aria-current="true">
-            <span className="queue-label">{active.label}</span>
-            <span className="queue-active-badge">In progress</span>
-          </div>
-        )}
-        {pending.map((q) => (
+      <div className="queue-tray-bar">
+        <span className="queue-tray-count">{pending.length} queued</span>
+        {pending.length > 1 ? (
+          <button
+            type="button"
+            className="queue-tray-toggle"
+            onClick={() => setExpanded((value) => !value)}
+            aria-expanded={expanded}
+            aria-controls="composer-queue-items"
+          >
+            <IconChevron open={expanded} size={12} />
+            {expanded ? "Show less" : `+${hiddenCount} more`}
+          </button>
+        ) : null}
+      </div>
+      <div id="composer-queue-items" className="queue-items">
+        {visible.map((q) => (
           <div key={q.id} className="queue-row">
             <span className="queue-label">{q.label}</span>
             <div className="queue-actions">
@@ -223,7 +214,7 @@ export function QueuePanel({
                 type="button"
                 className="queue-action"
                 onClick={() => onSteer(q.id)}
-                title="Make this the active queued item"
+                title="Steer — run this next"
                 aria-label={`Steer ${q.label} to front of queue`}
               >
                 <IconSteer size={13} />
@@ -233,6 +224,7 @@ export function QueuePanel({
                 type="button"
                 className="queue-action"
                 onClick={() => onDequeue(q.id)}
+                title="Remove from queue"
                 aria-label={`Remove ${q.label} from queue`}
               >
                 <IconRemove size={13} />
@@ -242,6 +234,7 @@ export function QueuePanel({
           </div>
         ))}
       </div>
+      <p className="queue-hint">Steer runs next · Remove drops it</p>
     </div>
   );
 }
