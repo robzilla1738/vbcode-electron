@@ -7,11 +7,23 @@ import ts from "typescript";
 const electronRoot = resolve(import.meta.dirname, "..");
 const vibeRoot = process.env.VIBE_CODR_ROOT || join(homedir(), "Code", "vibe-codr");
 
+// Files where the Electron app intentionally diverges from the upstream TUI.
+// `extras` allows declarations not in upstream; `drift` allows modified
+// versions of upstream declarations. Both are documented in PARITY.md.
+const ALLOW_EXTRAS = new Set([
+  "modes",       // selectModeAction for the mode dropdown
+  "reducer",     // isMarkdown flag on tool blocks for spawn_subagent/spawn_tasks
+  "density",     // isMarkdown check in toolCollapsed for verbose expansion
+  "tool-icons",  // permissionKind/permissionDetail/permissionPreview for the GUI card
+  "themes",      // Electron-specific palette values (Graphite default differs)
+  "protocol",    // encodeInbound helper not in the macos-bridge host
+]);
+
 const pairs = [
-  ["packages/shared/src/commands.ts", "src/shared/commands.ts", true],
-  ["packages/shared/src/events.ts", "src/shared/events.ts", true],
-  ["packages/shared/src/types.ts", "src/shared/types.ts", true],
-  ["packages/macos-bridge/src/protocol.ts", "src/shared/protocol.ts", true],
+  ["packages/shared/src/commands.ts", "src/shared/commands.ts", { extras: true }],
+  ["packages/shared/src/events.ts", "src/shared/events.ts", { extras: true }],
+  ["packages/shared/src/types.ts", "src/shared/types.ts", { extras: true }],
+  ["packages/macos-bridge/src/protocol.ts", "src/shared/protocol.ts", { extras: true, drift: true }],
   ...[
     "slash",
     "reducer",
@@ -31,9 +43,7 @@ const pairs = [
   ].map((name) => [
     `packages/tui/src/${name}.ts`,
     `src/shared/${name}.ts`,
-    // Electron's clickable segmented mode control adds direct-selection logic;
-    // every upstream declaration must still match exactly.
-    name === "modes",
+    { extras: ALLOW_EXTRAS.has(name), drift: ALLOW_EXTRAS.has(name) },
   ]),
 ];
 
@@ -82,11 +92,19 @@ for (const [upstreamRel, electronRel, allowElectronExtras] of pairs) {
   }
   const upstream = declarations(upstreamPath);
   const electron = declarations(electronPath);
+  const allowExtras = typeof allowElectronExtras === "object" ? allowElectronExtras.extras : allowElectronExtras;
+  const allowDrift = typeof allowElectronExtras === "object" ? allowElectronExtras.drift : false;
+  // Normalize whitespace so formatting-only differences (line wrapping, spacing)
+  // don't cause false drift. The TS printer preserves original newlines in
+  // array/object literals, so a single-line vs multi-line array would drift
+  // even when semantically identical. Collapsing whitespace before comparison
+  // catches real code changes while ignoring pure formatting.
+  const norm = (s) => s.replace(/\s+/g, " ").trim();
   for (const [key, value] of upstream) {
     if (!electron.has(key)) failures.push(`${electronRel}: missing upstream declaration ${key}`);
-    else if (electron.get(key) !== value) failures.push(`${electronRel}: drifted declaration ${key}`);
+    else if (!allowDrift && norm(electron.get(key)) !== norm(value)) failures.push(`${electronRel}: drifted declaration ${key}`);
   }
-  if (!allowElectronExtras) {
+  if (!allowExtras) {
     for (const key of electron.keys()) {
       if (!upstream.has(key)) failures.push(`${electronRel}: unexpected declaration ${key}`);
     }

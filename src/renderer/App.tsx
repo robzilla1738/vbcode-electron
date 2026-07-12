@@ -915,7 +915,13 @@ export function App() {
 
       // CLI Ctrl+C: clear a draft first, then gracefully quit. Do not capture
       // macOS Cmd+C — it must remain native copy for selected transcript/input.
-      if (e.key === "c" && e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      // Also don't fire when focus is in a text input that isn't the composer
+      // (rename fields, search filters, deny-reason) — Ctrl+C there should
+      // remain native copy, not quit the app.
+      if (
+        e.key === "c" && e.ctrlKey && !e.metaKey && !e.shiftKey &&
+        (!inInput || inComposer)
+      ) {
         e.preventDefault();
         if (draft.trim()) {
           setDraft("");

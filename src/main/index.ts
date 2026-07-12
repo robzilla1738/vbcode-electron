@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, nativeTheme, shell } from "electron";
 import { join, resolve, relative, isAbsolute } from "node:path";
-import { writeFile, mkdir, readFile } from "node:fs/promises";
+import { writeFile, mkdir, readFile, rm } from "node:fs/promises";
 import { existsSync, statSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
@@ -388,15 +388,35 @@ app.whenReady().then(() => {
   });
 });
 
+let quitting = false;
+
 app.on("before-quit", async (e) => {
   if (!bridge.isRunning) return;
+  // Guard against re-entrant before-quit (e.g. Cmd+Q while already quitting,
+  // or app.exit firing a second before-quit after cleanup completes).
+  if (quitting) return;
+  quitting = true;
   e.preventDefault();
-  try {
-    await bridge.rpc("finalize");
-  } catch {
-    /* ignore */
-  }
-  await bridge.stop();
+  // Don't let a stuck host block quit — race the finalize + stop against a
+  // hard 5-second budget so the app always exits promptly.
+  await Promise.race([
+    (async () => {
+      try {
+        await bridge.rpc("finalize");
+      } catch {
+        /* ignore */
+      }
+      await bridge.stop();
+      // Clean up per-session clipboard temp PNGs (TUI parity: cleanupClipboardTempDir).
+      // Best-effort — a cleanup failure must not trap the exit path.
+      try {
+        await rm(join(tmpdir(), `vibe-clips-${process.pid}`), { recursive: true, force: true });
+      } catch {
+        /* swallow */
+      }
+    })(),
+    new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+  ]);
   app.exit(0);
 });
 

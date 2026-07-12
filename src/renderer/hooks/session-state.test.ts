@@ -171,3 +171,58 @@ describe("subagent-activity running-only", () => {
     expect(state.subagents[0]?.activity).toBeUndefined();
   });
 });
+
+describe("subagent-started deduplication", () => {
+  it("updates an existing subagent in place (continue_subagent reuses id)", () => {
+    let state = initialChrome("/repo");
+    state = event(state, {
+      type: "subagent-started",
+      sessionId: "s",
+      subagentId: "sub1",
+      prompt: "first prompt",
+    });
+    expect(state.subagents).toHaveLength(1);
+    expect(state.subagents[0]?.prompt).toBe("first prompt");
+
+    state = event(state, {
+      type: "subagent-finished",
+      sessionId: "s",
+      subagentId: "sub1",
+      result: "first result",
+    });
+    expect(state.subagents[0]?.status).toBe("done");
+    expect(state.subagents[0]?.result).toBe("first result");
+
+    // continue_subagent reuses the same id — update in place, not append
+    state = event(state, {
+      type: "subagent-started",
+      sessionId: "s",
+      subagentId: "sub1",
+      prompt: "second prompt",
+    });
+    expect(state.subagents).toHaveLength(1);
+    expect(state.subagents[0]?.prompt).toBe("second prompt");
+    expect(state.subagents[0]?.status).toBe("running");
+    expect(state.subagents[0]?.result).toBeUndefined();
+    expect(state.subagents[0]?.activity).toBeUndefined();
+  });
+
+  it("appends a new subagent when the id is fresh", () => {
+    let state = initialChrome("/repo");
+    state = event(state, {
+      type: "subagent-started",
+      sessionId: "s",
+      subagentId: "sub1",
+      prompt: "task a",
+    });
+    state = event(state, {
+      type: "subagent-started",
+      sessionId: "s",
+      subagentId: "sub2",
+      prompt: "task b",
+    });
+    expect(state.subagents).toHaveLength(2);
+    expect(state.subagents[0]?.id).toBe("sub1");
+    expect(state.subagents[1]?.id).toBe("sub2");
+  });
+});

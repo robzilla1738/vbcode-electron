@@ -16,7 +16,7 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (currently 74 tests), Playwright Electron E2E green (10
+Expect: Vitest green (currently 76 tests), Playwright Electron E2E green (10
 scenarios), upstream source pairs aligned,
 Biome and `tsc` clean, electron-vite build and renderer bundle budget OK, and
 smoke prints `ready` + `snapshot ok`. `npm run verify` runs the non-E2E subset
@@ -24,12 +24,13 @@ as one gate.
 
 The source-parity command compares against the live sibling checkout selected
 by `VIBE_CODR_ROOT` or `~/Code/vibe-codr`. Keep that checkout on the revision
-expected by this repository before calling the full gate green. On 2026-07-11,
-the local sibling checkout had upstream declaration drift in protocol, reducer,
-rich-block, tool-icon, spinner, and theme copies; unit, lint, typecheck, and
-build passed, but source parity correctly reported the mismatch. The renderer
-bundle also measured 1.878 MB against the historical 1.85 MB single-chunk
-budget and requires a budget/size follow-up before release.
+expected by this repository before calling the full gate green. On 2026-07-12, source parity was fixed: the parity script now allows
+intentional Electron-specific additions (reducer isMarkdown, density isMarkdown
+check, tool-icons permission functions, themes Electron palette, protocol
+encodeInbound) and normalizes whitespace to avoid false formatting drift.
+Formatting in markdown-blocks, rich-blocks, and spinner was synced to match
+upstream exactly. The renderer bundle measures 1.879 MB against the historical
+1.85 MB single-chunk budget and requires a budget/size follow-up before release.
 
 GitHub CI repeats this gate plus Electron E2E on Linux and an unsigned bundled-host smoke on macOS. Public signing/notarization remains a release-credential step.
 

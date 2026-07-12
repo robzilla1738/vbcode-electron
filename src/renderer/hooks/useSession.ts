@@ -16,6 +16,7 @@ import {firstLine,
   groupIntoTurns,
   initialTranscript,
   reduceTranscript,
+  truncate,
   type TranscriptAction,
   type TranscriptState
 } from "../../shared/reducer";
@@ -54,6 +55,31 @@ const TOAST_TTL: Record<ToastSeverity, number> = {
   error: 6000,
 };
 
+/** Events suppressed while the clear-gate is active (TUI parity:
+ * clearScopedEventTypes). Stale stream/notice/subagent/checkpoint/verify
+ * events from the pre-clear turn must not bleed into the freshly reset view.
+ * Module-level so it is not recreated on every render. */
+const CLEAR_SCOPED_TYPES = new Set<string>([
+  "assistant-text-delta",
+  "reasoning-delta",
+  "tool-call-started",
+  "tool-call-progress",
+  "tool-call-finished",
+  "file-changed",
+  "permission-request",
+  "plan-presented",
+  "subagent-started",
+  "subagent-activity",
+  "subagent-finished",
+  "notice",
+  "compacted",
+  "loop-stopped",
+  "loop-tick",
+  "checkpoint-restored",
+  "verify-started",
+  "verify-finished",
+  "engine-error",
+]);
 const WINDOW_TURNS = 40;
 const REVEAL_PAGE = 20;
 const TURN_ITEMS_MAX = 120;
@@ -94,31 +120,6 @@ export function useSession(cwd: string | null) {
     document.documentElement.style.setProperty("--mode", modeColor(uiMode));
   }, [chrome.theme, chrome.accent, uiMode]);
 
-  // Events suppressed while the clear-gate is active (TUI parity:
-  // clearScopedEventTypes).  Stale stream/notice/subagent/checkpoint/verify
-  // events from the pre-clear turn must not bleed into the freshly reset view.
-  const CLEAR_SCOPED_TYPES = new Set<string>([
-    "assistant-text-delta",
-    "reasoning-delta",
-    "tool-call-started",
-    "tool-call-progress",
-    "tool-call-finished",
-    "file-changed",
-    "permission-request",
-    "plan-presented",
-    "subagent-started",
-    "subagent-activity",
-    "subagent-finished",
-    "notice",
-    "compacted",
-    "loop-stopped",
-    "loop-tick",
-    "checkpoint-restored",
-    "verify-started",
-    "verify-finished",
-    "engine-error",
-  ]);
-
   const flushDeltas = useCallback(() => {
     flushTimer.current = null;
     // Flush buffered tool progress chunks first (TUI parity: landPending order).
@@ -155,8 +156,11 @@ export function useSession(cwd: string | null) {
 
   const endTurn = useCallback(
     (opts: { stopWorking: boolean }) => {
-      landReasoning();
+      // Flush buffered deltas BEFORE landing reasoning (TUI parity: landPending
+      // runs before commitThinking so the streaming reply is complete before
+      // finalizeActive fires inside the thinking action).
       flushDeltas();
+      landReasoning();
       dispatchTranscript({ type: "clear-turn" });
       if (opts.stopWorking) dispatchChrome({ type: "set-busy", busy: false });
     },
@@ -213,18 +217,22 @@ export function useSession(cwd: string | null) {
 
       switch (event.type) {
         case "user-message":
+          flushDeltas();
           landReasoning();
           dispatchTranscript({ type: "user", text: event.text });
           break;
         case "plan-presented":
           // Finalize the streaming assistant reply before the plan card appears
           // (TUI parity: finalizeAssistant() in plan-presented handler).
-          landReasoning();
           flushDeltas();
+          landReasoning();
           dispatchTranscript({ type: "finalize" });
           break;
         case "assistant-text-delta":
           if (event.subagentId) break;
+          // Flush any pending deltas before landing reasoning so the streaming
+          // reply stays intact (TUI parity: landPending before commitThinking).
+          flushDeltas();
           landReasoning();
           deltaBuf.current += event.delta;
           if (flushTimer.current == null) {
@@ -243,8 +251,8 @@ export function useSession(cwd: string | null) {
           break;
         case "tool-call-started":
           if (event.subagentId) break;
-          landReasoning();
           flushDeltas();
+          landReasoning();
           dispatchTranscript({
             type: "tool-start",
             toolCallId: event.toolCallId,
@@ -290,6 +298,7 @@ export function useSession(cwd: string | null) {
           });
           break;
         case "notice":
+          flushDeltas();
           dispatchTranscript({
             type: "notice",
             text: event.message,
@@ -305,6 +314,7 @@ export function useSession(cwd: string | null) {
           });
           break;
         case "checkpoint-created":
+          flushDeltas();
           dispatchTranscript({
             type: "notice",
             text: `checkpoint ${event.label}`,
@@ -312,6 +322,7 @@ export function useSession(cwd: string | null) {
           });
           break;
         case "checkpoint-restored":
+          flushDeltas();
           dispatchTranscript({
             type: "notice",
             text: `${GLYPH.revert} reverted: ${event.label}`,
@@ -319,6 +330,7 @@ export function useSession(cwd: string | null) {
           });
           break;
         case "verify-started":
+          flushDeltas();
           dispatchTranscript({
             type: "notice",
             text: `verifying: ${event.command}`,
@@ -326,9 +338,10 @@ export function useSession(cwd: string | null) {
           });
           break;
         case "verify-finished": {
+          flushDeltas();
           const detail =
             !event.ok && event.output
-              ? ` — ${firstLine(event.output) ?? ""}`.slice(0, 120)
+              ? ` — ${truncate(firstLine(event.output) ?? "", 120)}`
               : "";
           dispatchTranscript({
             type: "notice",
@@ -338,6 +351,7 @@ export function useSession(cwd: string | null) {
           break;
         }
         case "compacted":
+          flushDeltas();
           dispatchTranscript({
             type: "notice",
             text: `Compacted history · freed ~${event.freedTokens} tokens`,
@@ -345,6 +359,7 @@ export function useSession(cwd: string | null) {
           });
           break;
         case "loop-tick":
+          flushDeltas();
           dispatchTranscript({
             type: "notice",
             text: `${GLYPH.loopTick} loop iteration ${event.iteration}`,
@@ -352,6 +367,7 @@ export function useSession(cwd: string | null) {
           });
           break;
         case "loop-stopped":
+          flushDeltas();
           dispatchTranscript({
             type: "notice",
             text: `Loop stopped — ${event.reason}`,

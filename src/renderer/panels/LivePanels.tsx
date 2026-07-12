@@ -168,6 +168,12 @@ export function PermissionCard({
               if (event.key === "Enter") {
                 event.preventDefault();
                 onDecide("deny", denyReason.trim() || undefined);
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                setDenyOpen(false);
+                setDenyReason("");
+                onceRef.current?.focus({ preventScroll: true });
               }
             }}
             placeholder="Why deny? Optional — press Enter to confirm"

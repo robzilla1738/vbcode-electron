@@ -311,3 +311,35 @@ npm run dev
   strong/heading/list/code hierarchy; GFM table scroll shell; quieter source cards
 - [x] Preview scenarios `table`, `docs`, `sources`; docs synced
   (UI/PARITY/README/AGENTS/VERIFICATION/ACCEPTANCE)
+
+## Logic audit and hardening (2026-07-12)
+
+- [x] Delta flush ordering: `flushDeltas()` now runs before `landReasoning()` and
+  before every non-delta transcript dispatch, matching TUI's `landPending` →
+  `commitThinking` → `reduceTranscript` sequence (was reversed/missing in
+  `endTurn`, `user-message`, `assistant-text-delta`, `tool-call-started`,
+  `plan-presented`, and all notice/checkpoint/verify/loop handlers)
+- [x] Subagent-started deduplication: `continue_subagent` reuses the same child
+  ID; existing row is updated in place (preserving position) instead of
+  filtering and re-appending (TUI parity); `activity` and `result` cleared on
+  re-start
+- [x] Quit handler: 5-second hard budget via `Promise.race` (was unbounded —
+  `finalize` RPC 20s + `stop()` 2s = 22s worst case); re-entrancy guard via
+  `quitting` flag
+- [x] Clipboard temp dir cleanup on quit (TUI `cleanupClipboardTempDir` parity);
+  `rm(join(tmpdir(), \`vibe-clips-${process.pid}\`))` in quit race
+- [x] Ctrl+C only fires in the composer or outside any text input (was quitting
+  the app from rename fields, search filters, deny-reason inputs)
+- [x] Escape in deny-reason input closes it, clears the reason, and returns
+  focus to the "Allow once" button (was a dead end — no handler, window-level
+  Esc returned early for non-composer inputs)
+- [x] `CLEAR_SCOPED_TYPES` moved to module level (was recreated on every render)
+- [x] `verify-finished` notice uses `truncate()` (cell-aware, code-point-safe)
+  instead of `.slice(0, 120)` (could strand half a surrogate pair)
+- [x] Source parity script: `ALLOW_EXTRAS` set with `{ extras, drift }` flags for
+  reducer/density/tool-icons/themes/protocol; whitespace normalization for
+  formatting-only drift
+- [x] Formatting in markdown-blocks, rich-blocks, spinner synced to match
+  upstream TUI exactly (import paths only difference)
+- [x] 2 new unit tests: subagent-started in-place update + fresh-id append
+- [x] 76 unit tests, 10 e2e tests, 19 source pairs, lint, typecheck all green

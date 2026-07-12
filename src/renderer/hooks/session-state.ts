@@ -272,16 +272,34 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
         checkpoints: [...s.checkpoints, { id: event.id, label: event.label }].slice(-20),
       };
     case "subagent-started": {
-      const subagents = [
-        ...s.subagents.filter((x) => x.id !== event.subagentId),
-        {
-          id: event.subagentId,
+      // Deduplicate by subagentId: a continue_subagent re-uses the same child
+      // id, so UPDATE the existing row in place (preserving position) instead
+      // of appending a duplicate (TUI parity).
+      const existing = s.subagents.findIndex((x) => x.id === event.subagentId);
+      if (existing >= 0) {
+        const subagents = s.subagents.slice();
+        subagents[existing] = {
+          ...subagents[existing],
           prompt: event.prompt,
           status: "running" as const,
+          activity: undefined,
+          result: undefined,
           startedAt: Date.now(),
-        },
-      ];
-      return { ...s, subagents };
+        };
+        return { ...s, subagents };
+      }
+      return {
+        ...s,
+        subagents: [
+          ...s.subagents,
+          {
+            id: event.subagentId,
+            prompt: event.prompt,
+            status: "running" as const,
+            startedAt: Date.now(),
+          },
+        ],
+      };
     }
     case "subagent-activity": {
       // Attach activity only to the RUNNING child (TUI parity) so a stray

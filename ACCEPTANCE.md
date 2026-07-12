@@ -56,7 +56,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | A31 | P0 | Keyboard | Reachability | All essential CLI-equivalent actions are keyboard reachable with documented shortcuts and deterministic priority when states overlap. | test: key help/parsers; e2e: dialogs, cards, Escape, editor, composer | pass |
 | A32 | P0 | Accessibility | Desktop accessibility | Controls have names, focus indicators, semantic roles, reduced-motion support, AA contrast, and work at 200% zoom without lost actions. | e2e: role-based controls, flat focus state, 200% zoom; review: reduced-motion CSS | pass |
 | A33 | P0 | Resilience | Empty/error/narrow states | First run, no sessions, no catalog results, RPC errors, host disconnect, long text, and narrow window states remain understandable and recoverable. | test: bridge/error cases; e2e: empty jobs + 200% zoom; review: empty/error surfaces | pass |
-| A34 | P0 | Quality | Source parity guard | Pure modules ported from TUI have drift-detection coverage or shared fixtures so upstream changes cannot silently break parity. | script: source parity audit; test: shared behavioral vectors | attention |
+| A34 | P0 | Quality | Source parity guard | Pure modules ported from TUI have drift-detection coverage or shared fixtures so upstream changes cannot silently break parity. | script: source parity audit; test: shared behavioral vectors | pass |
 | A35 | P0 | Quality | Verification gates | Lint, unit tests, source parity, typecheck, production build, bundle budget, bridge smoke, and focused UI smoke are documented and must pass before release. | script:`npm run verify && npm run smoke:bridge && npm run test:e2e` | attention |
 | A36 | P0 | Packaging | Standalone app | Packaged app includes/resolves the engine host without `VIBE_CODR_ROOT`, launches, opens a project, runs a turn, and shuts down cleanly. | script:`npm run pack && npm run smoke:packaged` | pass |
 | A37 | P1 | Layout | Desktop composition | Rail, edge-to-edge transcript pane, composer, approval panels, and activity surfaces preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints; output and composer share the reading measure. | review: responsive shell CSS; e2e: 200% zoom reachability | pass |
@@ -94,13 +94,13 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 **Current verification snapshot (2026-07-12):**
 
 ```text
-npm test                         # 74/74 pass
+npm test                         # 76/76 pass
 npm run lint                     # clean; 89 files checked
 npm run typecheck                # pass
 npm run build                    # pass
 npm run build:icon               # icon PNG/ICNS regeneration pass
-npm run test:e2e                 # 10/10 after current UI assertion updates
-npm run verify:source-parity     # attention: local sibling declaration drift
-npm run verify:bundle            # attention: 1.878 MB vs 1.85 MB chunk budget
-npm run verify                   # blocked by the two attention gates above
+npm run test:e2e                 # 10/10 pass
+npm run verify:source-parity     # pass (19 source pairs, drift+extras flags fixed)
+npm run verify:bundle            # attention: 1.879 MB vs 1.85 MB chunk budget (pre-existing)
+npm run verify                   # blocked by the bundle budget gate only
 ```
