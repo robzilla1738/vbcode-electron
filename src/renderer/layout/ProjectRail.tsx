@@ -525,7 +525,7 @@ export function ProjectRail({
                             aria-current={isActive ? "true" : undefined}
                             aria-label={
                               busy
-                                ? `${session.title}. ${busyTitle}`
+                                ? `${session.title}. AI is working in this session. ${busyTitle}`
                                 : undefined
                             }
                             title={busy ? busyTitle : `${session.title}\n${session.model}`}
@@ -537,12 +537,12 @@ export function ProjectRail({
                             >
                               {relativeSessionTime(session.updatedAt)}
                             </time>
-                            {isActive && (
+                            {isActive && busy ? (
                               <span
-                                className={`session-status-indicator${busy ? " is-busy" : ""}`}
-                                aria-label={busy ? "Session is active" : "Active session"}
+                                className="session-status-indicator is-busy"
+                                aria-hidden="true"
                               />
-                            )}
+                            ) : null}
                           </button>
                         )}
                         {!isRenaming && (

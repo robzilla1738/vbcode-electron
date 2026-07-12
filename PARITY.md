@@ -1,6 +1,6 @@
 # CLI ↔ Electron parity checklist
 
-Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 74 tests), `npm run test:e2e` (10 scenarios), plus `npm run verify:source-parity`.
+Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 76 tests), `npm run test:e2e` (10 scenarios), plus `npm run verify:source-parity`.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
@@ -37,7 +37,7 @@ to weaken the parity guard.
 - [x] Resume hydrates transcript from `snapshot.history`
 - [x] Submit prompt → streaming assistant text + tool rows
 - [x] `busy` held until `engine-idle` (not per-turn idle)
-- [x] Reasoning → collapsed ✻ thought rows; ⌘T toggles
+- [x] Reasoning → compact grouped Thinking disclosure with collapsed thought rows; ⌘T toggles
 - [x] Mode cycle PLAN / AGENT / YOLO (⇧Tab); plan-pending gate
 - [x] Leaving plan mode dismisses plan card (mode-changed → plan: null)
 - [x] user-message resets subagents list (per-turn clean slate)
@@ -56,6 +56,7 @@ to weaken the parity guard.
 - [x] Assistant markdown (Streamdown + GFM; live while streaming)
 - [x] Diff blocks green/red hunk coloring
 - [x] Tool icons + condensed labels; expand on click; auto-expand on error
+- [x] Consecutive tool/thinking activity groups under `Thinking · N steps`; individual rows retain click-to-expand bodies
 - [x] Turn fold (click or keyboard-activate the user bubble / ⌘O fold-all; no persistent arrow); density quiet/normal/verbose (⌘D)
 - [x] Windowed transcript (“N earlier turns”) with progressive reveal (20 at a time)
 - [x] Per-turn item windowing for long tool runs (cap 120, step 24, reveal page)
@@ -273,24 +274,24 @@ npm run dev
 - [x] Mode dropdown: trigger + options menu (`selectModeAction`) with uniform sentence-case menu typography and keyboard focus
 - [x] Slash/mention menu: quiet surface-enter, restrained overlay shadow, sentence-case headers, keyboard focus containment, and compact footer hints
 - [x] Catalog popover: 46vh/440px max, floating origin, uniform sans typography, compact section labels, Free tags, empty hint, clear button, and inline loading/error states
-- [x] Project rail: active session surface + weight; row radius 7px, session row 72% assistant text
+- [x] Project rail: active session surface + weight; row radius 7px, session row 72% assistant text, working-only spinner on the active busy session
 - [x] Side popups: activity rail 94% bg, heading 14px sticky blur 12px, meta-block 2px padding 10px radius + 1px 6% highlight, meta-label 10px 700 0.06em upper, sidebar-heading 14px padding
 - [x] Transcript: user bubble max 92%/48rem, 14px radius + 1px 10% highlight, assistant prose optimizeLegibility, tool body margin 20px + 10px padding 36% bg, thinking 24% bg, source cards 10px radius softer, diff 2.5px solid + 82%/88% bg + 72% ctx, earlier/jump refined, composer-stack 14px radius 36% border + 1px 12% highlight
 - [x] Composer stack: queue as its own quiet card above the composer (not a merged surface); busy Stop control (no separate working strip)
-- [x] Typecheck, lint, build, and unit tests green (74 tests); source parity and bundle budget remain explicit release gates documented in `VERIFICATION.md`
+- [x] Typecheck, lint, build, and unit tests green (76 tests); source parity and bundle budget remain explicit release gates documented in `VERIFICATION.md`
 
-## Current UI consolidation (2026-07-11)
+## Current UI consolidation (2026-07-12)
 
 - [x] Default palette aligned to the requested graphite roles: `#111111`,
   `#1a1a1a`, `#242424`, `#393939`, and `#88b0e0`.
 - [x] Project rail actions are hover/focus revealed, portal-mounted, and
-  reserve action-column space so row controls cannot overlap.
+  overlaid inside rows without a permanent action-column gutter.
 - [x] Session inspector is explicit-toggle only; sending a message does not
   reopen it.
 - [x] Approval panels and transcript output share the composer measure.
 - [x] User turns fold from the message itself without a persistent arrow.
-- [x] Memory notices use a brain icon and structured note preview; sparkle
-  glyphs are not used for memory UI.
+- [x] Memory notices use a quiet `Memory · N notes` disclosure with an
+  expandable note list; no emoji or decorative brain/sparkle glyph is used.
 - [x] Source/article results use numbered cards with title, domain, and snippet
   hierarchy.
 
@@ -304,13 +305,24 @@ npm run dev
   live blur
 - [x] Project/session ⋯ menus: trigger-anchored (flip above near bottom), toggle
   on second click, no mousedown/click race, `aria-haspopup`/`aria-expanded`,
-  hidden triggers `pointer-events: none`
+  hidden triggers `pointer-events: none`, and no permanent action gutter
 - [x] Delete/archive confirm: title + detail, right-aligned Cancel / action pills
 - [x] Overlay scrollbars; backgroundless white hover Copy/Edit icons with
   reserved gutters; Streamdown
   strong/heading/list/code hierarchy; GFM table scroll shell; quieter source cards
 - [x] Preview scenarios `table`, `docs`, `sources`; docs synced
   (UI/PARITY/README/AGENTS/VERIFICATION/ACCEPTANCE)
+
+## Renderer interaction polish (2026-07-12)
+
+- [x] Thinking/tool activity uses one compact sans/icon scale and groups
+  contiguous activity behind a click-to-expand `Thinking · N steps` row.
+- [x] Memory notices are quiet expandable rows with readable note entries,
+  replacing the previous brain-icon/clamped-preview treatment.
+- [x] Project rail session spinner renders only for the active busy session,
+  with a restrained rotating arc and reduced-motion support.
+- [x] Workspace eyebrow labels use the primary sans typography rather than a
+  letter-spaced micro-label treatment.
 
 ## Logic audit and hardening (2026-07-12)
 

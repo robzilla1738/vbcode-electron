@@ -71,7 +71,9 @@ npm run dev
 
 1. Open a project (or confirm last-cwd restore).
 2. Confirm projects and titled sessions load; switch projects and resume one session.
-3. Submit a short prompt — stream text + tools; spinner until idle.
+3. Submit a short prompt — stream text + tools; the project rail spinner appears
+   only on the active listed session while AI is working, spins continuously,
+   and disappears at idle.
 4. Scroll upward during streaming — output must stop following; Jump to latest restores it.
 5. Shift+Tab through PLAN → AGENT → YOLO.
 6. Trigger a permission (e.g. bash) — y / a / n / ⌘P.
@@ -85,10 +87,13 @@ npm run dev
 9. `@` file pick; ⌘V image paste → `@.vibe/clipboard/…`.
 10. `/theme tokyonight`; `/keys`; explicitly toggle Session; narrow the window for drawer behavior.
 11. Click a user message to fold/unfold its turn; confirm no persistent arrow is rendered.
-12. Confirm approval panels and output align to the composer width; inspect source cards and memory notices.
-13. Approve a permission request for a background `npm run dev`; confirm the job starts, the host remains healthy, and the session does not show a generic host-exited failure.
-14. Hover an assistant response — confirm clean white Copy/Edit icons appear below it; inspect a subagent row — confirm spinner/check status and no detail expansion.
-15. `/clear` mid-turn — abort + empty transcript.
-16. Quit app — host finalizes (no orphan process).
+12. Confirm approval panels and output align to the composer width; inspect source
+    cards, the collapsed `Memory · N notes` row, and its expanded note list.
+13. Expand a Thinking group — confirm tool/thought rows use a uniform icon/font
+    scale, compact spacing, and preserve individual output expansion.
+14. Approve a permission request for a background `npm run dev`; confirm the job starts, the host remains healthy, and the session does not show a generic host-exited failure.
+15. Hover an assistant response — confirm clean white Copy/Edit icons appear below it; inspect a subagent row — confirm spinner/check status and no detail expansion.
+16. `/clear` mid-turn — abort + empty transcript.
+17. Quit app — host finalizes (no orphan process).
 
 Full matrix: [PARITY.md](./PARITY.md).

@@ -64,16 +64,20 @@ Approval cards stay opaque.
 - Session actions use the same menu grammar. Menus are portal-mounted so the
   animated rail cannot clip them. Hidden ⋯ triggers use `pointer-events: none`
   so they cannot steal clicks from expand/collapse.
-- The project name is the only flexible column. Chevrons, active spinners,
-  and action buttons have reserved space and must never overlap.
+- The project name is the only flexible column. Chevrons and hover/focus action
+  buttons live inside the row without reserving a permanent action gutter.
+  The working spinner appears only beside the active session while that
+  session is busy; it must never read as a persistent selected-state marker.
 - Busy state disables navigation actions with an honest stop-turn reason.
 
 ### Transcript
 
 - Assistant output, tool output, approval panels, and the composer share the
   same reading width.
-- Tool and thinking rows are compact, aligned, and grouped by the turn gap;
-  expanded bodies provide the detail without adding decorative chrome.
+- Tool and thinking rows share one compact sans/icon scale. Consecutive
+  activity is grouped under a quiet `Thinking · N steps` disclosure; clicking
+  it reveals the individual tool/thought rows, whose bodies still expand on
+  demand without adding decorative chrome.
 - User messages are interactive disclosure controls: click or press Enter/Space
   on the message to fold or unfold the rest of its turn. Do not render a
   persistent collapse arrow beside the bubble.
@@ -86,8 +90,9 @@ Approval cards stay opaque.
 - Subagent activity rows are static status summaries: active rows use a clean
   spinner, completed rows use a check, and clicking a row never expands a
   detail transcript or robot card.
-- Tool output uses meaningful Lucide glyphs; memory uses a neutral brain icon,
-  not sparkle glyphs.
+- Tool output uses meaningful Lucide glyphs. Memory is a quiet `Memory · N
+  notes` disclosure with the note list revealed on click; it uses no emoji or
+  decorative brain/sparkle glyph.
 
 ### Sources and articles
 

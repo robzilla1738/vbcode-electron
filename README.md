@@ -143,7 +143,8 @@ keyboard-contained; the Session panel opens only from its explicit topbar
 control. Project/session ⋯ menus are portal-mounted, trigger-anchored, and
 toggle cleanly. Assistant answers expose clean white Copy/Edit icons below the
 response on hover/focus; tool and table copy controls use the same backgroundless
-icon language. Tool/thinking rows stay compact, subagent rows show status and
+icon language. Tool/thinking rows stay compact and group consecutive activity
+under a click-to-expand Thinking disclosure; subagent rows show status and
 elapsed activity without an expandable robot/detail view, user turns fold by
 clicking the message, and source/article results use structured cards. Light
 scheme keeps edge-lit elevation and soft frost on floating chrome; `/accent`
@@ -188,8 +189,9 @@ Shell-owned surfaces:
 - Inspector Session panel: sole session side view; closed by default and opened/closed from the topbar toggle
 - Theme-faithful selection colors, headings, and user-message accent (white band on Graphite; `/accent` remaps)
 - Empty-home splash: quiet ASCII wordmark, centered composer, and no automatic prompt suggestions
-- Project rail: project rename/archive/delete actions on hover, titled sessions, active-session spinner, and full-width hover states
-- Memory notice: neutral brain icon, prior-note count, and clamped context preview
+- Project rail: project rename/archive/delete actions on hover, titled sessions,
+  a working-only spinner for the active busy session, and full-width hover states
+- Memory notice: quiet `Memory · N notes` disclosure with click-to-expand note details
 - Sources/articles: numbered reading cards with title, domain, and snippet hierarchy
 - User turns: click or keyboard-activate the message to collapse/expand its activity; no persistent collapse arrow
 - Lucide icons across chrome, composer, and tool-row glyphs
@@ -206,7 +208,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AG
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **74 unit tests**, **10 e2e scenarios**, Biome, typecheck,
+Current baseline: **76 unit tests**, **10 e2e scenarios**, Biome, typecheck,
 production build, and renderer behavior are exercised. The source-parity gate
 must be run against a synchronized sibling `vibe-codr` checkout; the local
 checkout used for this update has upstream declaration drift and is recorded

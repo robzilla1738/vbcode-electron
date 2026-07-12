@@ -30,17 +30,17 @@ function scrollBehavior(pref: ScrollBehavior): ScrollBehavior {
   return pref === "smooth" && prefersReducedMotion() ? "auto" : pref;
 }
 
-function memoryNotice(text: string): { count: string; detail: string } | null {
+function memoryNotice(text: string): { count: string; details: string[] } | null {
   const match = text.match(
     /^Recalled\s+(\d+)\s+prior note\(s\)(?:\s*\([^)]*\))?:\s*([\s\S]*)$/i,
   );
   if (!match) return null;
   return {
     count: match[1] ?? "0",
-    detail: (match[2] ?? "")
-      .replace(/\s*##\s*/g, "  ·  ")
-      .replace(/\s+/g, " ")
-      .trim(),
+    details: (match[2] ?? "")
+      .split(/\s*##\s*/)
+      .map((detail) => detail.replace(/\s+/g, " ").trim())
+      .filter(Boolean),
   };
 }
 
@@ -81,6 +81,66 @@ function PlainToolBody({
       {text ? <CopyButton text={text} label="Copy output" /> : null}
       {children}
     </div>
+  );
+}
+
+type ActivityBlock = Extract<Block, { kind: "tool" | "thinking" }>;
+
+function isActivityBlock(block: Block): block is ActivityBlock {
+  return block.kind === "tool" || block.kind === "thinking";
+}
+
+function ThinkingGroup({
+  blocks,
+  density,
+  theme,
+  now,
+  onToggle,
+  onEdit,
+}: {
+  blocks: ActivityBlock[];
+  density: TranscriptDensity;
+  theme: string;
+  now: number;
+  onToggle: (id: number) => void;
+  onEdit: (text: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(density === "verbose");
+  const items = blocks.filter((block) => block.kind !== "thinking" || showThinkingRows(density));
+  if (items.length === 0) return null;
+  const open = density === "verbose" || expanded;
+
+  return (
+    <details
+      className={`thinking-group${open ? " is-open" : ""}`}
+      open={open}
+      onToggle={(event) => {
+        if (density !== "verbose") setExpanded(event.currentTarget.open);
+      }}
+    >
+      <summary className="thinking-group-head">
+        <span className="thinking-group-label">
+          <IconChevron open={open} size={13} />
+          <span>Thinking</span>
+        </span>
+        <span className="thinking-group-meta">
+          {items.length} {items.length === 1 ? "step" : "steps"}
+        </span>
+      </summary>
+      <div className="thinking-group-items">
+        {items.map((block) => (
+          <BlockView
+            key={block.id}
+            block={block}
+            density={density}
+            theme={theme}
+            now={now}
+            onToggle={onToggle}
+            onEdit={onEdit}
+          />
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -223,7 +283,7 @@ function BlockView({
           >
             <span className="thinking-label">
               <IconChevron open={!collapsed} size={13} />
-              <IconBrain size={13} />
+              <IconBrain className="thinking-glyph" size={13} />
               <span>{label}</span>
             </span>
           </button>
@@ -239,28 +299,30 @@ function BlockView({
     case "notice":
       {
         const memory = memoryNotice(block.text);
+        if (!memory) {
+          return (
+            <div className={`notice ${block.level}`} role={block.level === "error" ? "alert" : "status"}>
+              {block.text}
+            </div>
+          );
+        }
         return (
-          <div
-            className={`notice ${block.level}${memory ? " memory-notice" : ""}`}
-            role={block.level === "error" ? "alert" : "status"}
-          >
-            {memory ? (
-              <>
-                <div className="memory-notice-head">
-                  <span className="memory-notice-icon" aria-hidden="true">
-                    <IconBrain size={15} />
-                  </span>
-                  <span className="memory-notice-title">Memory loaded</span>
-                  <span className="memory-notice-count">
-                    {memory.count} {memory.count === "1" ? "prior note" : "prior notes"}
-                  </span>
-                </div>
-                {memory.detail ? <p className="memory-notice-detail">{memory.detail}</p> : null}
-              </>
-            ) : (
-              block.text
-            )}
-          </div>
+          <details className={`notice ${block.level} memory-notice`} role="status">
+            <summary className="memory-notice-toggle">
+              <span className="memory-notice-chevron" aria-hidden="true">
+                <IconChevron size={13} />
+              </span>
+              <span className="memory-notice-title">Memory</span>
+              <span className="memory-notice-count">
+                {memory.count} {memory.count === "1" ? "note" : "notes"}
+              </span>
+            </summary>
+            {memory.details.length > 0 ? (
+              <ul className="memory-notice-detail">
+                {memory.details.map((detail, index) => <li key={`${detail}-${index}`}>{detail}</li>)}
+              </ul>
+            ) : null}
+          </details>
         );
       }
     default:
@@ -357,29 +419,46 @@ export function TranscriptView({
             const folded = foldedTurns.has(turn.key);
             const itemWindow = itemWindowFor(turn.key, turn.items.length);
             const visibleItems = turn.items.slice(itemWindow.start);
-            // One-click expand-all-tools-in-turn (I23). Only meaningful when the
-            // density allows expansion (quiet forces all tools collapsed) and
-            // there are collapsed tool blocks to open — so it adds no standing chrome.
-            const collapsedToolIds =
-              density !== "quiet" && !folded
-                ? visibleItems
-                    .filter((b) => b.kind === "tool" && toolCollapsed(density, b))
-                    .map((b) => b.id)
-                : [];
+            const renderedItems: ReactNode[] = [];
+            for (let index = 0; index < visibleItems.length;) {
+              const block = visibleItems[index]!;
+              if (isActivityBlock(block)) {
+                const activity: ActivityBlock[] = [];
+                while (index < visibleItems.length) {
+                  const activityBlock = visibleItems[index]!;
+                  if (!isActivityBlock(activityBlock)) break;
+                  activity.push(activityBlock);
+                  index += 1;
+                }
+                renderedItems.push(
+                  <ThinkingGroup
+                    key={`thinking-${activity[0]!.id}`}
+                    blocks={activity}
+                    density={density}
+                    theme={theme}
+                    now={now}
+                    onToggle={onToggleBlock}
+                    onEdit={onEdit}
+                  />,
+                );
+                continue;
+              }
+              renderedItems.push(
+                <BlockView
+                  key={block.id}
+                  block={block}
+                  density={density}
+                  theme={theme}
+                  now={now}
+                  onToggle={onToggleBlock}
+                  onEdit={onEdit}
+                />,
+              );
+              index += 1;
+            }
             return (
               <section className="turn" key={turn.key} aria-label={turn.user ? "Conversation turn" : "Assistant activity"}>
                 <div className="turn-content" id={`turn-items-${turn.key}`}>
-                  {!turn.user && collapsedToolIds.length > 0 ? (
-                    <button
-                      type="button"
-                      className="turn-expand-all"
-                      onClick={() => collapsedToolIds.forEach((id) => { onToggleBlock(id); })}
-                      aria-label={`Expand all ${collapsedToolIds.length} tool${collapsedToolIds.length === 1 ? "" : "s"} in this turn`}
-                      title={`Expand all ${collapsedToolIds.length} tool${collapsedToolIds.length === 1 ? "" : "s"}`}
-                    >
-                      Expand all tools
-                    </button>
-                  ) : null}
                   {turn.user && (
                     <div className="block-user-row">
                       <div
@@ -414,18 +493,7 @@ export function TranscriptView({
                       <span className="earlier-meta"> · {itemWindow.hidden} hidden</span>
                     </button>
                   )}
-                  {!folded &&
-                    visibleItems.map((b) => (
-                      <BlockView
-                        key={b.id}
-                        block={b}
-                        density={density}
-                        theme={theme}
-                        now={now}
-                        onToggle={onToggleBlock}
-                        onEdit={onEdit}
-                      />
-                    ))}
+                  {!folded && renderedItems}
                 </div>
               </section>
             );
