@@ -24,6 +24,9 @@ export function CompactionSection({ config, updateNested }: SectionProps) {
       <SettingField label="Keep live results" description="Never offload the most recent N tool results.">
         <NumberInput value={offload.keepLiveResults} onChange={(v) => updateNested("compaction", { offload: { keepLiveResults: v } })} min={0} placeholder="2" />
       </SettingField>
+      <SettingField label="Max artifact bytes" description="Cap on total on-disk offload artifacts per session (bytes). Oldest non-live artifacts evicted above this.">
+        <NumberInput value={offload.maxArtifactBytes} onChange={(v) => updateNested("compaction", { offload: { maxArtifactBytes: v } })} min={1} step={1048576} placeholder="67108864" />
+      </SettingField>
     </SettingSection>
   );
 }

@@ -150,4 +150,47 @@ describe("config-io", () => {
       expect(parsed.modelFallbacks).toEqual(["c"]);
     });
   });
+
+  describe("writeConfigFile concurrency", () => {
+    it("serializes concurrent writes so neither clobbers the other", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, JSON.stringify({ model: "a", a: 1, b: 1 }));
+      // Two overlapping writes — each reads-then-writes. Without serialization
+      // the second write would read the pre-first-write state and clobber a.
+      await Promise.all([
+        writeConfigFile(path, { a: 11 }),
+        writeConfigFile(path, { b: 22 }),
+      ]);
+      const raw = await readFile(path, "utf8");
+      const parsed = JSON.parse(raw);
+      expect(parsed.a).toBe(11);
+      expect(parsed.b).toBe(22);
+      expect(parsed.model).toBe("a");
+    });
+  });
+
+  describe("writeConfigFile atomicity", () => {
+    it("does not leave a temp file on success", async () => {
+      const path = join(tmpDir, "nested", "config.json");
+      await writeConfigFile(path, { model: "x" });
+      const dir = join(tmpDir, "nested");
+      const { readdirSync } = await import("node:fs");
+      const files = readdirSync(dir);
+      expect(files).toEqual(["config.json"]);
+    });
+
+    it("strips the security-notices key before writing", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(
+        path,
+        JSON.stringify({ model: "a", __vibeSecurityNotices: ["warn"] }),
+      );
+      await writeConfigFile(path, { mode: "plan" });
+      const raw = await readFile(path, "utf8");
+      const parsed = JSON.parse(raw);
+      expect(parsed.__vibeSecurityNotices).toBeUndefined();
+      expect(parsed.model).toBe("a");
+      expect(parsed.mode).toBe("plan");
+    });
+  });
 });

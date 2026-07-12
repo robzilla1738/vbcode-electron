@@ -1,5 +1,6 @@
+import { useState } from "react";
 import type { SectionProps } from "./types";
-import { NumberInput, SelectInput, SettingField, SettingSection, TextArea, TextInput } from "../FormControls";
+import { NumberInput, SelectInput, SettingBadge, SettingField, SettingSection, TextArea, TextInput } from "../FormControls";
 
 export function ModelsSection({ config, updateConfig, updateNested }: SectionProps) {
   const reasoning = config.reasoning ?? {};
@@ -75,6 +76,139 @@ export function ModelsSection({ config, updateConfig, updateNested }: SectionPro
           />
         </SettingField>
       </SettingSection>
+
+      <SettingSection title="Pricing Overrides" description="Per-model price overrides keyed by model string (provider/model), in USD per 1M tokens. Overrides catalog pricing for cost tracking.">
+        <PricingEditor config={config} updateConfig={updateConfig} />
+      </SettingSection>
+
+      <SettingSection title="Context Window Overrides" description="Per-model context-window overrides (tokens). Pins the real window for a model the catalog doesn't know, driving accurate context-fill % and compaction.">
+        <ContextWindowEditor config={config} updateConfig={updateConfig} />
+      </SettingSection>
+    </>
+  );
+}
+
+function PricingEditor({ config, updateConfig }: Pick<SectionProps, "config" | "updateConfig">) {
+  const pricing = config.pricing ?? {};
+  const modelKeys = Object.keys(pricing);
+  const [newKey, setNewKey] = useState("");
+
+  const update = (model: string, patch: Partial<NonNullable<typeof pricing[string]>>) => {
+    const next = { ...pricing, [model]: { ...pricing[model], ...patch } };
+    updateConfig({ pricing: next });
+  };
+  const remove = (model: string) => {
+    const next = { ...pricing };
+    delete next[model];
+    updateConfig({ pricing: next });
+  };
+  const add = () => {
+    const key = newKey.trim();
+    if (!key || pricing[key]) return;
+    update(key, {});
+    setNewKey("");
+  };
+
+  if (modelKeys.length === 0 && !newKey) {
+    return <p className="setting-empty">No pricing overrides. Add a model to pin its cost.</p>;
+  }
+  return (
+    <>
+      {modelKeys.length > 0 && (
+        <div className="setting-list">
+          {modelKeys.map((model) => {
+            const price = pricing[model] ?? {};
+            return (
+              <div key={model} className="setting-card expanded">
+                <div className="setting-card-header">
+                  <span className="setting-card-title">{model}</span>
+                  <button type="button" className="button danger" onClick={() => remove(model)}>Remove</button>
+                </div>
+                <div className="setting-card-body">
+                  <SettingField label="Input ($/1M tokens)">
+                    <NumberInput value={price.input} onChange={(v) => update(model, { input: v })} min={0} step={0.01} placeholder="catalog" />
+                  </SettingField>
+                  <SettingField label="Output ($/1M tokens)">
+                    <NumberInput value={price.output} onChange={(v) => update(model, { output: v })} min={0} step={0.01} placeholder="catalog" />
+                  </SettingField>
+                  <SettingField label="Cache read ($/1M tokens)" description="Defaults to input when unset.">
+                    <NumberInput value={price.cacheRead} onChange={(v) => update(model, { cacheRead: v })} min={0} step={0.01} placeholder="input" />
+                  </SettingField>
+                  <SettingField label="Cache write ($/1M tokens)" description="Defaults to input when unset.">
+                    <NumberInput value={price.cacheWrite} onChange={(v) => update(model, { cacheWrite: v })} min={0} step={0.01} placeholder="input" />
+                  </SettingField>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="git-create-row">
+        <input
+          type="text"
+          className="setting-input is-mono"
+          value={newKey}
+          placeholder="provider/model-id"
+          onChange={(e) => setNewKey(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") add();
+            if (e.key === "Escape") setNewKey("");
+          }}
+        />
+        <button type="button" className="button primary" disabled={!newKey.trim()} onClick={add}>Add</button>
+      </div>
+    </>
+  );
+}
+
+function ContextWindowEditor({ config, updateConfig }: Pick<SectionProps, "config" | "updateConfig">) {
+  const ctx = config.contextWindow ?? {};
+  const modelKeys = Object.keys(ctx);
+  const [newKey, setNewKey] = useState("");
+
+  const update = (model: string, value: number | undefined) => {
+    const next = { ...ctx };
+    if (value === undefined) delete next[model];
+    else next[model] = value;
+    updateConfig({ contextWindow: next });
+  };
+  const add = () => {
+    const key = newKey.trim();
+    if (!key || ctx[key]) return;
+    update(key, 128_000);
+    setNewKey("");
+  };
+
+  if (modelKeys.length === 0 && !newKey) {
+    return <p className="setting-empty">No context-window overrides. Add a model to pin its window.</p>;
+  }
+  return (
+    <>
+      {modelKeys.length > 0 && (
+        <div className="setting-list">
+          {modelKeys.map((model) => (
+            <div key={model} className="setting-perm-rule">
+              <SettingBadge>{model}</SettingBadge>
+              <NumberInput value={ctx[model]} onChange={(v) => update(model, v)} min={1} step={1000} placeholder="tokens" />
+              <button type="button" className="button danger" onClick={() => update(model, undefined)}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="git-create-row">
+        <input
+          type="text"
+          className="setting-input is-mono"
+          value={newKey}
+          placeholder="provider/model-id"
+          onChange={(e) => setNewKey(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") add();
+            if (e.key === "Escape") setNewKey("");
+          }}
+        />
+        <button type="button" className="button primary" disabled={!newKey.trim()} onClick={add}>Add</button>
+      </div>
     </>
   );
 }

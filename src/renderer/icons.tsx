@@ -7,6 +7,7 @@ import {
   Check,
   ChevronRight,
   Copy,
+  ExternalLink,
   CornerUpLeft,
   FileText,
   Folder,
@@ -159,4 +160,8 @@ export function IconSettings(props: IconProps) {
 
 export function IconGitBranch(props: IconProps) {
   return <GitBranch {...lucide(props)} />;
+}
+
+export function IconExternalLink(props: IconProps) {
+  return <ExternalLink {...lucide(props)} />;
 }

@@ -1,6 +1,6 @@
 # CLI ↔ Electron parity checklist
 
-Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 98 tests), `npm run test:e2e` (10 scenarios), plus `npm run verify:source-parity`.
+Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 125+ tests), `npm run test:e2e` (10 scenarios), plus `npm run verify:source-parity`.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
@@ -421,3 +421,41 @@ npm run dev
   Finder-style URI fallback behavior
 - [x] 98 unit tests, 10 E2E scenarios, lint, typecheck, build, bundle, source
   parity, and bridge smoke all pass
+
+## Production hardening & full config parity (2026-07-12)
+
+- [x] Config writes are atomic (temp+rename) — a crash mid-write cannot
+  truncate the config into unparseable garbage (BUG-092 parity with
+  `@vibe/config`'s `atomicWriteJson`)
+- [x] Per-path write serialization — concurrent config writes (settings save +
+  permission grant) chain through a promise so neither clobbers the other
+  (parity with `@vibe/config`'s `writeChain`)
+- [x] `__vibeSecurityNotices` key stripped before disk write so a round-trip
+  through the shell doesn't freeze a transient engine notice into user config
+  (parity with `stripSecurityNotices`)
+- [x] Memory (VIBE.md) writes are atomic (temp+rename) too
+- [x] Settings save builds a deep-diff patch (not the whole config) so clearing
+  a field (API key, model, accent color) sends `null` (delete) instead of
+  `undefined` (no-op) — users can now unset values that were previously
+  impossible to clear
+- [x] NumberInput guards NaN — typing non-numeric text produces `undefined`,
+  not `NaN`, preventing an invalid value from bricking the config on the next
+  engine load
+- [x] First-run onboarding modal: curated provider catalog (33 choices mirroring
+  the CLI's `PROVIDER_CHOICES`), key entry with "get a key" links, base URL for
+  custom endpoints, model preselect, save → re-bootstrap; replaces the passive
+  hint strip
+- [x] `--z-modal` CSS token defined (was referenced by `.keys-overlay-root` but
+  never declared — z-index resolved to `auto`)
+- [x] Settings parity gaps closed:
+  - `subagent.structuredMaxAttempts` in Subagents section
+  - `compaction.offload.maxArtifactBytes` in Compaction section
+  - `build.recon.enabled` + `build.recon.ledger` in Build section
+  - `build.gate.checks` multi-select (typecheck/test/build/lint) in Build section
+  - `plan` config (minCodeTouches, requireWebFetch, requirePackageInfo,
+    allowUngrounded, maxRejections) as "Plan Gate" subsection in Build section
+  - `pricing` per-model overrides (input/output/cacheRead/cacheWrite) in Models
+  - `contextWindow` per-model overrides in Models
+- [x] Dead code removed: `OnboardingHint.tsx` + its CSS (replaced by
+  `OnboardingModal`)
+- [x] 125+ unit tests, lint, typecheck, build, bundle, source parity all green

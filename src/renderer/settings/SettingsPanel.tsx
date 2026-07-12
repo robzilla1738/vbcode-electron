@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CONFIG_SECTIONS, type ConfigScope, type VibeConfig } from "../../shared/config-schema";
+import { buildConfigPatch } from "../../shared/config-diff";
 import { IconClose, IconSidebar } from "../icons";
 import { ModelsSection } from "./sections/ModelsSection";
 import { ProvidersSection } from "./sections/ProvidersSection";
@@ -153,7 +154,11 @@ function SettingsFormArea({
   const saveConfig = useCallback(async () => {
     setState((prev) => ({ ...prev, saving: true, saveError: null }));
     try {
-      const res = await window.vibe.writeConfig({ scope, cwd: scope === "project" ? cwd ?? undefined : undefined, patch: state.config as Record<string, unknown> });
+      const patch = buildConfigPatch(
+        state.original as Record<string, unknown>,
+        state.config as Record<string, unknown>,
+      );
+      const res = await window.vibe.writeConfig({ scope, cwd: scope === "project" ? cwd ?? undefined : undefined, patch });
       if (!res.ok) { setState((prev) => ({ ...prev, saving: false, saveError: res.error })); return; }
       setState((prev) => ({ ...prev, original: prev.config, dirty: false, saving: false, saveError: null }));
       showToast("Settings saved — new sessions will use these values", "info");

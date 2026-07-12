@@ -98,7 +98,9 @@ export function NumberInput({
       disabled={disabled}
       onChange={(e) => {
         const v = e.target.value;
-        onChange(v === "" ? undefined : Number(v));
+        if (v === "") { onChange(undefined); return; }
+        const n = Number(v);
+        onChange(Number.isFinite(n) ? n : undefined);
       }}
     />
   );

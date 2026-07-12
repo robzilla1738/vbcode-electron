@@ -36,7 +36,7 @@ import { GitView } from "./git/GitPanel";
 import { JobsView } from "./panels/JobsView";
 import { KeysOverlay } from "./panels/KeysOverlay";
 import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
-import { OnboardingHint } from "./panels/OnboardingHint";
+import { OnboardingModal, type ProviderStatus } from "./panels/OnboardingModal";
 import { type CatalogChoice, CatalogModal, type CatalogPickerState } from "./pickers/CatalogModal";
 import {
   formatChromeSummary,
@@ -105,6 +105,9 @@ export function App() {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingProviders, setOnboardingProviders] = useState<ProviderStatus[]>([]);
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [gitOpen, setGitOpen] = useState(false);
@@ -226,6 +229,7 @@ export function App() {
         const prov = await window.vibe.rpc("listProviders");
         if (prov.ok) {
           const items = (prov.value as ProviderInfo[]) ?? [];
+          setOnboardingProviders(items as ProviderStatus[]);
           const anyReady = items.some((p) => p.configured || p.keyless);
           let dismissed = false;
           try {
@@ -238,6 +242,34 @@ export function App() {
       }
     },
     [session, refreshProjects, invalidateCatalogs],
+  );
+
+  const saveOnboarding = useCallback(
+    async (patch: Record<string, unknown>) => {
+      setOnboardingSaving(true);
+      setOnboardingError(null);
+      try {
+        const res = await window.vibe.writeConfig({ scope: "global", patch });
+        if (!res.ok) {
+          setOnboardingError(res.error);
+          setOnboardingSaving(false);
+          return;
+        }
+        setShowOnboarding(false);
+        try {
+          localStorage.removeItem("vibe.onboardingDismissed");
+        } catch {
+          /* ignore */
+        }
+        setOnboardingSaving(false);
+        // Re-bootstrap so the engine picks up the new provider config.
+        if (cwd) await session.bootstrap({ cwd });
+      } catch (err) {
+        setOnboardingError(err instanceof Error ? err.message : "Failed to save");
+        setOnboardingSaving(false);
+      }
+    },
+    [cwd, session],
   );
 
   const openProject = useCallback(async () => {
@@ -1304,7 +1336,11 @@ export function App() {
 
             <div className="panels">
               {showOnboarding && !chrome.perms[0] && !planPending && (
-                <OnboardingHint
+                <OnboardingModal
+                  providers={onboardingProviders}
+                  onSave={saveOnboarding}
+                  saving={onboardingSaving}
+                  saveError={onboardingError}
                   onDismiss={() => {
                     try {
                       localStorage.setItem("vibe.onboardingDismissed", "1");
@@ -1313,7 +1349,6 @@ export function App() {
                     }
                     setShowOnboarding(false);
                   }}
-                  onOpenProviders={() => void submitLine("/providers")}
                 />
               )}
               {showGateBanner && (

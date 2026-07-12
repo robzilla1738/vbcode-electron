@@ -17,7 +17,7 @@
  *   gate        — finished turn with verify gate RED banner
  *   mode        — mode dropdown open above the composer
  *   queue       — busy turn with queued follow-ups in the composer tray
- *   onboarding  — Setup hint when no provider is configured
+
  *   slash       — slash-command palette open
  *   catalog     — model catalog popover open
  *   catalog-draft — catalog open while composer draft owns the filter
@@ -570,7 +570,7 @@ async function runTimeline(): Promise<void> {
       document.querySelector<HTMLButtonElement>(".mode-trigger")?.click();
       break;
     case "onboarding":
-      // Providers mocked unconfigured below — splash + Setup strip.
+      // Providers mocked unconfigured below — the setup modal renders.
       break;
     case "slash":
       await sleep(120);

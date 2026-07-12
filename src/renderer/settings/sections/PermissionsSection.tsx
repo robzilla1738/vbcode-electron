@@ -19,7 +19,7 @@ export function PermissionsSection({ config, updateConfig }: SectionProps) {
   };
 
   return (
-    <SettingSection title="Permission Rules" description="Tool allow/deny/ask policy. Among matching rules: deny > ask > allow. The optional 'match' globs the call content (bash command, file path, URL).">
+    <SettingSection title="Permission Rules" description="Tool allow/deny/ask policy. Among matching rules: deny > ask > allow. The optional 'match' globs the call content (bash command, file path, URL); 'matchExact' is a literal string match (no glob).">
       {rules.length === 0 ? (
         <p className="setting-empty">No permission rules. The engine uses approvalMode (ask/auto) for tools without a matching rule.</p>
       ) : (
@@ -36,6 +36,12 @@ export function PermissionsSection({ config, updateConfig }: SectionProps) {
                 value={rule.match ?? ""}
                 onChange={(v) => updateRule(i, { match: v || undefined })}
                 placeholder="match pattern (glob)"
+                monospace
+              />
+              <TextInput
+                value={rule.matchExact ?? ""}
+                onChange={(v) => updateRule(i, { matchExact: v || undefined })}
+                placeholder="exact match (no glob)"
                 monospace
               />
               <SelectInput

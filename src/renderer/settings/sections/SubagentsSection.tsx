@@ -26,6 +26,9 @@ export function SubagentsSection({ config, updateNested }: SectionProps) {
       <SettingField label="Retain completed" description="How many completed children to retain for continuation. 0 = disabled.">
         <NumberInput value={sa.retainCompleted} onChange={(v) => updateNested("subagent", { retainCompleted: v })} min={0} placeholder="16" />
       </SettingField>
+      <SettingField label="Structured max attempts" description="Max attempts to coerce a subagent's final message into schema-valid JSON when outputSchema is set.">
+        <NumberInput value={sa.structuredMaxAttempts} onChange={(v) => updateNested("subagent", { structuredMaxAttempts: v })} min={1} placeholder="2" />
+      </SettingField>
       <SettingField label="Max detached" description="Max concurrent background (detached) subagents.">
         <NumberInput value={sa.maxDetached} onChange={(v) => updateNested("subagent", { maxDetached: v })} min={0} placeholder="8" />
       </SettingField>

@@ -11,12 +11,14 @@
 import { ipcMain } from "electron";
 import {
   configPathForScope,
+  previewMergedConfig,
   readConfigFile,
   readMemoryFile,
   writeConfigFile,
   writeMemoryFile,
   memoryPathForScope,
 } from "../shared/config-io";
+import { validateConfig } from "../shared/config-validate";
 import type {
   ConfigReadResult,
   ConfigScope,
@@ -52,6 +54,14 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     }
     try {
       const path = configPathForScope(req.scope, req.cwd);
+      // Validate the merged result BEFORE persisting so an invalid value
+      // (e.g. a scheme-less baseURL) is rejected up front — mirroring the
+      // engine's ConfigSchema.safeParse gate in writeGlobalConfig.
+      const merged = await previewMergedConfig(path, req.patch);
+      const errors = validateConfig(merged);
+      if (errors.length) {
+        return { ok: false as const, error: `Invalid configuration: ${errors.join("; ")}` };
+      }
       await writeConfigFile(path, req.patch);
       return { ok: true as const, path };
     } catch (err) {
