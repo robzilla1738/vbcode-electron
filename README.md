@@ -80,7 +80,7 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 
 ### Host resolution order
 
-1. `$VIBE_CODR_ROOT/dist/vibecodr-engine-host` (or Bun source under that root)
+1. `$VIBE_CODR_ROOT/dist/vibecodr-engine-host` when fresh against the runtime source tree (otherwise Bun source under that root)
 2. `~/Code/vibe-codr` (and conventional siblings)
 3. Bundled `resources/vibecodr-engine-host` (after `npm run copy-host` / pack)
 
@@ -133,17 +133,21 @@ hairlines + inset edge-highlights at rest with layered shadows reserved for
 true overlays. **Sans is the UI voice**; monospace is reserved for real code
 (fenced blocks, tool/diff/job output, inline code, ASCII wordmark). Icons are
 Lucide stroke wrappers in `src/renderer/icons.tsx`. The composer, transcript
-output, and approval panels share one 40rem measure. The composer is a lightly
-frosted floating surface (bottom-weighted blur + chat-column veil) so transcript
-can scroll behind without a hard cut; approval cards stay opaque. Queue is one
+output, and approval panels share one 40rem measure. The conversation pane is
+edge-to-edge inside the workspace; the composer is a dense, continuously
+frosted floating surface so transcript text is blurred across its full bounds
+without a hard cut. Approval cards stay opaque. Queue is one
 quiet card above the composer with a flat “N Queued” list and hover
 steer/dequeue. Slash, mention, and catalog menus are floating and
 keyboard-contained; the Session panel opens only from its explicit topbar
 control. Project/session ⋯ menus are portal-mounted, trigger-anchored, and
-toggle cleanly. Tool/thinking rows stay compact, user turns fold by clicking
-the message, and source/article results use structured cards. Light scheme
-keeps edge-lit elevation and soft frost on floating chrome; `/accent` remaps
-selection and focus tokens together.
+toggle cleanly. Assistant answers expose clean white Copy/Edit icons below the
+response on hover/focus; tool and table copy controls use the same backgroundless
+icon language. Tool/thinking rows stay compact, subagent rows show status and
+elapsed activity without an expandable robot/detail view, user turns fold by
+clicking the message, and source/article results use structured cards. Light
+scheme keeps edge-lit elevation and soft frost on floating chrome; `/accent`
+remaps selection and focus tokens together.
 
 ## Keyboard (essentials)
 
@@ -189,8 +193,8 @@ Shell-owned surfaces:
 - Sources/articles: numbered reading cards with title, domain, and snippet hierarchy
 - User turns: click or keyboard-activate the message to collapse/expand its activity; no persistent collapse arrow
 - Lucide icons across chrome, composer, and tool-row glyphs
-- Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, narrow busy/idle live status (transcript is not live), hover/focus copy chips with reserved gutters (touch keeps them visible), busy-disabled rail labels, skip links to conversation/composer/projects/session panel, catalog focus trap
-- App icon: `assets/icon.png` → `npm run build:icon` → `assets/icon.icns` for packaged builds; unpackaged macOS dock uses the PNG via `app.dock.setIcon`
+- Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, narrow busy/idle live status (transcript is not live), hover/focus copy and edit icons with keyboard focus (touch keeps them visible), busy-disabled rail labels, skip links to conversation/composer/projects/session panel, catalog focus trap
+- App icon: `assets/icon.png` → `npm run build:icon` → `assets/icon.icns` for packaged builds; the master includes macOS-style optical safe-area padding, and the unpackaged macOS dock uses the PNG via `app.dock.setIcon`
 
 ## Parity & verification
 

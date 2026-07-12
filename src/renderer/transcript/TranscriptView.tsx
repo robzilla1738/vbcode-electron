@@ -11,8 +11,9 @@ import { isScrollAnchored } from "../../shared/scroll-anchor";
 import { parseSearchResults } from "../../shared/sources";
 import { SourceList } from "./SourceList";
 import { MarkdownView } from "./MarkdownView";
-import { stripToolGlyph, ToolGlyph } from "../tool-glyph";
-import { IconBrain, IconChevron } from "../icons";
+import { isSubagentTool, stripToolGlyph, ToolGlyph } from "../tool-glyph";
+import { StatusDot } from "../primitives";
+import { IconBrain, IconChevron, IconRename } from "../icons";
 import { CopyButton } from "../CopyButton";
 
 /** JS smooth-scroll must honor the OS reduced-motion setting (I19/P04); CSS
@@ -89,31 +90,65 @@ function BlockView({
   theme,
   now,
   onToggle,
+  onEdit,
 }: {
   block: Block;
   density: TranscriptDensity;
   theme: string;
   now: number;
   onToggle: (id: number) => void;
+  onEdit: (text: string) => void;
 }) {
   switch (block.kind) {
     case "assistant":
       return (
-        <div className={`block-assistant has-copy${block.streaming ? " streaming" : ""}`}>
-          {!block.streaming && block.text ? (
-            <CopyButton text={block.text} label="Copy answer" />
-          ) : null}
+        <div className={`block-assistant${!block.streaming && block.text ? " has-actions" : ""}${block.streaming ? " streaming" : ""}`}>
           <div className="md">
             <MarkdownView streaming={block.streaming} theme={theme}>
               {block.text}
             </MarkdownView>
           </div>
+          {!block.streaming && block.text ? (
+            <div className="assistant-actions" role="toolbar" aria-label="Assistant message actions">
+              <CopyButton text={block.text} label="Copy answer" />
+              <button
+                type="button"
+                className="assistant-action"
+                onClick={() => onEdit(block.text)}
+                aria-label="Edit response"
+                title="Edit response"
+              >
+                <IconRename size={13} />
+              </button>
+            </div>
+          ) : null}
         </div>
       );
     case "tool": {
       const collapsed = toolCollapsed(density, block);
       const dur = toolDurationLabel(block, now);
       const outputText = block.output.join("\n");
+      if (isSubagentTool(block.toolName)) {
+        const label = stripToolGlyph(block.label);
+        return (
+          <div className="tool-row subagent-row">
+            <div
+              className={`tool-head subagent-head${block.isError ? " error" : ""}${!block.done ? " live" : ""}`}
+              role="status"
+              aria-label={`Subagent ${label}, ${block.done ? "done" : "running"}`}
+            >
+              <span className="tool-label">
+                <StatusDot status={block.done ? "done" : "running"} />
+                <span>{label}</span>
+              </span>
+              <span className="tool-meta">
+                {!block.done && block.tail ? " …" : ""}
+                {dur ? ` ${dur}` : ""}
+              </span>
+            </div>
+          </div>
+        );
+      }
       return (
         <div className="tool-row">
           <button
@@ -243,6 +278,7 @@ export function TranscriptView({
   itemWindowFor,
   onToggleBlock,
   onToggleTurn,
+  onEdit,
   onShowEarlier,
   onRevealTurnItems,
   followSignal,
@@ -260,6 +296,7 @@ export function TranscriptView({
   };
   onToggleBlock: (id: number) => void;
   onToggleTurn: (key: number) => void;
+  onEdit: (text: string) => void;
   onShowEarlier: () => void;
   onRevealTurnItems: (turnKey: number, hidden: number) => void;
   followSignal: number;
@@ -386,6 +423,7 @@ export function TranscriptView({
                         theme={theme}
                         now={now}
                         onToggle={onToggleBlock}
+                        onEdit={onEdit}
                       />
                     ))}
                 </div>

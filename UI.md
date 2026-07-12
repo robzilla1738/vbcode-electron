@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff
-> **Updated:** 2026-07-11
+> **Updated:** 2026-07-12
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
@@ -20,9 +20,11 @@ The shell has four primary surfaces:
 4. Optional floating Jobs and Session panels opened from explicit topbar controls.
 
 Transcript output, approval cards, and the composer use the same centered
-`--composer-max: 40rem` measure. Output may scroll behind the floating
-composer; a soft bottom veil plus bottom-weighted frost on the composer keep
-that overlap readable without a hard cut. Approval cards stay opaque.
+`--composer-max: 40rem` measure. The central chat pane fills its workspace
+edge-to-edge without an outer inset or decorative corner curve. Output may
+scroll behind the floating composer; continuous full-surface frost blurs that
+overlap without allowing text to remain readable through the top edge.
+Approval cards stay opaque.
 
 ## Visual language
 
@@ -36,9 +38,10 @@ that overlap readable without a hard cut. Approval cards stay opaque.
 - Use modest radii, hairline borders, and restrained shadows. Avoid gradients,
   decorative side borders on controls, animated dots, sparkle glyphs, and
   ornamental badge clouds.
-- Radius grammar: surfaces use `--radius-md/lg/xl`; status chips, icon actions,
-  send, and Jump to latest use `--radius-pill`. Do not invent a third radius
-  family for one-off chrome.
+- Radius grammar: surfaces use `--radius-md/lg/xl`; status chips, send, and
+  Jump to latest use `--radius-pill`; utility Copy/Edit icons are transparent
+  controls with no filled chip background. Do not invent a third radius family
+  for one-off chrome.
 - Markdown output is Streamdown-aware: bold is `[data-streamdown="strong"]`,
   headings/lists/code use the matching data attributes, and nested list detail
   sits on `--text-secondary` under `--heading` labels.
@@ -76,9 +79,13 @@ that overlap readable without a hard cut. Approval cards stay opaque.
   persistent collapse arrow beside the bubble.
 - Streaming follows only while the reader is near the bottom. Upward scrolling
   disengages follow and exposes Jump to latest.
-- Hover utility chips (answer/tool/thinking/plan copy, table copy/fullscreen):
-  circular quiet chips that fade + lift in on parent hover/focus. Parents
-  reserve inset so chips never cover glyphs. Touch keeps them lightly visible.
+- Hover utility actions (answer Copy/Edit, tool/thinking/plan copy, table
+  copy/fullscreen): clean white icons that fade + lift in on parent
+  hover/focus without a filled background. Touch keeps them lightly visible,
+  and keyboard focus uses the shared focus ring.
+- Subagent activity rows are static status summaries: active rows use a clean
+  spinner, completed rows use a check, and clicking a row never expands a
+  detail transcript or robot card.
 - Tool output uses meaningful Lucide glyphs; memory uses a neutral brain icon,
   not sparkle glyphs.
 
@@ -97,11 +104,11 @@ untrusted HTML directly.
 
 ### Composer and queue
 
-- The composer is a floating frosted surface: mostly opaque fill with a light
-  bottom-weighted backdrop blur so transcript can scroll behind without a hard
-  cut. Focus still changes border/ring only.
-- A masked bottom veil on the chat column (soft `--bg` wash + blur up to ~mid
-  composer height) eases text into that zone; empty home has no veil.
+- The composer is a floating frosted surface: mostly opaque fill with
+  continuous backdrop blur across the full surface so transcript text cannot
+  show through the top edge. Focus changes border/ring only.
+- A soft bottom veil on the chat column eases text into the composer zone; empty
+  home has no veil. The veil never replaces full composer coverage.
 - Queue is a single quiet card above the composer: muted “N Queued” header and a
   flat list of labels (no per-item cards). Steer and remove appear on row hover
   as icon-only actions with accessible labels.

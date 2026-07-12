@@ -1,6 +1,7 @@
 import type { SessionChrome } from "../hooks/useSession";
 import { firstLine, truncate } from "../../shared/reducer";
 import { hasUnfinishedTasks, windowTasks } from "../../shared/task-window";
+import { IconCheck } from "../icons";
 
 export function MetaRow({
   label,
@@ -36,7 +37,11 @@ export function StatusDot({
           : status === "active" || status === "running"
             ? "active"
             : "pending";
-  return <span className={`status-dot status-dot-${kind}`} aria-hidden />;
+  return (
+    <span className={`status-dot status-dot-${kind}`} aria-hidden>
+      {kind === "done" ? <IconCheck size={12} strokeWidth={2.2} /> : null}
+    </span>
+  );
 }
 
 export function projectName(cwd: string): string {
@@ -163,13 +168,9 @@ export function OrchestrationSection({
 
 export function SubagentsSection({
   subagents,
-  selectedId,
-  onSelect,
   showActivity = false,
 }: {
   subagents: SessionChrome["subagents"];
-  selectedId?: string | null;
-  onSelect?: (id: string) => void;
   showActivity?: boolean;
 }) {
   if (subagents.length === 0) return null;
@@ -189,25 +190,14 @@ export function SubagentsSection({
             ) : null}
           </>
         );
-        if (!onSelect) {
-          return (
-            <div key={s.id} className="activity-static" title={s.prompt}>
-              {body}
-            </div>
-          );
-        }
         return (
-          <button
+          <div
             key={s.id}
-            type="button"
-            className={`activity-button${selectedId === s.id ? " active" : ""}`}
-            aria-pressed={selectedId != null ? selectedId === s.id : undefined}
-            aria-label={`Subagent ${label}, ${s.status}`}
+            className="activity-static"
             title={s.prompt}
-            onClick={() => onSelect(s.id)}
           >
             {body}
-          </button>
+          </div>
         );
       })}
     </div>

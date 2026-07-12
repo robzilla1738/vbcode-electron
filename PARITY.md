@@ -1,6 +1,6 @@
 # CLI ↔ Electron parity checklist
 
-Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 74 tests) plus `npm run verify:source-parity`.
+Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 74 tests), `npm run test:e2e` (10 scenarios), plus `npm run verify:source-parity`.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
@@ -64,7 +64,7 @@ to weaken the parity guard.
 - [x] Web-search results + `sources` fences as safe external source cards
 - [x] Rich data views: bar/line/sparkline/pie/weather fenced blocks render as visual components (RichBlockView)
 - [x] Active-task windowing; completed task panels retire with the CLI
-- [x] Subagent stream capture + inspector drill-in
+- [x] Subagent activity rows show status/result/elapsed state without an expandable detail transcript
 - [x] Narrow-mode tasks / subagents / thinking panels
 
 ## Catalogs & chrome
@@ -90,7 +90,7 @@ to weaken the parity guard.
 - [x] Theme palette also drives native control/dialog color scheme
 - [x] Goal header ★ + phase/round; git dirty count / ahead / behind
 - [x] Composer status: model · changed +/− · ctx% (hot ≥80%) · tokens · cost · queue · working
-- [x] Inspector (⇧⌘I): dynamic title (session / subagent / file), shared activity sections, in-panel file preview + Reveal, checkpoints undo/redo, subagent stream
+- [x] Inspector (⇧⌘I): dynamic session/file title, shared activity sections, in-panel file preview + Reveal, checkpoints undo/redo; subagent rows remain static and non-expandable
 - [x] `/keys` local help surface
 - [x] Onboarding points at shared `~/.config/vibe-codr/config.json`
 - [x] Plugins / custom commands via `snapshot.commandNames` (no install UI — same as TUI)
@@ -98,14 +98,14 @@ to weaken the parity guard.
 
 ## Packaging & bridge
 
-- [x] Host resolution: compiled dist → Bun source → bundled resources
+- [x] Host resolution: fresh compiled dist → Bun source fallback when runtime sources are newer → bundled resources
 - [x] `npm run copy-host` / `npm run pack` copies host
 - [x] Ready timeout 45s, RPC timeout 20s
 - [x] Read-only `listProjects` host index keeps session storage out of Electron
 - [x] Bridge smoke: `npm run smoke:bridge`
 - [x] Packaged renderer runs sandboxed with a CommonJS preload bridge
 - [x] Packaged app prefers its release-matched bundled host over developer checkouts
-- [x] Custom app icon; restrictive ATS; no unused hardware permission descriptions
+- [x] Custom macOS app icon with optical safe-area padding; restrictive ATS; no unused hardware permission descriptions
 - [ ] Full interactive GUI smoke of every slash against live paid models (manual)
 - [ ] Release app without `VIBE_CODR_ROOT` end-user smoke (manual)
 
@@ -118,6 +118,7 @@ to weaken the parity guard.
 - In-app MCP server editor / reconnect RPC (config-file at boot, same as TUI)
 - Job-kill UI (none in TUI)
 - Interactive orchestration DAG graph (list only; TUI ignores the event)
+- Subagent detail drill-in (Electron intentionally renders compact static status rows with spinner/check completion state)
 - Full-window Liquid Glass replacing CLI theme surfaces (glass tints chrome only; palettes still drive semantic roles)
 - Permission/Plan button labels use human verbs with `<kbd>` hints (TUI key chords still work)
 - Electron transcript output, approval panels, and composer share `--composer-max: 40rem`; composer uses a taller resting input (`--composer-input-min: 44px`)
@@ -133,6 +134,7 @@ cd ~/Code/vbcode-electron
 npm install && npm test && npm run typecheck && npm run build
 npm run lint && npm run verify:bundle
 npm run smoke:bridge
+npm run test:e2e
 npm run dev
 ```
 
@@ -206,7 +208,7 @@ npm run dev
 - [x] WelcomeGate: aria-busy, aria-labelledby, aria-live, focus primary action button
 - [x] LivePanels (permission/plan cards): role=region, aria-labelledby, aria-keyshortcuts; permission card autofocuses primary action, plan keeps composer focus for revise/steer
 - [x] JobsView: role=region, article elements, aria-label on status/output, keyboard-focusable output pre
-- [x] Inspector: h2 heading, aria-labels on file rows and subagent buttons, keyboard-scrollable subagent stream
+- [x] Inspector: h2 heading, aria-labels on file rows and static subagent status rows; no expandable subagent stream
 - [x] ProjectRail: h2 heading, aria-controls, role=group, first menu item focus on open
 - [x] Splash: section with aria-labelledby and quiet empty-state copy; no suggestion controls
 - [x] Busy cue: composer Stop + elapsed; sr-only busy/idle live status; Esc via keyboard / Stop title
@@ -254,7 +256,7 @@ npm run dev
 ## Sleek modern Codex alternative — opencode-inspired polish (session 7)
 
 - [x] Token system: `--thinking-opacity`, `--bg-menu`, `--ctx-track`, `--composer-input-min`, rail widths 20vw/260 & 26vw/340, icon 16px, light shadows lifted, glass blur 24px/sat 140%
-- [x] Composer: lightly frosted floating surface with bottom-weighted blur + chat-column veil; focus ring; status row; mode dropdown; context gauge; tokenized user bubble (`--bubble-user-*`)
+- [x] Composer: dense full-surface frost with continuous blur + chat-column veil; focus ring; status row; mode dropdown; context gauge; tokenized user bubble (`--bubble-user-*`)
 - [x] Transcript: compact aligned tool/thinking rows, readable tool bodies, thinking opacity token, code block 10px radius with bottom border header, diff 2.5px accent, structured source cards
 - [x] Menus: slash/mention quiet surface-enter, sentence-case compact typography, keyboard containment, catalog grouping (favorites via localStorage + recent 8 + provider buckets, Free badge, clear ×)
 - [x] Session panel (Inspector): sole session side view; closed by default; explicit topbar toggle; user can close; LiveSidebar removed
@@ -266,7 +268,7 @@ npm run dev
 
 ## Second-pass deep polish (session 8)
 
-- [x] Text input: auto-resize overflow toggle (hidden until 200px then auto), floating surface `::before` inner gradient, placeholder 52% muted focus 38%, exact-cmd 500 weight, caret-color, status top border 14% + surface 22%, model pill bordered 18% + tabular-nums
+- [x] Text input: auto-resize overflow toggle (hidden until 200px then auto), floating surface `::before` full-surface blur, placeholder 52% muted focus 38%, exact-cmd 500 weight, caret-color, status top border 14% + surface 22%, model pill bordered 18% + tabular-nums
 - [x] Context gauge: pill with border, bg 36% → 56% hover, dial 14px + box-shadow 1px border, warn/notice/hot with bg tint
 - [x] Mode dropdown: trigger + options menu (`selectModeAction`) with uniform sentence-case menu typography and keyboard focus
 - [x] Slash/mention menu: quiet surface-enter, restrained overlay shadow, sentence-case headers, keyboard focus containment, and compact footer hints
@@ -294,16 +296,18 @@ npm run dev
 
 ## Presentation polish (2026-07-11 evening)
 
-- [x] App icon: `assets/icon.png` source → `build:icon` → `icon.icns`; unpackaged
-  macOS dock via `app.dock.setIcon`
+- [x] App icon: optically padded `assets/icon.png` source → `build:icon` →
+  `icon.icns`; unpackaged macOS dock via `app.dock.setIcon`
 - [x] Queue: one quiet card, “N Queued” header, flat list, hover steer/dequeue
-- [x] Composer frost + chat-column veil so transcript softens under the input;
-  empty home has no veil; reduced-motion drops live blur
+- [x] Continuous composer frost + chat-column veil so transcript is blurred
+  across the full input surface; empty home has no veil; reduced-motion drops
+  live blur
 - [x] Project/session ⋯ menus: trigger-anchored (flip above near bottom), toggle
   on second click, no mousedown/click race, `aria-haspopup`/`aria-expanded`,
   hidden triggers `pointer-events: none`
 - [x] Delete/archive confirm: title + detail, right-aligned Cancel / action pills
-- [x] Overlay scrollbars; hover copy chips with reserved gutters; Streamdown
+- [x] Overlay scrollbars; backgroundless white hover Copy/Edit icons with
+  reserved gutters; Streamdown
   strong/heading/list/code hierarchy; GFM table scroll shell; quieter source cards
 - [x] Preview scenarios `table`, `docs`, `sources`; docs synced
   (UI/PARITY/README/AGENTS/VERIFICATION/ACCEPTANCE)

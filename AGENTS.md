@@ -13,12 +13,13 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 3. **Busy until `engine-idle`.** Do not clear `busy` on `session-idle` / `turn-finished` alone — follow-up turns must not flicker idle.
 4. **`/clear` / `/new`:** abort if busy → `clearSessionLocal()` (transcript + overlays + `suppressAfterClear`) → forward slash to engine.
 5. Prefer porting pure modules from `vibe-codr/packages/tui` (`reducer`, `slash`, `modes`, `density`, `file-fuzzy`, `commands-catalog`) over rewriting behavior.
+6. Development host resolution must reject a compiled `vibecodr-engine-host` when runtime source under the sibling checkout is newer, then fall back to Bun source execution. This prevents stale host behavior from being reported as a generic renderer failure.
 
 ## Key paths
 
 | Concern | File |
 |---------|------|
-| Host spawn + NDJSON | `src/main/engine-bridge.ts`, `host-resolver.ts` |
+| Host spawn + NDJSON | `src/main/engine-bridge.ts`, `host-resolver.ts` (freshness-checked compiled host) |
 | App icon | `assets/icon.png` → `npm run build:icon` → `assets/icon.icns`; unpackaged dock via `src/main/index.ts` |
 | IPC surface | `src/preload/index.ts` → `window.vibe` |
 | Session / event wiring | `src/renderer/hooks/useSession.ts` |
@@ -52,7 +53,7 @@ cd ~/Code/vibe-codr && bun run build:macos-bridge
 - Mirror TUI `packages/tui/src/app.tsx` semantics first; then macOS `PARITY.md` for GUI-adapted cases.
 - Update `PARITY.md` checkboxes when you close a gap.
 - Add a Vitest case in `src/shared/parity.test.ts` for pure logic (slash, reducer, fuzzy, chrome-seed).
-- Keep interaction contracts current: the Session inspector is explicitly toggled, project menus support rename/archive/delete, and user turns fold from the message itself.
+- Keep interaction contracts current: the Session inspector is explicitly toggled, project menus support rename/archive/delete, subagent rows are static status summaries, and user turns fold from the message itself.
 
 ## When changing UI presentation (design system)
 
@@ -74,7 +75,8 @@ All renderer styling lives in `src/renderer/styles.css`, token-first. Rules:
    raised). Real layered shadows (`--shadow-menu`,
    `--shadow-modal`) only on true overlays. Menus/popovers sit on `--overlay`.
    Light floating chrome may use soft frost; the shell stays opaque to avoid
-   desktop wash.
+   desktop wash. The composer’s frost must cover its full surface so transcript
+   text never remains readable through the top edge.
 5. **Sans is the UI voice; mono is code.** Electron chrome (tool headers,
    paths, model/metrics, kbd chips, section labels, thinking/notices) uses
    `--font-sans`. Reserve `--font-mono` for real code: fenced blocks, inline

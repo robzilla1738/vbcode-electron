@@ -74,7 +74,6 @@ export function useSession(cwd: string | null) {
   const [booting, setBooting] = useState(false);
   const [ready, setReady] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const deltaBuf = useRef("");
   const progressBuf = useRef<Map<string, string>>(new Map());
   const reasoningBuf = useRef("");
@@ -82,7 +81,6 @@ export function useSession(cwd: string | null) {
   const flushTimer = useRef<number | null>(null);
   const suppressAfterClear = useRef(false);
   const lastSnap = useRef<EngineSnapshot | null>(null);
-  const subagentTranscripts = useRef<Record<string, string>>({});
   const trail = useRef(new Trail());
   const bootstrapGate = useRef(new RequestGate());
   const activeSessionId = useRef("");
@@ -226,11 +224,7 @@ export function useSession(cwd: string | null) {
           dispatchTranscript({ type: "finalize" });
           break;
         case "assistant-text-delta":
-          if (event.subagentId) {
-            const prev = subagentTranscripts.current[event.subagentId] ?? "";
-            subagentTranscripts.current[event.subagentId] = (prev + event.delta).slice(-64_000);
-            break;
-          }
+          if (event.subagentId) break;
           landReasoning();
           deltaBuf.current += event.delta;
           if (flushTimer.current == null) {
@@ -432,8 +426,6 @@ export function useSession(cwd: string | null) {
     setFoldedTurns(new Set());
     setRevealTurns(0);
     setRevealedTurnItems(new Map());
-    setSelectedSubagent(null);
-    subagentTranscripts.current = {};
   }, []);
 
   const bootstrap = useCallback(
@@ -453,14 +445,12 @@ export function useSession(cwd: string | null) {
       setRevealTurns(0);
       setRevealedTurnItems(new Map());
       setInspectorOpen(false);
-      setSelectedSubagent(null);
       suppressAfterClear.current = false;
       lastSnap.current = null;
       deltaBuf.current = "";
       progressBuf.current.clear();
       reasoningBuf.current = "";
       reasoningStarted.current = null;
-      subagentTranscripts.current = {};
       if (flushTimer.current != null) {
         window.clearTimeout(flushTimer.current);
         flushTimer.current = null;
@@ -647,11 +637,6 @@ export function useSession(cwd: string | null) {
     if (toastTimer.current != null) window.clearTimeout(toastTimer.current);
   }, []);
 
-  const getSubagentStream = useCallback(
-    (id: string) => subagentTranscripts.current[id] ?? "",
-    [],
-  );
-
   return {
     chrome,
     transcript,
@@ -689,9 +674,6 @@ export function useSession(cwd: string | null) {
       dispatchChrome({ type: "set-subagent-model", model }),
     inspectorOpen,
     setInspectorOpen,
-    selectedSubagent,
-    setSelectedSubagent,
-    getSubagentStream,
   };
 }
 

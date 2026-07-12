@@ -11,7 +11,6 @@ import {
   OrchestrationSection,
   projectName,
   SubagentsSection,
-  subagentLabel,
   TasksSection,
   ThinkingTrail,
 } from "./activity-shared";
@@ -19,25 +18,19 @@ import {
 export function Inspector({
   chrome,
   changedFiles,
-  selectedSubagent,
-  subagentStream,
   cwd,
   onClose,
   onUndo,
   onRedo,
   onRevealFile,
-  onSelectSubagent,
 }: {
   chrome: SessionChrome;
   changedFiles: ChangedFile[];
-  selectedSubagent: string | null;
-  subagentStream: string;
   cwd: string | null;
   onClose: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onRevealFile: (path: string) => void;
-  onSelectSubagent: (id: string | null) => void;
 }) {
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewText, setPreviewText] = useState<string | null>(null);
@@ -56,7 +49,6 @@ export function Inspector({
       : "No usage yet";
   const gitLine = formatGitLine(chrome.git, { showClean: true });
   const goalLine = formatGoalLine(chrome.goal, chrome.goalRun);
-  const selected = chrome.subagents.find((s) => s.id === selectedSubagent) ?? null;
   const latestCpLabel = chrome.checkpoints.length > 0
     ? chrome.checkpoints[chrome.checkpoints.length - 1]!.label
     : null;
@@ -172,9 +164,6 @@ export function Inspector({
   if (previewPath) {
     title = previewPath.split(/[/\\]/).pop() || previewPath;
     subtitle = "File preview";
-  } else if (selected) {
-    title = subagentLabel(selected.prompt, selected.id);
-    subtitle = `Subagent · ${selected.status}`;
   }
 
   return (
@@ -205,7 +194,7 @@ export function Inspector({
       </div>
 
       <div className="inspector-scroll">
-        {!previewPath && !selected && (
+        {!previewPath && (
           <div className="sidebar-section">
             <h4>Overview</h4>
             <div className="meta-block">
@@ -382,35 +371,10 @@ export function Inspector({
         {!previewPath && (
           <SubagentsSection
             subagents={chrome.subagents}
-            selectedId={selectedSubagent}
-            onSelect={onSelectSubagent}
           />
         )}
 
-        {!previewPath && selected && (
-          <div className="sidebar-section">
-            <div className="file-preview-toolbar">
-              <button
-                type="button"
-                className="button"
-                onClick={() => onSelectSubagent(null)}
-              >
-                Back
-              </button>
-            </div>
-            <h4>{subagentLabel(selected.prompt, selected.id)}</h4>
-            <pre
-              className="activity-stream inspector-stream thinking-panel"
-              // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable output region
-              tabIndex={0}
-              aria-label={`Stream for ${subagentLabel(selected.prompt, selected.id)}`}
-            >
-              {subagentStream || selected.result || "(no stream yet)"}
-            </pre>
-          </div>
-        )}
-
-        {!previewPath && !selected && (
+        {!previewPath && (
           <ThinkingTrail lines={chrome.thoughtLog} live={chrome.busy} />
         )}
 

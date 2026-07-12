@@ -16,7 +16,8 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (currently 74 tests), upstream source pairs aligned,
+Expect: Vitest green (currently 74 tests), Playwright Electron E2E green (10
+scenarios), upstream source pairs aligned,
 Biome and `tsc` clean, electron-vite build and renderer bundle budget OK, and
 smoke prints `ready` + `snapshot ok`. `npm run verify` runs the non-E2E subset
 as one gate.
@@ -47,9 +48,10 @@ Visually sweep the scenario matrix (`welcome`, `splash`, `chat`, `table`,
 default theme, plus `&theme=light` and one accent theme (e.g.
 `&theme=opencode`). Focus rings must be visible keyboard-only, overlays must
 animate (and respect reduced motion), and no surface may lose theme colors.
-Confirm queue is one card above the composer, copy chips reserve gutters,
-scrollbars stay overlay-only, and the composer veil/frost softens text that
-scrolls underneath.
+Confirm queue is one card above the composer, Copy/Edit actions are clean white
+icons without filled backgrounds, scrollbars stay overlay-only, the chat pane
+reaches its workspace edges, and the composer’s continuous frost fully blurs
+text that scrolls underneath, including at the top edge.
 
 ## Packaged app
 
@@ -58,7 +60,7 @@ npm run build:icon   # assets/icon.png → assets/icon.icns
 npm run pack
 ```
 
-Verify `release/mac-arm64/Vibe Codr.app` launches with the renderer sandbox enabled, uses `Contents/Resources/vibecodr-engine-host`, shows the VC app icon in Dock/Finder, and does not require `VIBE_CODR_ROOT`. Its final plist must keep `NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth permission strings.
+Verify `release/mac-arm64/Vibe Codr.app` launches with the renderer sandbox enabled, uses `Contents/Resources/vibecodr-engine-host`, shows the optically padded VC app icon at a comparable size to neighboring macOS icons in Dock/Finder, and does not require `VIBE_CODR_ROOT`. Its final plist must keep `NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth permission strings.
 
 ## Manual (dev window)
 
@@ -83,7 +85,9 @@ npm run dev
 10. `/theme tokyonight`; `/keys`; explicitly toggle Session; narrow the window for drawer behavior.
 11. Click a user message to fold/unfold its turn; confirm no persistent arrow is rendered.
 12. Confirm approval panels and output align to the composer width; inspect source cards and memory notices.
-13. `/clear` mid-turn — abort + empty transcript.
-14. Quit app — host finalizes (no orphan process).
+13. Approve a permission request for a background `npm run dev`; confirm the job starts, the host remains healthy, and the session does not show a generic host-exited failure.
+14. Hover an assistant response — confirm clean white Copy/Edit icons appear below it; inspect a subagent row — confirm spinner/check status and no detail expansion.
+15. `/clear` mid-turn — abort + empty transcript.
+16. Quit app — host finalizes (no orphan process).
 
 Full matrix: [PARITY.md](./PARITY.md).

@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { app } from "electron";
@@ -17,6 +17,57 @@ const CONVENTIONAL_ROOTS = [
   join(homedir(), "src", "vibe-codr"),
 ];
 
+// A compiled host is only safe to use while it still represents the checked
+// out engine. Keep this list focused on runtime source so a stale binary
+// cannot hide newer fixes in the sibling repository during development.
+const ENGINE_SOURCE_PATHS = [
+  "packages/config/src",
+  "packages/core/src",
+  "packages/macos-bridge/src",
+  "packages/macos-bridge/bin/engine-host.ts",
+  "packages/plugins/src",
+  "packages/providers/src",
+  "packages/shared/src",
+  "packages/tools/src",
+];
+
+const SOURCE_EXTENSIONS = new Set([".json", ".ts", ".tsx"]);
+
+function newestSourceMtime(root: string): number {
+  let newest = 0;
+
+  const visit = (path: string): void => {
+    let entry: ReturnType<typeof statSync>;
+    try {
+      entry = statSync(path);
+    } catch {
+      return;
+    }
+
+    if (entry.isFile()) {
+      const dot = path.lastIndexOf(".");
+      if (dot >= 0 && SOURCE_EXTENSIONS.has(path.slice(dot))) {
+        newest = Math.max(newest, entry.mtimeMs);
+      }
+      return;
+    }
+    if (!entry.isDirectory()) return;
+
+    let children: string[];
+    try {
+      children = readdirSync(path);
+    } catch {
+      return;
+    }
+    for (const child of children) visit(join(path, child));
+  };
+
+  for (const relativePath of ENGINE_SOURCE_PATHS) {
+    visit(join(root, relativePath));
+  }
+  return newest;
+}
+
 function whichBun(): string | null {
   const candidates = [
     join(homedir(), ".bun", "bin", "bun"),
@@ -32,6 +83,13 @@ function whichBun(): string | null {
 function tryCompiledHost(root: string): HostLaunch | null {
   const bin = join(root, "dist", "vibecodr-engine-host");
   if (!existsSync(bin)) return null;
+  try {
+    const binaryMtime = statSync(bin).mtimeMs;
+    const sourceMtime = newestSourceMtime(root);
+    if (sourceMtime > binaryMtime) return null;
+  } catch {
+    return null;
+  }
   return {
     executable: bin,
     arguments: [],

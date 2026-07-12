@@ -180,10 +180,10 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await page.getByRole("button", { name: "Show session panel" }).click();
   await expect(page.locator(".sidebar-line").filter({ hasText: "Before fixture change" })).toBeVisible();
   await expect(page.getByText(/Run fixture child/)).toBeVisible();
-  const subagent = page.getByRole("button", { name: /Review the fixture/ });
-  await expect(subagent).toBeVisible();
-  await subagent.click();
-  await expect(page.getByText("Subagent report: looks healthy.")).toBeVisible();
+  const subagents = page.locator("#session-panel .sidebar-section").filter({ hasText: "Subagents" }).last();
+  await expect(subagents.getByText("Review the fixture", { exact: true })).toBeVisible();
+  await expect(subagents.locator("button")).toHaveCount(0);
+  await expect(page.locator("#session-panel .inspector-stream")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Session details" })).toBeHidden();
   await page.getByRole("button", { name: "Toggle background jobs" }).click();

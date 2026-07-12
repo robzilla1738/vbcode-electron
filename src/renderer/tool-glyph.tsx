@@ -1,6 +1,5 @@
 import {
   Brain,
-  Bot,
   CheckSquare,
   FileText,
   GitBranch,
@@ -19,8 +18,20 @@ import type { ReactNode } from "react";
 const STROKE = 1.5;
 const SIZE = 13;
 
+export function isSubagentTool(toolName?: string): boolean {
+  const key = (toolName ?? "").toLowerCase();
+  return (
+    key.includes("subagent") ||
+    key === "task" ||
+    key === "spawn_tasks" ||
+    key === "check_task" ||
+    key === "read_report"
+  );
+}
+
 /** Map tool families → Lucide icons (renderer-only; shared tool-icons keep unicode). */
 export function ToolGlyph({ toolName }: { toolName?: string }): ReactNode {
+  if (isSubagentTool(toolName)) return null;
   const Icon = resolveToolIcon(toolName);
   return <Icon className="tool-glyph" size={SIZE} strokeWidth={STROKE} aria-hidden />;
 }
@@ -34,15 +45,6 @@ function resolveToolIcon(toolName?: string) {
   if (key === "glob" || key === "grep" || key === "repo_map") return Search;
   if (key === "list" || key === "ls") return List;
   if (key.startsWith("web") || key === "crawl_docs" || key === "webfetch" || key === "web_fetch") return Globe;
-  if (
-    key.includes("subagent") ||
-    key === "task" ||
-    key === "spawn_tasks" ||
-    key === "check_task" ||
-    key === "read_report"
-  ) {
-    return Bot;
-  }
   if (key.includes("todo") || key === "update_tasks" || key === "present_plan") return ListTodo;
   if (key.includes("memory") || key.includes("note") || key === "recall") return Brain;
   if (key === "use_skill") return Package;

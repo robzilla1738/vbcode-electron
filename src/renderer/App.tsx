@@ -1191,6 +1191,12 @@ export function App() {
                     return n;
                   })
                 }
+                onEdit={(text) => {
+                  setDraft(text);
+                  window.requestAnimationFrame(() => {
+                    document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus();
+                  });
+                }}
                 onShowEarlier={session.revealEarlier}
                 onRevealTurnItems={session.revealTurnItems}
                 followSignal={followSignal}
@@ -1275,12 +1281,7 @@ export function App() {
                     <button
                       type="button"
                       className="panel-strip-chip"
-                      onClick={() => {
-                        const focus =
-                          chrome.subagents.find((s) => s.status === "running") ?? chrome.subagents[0];
-                        if (focus) session.setSelectedSubagent(focus.id);
-                        session.setInspectorOpen(true);
-                      }}
+                      onClick={() => session.setInspectorOpen(true)}
                       title="Open session panel for subagents"
                     >
                       <StatusDot status={runningSubagents > 0 ? "active" : "done"} />
@@ -1385,12 +1386,6 @@ export function App() {
             <Inspector
               chrome={chrome}
               changedFiles={session.transcript.changedFiles}
-              selectedSubagent={session.selectedSubagent}
-              subagentStream={
-                session.selectedSubagent
-                  ? session.getSubagentStream(session.selectedSubagent)
-                  : ""
-              }
               cwd={cwd}
               onClose={() => session.setInspectorOpen(false)}
               onUndo={() => void session.send({ type: "run-slash", name: "undo", args: "" })}
@@ -1402,7 +1397,6 @@ export function App() {
                   : `${cwd}/${path}`;
                 void window.vibe.showItem(absolute);
               }}
-              onSelectSubagent={session.setSelectedSubagent}
             />
           )}
           </div>

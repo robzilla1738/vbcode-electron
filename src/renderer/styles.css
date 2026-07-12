@@ -267,7 +267,7 @@ button:disabled, input:disabled, textarea:disabled {
 
 /* Press feedback for primary/chip actions only — tiny icon controls opt out
    so dense toolbars don't twitch (I60). */
-button:active:not(:disabled):not(.icon-button):not(.composer-ghost):not(.copy-btn):not(.keys-close):not(.catalog-close):not(.catalog-search-clear):not(.session-more):not(.turn-fold):not(.queue-action) {
+button:active:not(:disabled):not(.icon-button):not(.composer-ghost):not(.copy-btn):not(.assistant-action):not(.keys-close):not(.catalog-close):not(.catalog-search-clear):not(.session-more):not(.turn-fold):not(.queue-action) {
   transform: translateY(var(--press-offset));
   transition-duration: var(--dur-press);
 }
@@ -455,19 +455,19 @@ html[data-scheme="light"].electron-transparent .workspace { background: var(--bg
   min-width: 0; min-height: 0;
   flex-direction: column;
   overflow: clip;
-  margin: var(--space-xs) var(--space-xs) var(--space-xs) 0;
+  margin: 0;
   border: 0;
-  border-radius: var(--radius-xl);
+  border-radius: 0;
   background: var(--bg);
 }
 
 .content-inset.is-expanded,
-.content-inset.gate-inset { margin-left: var(--space-xs); }
+.content-inset.gate-inset { margin-left: 0; }
 
 html.glass .content-inset,
 html.electron-transparent .content-inset {
-  margin: var(--space-xs) var(--space-xs) var(--space-xs) 0;
-  border-radius: var(--radius-xl);
+  margin: 0;
+  border-radius: 0;
   background: var(--bg);
 }
 
@@ -480,7 +480,7 @@ html.glass .content-inset.is-expanded,
 html.electron-transparent .content-inset.is-expanded,
 html.glass .content-inset.gate-inset,
 html.electron-transparent .content-inset.gate-inset {
-  margin-left: var(--space-xs);
+  margin-left: 0;
 }
 
 /* ── Topbar — minimal, refined ──────────────────────────────────────────── */
@@ -1517,11 +1517,6 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   text-rendering: optimizeLegibility;
 }
 
-/* Reserve a right gutter so the hover copy chip never covers glyphs. */
-.block-assistant.has-copy {
-  padding-right: calc(var(--hover-action-size) + 10px);
-}
-
 .block-assistant .md { white-space: normal; }
 html[data-scheme="light"] .block-assistant { color: var(--assistant); }
 
@@ -1784,11 +1779,11 @@ html[data-scheme="light"] .md pre {
 
 .md-code-block { display: block; position: relative; }
 
-/* ── Hover utility chips (copy / table / plan) ────────────────────────────
-   Grammar: circular quiet chips. Invisible until parent hover/focus on fine
-   pointers; always lightly visible on touch. Never cover content — parents
-   reserve inset (assistant right gutter, tool/thinking top rail). */
+/* ── Hover utility icons (copy / edit / table / plan) ──────────────────────
+   Keep actions visually quiet: the icon carries the affordance, not a filled
+   chip or toolbar background. */
 .copy-btn,
+.assistant-action,
 [data-streamdown="table-wrapper"] button {
   display: inline-flex;
   width: var(--hover-action-size);
@@ -1797,52 +1792,72 @@ html[data-scheme="light"] .md pre {
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  color: color-mix(in oklab, var(--muted) 78%, transparent);
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--assistant);
   background: transparent;
   cursor: pointer;
+  opacity: 0.78;
   transition:
     color var(--dur-fast) var(--ease-standard),
-    background-color var(--dur-fast) var(--ease-standard),
-    border-color var(--dur-fast) var(--ease-standard),
     opacity var(--dur-fast) var(--ease-enter),
-    transform var(--dur-fast) var(--ease-enter),
-    box-shadow var(--dur-fast) var(--ease-standard);
+    transform var(--dur-fast) var(--ease-enter);
 }
 
 .copy-btn:hover,
+.assistant-action:hover,
 [data-streamdown="table-wrapper"] button:hover {
   color: var(--assistant);
-  border-color: color-mix(in oklab, var(--border) 36%, transparent);
-  background: color-mix(in oklab, var(--elevated) 94%, var(--panel));
-  box-shadow: var(--edge-highlight);
+  background: transparent;
+  opacity: 1;
 }
 
 .copy-btn:focus-visible,
+.assistant-action:focus-visible,
 [data-streamdown="table-wrapper"] button:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
 
 .copy-btn.is-copied {
-  color: color-mix(in oklab, var(--task-active) 80%, var(--assistant));
-  border-color: color-mix(in oklab, var(--task-active) 28%, transparent);
-  background: color-mix(in oklab, var(--elevated) 94%, var(--panel));
+  color: var(--assistant);
+  background: transparent;
+  opacity: 1;
 }
 
 .copy-btn.is-failed {
-  color: var(--del);
-  border-color: color-mix(in oklab, var(--del) 28%, transparent);
-  background: color-mix(in oklab, var(--elevated) 94%, var(--panel));
+  color: var(--assistant);
+  background: transparent;
+  opacity: 1;
 }
 
-.copy-btn svg {
+.copy-btn svg,
+.assistant-action svg {
   flex: 0 0 auto;
 }
 
-/* Floating chip placement — start hidden on fine pointers */
-.block-assistant.has-copy > .copy-btn,
+/* Assistant actions sit below the response so they never compete with the
+   first line or cover long prose. */
+.assistant-actions {
+  display: inline-flex;
+  align-self: flex-start;
+  width: max-content;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-height: var(--hover-action-size);
+  margin-top: var(--space-xs);
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.88;
+  transform: none;
+  pointer-events: auto;
+}
+
+.block-assistant.has-actions {
+  padding-right: 0;
+}
+
+/* Floating utility icons for tool / thinking / plan bodies. */
 .tool-body.has-copy > .copy-btn,
 .thinking-body.has-copy > .copy-btn,
 .plan-text.has-copy > .copy-btn {
@@ -1853,9 +1868,8 @@ html[data-scheme="light"] .md pre {
   opacity: 0.88;
   transform: none;
   pointer-events: auto;
-  border-color: color-mix(in oklab, var(--border) 22%, transparent);
-  background: color-mix(in oklab, var(--elevated) 90%, var(--panel));
-  box-shadow: var(--edge-highlight);
+  background: transparent;
+  box-shadow: none;
 }
 
 .tool-body.has-copy > .copy-btn,
@@ -1879,7 +1893,12 @@ html[data-scheme="light"] .md pre {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .block-assistant.has-copy > .copy-btn,
+  .assistant-actions {
+    opacity: 0;
+    transform: translateY(3px);
+    pointer-events: none;
+  }
+
   .tool-body.has-copy > .copy-btn,
   .thinking-body.has-copy > .copy-btn,
   .plan-text.has-copy > .copy-btn {
@@ -1891,10 +1910,13 @@ html[data-scheme="light"] .md pre {
     box-shadow: none;
   }
 
-  .block-assistant.has-copy:hover > .copy-btn,
-  .block-assistant.has-copy:focus-within > .copy-btn,
-  .block-assistant.has-copy > .copy-btn.is-copied,
-  .block-assistant.has-copy > .copy-btn.is-failed,
+  .block-assistant.has-actions:hover .assistant-actions,
+  .block-assistant.has-actions:focus-within .assistant-actions {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
   .tool-body.has-copy:hover > .copy-btn,
   .tool-body.has-copy:focus-within > .copy-btn,
   .tool-body.has-copy > .copy-btn.is-copied,
@@ -1911,25 +1933,19 @@ html[data-scheme="light"] .md pre {
     transform: translateY(0);
     pointer-events: auto;
     color: var(--assistant);
-    border-color: color-mix(in oklab, var(--border) 28%, transparent);
-    background: color-mix(in oklab, var(--elevated) 94%, var(--panel));
-    box-shadow: var(--edge-highlight);
+    background: transparent;
   }
 
-  .block-assistant.has-copy > .copy-btn.is-copied,
   .tool-body.has-copy > .copy-btn.is-copied,
   .thinking-body.has-copy > .copy-btn.is-copied,
   .plan-text.has-copy > .copy-btn.is-copied {
-    color: color-mix(in oklab, var(--task-active) 80%, var(--assistant));
-    border-color: color-mix(in oklab, var(--task-active) 28%, transparent);
+    color: var(--assistant);
   }
 
-  .block-assistant.has-copy > .copy-btn.is-failed,
   .tool-body.has-copy > .copy-btn.is-failed,
   .thinking-body.has-copy > .copy-btn.is-failed,
   .plan-text.has-copy > .copy-btn.is-failed {
-    color: var(--del);
-    border-color: color-mix(in oklab, var(--del) 28%, transparent);
+    color: var(--assistant);
   }
 }
 
@@ -1945,8 +1961,8 @@ html[data-scheme="light"] .md pre {
 [data-streamdown="code-block-actions"] .copy-btn:focus-visible,
 [data-streamdown="code-block-actions"] .copy-btn.is-copied {
   color: var(--assistant);
-  border-color: color-mix(in oklab, var(--border) 28%, transparent);
-  background: color-mix(in oklab, var(--elevated) 94%, var(--panel));
+  background: transparent;
+  opacity: 1;
 }
 
 .md a,
@@ -2054,15 +2070,14 @@ html[data-scheme="light"] .md pre {
 }
 
 [data-streamdown="table-wrapper"] button {
-  border-color: color-mix(in oklab, var(--border) 22%, transparent);
-  background: color-mix(in oklab, var(--elevated) 90%, var(--panel));
-  box-shadow: var(--edge-highlight);
+  background: transparent;
+  box-shadow: none;
 }
 
 [data-streamdown="table-wrapper"] button:hover {
   color: var(--assistant);
-  border-color: color-mix(in oklab, var(--border) 40%, transparent);
-  background: color-mix(in oklab, var(--elevated) 98%, var(--panel));
+  background: transparent;
+  opacity: 1;
 }
 
 .rich-block {
@@ -2158,6 +2173,8 @@ html[data-scheme="light"] .md pre {
 
 .tool-head.live { color: var(--muted); }
 .tool-head::after { display: none; }
+.subagent-head { cursor: default; }
+.subagent-head:hover { color: var(--text-subtle); background: transparent; }
 
 .tool-label, .thinking-label {
   overflow: hidden;
@@ -3314,9 +3331,9 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   overflow: clip;
   border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
   border-radius: calc(var(--radius-xl) + var(--space-xs));
-  /* Translucent fill; blur lives on ::before (bottom-weighted) + column veil
-     so we don't isolate a backdrop root on the wrap itself. */
-  background: color-mix(in oklab, var(--elevated) 82%, transparent);
+  /* Dense frosted fill keeps transcript content from ghosting through the
+     input while the pseudo-element supplies the soft depth treatment. */
+  background: color-mix(in oklab, var(--elevated) 96%, transparent);
   box-shadow: var(--shadow-composer), var(--edge-highlight);
   transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
@@ -3328,69 +3345,47 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   z-index: 0;
   pointer-events: none;
   border-radius: inherit;
-  background: linear-gradient(
-    to top,
-    color-mix(in oklab, var(--elevated) 48%, transparent) 0%,
-    color-mix(in oklab, var(--elevated) 14%, transparent) 52%,
-    transparent 100%
-  );
-  backdrop-filter: blur(14px) saturate(1.06);
-  -webkit-backdrop-filter: blur(14px) saturate(1.06);
-  -webkit-mask-image: linear-gradient(
-    to top,
-    black 0%,
-    black 42%,
-    rgb(0 0 0 / 0.45) 72%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to top,
-    black 0%,
-    black 42%,
-    rgb(0 0 0 / 0.45) 72%,
-    transparent 100%
-  );
+  /* Continuous coverage is intentional: the transcript must not remain
+     readable through the top edge of the floating input. */
+  background: color-mix(in oklab, var(--elevated) 68%, transparent);
+  backdrop-filter: blur(16px) saturate(1.06);
+  -webkit-backdrop-filter: blur(16px) saturate(1.06);
 }
 
 html.glass .composer-wrap,
 html.electron-transparent .composer-wrap {
   border-color: color-mix(in oklab, var(--border) 32%, transparent);
-  background: color-mix(in oklab, var(--elevated) 78%, transparent);
+  background: color-mix(in oklab, var(--elevated) 92%, transparent);
   box-shadow: var(--shadow-composer), inset 0 1px 0 color-mix(in oklab, var(--edge-lit) 7%, transparent);
 }
 
 html[data-scheme="light"] .composer-wrap {
-  background: color-mix(in oklab, var(--elevated) 92%, transparent);
+  background: color-mix(in oklab, var(--elevated) 96%, transparent);
 }
 
 html[data-scheme="light"] .composer-wrap::before {
-  background: linear-gradient(
-    to top,
-    color-mix(in oklab, var(--elevated) 50%, transparent) 0%,
-    color-mix(in oklab, var(--elevated) 16%, transparent) 48%,
-    transparent 100%
-  );
-  backdrop-filter: blur(10px) saturate(1.04);
-  -webkit-backdrop-filter: blur(10px) saturate(1.04);
+  background: color-mix(in oklab, var(--elevated) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(1.04);
+  -webkit-backdrop-filter: blur(14px) saturate(1.04);
 }
 
 html[data-scheme="light"].glass .composer-wrap,
 html[data-scheme="light"].electron-transparent .composer-wrap {
   border-color: color-mix(in oklab, var(--border) 40%, transparent);
-  background: color-mix(in oklab, var(--elevated) 90%, transparent);
+  background: color-mix(in oklab, var(--elevated) 95%, transparent);
   box-shadow: var(--shadow-composer), var(--edge-highlight);
 }
 
 .composer-wrap:focus-within {
   border-color: color-mix(in oklab, var(--ring) 32%, var(--border));
-  background: color-mix(in oklab, var(--elevated) 94%, transparent);
+  background: color-mix(in oklab, var(--elevated) 98%, transparent);
   box-shadow: var(--shadow-composer), 0 0 0 3px color-mix(in oklab, var(--ring) 12%, transparent), var(--edge-highlight);
 }
 
 html.glass .composer-wrap:focus-within,
 html.electron-transparent .composer-wrap:focus-within {
   border-color: color-mix(in oklab, var(--border) 42%, transparent);
-  background: color-mix(in oklab, var(--elevated) 86%, transparent);
+  background: color-mix(in oklab, var(--elevated) 94%, transparent);
   box-shadow:
     0 0 0 1px color-mix(in oklab, var(--border) 28%, transparent),
     var(--shadow-composer),
@@ -4536,17 +4531,33 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 .status-dot {
   display: inline-block;
-  width: 6px; height: 6px;
+  width: 10px; height: 10px;
   flex: 0 0 auto;
-  margin-top: var(--space-2xs);
+  margin-top: 1px;
   border-radius: var(--radius-pill);
   background: var(--task-pending);
 }
 
-.status-dot-done { background: var(--task-done); }
+.status-dot-done {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0;
+  color: var(--task-done);
+  background: transparent;
+}
+.status-dot-done svg { display: block; }
 .status-dot-active, .status-dot-running {
-  background: var(--task-active);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--task-active) 18%, transparent);
+  width: 12px;
+  height: 12px;
+  margin-top: 0;
+  border: 1.5px solid color-mix(in oklab, var(--muted) 34%, transparent);
+  border-top-color: var(--assistant);
+  background: transparent;
+  animation: spin 0.75s linear infinite;
+  box-shadow: none;
 }
 .status-dot-pending {
   background: color-mix(in oklab, var(--task-pending) 35%, transparent);
