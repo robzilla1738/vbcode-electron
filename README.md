@@ -119,7 +119,7 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 - Content max ~130ch; transcript prose, tool output, approval panels, and the composer share the `--composer-max: 40rem` reading measure
 - Project and Session rails have desktop drag handles plus Arrow/Home/End keyboard resizing; widths persist locally and drawer layouts disable resizing on narrow screens
 - Projects and meaningful session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
-- Themes via `/theme` (same 15 palettes as OpenTUI); accents via `/accent`
+- Themes via `/theme` (same 16 palettes as OpenTUI); accents via `/accent`
 - Modes: **Plan / Agent / Yolo** dropdown in the composer (Shift+Tab still cycles)
 
 ### Design system
@@ -177,6 +177,42 @@ together.
 
 Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
 
+## Settings & onboarding
+
+- **First-run onboarding wizard**: curated provider catalog (33 choices mirroring
+  the CLI's `PROVIDER_CHOICES`), key entry with get-a-key links, base URL for
+  custom endpoints, model preselect, and save → re-bootstrap
+- **Full-workspace settings**: 15 sections covering every config field — Models
+  (default, planning, fallbacks, reasoning, pricing/context-window overrides),
+  Providers (curated dropdown + free-text), MCP Servers (stdio + remote),
+  Permissions (tool/match/matchExact/action), Appearance (16 themes + accent
+  swatches), Behavior (mode, approvals, sandbox, checkpoints, trust), Subagents,
+  Build & Verify (recon, green gate, checks, review, worktrees, ensemble, plan
+  gate), Memory, Search & Web, Compaction, Budget & Retry, Hooks, Custom
+  Instructions (VIBE.md), Advanced (plugins, LSP, vision relay, verify, updates,
+  goal/loop, orchestration)
+- **Atomic config writes**: temp+rename so a crash mid-write can't corrupt the
+  config; per-path write serialization prevents concurrent clobber
+- **Pre-write validation**: URLs, enums, and numeric ranges checked before
+  persisting — invalid values are rejected with a helpful error, not written
+- **Deep-diff save**: only changed keys are persisted; clearing a field sends
+  `null` (delete) instead of `undefined` (no-op)
+- Config is shared with the CLI at `~/.config/vibe-codr/config.json`
+
+## Security & resilience
+
+- **Content Security Policy**: strict CSP in `index.html` (`default-src 'self'`);
+  dev-mode relaxation for Vite HMR via `onHeadersReceived` only when
+  `ELECTRON_RENDERER_URL` is present
+- **React ErrorBoundary**: uncaught render errors show a recovery card with
+  Reload instead of blanking the window
+- **Application menu**: standard macOS roles (App, Edit, View, Window) plus
+  app-specific actions (Open Project, Continue Latest, Settings, Git, Inspector)
+- **IPC security**: all handlers assert trusted sender; context isolation +
+  sandbox enabled; `nodeIntegration: false`
+- **ATS**: `NSAllowsArbitraryLoads=false`, `NSAllowsLocalNetworking=true`;
+  unused permission strings (camera/mic/Bluetooth) stripped in `after-pack`
+
 ## Features (shell)
 
 Everything the TUI exposes through `EngineCommand` / `UIEvent` — tools, MCP, memory, orchestration, build gate, etc. run in the host unchanged.
@@ -216,7 +252,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AG
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **98 unit tests**, **10 Electron E2E scenarios**, 19 source
+Current baseline: **140 unit tests**, **10 Electron E2E scenarios**, 19 source
 parity pairs, Biome, typecheck, production build, bridge smoke, and renderer
 bundle budget all pass. The deterministic preview matrix covers attachments,
 settings, Git, Session review, light mode, and alternate themes. See

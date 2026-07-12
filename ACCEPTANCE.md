@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-12 (current UI, host, icon, and publication audit)
+> Last updated: 2026-07-12 (production hardening: config integrity, onboarding, full settings parity, security)
 > Status: implementation complete; automated publication gates are green on 2026-07-12
 
 ## Summary
@@ -87,6 +87,8 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | 2026-07-12 | Codex | n/a | n/a | Renderer interaction polish: compact grouped Thinking disclosure with uniform tool/thought rows, quiet expandable memory notes, busy-only active-session spinner, normalized Workspace sans typography, and tightened project-rail affordances. 76 unit tests, typecheck, lint, diff checks, browser interaction checks, and the full UI preview matrix pass. |
 | 2026-07-12 | Codex | 36/36 | 4/4 | Complete attachment/review/resize and documentation pass: Finder image/file drops resolve native paths with URI/plain-text fallback, duplicate and inaccessible states are distinct, changed files support Diff/File review and Reveal, desktop rails resize by pointer or keyboard with persistence, and message actions are positioned beside user bubbles with hover timestamps. 98 unit tests, 10 E2E scenarios, lint, typecheck, build, bundle budget, source parity, bridge smoke, and docs checks pass. |
 
+| 2026-07-12 | Codex | 36/36 | 4/4 | Production hardening: atomic config writes (temp+rename), per-path write serialization, deep-diff settings save (clear-values fix), NumberInput NaN guard, pre-write config validation (URLs/enums/numerics), first-run onboarding wizard (33-provider catalog ported from CLI), React ErrorBoundary, dev-mode CSP relaxation, application menu (macOS roles + app actions), theme list fix (was completely wrong — midnight/solarized/github don't exist), git commit --amend arg construction bug fix, menu IPC listener leak fix, settings parity gaps closed (structuredMaxAttempts, maxArtifactBytes, build.recon, gate.checks, plan gate, pricing, contextWindow, matchExact), accent preset swatches, curated provider dropdown, dead code removed. 140 unit tests, 10 E2E, 31/31 UI preview scenarios, all gates green. |
+
 ## Sign-off
 
 - [x] All P0 rows are `pass`
@@ -96,14 +98,14 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 **Current verification snapshot (2026-07-12):**
 
 ```text
-npm test                         # 98/98 pass
-npm run lint                     # clean; 118 files checked
+npm test                         # 140/140 pass
+npm run lint                     # clean; 125 files checked
 npm run typecheck                # pass
 npm run build                    # pass
 npm run build:icon               # icon PNG/ICNS regeneration pass
 npm run test:e2e                 # 10/10 pass
-npm run verify:source-parity     # pass (19 source pairs, drift+extras flags fixed)
-npm run verify:bundle            # pass; 2,023,589 total / 2,022,915 largest chunk bytes
+npm run verify:source-parity     # pass (19 source pairs)
+npm run verify:bundle            # pass; 2,059,731 total / 2,059,057 largest chunk bytes
 npm run verify                   # pass
 npm run smoke:bridge             # pass; ready, snapshot, and project-list checks
 ```

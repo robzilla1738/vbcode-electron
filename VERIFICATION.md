@@ -16,7 +16,7 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (currently 98 tests), Playwright Electron E2E green (10
+Expect: Vitest green (currently 140 tests), Playwright Electron E2E green (10
 scenarios), all 19 upstream source pairs aligned, Biome and `tsc` clean,
 electron-vite build and renderer bundle budget OK, and smoke prints `ready` +
 `snapshot ok`. `npm run verify` runs the non-E2E subset as one gate.

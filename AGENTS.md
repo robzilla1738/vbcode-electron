@@ -34,6 +34,12 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | Settings panel | `src/renderer/settings/SettingsPanel.tsx`, sections in `src/renderer/settings/sections/` |
 | Git panel | `src/renderer/git/GitPanel.tsx` |
 | Config I/O (JSONC read/write) | `src/shared/config-io.ts`, `config-schema.ts` |
+| Config diff patch builder | `src/shared/config-diff.ts` |
+| Config pre-write validation | `src/shared/config-validate.ts` |
+| Provider catalog (onboarding) | `src/shared/providers-catalog.ts` |
+| Onboarding modal (first-run) | `src/renderer/panels/OnboardingModal.tsx` |
+| Error boundary | `src/renderer/ErrorBoundary.tsx` |
+| Application menu + dev CSP | `src/main/index.ts` |
 | Git operations | `src/shared/git-ops.ts`, `git-types.ts` |
 | Config + git IPC | `src/main/config-ipc.ts`, `git-ipc.ts`, `ipc-security.ts` |
 | Parity checklist | `PARITY.md` |

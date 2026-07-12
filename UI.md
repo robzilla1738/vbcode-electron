@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff
-> **Updated:** 2026-07-12
+> **Updated:** 2026-07-12 (production hardening pass)
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
