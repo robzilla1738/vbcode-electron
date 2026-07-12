@@ -21,6 +21,9 @@ export interface VibeApi {
   listProjects(): Promise<
     { ok: true; value: ProjectSummary[] } | { ok: false; error: string }
   >;
+  renameProject(opts: { cwd: string; name: string }): Promise<{ ok: true } | { ok: false; error: string }>;
+  archiveProject(opts: { cwd: string }): Promise<{ ok: true } | { ok: false; error: string }>;
+  deleteProject(opts: { cwd: string }): Promise<{ ok: true } | { ok: false; error: string }>;
   renameSession(opts: { cwd: string; id: string; title: string }): Promise<{ ok: true } | { ok: false; error: string }>;
   deleteSession(opts: { cwd: string; id: string }): Promise<{ ok: true } | { ok: false; error: string }>;
   archiveSession(opts: { cwd: string; id: string }): Promise<{ ok: true } | { ok: false; error: string }>;
@@ -57,6 +60,9 @@ const api: VibeApi = {
   send: (command) => ipcRenderer.invoke("engine:send", command),
   rpc: (method, params) => ipcRenderer.invoke("engine:rpc", method, params),
   listProjects: () => ipcRenderer.invoke("engine:rpc", "listProjects"),
+  renameProject: (opts) => ipcRenderer.invoke("engine:rpc", "renameProject", opts),
+  archiveProject: (opts) => ipcRenderer.invoke("engine:rpc", "archiveProject", opts),
+  deleteProject: (opts) => ipcRenderer.invoke("engine:rpc", "deleteProject", opts),
   renameSession: (opts) => ipcRenderer.invoke("engine:rpc", "renameSession", opts),
   deleteSession: (opts) => ipcRenderer.invoke("engine:rpc", "deleteSession", opts),
   archiveSession: (opts) => ipcRenderer.invoke("engine:rpc", "archiveSession", opts),

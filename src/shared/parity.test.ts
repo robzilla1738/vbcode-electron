@@ -475,10 +475,14 @@ describe("breakpoints", () => {
 });
 
 describe("theme palette parity", () => {
-  it("DEFAULT palette matches Graphite (white chrome)", async () => {
+  it("DEFAULT palette matches the graphite desktop surfaces", async () => {
     const { THEMES } = await import("./themes");
     const d = THEMES.default!;
-    expect(d.background).toBe("#0a0a0a");
+    expect(d.background).toBe("#111111");
+    expect(d.panel).toBe("#1a1a1a");
+    expect(d.elevated).toBe("#242424");
+    expect(d.border).toBe("#393939");
+    expect(d.code).toBe("#88b0e0");
     expect(d.primary).toBe("#eeeeee");
     expect(d.selBg).toBe("#eeeeee");
     expect(d.heading).toBe("#eeeeee");

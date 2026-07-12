@@ -59,16 +59,11 @@ export interface Palette {
   series: string[];
 }
 
-/** Graphite dark palette (the default) — white chrome, monochrome-first. */
-// opencode's neutral scale verbatim (bg #0a0a0a / panel #141414 / elevated
-// #1e1e1e, text #eeeeee, muted #808080, border #3c3c3c) with WHITE as the
-// chrome accent: panel titles, selected menu rows, markdown headings, the
-// caret, and the wordmark all read in body white — calm, like opencode's own
-// dialogs. Green/red stay functional on diffs, amber on warnings; plan keeps
-// a soft violet as a mode signal only. The default must never drift light;
-// `light` exists only as an explicit `/theme light` opt-in. Override the
-// chrome accent with any hue via `accentColor` / `/accent <hex>` — the
-// wordmark sweep follows it.
+/** Graphite dark palette (the default) — neutral chrome, blue transcript output. */
+// The desktop default keeps the shell nearly black, with a distinct rail,
+// raised composer, and quiet gray dividers. Assistant prose uses a soft blue
+// while interface chrome stays neutral. The default must never drift light;
+// `light` exists only as an explicit `/theme light` opt-in.
 const DEFAULT: Palette = {
   user: "#5c9cf5",
   assistant: "#eeeeee",
@@ -87,19 +82,19 @@ const DEFAULT: Palette = {
   // render in the body white. Override with a single hue via accentColor /
   // `/accent <hex>`.
   primary: "#eeeeee",
-  border: "#3c3c3c",
+  border: "#393939",
   muted: "#808080",
-  background: "#0a0a0a",
-  panel: "#141414",
-  elevated: "#1e1e1e",
+  background: "#111111",
+  panel: "#1a1a1a",
+  elevated: "#242424",
   // Selected menu / slash / catalog row: solid white band with dark text.
   selBg: "#eeeeee",
-  selFg: "#0a0a0a",
+  selFg: "#111111",
   addBg: "#20303b",
   delBg: "#37222c",
   gutter: "#484848",
   heading: "#eeeeee",
-  code: "#56b6c2",
+  code: "#88b0e0",
   // Chart/pie/source series ramp — functional hues, not chrome accents.
   series: ["#7fd88f", "#5c9cf5", "#f5a742", "#c53b53", "#4fd6be", "#9d7cd8"],
 };

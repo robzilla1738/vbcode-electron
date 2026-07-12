@@ -7,7 +7,7 @@ import {
 } from "../../shared/tool-icons";
 import type { QueuedItem } from "../../shared/types";
 import { CopyButton } from "../CopyButton";
-import { IconChevron, IconRemove, IconSteer } from "../icons";
+import { IconDelete, IconChevron, IconSteer } from "../icons";
 import { ExternalLink } from "../primitives";
 import { MarkdownView } from "../transcript/MarkdownView";
 
@@ -333,6 +333,9 @@ export function QueuePanel({
       <div id="composer-queue-items" className="queue-items">
         {visible.map((q) => (
           <div key={q.id} className="queue-row">
+            <span className="queue-row-icon" aria-hidden>
+              <IconSteer size={16} />
+            </span>
             <span className="queue-label">{q.label}</span>
             <div className="queue-actions">
               <button
@@ -347,19 +350,18 @@ export function QueuePanel({
               </button>
               <button
                 type="button"
-                className="queue-action"
+                className="queue-action queue-action-remove"
                 onClick={() => onDequeue(q.id)}
                 title="Remove from queue"
                 aria-label={`Remove ${q.label} from queue`}
               >
-                <IconRemove size={13} />
+                <IconDelete size={14} />
                 <span>Remove</span>
               </button>
             </div>
           </div>
         ))}
       </div>
-      <p className="queue-hint">Steer runs next · Remove drops it</p>
     </div>
   );
 }

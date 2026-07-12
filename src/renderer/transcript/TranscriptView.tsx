@@ -29,6 +29,20 @@ function scrollBehavior(pref: ScrollBehavior): ScrollBehavior {
   return pref === "smooth" && prefersReducedMotion() ? "auto" : pref;
 }
 
+function memoryNotice(text: string): { count: string; detail: string } | null {
+  const match = text.match(
+    /^Recalled\s+(\d+)\s+prior note\(s\)(?:\s*\([^)]*\))?:\s*([\s\S]*)$/i,
+  );
+  if (!match) return null;
+  return {
+    count: match[1] ?? "0",
+    detail: (match[2] ?? "")
+      .replace(/\s*##\s*/g, "  ·  ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  };
+}
+
 function DiffBody({ lines }: { lines: string[] }) {
   const text = lines.join("\n");
   return (
@@ -188,11 +202,32 @@ function BlockView({
       );
     }
     case "notice":
-      return (
-        <div className={`notice ${block.level}`} role={block.level === "error" ? "alert" : "status"}>
-          {block.text}
-        </div>
-      );
+      {
+        const memory = memoryNotice(block.text);
+        return (
+          <div
+            className={`notice ${block.level}${memory ? " memory-notice" : ""}`}
+            role={block.level === "error" ? "alert" : "status"}
+          >
+            {memory ? (
+              <>
+                <div className="memory-notice-head">
+                  <span className="memory-notice-icon" aria-hidden="true">
+                    <IconBrain size={15} />
+                  </span>
+                  <span className="memory-notice-title">Memory loaded</span>
+                  <span className="memory-notice-count">
+                    {memory.count} {memory.count === "1" ? "prior note" : "prior notes"}
+                  </span>
+                </div>
+                {memory.detail ? <p className="memory-notice-detail">{memory.detail}</p> : null}
+              </>
+            ) : (
+              block.text
+            )}
+          </div>
+        );
+      }
     default:
       return null;
   }
@@ -310,22 +345,26 @@ export function TranscriptView({
                   ) : null}
                   {turn.user && (
                     <div className="block-user-row">
-                      <div className="block-user">
+                      <div
+                        className="block-user"
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={!folded}
+                        aria-controls={`turn-items-${turn.key}`}
+                        aria-label={folded ? "Expand user message" : "Collapse user message"}
+                        onClick={() => onToggleTurn(turn.key)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onToggleTurn(turn.key);
+                          }
+                        }}
+                      >
                         <span className="block-user-text">{turn.user.text}</span>
                         {folded ? (
                           <span className="folded-hint">{turn.items.length} hidden</span>
                         ) : null}
                       </div>
-                      <button
-                        type="button"
-                        className="turn-fold"
-                        onClick={() => onToggleTurn(turn.key)}
-                        aria-expanded={!folded}
-                        aria-controls={`turn-items-${turn.key}`}
-                        aria-label={folded ? "Expand turn" : "Collapse turn"}
-                      >
-                        <IconChevron open={!folded} size={13} />
-                      </button>
                     </div>
                   )}
                   {!folded && itemWindow.hidden > 0 && (

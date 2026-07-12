@@ -28,7 +28,7 @@ import { RequestGate } from "./hooks/request-gate";
 import { useSession } from "./hooks/useSession";
 import { IconJobs, IconPanel, IconSidebar } from "./icons";
 import { ProjectRail } from "./layout/ProjectRail";
-import { Splash, StarterPills } from "./layout/Splash";
+import { Splash } from "./layout/Splash";
 import { SessionBoot, SessionBootError, WelcomeGate } from "./layout/WelcomeGate";
 import { Inspector } from "./panels/Inspector";
 import { JobsView } from "./panels/JobsView";
@@ -112,6 +112,28 @@ export function App() {
   const session = useSession(cwd);
   const showToastRef = useRef(session.showToast);
   showToastRef.current = session.showToast;
+
+  // The composer overlays the transcript so output can continue to scroll
+  // underneath it. Keep the transcript's bottom clearance tied to the actual
+  // composer height, including multiline drafts and queued prompts.
+  useEffect(() => {
+    const stack = composerStackRef.current;
+    const column = stack?.closest<HTMLElement>(".chat-column");
+    if (!stack || !column || typeof ResizeObserver === "undefined") return;
+
+    const syncClearance = () => {
+      const height = Math.ceil(stack.getBoundingClientRect().height);
+      column.style.setProperty("--composer-clearance", `${height + 24}px`);
+    };
+
+    syncClearance();
+    const observer = new ResizeObserver(syncClearance);
+    observer.observe(stack);
+    return () => {
+      observer.disconnect();
+      column.style.removeProperty("--composer-clearance");
+    };
+  }, [session.booting, session.chrome.queuePending.length, session.transcript.blocks.length, picker]);
 
   useEffect(() => {
     const onPreviewToast = (event: Event) => {
@@ -266,6 +288,52 @@ export function App() {
     [refreshProjects, session],
   );
 
+  const renameProject = useCallback(
+    async (projectCwd: string, name: string) => {
+      const res = await window.vibe.renameProject({ cwd: projectCwd, name });
+      if (!res.ok) {
+        session.showToast(res.error || "Rename project failed", "error");
+        return false;
+      }
+      await refreshProjects();
+      session.showToast("Project renamed");
+      return true;
+    },
+    [refreshProjects, session],
+  );
+
+  const archiveProject = useCallback(
+    async (projectCwd: string) => {
+      const res = await window.vibe.archiveProject({ cwd: projectCwd });
+      if (!res.ok) {
+        session.showToast(res.error || "Archive project failed", "error");
+        return false;
+      }
+      await refreshProjects();
+      session.showToast("Project archived");
+      return true;
+    },
+    [refreshProjects, session],
+  );
+
+  const deleteProject = useCallback(
+    async (projectCwd: string) => {
+      if (projectCwd === cwd) {
+        session.showToast("Open another project before deleting this project.", "warn");
+        return false;
+      }
+      const res = await window.vibe.deleteProject({ cwd: projectCwd });
+      if (!res.ok) {
+        session.showToast(res.error || "Delete project failed", "error");
+        return false;
+      }
+      await refreshProjects();
+      session.showToast("Project deleted");
+      return true;
+    },
+    [cwd, refreshProjects, session],
+  );
+
   const removeSession = useCallback(
     async (projectCwd: string, id: string, mode: "delete" | "archive") => {
       const active = id === session.chrome.sessionId && projectCwd === cwd;
@@ -321,9 +389,6 @@ export function App() {
       });
       if (!sent) return false;
       session.dispatchChrome({ type: "clear-plan" });
-      if (decision === "accept" || decision === "edit") {
-        session.setInspectorOpen(true);
-      }
       return true;
     },
     [session],
@@ -550,7 +615,6 @@ export function App() {
       session.setBusy(true);
       const sent = await session.sendMany(lineToCommands(trimmed));
       if (!sent) session.setBusy(false);
-      else session.setInspectorOpen(true);
       return sent;
     },
     [session, answerPerm, answerPlan, openModelsPicker, presentCatalog],
@@ -905,6 +969,10 @@ export function App() {
   ].join(" · ");
   const planPending = !!chrome.plan && !chrome.perms.length;
   const showGateBanner = chrome.lastGate === "red" && !chrome.busy;
+  const contextSummary = formatChromeSummary({
+    git: formatGitLine(chrome.git),
+    goal: formatGoalLine(chrome.goal, chrome.goalRun, { style: "context" }),
+  });
 
   const activeSessionIndexed = projects.some((project) =>
     project.sessions.some((item) => item.id === chrome.sessionId),
@@ -968,6 +1036,9 @@ export function App() {
             if (belowBreakpoint("tablet")) setProjectRailOpen(false);
             void resumeSession(projectCwd, id);
           }}
+          onRenameProject={renameProject}
+          onArchiveProject={archiveProject}
+          onDeleteProject={deleteProject}
           onRenameSession={renameSession}
           onDeleteSession={(projectCwd, id) => removeSession(projectCwd, id, "delete")}
           onArchiveSession={(projectCwd, id) => removeSession(projectCwd, id, "archive")}
@@ -994,7 +1065,14 @@ export function App() {
           <header className="topbar">
             <div className="topbar-leading">
               {!projectRailOpen && (
-                <button type="button" className="icon-button no-drag" onClick={() => setProjectRailOpen(true)} aria-label="Show project rail">
+                <button
+                  type="button"
+                  className="icon-button no-drag"
+                  onClick={() => setProjectRailOpen(true)}
+                  aria-label="Show project rail"
+                  aria-expanded={projectRailOpen}
+                  aria-controls="project-rail"
+                >
                   <IconSidebar size={15} />
                 </button>
               )}
@@ -1075,15 +1153,9 @@ export function App() {
               }`}
               aria-label="Conversation"
             >
-            {(session.transcript.blocks.length > 0 || chrome.busy) && (
+            {(session.transcript.blocks.length > 0 || chrome.busy) && contextSummary && (
               <div className="context-line">
-                {formatChromeSummary({
-                  project: activeProject
-                    ? projectLabel(activeProject, projects)
-                    : projectName(chrome.cwd),
-                  git: formatGitLine(chrome.git),
-                  goal: formatGoalLine(chrome.goal, chrome.goalRun, { style: "context" }),
-                })}
+                {contextSummary}
               </div>
             )}
 
@@ -1097,14 +1169,7 @@ export function App() {
               />
             ) : session.transcript.blocks.length === 0 && !chrome.busy ? (
               <div className="transcript">
-                <Splash
-                  projectLabel={
-                    activeProject
-                      ? projectLabel(activeProject, projects)
-                      : projectName(cwd)
-                  }
-                  branch={chrome.git?.branch ?? null}
-                />
+                <Splash />
               </div>
             ) : (
               <TranscriptView
@@ -1307,20 +1372,6 @@ export function App() {
                   !chrome.busy
                 }
               />
-              {!session.jobsView &&
-                session.transcript.blocks.length === 0 &&
-                !chrome.busy && (
-                  <StarterPills
-                    onStarter={(t) => {
-                      setDraft(t);
-                      window.requestAnimationFrame(() => {
-                        document
-                          .querySelector<HTMLTextAreaElement>(".composer-input")
-                          ?.focus();
-                      });
-                    }}
-                  />
-                )}
             </div>
             )}
 

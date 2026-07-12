@@ -96,7 +96,7 @@ export function formatGoalLine(
 
 /** Compact path/git/goal line for context chrome (not topbar / splash crumb). */
 export function formatChromeSummary(parts: {
-  project: string;
+  project?: string | null;
   git?: string | null;
   goal?: string | null;
 }): string {

@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   filterProjects,
   projectLabel,
@@ -20,11 +21,22 @@ import {
 } from "../icons";
 
 type SessionMenu = {
+  kind: "session";
   cwd: string;
   session: ProjectSessionSummary;
   x: number;
   y: number;
 };
+
+type ProjectMenu = {
+  kind: "project";
+  cwd: string;
+  project: ProjectSummary;
+  x: number;
+  y: number;
+};
+
+type RailMenu = SessionMenu | ProjectMenu;
 
 export function ProjectRail({
   projects,
@@ -40,6 +52,9 @@ export function ProjectRail({
   onNewSession,
   onContinueLatest,
   onResume,
+  onRenameProject,
+  onArchiveProject,
+  onDeleteProject,
   onRenameSession,
   onDeleteSession,
   onArchiveSession,
@@ -57,20 +72,52 @@ export function ProjectRail({
   onNewSession: () => void;
   onContinueLatest: () => void;
   onResume: (cwd: string, id: string) => void;
+  onRenameProject: (cwd: string, name: string) => Promise<boolean>;
+  onArchiveProject: (cwd: string) => Promise<boolean>;
+  onDeleteProject: (cwd: string) => Promise<boolean>;
   onRenameSession: (cwd: string, id: string, title: string) => Promise<boolean>;
   onDeleteSession: (cwd: string, id: string) => Promise<boolean>;
   onArchiveSession: (cwd: string, id: string) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [menu, setMenu] = useState<SessionMenu | null>(null);
+  const [menu, setMenu] = useState<RailMenu | null>(null);
+  const [menuClosing, setMenuClosing] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [renamingProject, setRenamingProject] = useState<{ cwd: string; name: string } | null>(null);
   const [renaming, setRenaming] = useState<{ cwd: string; id: string; title: string } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"archive" | "delete" | null>(null);
+  const [confirmProjectAction, setConfirmProjectAction] = useState<"archive" | "delete" | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
+  const projectRenameRef = useRef<HTMLInputElement>(null);
   const renameRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuCloseTimerRef = useRef<number | null>(null);
+  const searchTriggerRef = useRef<HTMLButtonElement>(null);
   const visibleProjects = useMemo(() => filterProjects(projects, query), [projects, query]);
+  const searchIsOpen = searchOpen || query.length > 0;
+
+  const closeMenu = useCallback(
+    (restoreFocus = false) => {
+      if (!menu) return;
+      if (menuCloseTimerRef.current !== null) {
+        window.clearTimeout(menuCloseTimerRef.current);
+      }
+      setConfirmAction(null);
+      setConfirmProjectAction(null);
+      setMenuClosing(true);
+      menuCloseTimerRef.current = window.setTimeout(() => {
+        setMenu(null);
+        setMenuClosing(false);
+        menuCloseTimerRef.current = null;
+        if (restoreFocus) {
+          window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
+        }
+      }, 120);
+    },
+    [menu],
+  );
 
   useEffect(() => {
     if (!activeCwd) return;
@@ -83,8 +130,7 @@ export function ProjectRail({
     first?.focus();
     const onPointer = (event: MouseEvent) => {
       if (menuRef.current?.contains(event.target as Node)) return;
-      setConfirmAction(null);
-      setMenu(null);
+      closeMenu();
     };
     // The session menu fully owns keyboard interaction while open. The keydown
     // listener lives on document (bubble phase) so it fires before App's
@@ -112,9 +158,7 @@ export function ProjectRail({
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        setConfirmAction(null);
-        setMenu(null);
-        window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
+        closeMenu(true);
       }
     };
     window.addEventListener("mousedown", onPointer);
@@ -123,7 +167,15 @@ export function ProjectRail({
       window.removeEventListener("mousedown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
-  }, [menu]);
+  }, [closeMenu, menu]);
+
+  useEffect(() => {
+    return () => {
+      if (menuCloseTimerRef.current !== null) {
+        window.clearTimeout(menuCloseTimerRef.current);
+      }
+    };
+  }, []);
 
   // Clamp after paint so real menu size wins over a fixed estimate.
   useLayoutEffect(() => {
@@ -137,6 +189,12 @@ export function ProjectRail({
       setMenu((current) => (current ? { ...current, x, y } : null));
     }
   }, [menu]);
+
+  useEffect(() => {
+    if (!renamingProject) return;
+    projectRenameRef.current?.focus();
+    projectRenameRef.current?.select();
+  }, [renamingProject]);
 
   useEffect(() => {
     if (!renaming) return;
@@ -160,8 +218,25 @@ export function ProjectRail({
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    if (menuCloseTimerRef.current !== null) {
+      window.clearTimeout(menuCloseTimerRef.current);
+      menuCloseTimerRef.current = null;
+    }
+    setMenuClosing(false);
     menuTriggerRef.current = event.currentTarget as HTMLButtonElement;
-    setMenu({ cwd, session, x: event.clientX, y: event.clientY });
+    setMenu({ kind: "session", cwd, session, x: event.clientX, y: event.clientY });
+  };
+
+  const openProjectMenu = (event: React.MouseEvent, project: ProjectSummary) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (menuCloseTimerRef.current !== null) {
+      window.clearTimeout(menuCloseTimerRef.current);
+      menuCloseTimerRef.current = null;
+    }
+    setMenuClosing(false);
+    menuTriggerRef.current = event.currentTarget as HTMLButtonElement;
+    setMenu({ kind: "project", cwd: project.cwd, project, x: event.clientX, y: event.clientY });
   };
 
   const commitRename = async () => {
@@ -171,6 +246,15 @@ export function ProjectRail({
     setRenaming(null);
     if (!title) return;
     await onRenameSession(cwd, id, title);
+  };
+
+  const commitProjectRename = async () => {
+    if (!renamingProject) return;
+    const name = renamingProject.name.trim();
+    const { cwd } = renamingProject;
+    setRenamingProject(null);
+    if (!name) return;
+    await onRenameProject(cwd, name);
   };
 
   const busyTitle = "Stop the current turn before switching sessions";
@@ -183,6 +267,7 @@ export function ProjectRail({
       id="project-rail"
       className={`project-rail${open ? " is-open" : ""}`}
       aria-label="Projects and sessions"
+      aria-hidden={!open}
     >
       <div className="rail-chrome">
         <button type="button" className="icon-button rail-chrome-toggle no-drag" onClick={onClose} aria-label="Hide project rail">
@@ -192,6 +277,27 @@ export function ProjectRail({
 
       <div className="rail-title-row">
         <h1 className="rail-product-name">Vibe Codr</h1>
+        <button
+          ref={searchTriggerRef}
+          type="button"
+          className={`icon-button rail-search-toggle${searchIsOpen ? " active" : ""}`}
+          onClick={() => {
+            if (searchIsOpen) {
+              setSearchOpen(false);
+              setQuery("");
+              searchTriggerRef.current?.focus();
+              return;
+            }
+            setSearchOpen(true);
+            window.requestAnimationFrame(() => filterRef.current?.focus());
+          }}
+          aria-label={searchIsOpen ? "Close project search" : "Search projects"}
+          aria-expanded={searchIsOpen}
+          aria-controls="project-filter"
+          title={searchIsOpen ? "Close project search" : "Search projects"}
+        >
+          <IconSearch size={14} />
+        </button>
       </div>
 
       <nav className="rail-actions" aria-label="Session actions">
@@ -230,7 +336,7 @@ export function ProjectRail({
         </button>
       </nav>
 
-      <label className="rail-filter is-open">
+      <label id="project-filter" className={`rail-filter${searchIsOpen ? " is-open" : ""}`}>
         <span className="sr-only">Filter projects and sessions</span>
         <IconSearch size={14} />
         <input
@@ -240,8 +346,12 @@ export function ProjectRail({
           onKeyDown={(event) => {
             if (event.key === "Escape") {
               event.preventDefault();
+              event.stopPropagation();
               if (query) setQuery("");
-              else onClose();
+              else {
+                setSearchOpen(false);
+                window.requestAnimationFrame(() => searchTriggerRef.current?.focus());
+              }
             }
           }}
           placeholder="Search projects"
@@ -267,23 +377,59 @@ export function ProjectRail({
           const isActiveProject = project.cwd === activeCwd;
           return (
             <section className="project-group" key={project.cwd}>
-              <button
-                type="button"
-                className={`project-heading${isActiveProject ? " active" : ""}`}
-                onClick={() => toggleProject(project.cwd)}
-                aria-expanded={isExpanded}
-                aria-controls={`project-sessions-${project.cwd.replace(/[^a-zA-Z0-9_-]/g, "_")}`}
-                aria-label={`${isExpanded ? "Collapse" : "Expand"} sessions for ${projectLabel(project, projects)}`}
-                title={`${project.cwd} · ${isExpanded ? "collapse" : "expand"} sessions`}
-              >
-                <span className="project-folder" aria-hidden>
-                  {isExpanded ? <IconFolderOpen size={14} /> : <IconFolder size={14} />}
-                </span>
-                <span className="project-name">{projectLabel(project, projects)}</span>
-                <span className="project-heading-meta">
-                  <IconChevron open={isExpanded} size={13} />
-                </span>
-              </button>
+              {renamingProject?.cwd === project.cwd ? (
+                <form
+                  className="project-rename"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void commitProjectRename();
+                  }}
+                >
+                  <input
+                    ref={projectRenameRef}
+                    className="project-rename-input"
+                    value={renamingProject.name}
+                    onChange={(event) => setRenamingProject({ ...renamingProject, name: event.target.value })}
+                    onBlur={() => setRenamingProject(null)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setRenamingProject(null);
+                      }
+                    }}
+                    aria-label="Rename project"
+                  />
+                </form>
+              ) : (
+                <div className="project-heading-row">
+                  <button
+                    type="button"
+                    className={`project-heading${isActiveProject ? " active" : ""}`}
+                    onClick={() => toggleProject(project.cwd)}
+                    aria-expanded={isExpanded}
+                    aria-controls={`project-sessions-${project.cwd.replace(/[^a-zA-Z0-9_-]/g, "_")}`}
+                    aria-label={`${isExpanded ? "Collapse" : "Expand"} sessions for ${projectLabel(project, projects)}`}
+                    title={`${project.cwd} · ${isExpanded ? "collapse" : "expand"} sessions`}
+                  >
+                    <span className="project-folder" aria-hidden>
+                      {isExpanded ? <IconFolderOpen size={14} /> : <IconFolder size={14} />}
+                    </span>
+                    <span className="project-name">{projectLabel(project, projects)}</span>
+                    <span className="project-heading-meta">
+                      <IconChevron open={isExpanded} size={13} />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="project-more"
+                    aria-label={`Actions for project ${projectLabel(project, projects)}`}
+                    title="Project actions"
+                    onClick={(event) => openProjectMenu(event, project)}
+                  >
+                    <IconMore size={14} />
+                  </button>
+                </div>
+              )}
               {isExpanded && (
                 <div
                   className="session-list"
@@ -347,6 +493,12 @@ export function ProjectRail({
                             >
                               {relativeSessionTime(session.updatedAt)}
                             </time>
+                            {isActive && (
+                              <span
+                                className={`session-status-indicator${busy ? " is-busy" : ""}`}
+                                aria-label={busy ? "Session is active" : "Active session"}
+                              />
+                            )}
                           </button>
                         )}
                         {!isRenaming && (
@@ -375,19 +527,88 @@ export function ProjectRail({
         })}
       </div>
 
-      {menu && (
+      {menu && createPortal(
         <div
           ref={menuRef}
-          className="session-menu"
+          className={`session-menu${menuClosing ? " is-closing" : ""}`}
           style={{ left: menu.x, top: menu.y }}
-          role={confirmAction ? "alertdialog" : "menu"}
+          role={menu.kind === "project" ? (confirmProjectAction ? "alertdialog" : "menu") : (confirmAction ? "alertdialog" : "menu")}
           aria-label={
-            confirmAction
-              ? `${confirmAction === "delete" ? "Delete" : "Archive"} ${menu.session.title}`
-              : `Actions for ${menu.session.title}`
+            menu.kind === "project"
+              ? confirmProjectAction
+                ? `${confirmProjectAction === "delete" ? "Delete" : "Archive"} ${projectLabel(menu.project, projects)}`
+                : `Actions for ${projectLabel(menu.project, projects)}`
+              : confirmAction
+                ? `${confirmAction === "delete" ? "Delete" : "Archive"} ${menu.session.title}`
+                : `Actions for ${menu.session.title}`
           }
         >
-          {confirmAction ? (
+          {menu.kind === "project" ? (
+            confirmProjectAction ? (
+              <div className="session-menu-confirm">
+                <p className="session-menu-confirm-msg">
+                  {confirmProjectAction === "delete"
+                    ? `Delete ${projectLabel(menu.project, projects)} from project history? Its saved sessions will be removed.`
+                    : `Archive ${projectLabel(menu.project, projects)}? It will leave the project list but remain on disk.`}
+                </p>
+                <div className="session-menu-confirm-actions">
+                  <button
+                    type="button"
+                    // biome-ignore lint/a11y/noAutofocus: focus the safe choice so Enter cancels, not confirms
+                    autoFocus
+                    onClick={() => setConfirmProjectAction(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={confirmProjectAction === "delete" ? "danger" : ""}
+                    onClick={() => {
+                      const { cwd } = menu;
+                      const mode = confirmProjectAction;
+                      setMenu(null);
+                      setConfirmProjectAction(null);
+                      if (mode === "delete") void onDeleteProject(cwd);
+                      else void onArchiveProject(cwd);
+                    }}
+                  >
+                    {confirmProjectAction === "delete" ? "Delete" : "Archive"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setRenamingProject({ cwd: menu.cwd, name: menu.project.name });
+                    setMenu(null);
+                  }}
+                >
+                  <IconRename size={14} />
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setConfirmProjectAction("archive")}
+                >
+                  <IconArchive size={14} />
+                  Archive
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="danger"
+                  onClick={() => setConfirmProjectAction("delete")}
+                >
+                  <IconDelete size={14} />
+                  Delete
+                </button>
+              </>
+            )
+          ) : confirmAction ? (
             <div className="session-menu-confirm">
               <p className="session-menu-confirm-msg">
                 {confirmAction === "delete"
@@ -451,7 +672,8 @@ export function ProjectRail({
               </button>
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </aside>
   );

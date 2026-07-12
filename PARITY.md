@@ -1,8 +1,14 @@
 # CLI ↔ Electron parity checklist
 
-Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (50+) plus `npm run verify:source-parity`.
+Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 74 tests) plus `npm run verify:source-parity`.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
+
+The parity script compares declaration ASTs with the sibling checkout selected
+by `VIBE_CODR_ROOT` or `~/Code/vibe-codr`. Run it against the synchronized
+engine revision. A local sibling checkout can legitimately be ahead or carry
+provider/protocol changes; that state is a release attention item, not a reason
+to weaken the parity guard.
 
 ## Automated (unit)
 
@@ -50,7 +56,7 @@ Engine ownership stays in `@vibe/core`; this app is a presentation shell over ND
 - [x] Assistant markdown (Streamdown + GFM; live while streaming)
 - [x] Diff blocks green/red hunk coloring
 - [x] Tool icons + condensed labels; expand on click; auto-expand on error
-- [x] Turn fold (chevron beside user bubble / ⌘O fold-all); density quiet/normal/verbose (⌘D)
+- [x] Turn fold (click or keyboard-activate the user bubble / ⌘O fold-all; no persistent arrow); density quiet/normal/verbose (⌘D)
 - [x] Windowed transcript (“N earlier turns”) with progressive reveal (20 at a time)
 - [x] Per-turn item windowing for long tool runs (cap 120, step 24, reveal page)
 - [x] Streaming follows only while anchored; upward scroll reveals Jump to latest
@@ -75,6 +81,7 @@ Engine ownership stays in `@vibe/core`; this app is a presentation shell over ND
 - [x] Native catalog dialog: focus trap (Tab cycle + focusin guard; draft-linked allows composer), arrows, Enter, Esc, focus return, aria-modal
 - [x] Catalog filtering, no-results state, current-model marker, and RPC failure feedback
 - [x] Multi-project sessions rail with titles + new/resume/continue/filter
+- [x] Project/session rename, archive, and delete menus with in-app confirmation; project menus escape rail clipping
 - [x] `/jobs` drawer: live auto-follow terminal (full outputTail, stick-to-bottom, jump-to-latest); Close without Esc chip; quiet status/link chips
 - [x] `@` fuzzy file attach (TUI `file-fuzzy` ranking)
 - [x] Clipboard image → `@.vibe/clipboard/….png` (⌘V)
@@ -113,7 +120,7 @@ Engine ownership stays in `@vibe/core`; this app is a presentation shell over ND
 - Interactive orchestration DAG graph (list only; TUI ignores the event)
 - Full-window Liquid Glass replacing CLI theme surfaces (glass tints chrome only; palettes still drive semantic roles)
 - Permission/Plan button labels use human verbs with `<kbd>` hints (TUI key chords still work)
-- Electron reading measure uses `--reading-max: 52rem` / assistant `72ch` (AGENTS ~130ch is TUI column guidance); composer uses `--composer-max: 40rem` with a taller resting input (`--composer-input-min: 44px`)
+- Electron transcript output, approval panels, and composer share `--composer-max: 40rem`; composer uses a taller resting input (`--composer-input-min: 44px`)
 - TUI select-to-copy auto-clipboard toast (Electron uses native selection + Cmd/Ctrl+C)
 - TUI `/mouse` capture (palette lists it; Electron UI ignores `mouse-changed`)
 - Width-fitted footer key-hint bands (Electron uses composer metrics + `/keys` help)
@@ -160,7 +167,7 @@ npm run dev
 - [x] Stream flush interval matches TUI (24ms, was 32ms)
 - [x] Tool progress chunks coalesced on flush timer (TUI landPending parity)
 - [x] Model picker shows context window size via fmtContext (TUI parity)
-- [x] Splash starters match TUI: explain / fix failing test / add --json flag
+- [x] Empty home keeps a quiet wordmark and composer without automatic prompt suggestions
 - [x] Ungrounded plan warning matches TUI wording: "⚠ ungrounded — presented without the research…"
 - [x] Jobs view shows PID when running (TUI parity)
 - [x] Inline panel titles show counts: "Tasks · N/M", "Subagents · N/M done" (TUI parity)
@@ -201,7 +208,7 @@ npm run dev
 - [x] JobsView: role=region, article elements, aria-label on status/output, keyboard-focusable output pre
 - [x] Inspector: h2 heading, aria-labels on file rows and subagent buttons, keyboard-scrollable subagent stream
 - [x] ProjectRail: h2 heading, aria-controls, role=group, first menu item focus on open
-- [x] Splash: section with aria-labelledby, aria-label on starter prompts
+- [x] Splash: section with aria-labelledby and quiet empty-state copy; no suggestion controls
 - [x] Busy cue: composer Stop + elapsed; sr-only busy/idle live status; Esc via keyboard / Stop title
 - [x] OnboardingHint: aside with role=region, h2 heading; no autofocus (composer / perm / plan own focus)
 - [x] SourceList + MarkdownView: role=status on empty state, aria-label on list, title on external links
@@ -230,9 +237,9 @@ npm run dev
 
 ## Agent-home polish + typography (session 6)
 
-- [x] Empty-home: brand-first (wordmark/type), quiet tagline, text starters (not cards); container-query compact brand; WelcomeGate + SessionBoot shared boot copy; recent projects on cold start
+- [x] Empty-home: brand-first wordmark/type, quiet tagline, centered composer, no automatic suggestions; container-query compact brand; WelcomeGate + SessionBoot shared boot copy; recent projects on cold start
 - [x] ProjectRail: active session surface highlight (no accent bar/dot); always-on search; measured context menus; archive confirm; topbar brand when rail closed
-- [x] Composer: narrower than transcript (`--composer-max: 40rem`), taller resting input (`--composer-input-min: 44px`); queue tray + composer share one continuous card (no seam)
+- [x] Composer: shared transcript/approval/composer measure (`--composer-max: 40rem`), taller resting input (`--composer-input-min: 44px`); queue items stack as separate cards above the composer
 - [x] Mode dropdown Plan / Agent / Yolo (`selectModeAction`); Shift+Tab still cycles; plan-pending guard unchanged
 - [x] Lucide stroke icons for chrome + composer; tool-row glyphs via renderer `tool-glyph.tsx` (shared unicode `toolIcon` labels unchanged)
 - [x] Sans UI chrome; mono reserved for real code (fences, tool/diff/job bodies, wordmark, rich charts)
@@ -244,12 +251,12 @@ npm run dev
 ## Sleek modern Codex alternative — opencode-inspired polish (session 7)
 
 - [x] Token system: `--thinking-opacity`, `--bg-menu`, `--ctx-track`, `--composer-input-min`, rail widths 20vw/260 & 26vw/340, icon 16px, light shadows lifted, glass blur 24px/sat 140%
-- [x] Composer: floating surface 14px radius with inner highlight `::before`, focus ring 32%/10%, status top border + surface bg, mode dropdown solid assistant/bg, ghost actions 26px subtle, context gauge pill with border + hot pulse, user bubble tokenized (`--bubble-user-*`)
-- [x] Transcript: tool head 100% width no overflow hack, tool body side-border indented (Cursor-feel), thinking opacity token, code block 10px radius with bottom border header, diff 2.5px accent
-- [x] Menus: slash/mention quiet surface-enter, header 10px bold uppercase, denser items 38px radius 8px, highlight `.hl`, catalog grouping (favorites via localStorage + recent 8 + provider buckets opencode-first, Free badge, clear ×)
-- [x] Session panel (Inspector): sole session side view; topbar toggle; opens on send / plan accept; user can close; LiveSidebar removed
+- [x] Composer: opaque elevated floating surface, focus ring, status row, mode dropdown, context gauge, and tokenized user bubble (`--bubble-user-*`); focus never makes the surface transparent
+- [x] Transcript: compact aligned tool/thinking rows, readable tool bodies, thinking opacity token, code block 10px radius with bottom border header, diff 2.5px accent, structured source cards
+- [x] Menus: slash/mention quiet surface-enter, sentence-case compact typography, keyboard containment, catalog grouping (favorites via localStorage + recent 8 + provider buckets, Free badge, clear ×)
+- [x] Session panel (Inspector): sole session side view; closed by default; explicit topbar toggle; user can close; LiveSidebar removed
 - [x] Rails: active session uses surface highlight only; project row radius 7px, topbar 14px semibold, Session panel border 22% + blur 12px sticky header, meta-block tighter
-- [x] Secondary: cards compact 12px, engine dot pulse, busy Stop + Esc cue, jobs drawer, earlier/jump pills refined, toast compact, toast + catalog origins bottom-center
+- [x] Secondary: restrained cards, single Stop + Esc interrupt language, jobs drawer, earlier/jump controls, compact toast, memory notice, and source/article cards
 - [x] Model pill bordered 18% + hover 68%, transcript gap 28px/10px, code 12.5px
 - [x] Light scheme: restored edge-highlight + soft frost elevation; hairlines via `--border-soft` (not hard card borders)
 - [x] `/accent` remaps `--sel-bg` / `--sel-fg` / `--heading` / focus ring with contrast-aware foreground
@@ -258,11 +265,26 @@ npm run dev
 
 - [x] Text input: auto-resize overflow toggle (hidden until 200px then auto), floating surface `::before` inner gradient, placeholder 52% muted focus 38%, exact-cmd 500 weight, caret-color, status top border 14% + surface 22%, model pill bordered 18% + tabular-nums
 - [x] Context gauge: pill with border, bg 36% → 56% hover, dial 14px + box-shadow 1px border, warn/notice/hot with bg tint
-- [x] Mode dropdown: trigger + options menu (`selectModeAction`), label 11px 600 uppercase, ghost 26px radius 7px
-- [x] Slash/mention menu: quiet surface-enter, shadow 0 0 0 1px + 4/16 + 16/48, header 10px 700, body 6px padding, footer bg surface 18%
-- [x] Catalog popover: 46vh/440px max, 14px radius, origin bottom center, header/Footer borders 18%, section 10px 700, tag pill free variant, empty hint, clear button
+- [x] Mode dropdown: trigger + options menu (`selectModeAction`) with uniform sentence-case menu typography and keyboard focus
+- [x] Slash/mention menu: quiet surface-enter, restrained overlay shadow, sentence-case headers, keyboard focus containment, and compact footer hints
+- [x] Catalog popover: 46vh/440px max, floating origin, uniform sans typography, compact section labels, Free tags, empty hint, clear button, and inline loading/error states
 - [x] Project rail: active session surface + weight; row radius 7px, session row 72% assistant text
 - [x] Side popups: activity rail 94% bg, heading 14px sticky blur 12px, meta-block 2px padding 10px radius + 1px 6% highlight, meta-label 10px 700 0.06em upper, sidebar-heading 14px padding
 - [x] Transcript: user bubble max 92%/48rem, 14px radius + 1px 10% highlight, assistant prose optimizeLegibility, tool body margin 20px + 10px padding 36% bg, thinking 24% bg, source cards 10px radius softer, diff 2.5px solid + 82%/88% bg + 72% ctx, earlier/jump refined, composer-stack 14px radius 36% border + 1px 12% highlight
 - [x] Composer stack single surface when queue present: 14px radius 36% border, queue tray 22% divider, busy Stop control (no separate working strip)
-- [x] Source parity, typecheck, lint, tests green (73 tests)
+- [x] Typecheck, lint, build, and unit tests green (74 tests); source parity and bundle budget remain explicit release gates documented in `VERIFICATION.md`
+
+## Current UI consolidation (2026-07-11)
+
+- [x] Default palette aligned to the requested graphite roles: `#111111`,
+  `#1a1a1a`, `#242424`, `#393939`, and `#88b0e0`.
+- [x] Project rail actions are hover/focus revealed, portal-mounted, and
+  reserve action-column space so row controls cannot overlap.
+- [x] Session inspector is explicit-toggle only; sending a message does not
+  reopen it.
+- [x] Approval panels and transcript output share the composer measure.
+- [x] User turns fold from the message itself without a persistent arrow.
+- [x] Memory notices use a brain icon and structured note preview; sparkle
+  glyphs are not used for memory UI.
+- [x] Source/article results use numbered cards with title, domain, and snippet
+  hierarchy.

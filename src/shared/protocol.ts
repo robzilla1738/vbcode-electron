@@ -25,12 +25,16 @@ export type HostInbound =
         | "finalize"
         | "listSessions"
         | "listProjects"
+        | "renameProject"
+        | "archiveProject"
+        | "deleteProject"
         | "renameSession"
         | "deleteSession"
         | "archiveSession";
       params?: {
         cwd?: string;
         id?: string;
+        name?: string;
         title?: string;
       };
     }
@@ -65,7 +69,7 @@ export type RpcMethod = Extract<HostInbound, { op: "rpc" }>["method"];
 
 const RPC_METHODS = new Set<RpcMethod>([
   "snapshot", "listModels", "listProviders", "listAgents", "listSkills", "listMcp",
-  "finalize", "listSessions", "listProjects", "renameSession", "deleteSession", "archiveSession",
+  "finalize", "listSessions", "listProjects", "renameProject", "archiveProject", "deleteProject", "renameSession", "deleteSession", "archiveSession",
 ]);
 
 const ENGINE_COMMAND_TYPES = new Set([

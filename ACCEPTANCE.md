@@ -1,8 +1,8 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-11 (Session 9: UI.md interaction-hygiene + visual-restraint)
-> Status: ready-for-audit (UI.md backlog cleared)
+> Last updated: 2026-07-11 (current UI consolidation and publication audit)
+> Status: implementation complete; publication gates require the sibling parity and bundle follow-ups recorded below
 
 ## Summary
 
@@ -39,7 +39,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | A14 | P0 | Transcript | Event coverage | User, assistant, reasoning, tool, diff, notice, source, task, and subagent events render with stable identity and correct ordering. | test: reducer event matrix; e2e: streaming and activity scenarios | pass |
 | A15 | P0 | Transcript | Markdown safety | GFM, code, links, tables, and source cards render legibly; external links are safe and untrusted HTML/scripts do not execute. | test: markdown/source parsing and URL policy; manual: hostile markdown fixture | pass |
 | A16 | P0 | Transcript | Tool and diff detail | Tool rows use meaningful labels/icons, expand on demand, auto-expand errors, and display diff additions/deletions clearly. | test: rich-block/tool helpers; manual: successful and failed edit tools | pass |
-| A17 | P0 | Transcript | Reasoning and folding | Reasoning is collapsed by default, Cmd-T toggles it, user turns fold individually, Cmd-O folds all, and density matches CLI semantics. | test: density/folding helpers; manual: toggle during and after a turn | pass |
+| A17 | P0 | Transcript | Reasoning and folding | Reasoning is collapsed by default, Cmd-T toggles it, user messages fold individually by click/keyboard without a persistent arrow, Cmd-O folds all, and density matches CLI semantics. | test: density/folding helpers; manual: toggle during and after a turn | pass |
 | A18 | P0 | Transcript | Streaming anchor | Output follows only near the bottom; upward scrolling disengages follow; Jump to latest restores it without losing content. | test:`parity.test.ts` scroll threshold; review:`TranscriptView.tsx` anchor restoration | pass |
 | A19 | P0 | Transcript | Long-session resilience | Transcript windowing preserves active work and exposes earlier turns without unbounded DOM growth or losing resumed history. | test:`parity.test.ts` turn/item windows; review:`useSession.ts` progressive reveal | pass |
 | A20 | P0 | Catalogs | Command palette | Slash/Cmd-K palette includes live engine command names, enum values, filtering, no-results, keyboard navigation, and correct input cues. | test: command catalog and draft detectors; manual: keyboard-only palette tour | pass |
@@ -56,13 +56,13 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | A31 | P0 | Keyboard | Reachability | All essential CLI-equivalent actions are keyboard reachable with documented shortcuts and deterministic priority when states overlap. | test: key help/parsers; e2e: dialogs, cards, Escape, editor, composer | pass |
 | A32 | P0 | Accessibility | Desktop accessibility | Controls have names, focus indicators, semantic roles, reduced-motion support, AA contrast, and work at 200% zoom without lost actions. | e2e: role-based controls, flat focus state, 200% zoom; review: reduced-motion CSS | pass |
 | A33 | P0 | Resilience | Empty/error/narrow states | First run, no sessions, no catalog results, RPC errors, host disconnect, long text, and narrow window states remain understandable and recoverable. | test: bridge/error cases; e2e: empty jobs + 200% zoom; review: empty/error surfaces | pass |
-| A34 | P0 | Quality | Source parity guard | Pure modules ported from TUI have drift-detection coverage or shared fixtures so upstream changes cannot silently break parity. | script: source parity audit; test: shared behavioral vectors | pass |
-| A35 | P0 | Quality | Verification gates | Lint, unit tests, source parity, typecheck, production build, bundle budget, bridge smoke, and focused UI smoke all pass from documented commands. | script:`npm run verify && npm run smoke:bridge && npm run test:e2e` | pass |
+| A34 | P0 | Quality | Source parity guard | Pure modules ported from TUI have drift-detection coverage or shared fixtures so upstream changes cannot silently break parity. | script: source parity audit; test: shared behavioral vectors | attention |
+| A35 | P0 | Quality | Verification gates | Lint, unit tests, source parity, typecheck, production build, bundle budget, bridge smoke, and focused UI smoke are documented and must pass before release. | script:`npm run verify && npm run smoke:bridge && npm run test:e2e` | attention |
 | A36 | P0 | Packaging | Standalone app | Packaged app includes/resolves the engine host without `VIBE_CODR_ROOT`, launches, opens a project, runs a turn, and shuts down cleanly. | script:`npm run pack && npm run smoke:packaged` | pass |
-| A37 | P1 | Layout | Desktop composition | Rail, transcript, composer, and activity surfaces preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints. | review: responsive shell CSS; e2e: 200% zoom reachability | pass |
-| A38 | P1 | Typography | Dense readability | Prose, labels, metadata, and controls use sans; monospace is reserved for real code (fences, tool/diff/job output, wordmark). Coherent type scale with readable measures. | review: locked tokens + Streamdown Shiki code blocks | pass |
-| A39 | P1 | Interaction | Motion and feedback | Hover, focus, open/close, streaming, and spinner feedback are restrained, interruptible, and reduced-motion aware. | design lint; e2e: focus/working states; review: reduced-motion CSS | pass |
-| A40 | P1 | Polish | Native desktop finish | Chrome tint, dialogs, menus, scrolling, truncation, and empty/error copy feel intentional while preserving theme semantics. | design lint + renderer code audit against opencode structure | pass |
+| A37 | P1 | Layout | Desktop composition | Rail, transcript, composer, approval panels, and activity surfaces preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints; output and composer share the reading measure. | review: responsive shell CSS; e2e: 200% zoom reachability | pass |
+| A38 | P1 | Typography | Dense readability | Prose, labels, metadata, and controls use a uniform sans system; monospace is reserved for real code (fences, tool/diff/job output, wordmark). Source cards and memory notices have readable hierarchy. | review: locked tokens + Streamdown Shiki code blocks | pass |
+| A39 | P1 | Interaction | Motion and feedback | Hover, focus, open/close, streaming, folding, and spinner feedback are restrained, interruptible, and reduced-motion aware. | design lint; e2e: focus/working states; review: reduced-motion CSS | pass |
+| A40 | P1 | Polish | Native desktop finish | Chrome tint, opaque composer focus, portal menus, dialogs, scrolling, truncation, source cards, and empty/error copy feel intentional while preserving theme semantics. | design lint + renderer code audit | pass |
 
 ## Audit log
 
@@ -80,37 +80,24 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | 2026-07-11 | Codex | 36/36 | 4/4 | UI.md interaction-hygiene + visual-restraint pass (all I01–I61 / S01–S12 / P01–P10 resolved): Esc ownership for mode+session menus (stopPropagation + focus restore), toast severity/dismiss/TTL, copy-failure state, session ⋯ discoverability, in-menu archive/delete confirm + rename blur=cancel, rail Stop control, insert menu (paste/⌘G), model+ctx real buttons, permission autofocus + honest plan Esc + deny-reason + expandable preview + YOLO separation, catalog inline loading/error/retry + kind-specific empty copy + Tab no longer hijacks, inspector drawer focus trap + checkpoint confirm + subagent Back + richer preview states, onboarding localStorage persist, /keys overlay, reduced-motion JS (scroll+sidebar), one busy language (removed shimmer/pulse), glass/depth restraint, radius+shadow+type+icon-size tokens, hit targets, empty-home copy. Intentional non-parity respected (I22/I48/S12). 73 tests, typecheck + lint green, 24/24 preview shots; `src/shared` untouched; PARITY.md updated for changed busy/permission contracts. |
 | 2026-07-11 | Grok | 36/36 | 4/4 | Chrome cleanup pass: remove Esc/Working busy chips + rail busy banner + session blue accent bar/dot; unify composer status chips; human permission/plan cards; live auto-follow `/jobs` terminal. Docs (PARITY/README/UI/ACCEPTANCE) synced. |
 | 2026-07-11 | Grok | 36/36 | 4/4 | Single Session panel: remove auto LiveSidebar; Inspector is the only session side view; opens on message send / plan accept; topbar toggle + user close. |
-| 2026-07-11 | Grok | n/a | n/a | Composer measure: `--composer-max: 40rem` (narrower than transcript), taller resting input `--composer-input-min: 44px`. |
+| 2026-07-11 | Grok | n/a | n/a | Composer measure: `--composer-max: 40rem`, shared by current transcript and approval output; taller resting input `--composer-input-min: 44px`. |
+| 2026-07-11 | Codex | n/a | n/a | Current UI consolidation: shared 40rem output/approval/composer measure, explicit-toggle Session panel, portal-mounted project menus, click-to-fold user messages, structured source cards, neutral memory notices, and updated E2E expectations. Unit/lint/typecheck/build pass; local sibling source parity and the 1.85 MB single-chunk budget need follow-up. |
 
 ## Sign-off
 
-- [x] All P0 rows are `pass`
+- [ ] All P0 rows are `pass` — A34/A35 remain attention items until sibling parity and the renderer bundle budget are reconciled.
 - [x] No P0 row is `visual-only`
 - [x] Verification commands were run (list below)
 
-**Commands run:**
+**Current verification snapshot (2026-07-11):**
 
 ```text
-npm test                         # 43/43 pass
-npm run verify:source-parity     # 16/16 source pairs
+npm test                         # 74/74 pass
+npm run lint                     # clean; 89 files checked
 npm run typecheck                # pass
 npm run build                    # pass
-npm run smoke:bridge             # ready + snapshot + 177-project index
-npm run pack                     # pass; bundled arm64 host + custom icon
-computer-use packaged smoke      # bundled host, restore, palette, mode, jobs, inspector
-npm run test:e2e                 # 5 Electron renderer/preload/bridge/host scenarios
-npm test                         # 57/57 pass
-npm run verify:source-parity     # 19/19 source pairs
-npm run test:e2e                 # 8/8 renderer/preload/bridge/host scenarios
-npm run smoke:bridge             # bundled protocol ready + snapshot + project index
-npm run pack                     # pass; release/mac-arm64/Vibe Codr.app
-npm run smoke:packaged           # no VIBE_CODR_ROOT; bundled host + restore + command pass
-npm run lint                     # Biome gate pass
-npm test                         # 65/65 pass
-npm run test:e2e                 # 10/10 renderer/preload/bridge/host scenarios
-npm run verify:bundle            # renderer JavaScript under budget
-npm test                         # 66/66 pass
-npm run verify                   # lint + unit + source parity + types + build + bundle
-npm run ui:shots                 # 13/13 screenshots (dark, light, opencode)
-npm run smoke:bridge             # ready + snapshot + 172-project index
+npm run test:e2e                 # 10/10 after current UI assertion updates
+npm run verify:source-parity     # attention: local sibling declaration drift
+npm run verify:bundle            # attention: 1.878 MB vs 1.85 MB chunk budget
+npm run verify                   # blocked by the two attention gates above
 ```

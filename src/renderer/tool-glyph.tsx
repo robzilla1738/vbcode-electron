@@ -1,4 +1,5 @@
 import {
+  Brain,
   Bot,
   CheckSquare,
   FileText,
@@ -9,7 +10,6 @@ import {
   Package,
   Pencil,
   Search,
-  Sparkles,
   Square,
   Terminal,
   Wrench,
@@ -44,8 +44,8 @@ function resolveToolIcon(toolName?: string) {
     return Bot;
   }
   if (key.includes("todo") || key === "update_tasks" || key === "present_plan") return ListTodo;
-  if (key.includes("memory") || key.includes("note") || key === "recall") return Sparkles;
-  if (key === "use_skill") return Sparkles;
+  if (key.includes("memory") || key.includes("note") || key === "recall") return Brain;
+  if (key === "use_skill") return Package;
   if (key === "run_check" || key === "check_task") return CheckSquare;
   if (key === "package_info") return Package;
   if (key === "job_status") return ListTodo;

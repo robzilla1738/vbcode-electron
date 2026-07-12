@@ -188,7 +188,6 @@ export function JobsView({
           title="Close (Esc)"
         >
           <IconClose size={14} />
-          <span>Close</span>
         </button>
       ) : null}
     </header>

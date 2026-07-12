@@ -9,7 +9,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 ## Hard rules
 
 1. **No engine fork.** Features that belong in the agent loop stay in vibe-codr; this repo only renders `UIEvent`s and sends `EngineCommand`s.
-2. **TUI-faithful behavior + themes.** Layout constants: content ~130ch, sidebar ~42ch, composer max `40rem` (narrower than the transcript column), wide breakpoint ~1280px (`BREAKPOINTS.wide` in `src/shared/breakpoints.ts`). Themes from `src/shared/themes.ts`. macOS Liquid Glass may tint chrome (rails/topbar/composer); do not replace CLI theme semantics.
+2. **TUI-faithful behavior + themes.** Layout constants: content ~130ch, sidebar ~42ch, and a shared transcript/approval/composer measure of `40rem`; wide breakpoint ~1280px (`BREAKPOINTS.wide` in `src/shared/breakpoints.ts`). Themes from `src/shared/themes.ts`. macOS Liquid Glass may tint chrome (rails/topbar/composer); do not replace CLI theme semantics.
 3. **Busy until `engine-idle`.** Do not clear `busy` on `session-idle` / `turn-finished` alone — follow-up turns must not flicker idle.
 4. **`/clear` / `/new`:** abort if busy → `clearSessionLocal()` (transcript + overlays + `suppressAfterClear`) → forward slash to engine.
 5. Prefer porting pure modules from `vibe-codr/packages/tui` (`reducer`, `slash`, `modes`, `density`, `file-fuzzy`, `commands-catalog`) over rewriting behavior.
@@ -26,6 +26,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | Contracts | `src/shared/commands.ts`, `events.ts`, `protocol.ts` |
 | Breakpoints | `src/shared/breakpoints.ts` (`wide` JS-only; laptop→narrow sync CSS `@media`) |
 | Parity checklist | `PARITY.md` |
+| UI contract | `UI.md` |
 
 ## Commands
 
@@ -50,6 +51,7 @@ cd ~/Code/vibe-codr && bun run build:macos-bridge
 - Mirror TUI `packages/tui/src/app.tsx` semantics first; then macOS `PARITY.md` for GUI-adapted cases.
 - Update `PARITY.md` checkboxes when you close a gap.
 - Add a Vitest case in `src/shared/parity.test.ts` for pure logic (slash, reducer, fuzzy, chrome-seed).
+- Keep interaction contracts current: the Session inspector is explicitly toggled, project menus support rename/archive/delete, and user turns fold from the message itself.
 
 ## When changing UI presentation (design system)
 

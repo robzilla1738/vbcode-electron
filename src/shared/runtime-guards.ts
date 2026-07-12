@@ -109,6 +109,9 @@ export function isRpcResult(method: RpcMethod, value: unknown): boolean {
     case "listSkills": return everyRecord(value, (item) => typeof item.name === "string" && typeof item.description === "string");
     case "listMcp": return everyRecord(value, (item) => typeof item.name === "string" && typeof item.connected === "boolean" && typeof item.configured === "boolean" && finite(item.toolCount) && finite(item.resourceCount) && finite(item.promptCount));
     case "listSessions": return recordsWithString(value, "id");
+    case "renameProject": return typeof record(value)?.name === "string";
+    case "archiveProject":
+    case "deleteProject": return typeof record(value)?.cwd === "string";
     case "renameSession":
     case "deleteSession":
     case "archiveSession": return typeof record(value)?.id === "string";

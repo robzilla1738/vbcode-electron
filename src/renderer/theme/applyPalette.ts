@@ -51,7 +51,7 @@ export function applyPalette(p: Palette, accentOverride?: string, themeName?: st
   root.style.setProperty("--task-active", p.taskActive);
   root.style.setProperty("--task-pending", p.taskPending);
   root.style.setProperty("--ctx", ui.ctx);
-  root.style.setProperty("--rail", ui.background);
+  root.style.setProperty("--rail", ui.panel);
   root.style.setProperty("--surface", ui.elevated);
   root.style.setProperty("--ring", chrome.ring);
   root.style.setProperty("--focus", chrome.focus);

@@ -6,7 +6,7 @@ macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/v
 
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
-**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project rail, centered empty-home composer, terminal themes/accents, and a single Session panel (toggle; opens on send).
+**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project rail, quiet empty home, terminal themes/accents, and an explicitly toggled Session panel.
 
 Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmacos) (SwiftUI). This repo is the Electron equivalent.
 
@@ -72,9 +72,11 @@ npx playwright install chromium          # once, for screenshots
 npm run ui:shots -- tools/ui-preview/shots
 ```
 
-Scenarios: `welcome`, `splash`, `chat`, `busy`, `permission`, `plan`, `slash`,
-`catalog`, `mention`, `jobs`, `inspector` — plus `&theme=<name>` for any TUI
-theme. See [tools/ui-preview/README.md](./tools/ui-preview/README.md).
+Scenarios: `welcome`, `splash`, `chat`, `busy`, `permission`, `plan`, `gate`,
+`mode`, `queue`, `onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`,
+`jobs`, `inspector`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot` —
+plus `&theme=<name>` for any TUI theme. See
+[tools/ui-preview/README.md](./tools/ui-preview/README.md).
 
 ### Host resolution order
 
@@ -113,7 +115,7 @@ theme. See [tools/ui-preview/README.md](./tools/ui-preview/README.md).
 └────────────┴──────────────────────────────────────────┴─────────────┘
 ```
 
-- Content max ~130ch with a ~76ch reading measure; live activity appears only when the window can seat it without crushing the transcript
+- Content max ~130ch; transcript prose, tool output, approval panels, and the composer share the `--composer-max: 40rem` reading measure
 - Projects and meaningful session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 15 palettes as OpenTUI); accents via `/accent`
 - Modes: **Plan / Agent / Yolo** dropdown in the composer (Shift+Tab still cycles)
@@ -130,17 +132,15 @@ two-layer keyboard focus rings (`--focus-ring`), and an elevation grammar of
 hairlines + inset edge-highlights at rest with layered shadows reserved for
 true overlays. **Sans is the UI voice**; monospace is reserved for real code
 (fenced blocks, tool/diff/job output, inline code, ASCII wordmark). Icons are
-Lucide stroke wrappers in `src/renderer/icons.tsx`. The composer is a floating
-surface narrower than the transcript (`--composer-max: 40rem`) with a taller
-resting input (`44px`), 14px radius, focus ring 32%/10%, Codex-style context
-gauge pill, and a Plan/Agent/Yolo mode dropdown (solid assistant/bg active,
-11px uppercase 600). Queue + composer share
-one card with no seam. Slash/mention menus use a quiet surface enter,
-activity rail / Session panel has a blurred sticky heading, tool rows use side-border indented
-output (Cursor-feel), thinking uses opacity token, model picker groups favorites
-(localStorage) + recent 8 + provider buckets with Free badges. Light scheme keeps
-edge-lit elevation and soft frost on floating chrome; `/accent` remaps selection
-and focus tokens together.
+Lucide stroke wrappers in `src/renderer/icons.tsx`. The composer, transcript
+output, and approval panels share one 40rem measure and an opaque elevated
+surface. Queue items stack as separate rounded cards above the composer. Slash,
+mention, and catalog menus are floating and keyboard-contained; the Session
+panel opens only from its explicit topbar control. Project menus are portal
+mounted so they cannot be clipped by the animated rail. Tool/thinking rows stay
+compact, user turns fold by clicking the message, and source/article results
+use structured cards. Light scheme keeps edge-lit elevation and soft frost on
+floating chrome; `/accent` remaps selection and focus tokens together.
 
 ## Keyboard (essentials)
 
@@ -178,9 +178,13 @@ Shell-owned surfaces:
 - Anchored streaming with intentional scroll disengagement and Jump to latest
 - `@` fuzzy attach, clipboard image paste, external editor
 - Stop control with elapsed time until `engine-idle` (Esc still interrupts); green-gate RED notice
-- Inspector Session panel: sole session side view; opens on send; topbar toggle to close/reopen
+- Inspector Session panel: sole session side view; closed by default and opened/closed from the topbar toggle
 - Theme-faithful selection colors, headings, and user-message accent (white band on Graphite; `/accent` remaps)
-- Empty-home splash: quieter ASCII wordmark, project/branch crumb, centered composer, pill starters
+- Empty-home splash: quiet ASCII wordmark, centered composer, and no automatic prompt suggestions
+- Project rail: project rename/archive/delete actions on hover, titled sessions, active-session spinner, and full-width hover states
+- Memory notice: neutral brain icon, prior-note count, and clamped context preview
+- Sources/articles: numbered reading cards with title, domain, and snippet hierarchy
+- User turns: click or keyboard-activate the message to collapse/expand its activity; no persistent collapse arrow
 - Lucide icons across chrome, composer, and tool-row glyphs
 - Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, narrow busy/idle live status (transcript is not live), always-visible copy controls, busy-disabled rail labels, skip links to conversation/composer/projects/session panel, catalog focus trap
 
@@ -194,7 +198,13 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AG
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-All gates: **67 unit tests**, **10 e2e tests**, **19 source-parity pairs**, Biome and `tsc` clean, build/bundle budget OK, and bridge/packaged smokes green. See [ACCEPTANCE.md](./ACCEPTANCE.md) for the full acceptance spec (40 criteria, all pass).
+Current baseline: **74 unit tests**, **10 e2e scenarios**, Biome, typecheck,
+production build, and renderer behavior are exercised. The source-parity gate
+must be run against a synchronized sibling `vibe-codr` checkout; the local
+checkout used for this update has upstream declaration drift and is recorded
+in [VERIFICATION.md](./VERIFICATION.md). The renderer bundle is currently just
+over the historical 1.85 MB single-chunk budget and is also called out there.
+See [ACCEPTANCE.md](./ACCEPTANCE.md) for the acceptance contract.
 
 ## Project layout
 

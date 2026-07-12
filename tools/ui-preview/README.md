@@ -15,10 +15,10 @@ open "http://localhost:4517/?scenario=chat"
 npm run ui:shots -- tools/ui-preview/shots
 ```
 
-Scenarios: `welcome`, `splash` (centered empty home + pill starters), `chat`,
-`busy`, `permission`, `plan`, `gate`, `mode`, `queue`, `onboarding`, `slash`,
-`catalog`, `catalog-draft`, `mention`, `jobs`, `inspector`, `toast`,
-`density-quiet`, `density-verbose`, `ctx-hot`
+Scenarios: `welcome`, `splash` (quiet empty home + composer), `chat`, `busy`,
+`permission`, `plan`, `gate`, `mode`, `queue`, `onboarding`, `slash`, `catalog`,
+`catalog-draft`, `mention`, `jobs`, `inspector`, `toast`, `density-quiet`,
+`density-verbose`, `ctx-hot`
 — plus `&theme=<name>` for any registered TUI theme (e.g.
 `?scenario=chat&theme=opencode`). Shots also capture `busy-narrow`, `busy-wide`,
 `light`, and `theme-opencode`.

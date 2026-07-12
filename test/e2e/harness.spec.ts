@@ -57,7 +57,7 @@ test("keeps empty, focus, and 200% zoom states usable", async () => {
   expect(focusStyle.shadow).toContain("0px 0px 0px 4px");
 
   await jobs.click();
-  await expect(page.getByText("No background jobs are running.")).toBeVisible();
+  await expect(page.getByText(/Long-running commands and local servers appear here/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("textbox", { name: "Task message" })).toBeVisible();
 
@@ -87,11 +87,12 @@ test("renames, archives, and deletes saved sessions through host RPC", async () 
 
   await page.getByRole("button", { name: /^Renamed fixture/ }).click({ button: "right" });
   await page.getByRole("menuitem", { name: "Archive" }).click();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(page.getByText("Renamed fixture", { exact: true })).toHaveCount(0);
 
   await page.getByRole("button", { name: /^Saved two/ }).click({ button: "right" });
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByText("Saved two", { exact: true })).toHaveCount(0);
 });
 
@@ -146,13 +147,13 @@ test("contains hostile markdown and applies CLI theme events", async () => {
 
 test("resolves permission and plan cards from keyboard-accessible controls", async () => {
   await submit("fixture:permission");
-  await expect(page.getByText(/Permission.*bash/)).toBeVisible();
+  await expect(page.getByText("Run a command", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /once/ }).click();
   await expect(page.getByText("permission once")).toBeVisible();
 
   await submit("fixture:plan");
   await expect(page.getByText("Plan approval")).toBeVisible();
-  await expect(page.getByText("Ungrounded — presented without the research this request required")).toBeVisible();
+  await expect(page.getByText("This plan was presented without the research the request called for.")).toBeVisible();
   await expect(page.getByText("The fixture is writable")).toBeVisible();
   await page.getByRole("button", { name: /Accept Enter/ }).click();
   await expect(page.getByText("plan accept")).toBeVisible();
@@ -177,7 +178,7 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await expect(page.getByText("npm run dev")).toBeVisible();
   await expect(page.getByRole("link", { name: "http://localhost:4310" })).toBeVisible();
   await page.getByRole("button", { name: "Show session panel" }).click();
-  await expect(page.getByText("Before fixture change")).toBeVisible();
+  await expect(page.locator(".sidebar-line").filter({ hasText: "Before fixture change" })).toBeVisible();
   await expect(page.getByText(/Run fixture child/)).toBeVisible();
   const subagent = page.getByRole("button", { name: /Review the fixture/ });
   await expect(subagent).toBeVisible();
