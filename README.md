@@ -72,10 +72,10 @@ npx playwright install chromium          # once, for screenshots
 npm run ui:shots -- tools/ui-preview/shots
 ```
 
-Scenarios: `welcome`, `splash`, `chat`, `busy`, `permission`, `plan`, `gate`,
-`mode`, `queue`, `onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`,
-`jobs`, `inspector`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot` —
-plus `&theme=<name>` for any TUI theme. See
+Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
+`permission`, `plan`, `gate`, `mode`, `queue`, `onboarding`, `slash`, `catalog`,
+`catalog-draft`, `mention`, `jobs`, `inspector`, `toast`, `density-quiet`,
+`density-verbose`, `ctx-hot` — plus `&theme=<name>` for any TUI theme. See
 [tools/ui-preview/README.md](./tools/ui-preview/README.md).
 
 ### Host resolution order
@@ -90,7 +90,7 @@ plus `&theme=<name>` for any TUI theme. See
 |---------|---------|
 | `npm run dev` | electron-vite + Electron window |
 | `npm run build` | Compile main / preload / renderer → `out/` |
-| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests (67) |
+| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests (74) |
 | `npm run test:e2e` | Hermetic Electron UI/IPC/bridge parity scenarios |
 | `npm run lint` | Biome correctness and maintainability gate |
 | `npm run verify` | Lint + unit + source parity + types + build + bundle budget |
@@ -133,14 +133,17 @@ hairlines + inset edge-highlights at rest with layered shadows reserved for
 true overlays. **Sans is the UI voice**; monospace is reserved for real code
 (fenced blocks, tool/diff/job output, inline code, ASCII wordmark). Icons are
 Lucide stroke wrappers in `src/renderer/icons.tsx`. The composer, transcript
-output, and approval panels share one 40rem measure and an opaque elevated
-surface. Queue items stack as separate rounded cards above the composer. Slash,
-mention, and catalog menus are floating and keyboard-contained; the Session
-panel opens only from its explicit topbar control. Project menus are portal
-mounted so they cannot be clipped by the animated rail. Tool/thinking rows stay
-compact, user turns fold by clicking the message, and source/article results
-use structured cards. Light scheme keeps edge-lit elevation and soft frost on
-floating chrome; `/accent` remaps selection and focus tokens together.
+output, and approval panels share one 40rem measure. The composer is a lightly
+frosted floating surface (bottom-weighted blur + chat-column veil) so transcript
+can scroll behind without a hard cut; approval cards stay opaque. Queue is one
+quiet card above the composer with a flat “N Queued” list and hover
+steer/dequeue. Slash, mention, and catalog menus are floating and
+keyboard-contained; the Session panel opens only from its explicit topbar
+control. Project/session ⋯ menus are portal-mounted, trigger-anchored, and
+toggle cleanly. Tool/thinking rows stay compact, user turns fold by clicking
+the message, and source/article results use structured cards. Light scheme
+keeps edge-lit elevation and soft frost on floating chrome; `/accent` remaps
+selection and focus tokens together.
 
 ## Keyboard (essentials)
 
@@ -186,7 +189,8 @@ Shell-owned surfaces:
 - Sources/articles: numbered reading cards with title, domain, and snippet hierarchy
 - User turns: click or keyboard-activate the message to collapse/expand its activity; no persistent collapse arrow
 - Lucide icons across chrome, composer, and tool-row glyphs
-- Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, narrow busy/idle live status (transcript is not live), always-visible copy controls, busy-disabled rail labels, skip links to conversation/composer/projects/session panel, catalog focus trap
+- Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, narrow busy/idle live status (transcript is not live), hover/focus copy chips with reserved gutters (touch keeps them visible), busy-disabled rail labels, skip links to conversation/composer/projects/session panel, catalog focus trap
+- App icon: `assets/icon.png` → `npm run build:icon` → `assets/icon.icns` for packaged builds; unpackaged macOS dock uses the PNG via `app.dock.setIcon`
 
 ## Parity & verification
 

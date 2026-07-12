@@ -13,10 +13,10 @@ export function SourceList({ sources }: { sources: SourceItem[] }) {
     <ol className="source-list" aria-label="Sources">
       {sources.map((source, index) => (
         <li key={`${source.url ?? source.title}-${index}`} className="source-card">
-          <div className="source-card-head">
-            <span className="source-index" aria-hidden="true">
-              {String(index + 1).padStart(2, "0")}
-            </span>
+          <span className="source-index" aria-hidden="true">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <div className="source-card-body">
             <div className="source-card-copy">
               {source.url ? (
                 <ExternalLink href={source.url} className="source-title">
@@ -25,10 +25,10 @@ export function SourceList({ sources }: { sources: SourceItem[] }) {
               ) : (
                 <span className="source-title">{source.title}</span>
               )}
-              {source.domain && <span className="source-domain">{source.domain}</span>}
+              {source.domain ? <span className="source-domain">{source.domain}</span> : null}
             </div>
+            {source.snippet ? <p className="source-snippet">{source.snippet}</p> : null}
           </div>
-          {source.snippet && <span className="source-snippet">{source.snippet}</span>}
         </li>
       ))}
     </ol>

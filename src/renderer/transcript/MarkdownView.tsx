@@ -47,7 +47,11 @@ type CodeProps = ComponentPropsWithoutRef<"code"> & ExtraProps;
 function Code({ className, children, ...props }: CodeProps) {
   const isBlock = "data-block" in props;
   if (!isBlock) {
-    return <code className={className}>{children}</code>;
+    return (
+      <code className={className} data-streamdown="inline-code">
+        {children}
+      </code>
+    );
   }
 
   const lang = fenceLang(className);

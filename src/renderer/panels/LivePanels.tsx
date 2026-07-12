@@ -7,7 +7,7 @@ import {
 } from "../../shared/tool-icons";
 import type { QueuedItem } from "../../shared/types";
 import { CopyButton } from "../CopyButton";
-import { IconDelete, IconChevron, IconSteer } from "../icons";
+import { IconRemove, IconSteer } from "../icons";
 import { ExternalLink } from "../primitives";
 import { MarkdownView } from "../transcript/MarkdownView";
 
@@ -307,35 +307,19 @@ export function QueuePanel({
   onSteer: (id: string) => void;
   onDequeue: (id: string) => void;
 }) {
-  // Show the first queued item (with actions) always; expand for the rest.
-  const [expanded, setExpanded] = useState(false);
   if (pending.length === 0) return null;
-  const visible = expanded ? pending : pending.slice(0, 1);
-  const hiddenCount = pending.length - visible.length;
 
   return (
     <div className="composer-queue-tray" role="region" aria-label="Queued prompts">
       <div className="queue-tray-bar">
-        <span className="queue-tray-count">{pending.length} queued</span>
-        {pending.length > 1 ? (
-          <button
-            type="button"
-            className="queue-tray-toggle"
-            onClick={() => setExpanded((value) => !value)}
-            aria-expanded={expanded}
-            aria-controls="composer-queue-items"
-          >
-            <IconChevron open={expanded} size={13} />
-            {expanded ? "Show less" : `+${hiddenCount} more`}
-          </button>
-        ) : null}
+        <span className="queue-tray-count">
+          {pending.length} Queued
+        </span>
       </div>
-      <div id="composer-queue-items" className="queue-items">
-        {visible.map((q) => (
-          <div key={q.id} className="queue-row">
-            <span className="queue-row-icon" aria-hidden>
-              <IconSteer size={16} />
-            </span>
+      <ul id="composer-queue-items" className="queue-items">
+        {pending.map((q) => (
+          <li key={q.id} className="queue-row">
+            <span className="queue-row-mark" aria-hidden />
             <span className="queue-label">{q.label}</span>
             <div className="queue-actions">
               <button
@@ -346,7 +330,6 @@ export function QueuePanel({
                 aria-label={`Steer ${q.label} to front of queue`}
               >
                 <IconSteer size={13} />
-                <span>Steer</span>
               </button>
               <button
                 type="button"
@@ -355,13 +338,12 @@ export function QueuePanel({
                 title="Remove from queue"
                 aria-label={`Remove ${q.label} from queue`}
               >
-                <IconDelete size={14} />
-                <span>Remove</span>
+                <IconRemove size={14} />
               </button>
             </div>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

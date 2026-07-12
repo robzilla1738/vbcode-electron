@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, nativeTheme, shell } from "electron";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { writeFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync, statSync, readdirSync } from "node:fs";
@@ -14,6 +14,19 @@ import { composeInEditor } from "../shared/editor-compose";
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new EngineBridge();
+
+/** Unpackaged runs use Electron's default dock icon unless we set one explicitly. */
+function applyDevDockIcon(): void {
+  if (process.platform !== "darwin" || !app.dock || app.isPackaged) return;
+  const candidates = [
+    join(app.getAppPath(), "assets", "icon.png"),
+    join(__dirname, "../../assets/icon.png"),
+  ];
+  const iconPath = candidates.find((path) => existsSync(path));
+  if (!iconPath) return;
+  const image = nativeImage.createFromPath(iconPath);
+  if (!image.isEmpty()) app.dock.setIcon(image);
+}
 
 function inbound(value: unknown): HostInbound | null {
   try {
@@ -365,6 +378,7 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
+  applyDevDockIcon();
   wireBridge();
   registerIpc();
   createWindow();

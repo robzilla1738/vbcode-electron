@@ -40,22 +40,25 @@ npx playwright install chromium           # once
 npm run ui:shots -- tools/ui-preview/shots
 ```
 
-Visually sweep the scenario matrix (`welcome`, `splash`, `chat`, `busy`,
-`permission`, `plan`, `gate`, `mode`, `queue`, `onboarding`, `slash`, `catalog`,
-`catalog-draft`, `mention`, `jobs`, `inspector`, `toast`, `density-quiet`,
-`density-verbose`, `ctx-hot`) in the
+Visually sweep the scenario matrix (`welcome`, `splash`, `chat`, `table`,
+`docs`, `sources`, `busy`, `permission`, `plan`, `gate`, `mode`, `queue`,
+`onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`, `jobs`,
+`inspector`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot`) in the
 default theme, plus `&theme=light` and one accent theme (e.g.
 `&theme=opencode`). Focus rings must be visible keyboard-only, overlays must
 animate (and respect reduced motion), and no surface may lose theme colors.
+Confirm queue is one card above the composer, copy chips reserve gutters,
+scrollbars stay overlay-only, and the composer veil/frost softens text that
+scrolls underneath.
 
 ## Packaged app
 
 ```bash
-npm run build:icon
+npm run build:icon   # assets/icon.png → assets/icon.icns
 npm run pack
 ```
 
-Verify `release/mac-arm64/Vibe Codr.app` launches with the renderer sandbox enabled, uses `Contents/Resources/vibecodr-engine-host`, and does not require `VIBE_CODR_ROOT`. Its final plist must keep `NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth permission strings.
+Verify `release/mac-arm64/Vibe Codr.app` launches with the renderer sandbox enabled, uses `Contents/Resources/vibecodr-engine-host`, shows the VC app icon in Dock/Finder, and does not require `VIBE_CODR_ROOT`. Its final plist must keep `NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth permission strings.
 
 ## Manual (dev window)
 

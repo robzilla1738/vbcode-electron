@@ -62,7 +62,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | A37 | P1 | Layout | Desktop composition | Rail, transcript, composer, approval panels, and activity surfaces preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints; output and composer share the reading measure. | review: responsive shell CSS; e2e: 200% zoom reachability | pass |
 | A38 | P1 | Typography | Dense readability | Prose, labels, metadata, and controls use a uniform sans system; monospace is reserved for real code (fences, tool/diff/job output, wordmark). Source cards and memory notices have readable hierarchy. | review: locked tokens + Streamdown Shiki code blocks | pass |
 | A39 | P1 | Interaction | Motion and feedback | Hover, focus, open/close, streaming, folding, and spinner feedback are restrained, interruptible, and reduced-motion aware. | design lint; e2e: focus/working states; review: reduced-motion CSS | pass |
-| A40 | P1 | Polish | Native desktop finish | Chrome tint, opaque composer focus, portal menus, dialogs, scrolling, truncation, source cards, and empty/error copy feel intentional while preserving theme semantics. | design lint + renderer code audit | pass |
+| A40 | P1 | Polish | Native desktop finish | Chrome tint, frosted composer + bottom veil, portal menus, dialogs, overlay scrollbars, truncation, source cards, and empty/error copy feel intentional while preserving theme semantics. | design lint + renderer code audit | pass |
 
 ## Audit log
 
@@ -82,6 +82,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | 2026-07-11 | Grok | 36/36 | 4/4 | Single Session panel: remove auto LiveSidebar; Inspector is the only session side view; opens on message send / plan accept; topbar toggle + user close. |
 | 2026-07-11 | Grok | n/a | n/a | Composer measure: `--composer-max: 40rem`, shared by current transcript and approval output; taller resting input `--composer-input-min: 44px`. |
 | 2026-07-11 | Codex | n/a | n/a | Current UI consolidation: shared 40rem output/approval/composer measure, explicit-toggle Session panel, portal-mounted project menus, click-to-fold user messages, structured source cards, neutral memory notices, and updated E2E expectations. Unit/lint/typecheck/build pass; local sibling source parity and the 1.85 MB single-chunk budget need follow-up. |
+| 2026-07-11 | Grok | 36/36 | 4/4 | Presentation polish: VC app icon, Cursor-like queue card, composer frost/veil, fixed ⋯ menu anchor/toggle, overlay scrollbars, hover copy gutters, Streamdown hierarchy + table/source polish. 74 tests; lint/typecheck green; docs fully synced. |
 
 ## Sign-off
 

@@ -19,6 +19,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | Concern | File |
 |---------|------|
 | Host spawn + NDJSON | `src/main/engine-bridge.ts`, `host-resolver.ts` |
+| App icon | `assets/icon.png` → `npm run build:icon` → `assets/icon.icns`; unpackaged dock via `src/main/index.ts` |
 | IPC surface | `src/preload/index.ts` → `window.vibe` |
 | Session / event wiring | `src/renderer/hooks/useSession.ts` |
 | Keyboard + submit routing | `src/renderer/App.tsx` |
@@ -80,7 +81,7 @@ All renderer styling lives in `src/renderer/styles.css`, token-first. Rules:
    `` `code` ``, tool/diff/job output bodies, ASCII wordmark, and rich chart
    glyphs. (TUI still uses mono machine-voice labels in the CLI.)
 6. **Verify visually with the preview harness** (no engine needed):
-   `npm run ui:preview`, then `?scenario=welcome|splash|chat|busy|permission|plan|gate|mode|queue|onboarding|slash|catalog|catalog-draft|mention|jobs|inspector|toast|density-quiet|density-verbose|ctx-hot`
+   `npm run ui:preview`, then `?scenario=welcome|splash|chat|table|docs|sources|busy|permission|plan|gate|mode|queue|onboarding|slash|catalog|catalog-draft|mention|jobs|inspector|toast|density-quiet|density-verbose|ctx-hot`
    plus `&theme=<name>`; `npm run ui:shots` captures the matrix headlessly
    (`npx playwright install chromium` once). Screenshot before/after when
    touching shared primitives.

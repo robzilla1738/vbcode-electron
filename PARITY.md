@@ -239,19 +239,22 @@ npm run dev
 
 - [x] Empty-home: brand-first wordmark/type, quiet tagline, centered composer, no automatic suggestions; container-query compact brand; WelcomeGate + SessionBoot shared boot copy; recent projects on cold start
 - [x] ProjectRail: active session surface highlight (no accent bar/dot); always-on search; measured context menus; archive confirm; topbar brand when rail closed
-- [x] Composer: shared transcript/approval/composer measure (`--composer-max: 40rem`), taller resting input (`--composer-input-min: 44px`); queue items stack as separate cards above the composer
+- [x] Composer: shared transcript/approval/composer measure (`--composer-max: 40rem`), taller resting input (`--composer-input-min: 44px`); queue is one card above the composer (flat list, hover steer/dequeue)
 - [x] Mode dropdown Plan / Agent / Yolo (`selectModeAction`); Shift+Tab still cycles; plan-pending guard unchanged
 - [x] Lucide stroke icons for chrome + composer; tool-row glyphs via renderer `tool-glyph.tsx` (shared unicode `toolIcon` labels unchanged)
 - [x] Sans UI chrome; mono reserved for real code (fences, tool/diff/job bodies, wordmark, rich charts)
 - [x] Streamdown markdown fences use Shiki `CodeBlock` + line numbers; theme follows app palette via `shikiThemeFor` (not hardcoded github)
 - [x] One copy control (`CopyButton`) for fences, tool output, answers, thinking, plans; Streamdown table copy enabled
+- [x] GFM tables: Streamdown 2.5 wrapper is flex (no float); scroll on the table shell; fixed layout so prose columns don’t clip or hog width
+- [x] Streamdown markdown hierarchy: `[data-streamdown="strong"]` / headings / nested lists / inline-code tokens; nested detail on `--text-secondary`
+- [x] SourceList cards: heading titles (not `.md a` blue), quiet domain, 2-line snippet clamp, light hairline cards
 - [x] Plan approval body renders as markdown in the chat column; sources/assumptions as quiet footers; Accept / Keep / YOLO row
 - [x] `selectModeAction` unit coverage + Shiki theme registry coverage
 
 ## Sleek modern Codex alternative — opencode-inspired polish (session 7)
 
 - [x] Token system: `--thinking-opacity`, `--bg-menu`, `--ctx-track`, `--composer-input-min`, rail widths 20vw/260 & 26vw/340, icon 16px, light shadows lifted, glass blur 24px/sat 140%
-- [x] Composer: opaque elevated floating surface, focus ring, status row, mode dropdown, context gauge, and tokenized user bubble (`--bubble-user-*`); focus never makes the surface transparent
+- [x] Composer: lightly frosted floating surface with bottom-weighted blur + chat-column veil; focus ring; status row; mode dropdown; context gauge; tokenized user bubble (`--bubble-user-*`)
 - [x] Transcript: compact aligned tool/thinking rows, readable tool bodies, thinking opacity token, code block 10px radius with bottom border header, diff 2.5px accent, structured source cards
 - [x] Menus: slash/mention quiet surface-enter, sentence-case compact typography, keyboard containment, catalog grouping (favorites via localStorage + recent 8 + provider buckets, Free badge, clear ×)
 - [x] Session panel (Inspector): sole session side view; closed by default; explicit topbar toggle; user can close; LiveSidebar removed
@@ -271,7 +274,7 @@ npm run dev
 - [x] Project rail: active session surface + weight; row radius 7px, session row 72% assistant text
 - [x] Side popups: activity rail 94% bg, heading 14px sticky blur 12px, meta-block 2px padding 10px radius + 1px 6% highlight, meta-label 10px 700 0.06em upper, sidebar-heading 14px padding
 - [x] Transcript: user bubble max 92%/48rem, 14px radius + 1px 10% highlight, assistant prose optimizeLegibility, tool body margin 20px + 10px padding 36% bg, thinking 24% bg, source cards 10px radius softer, diff 2.5px solid + 82%/88% bg + 72% ctx, earlier/jump refined, composer-stack 14px radius 36% border + 1px 12% highlight
-- [x] Composer stack single surface when queue present: 14px radius 36% border, queue tray 22% divider, busy Stop control (no separate working strip)
+- [x] Composer stack: queue as its own quiet card above the composer (not a merged surface); busy Stop control (no separate working strip)
 - [x] Typecheck, lint, build, and unit tests green (74 tests); source parity and bundle budget remain explicit release gates documented in `VERIFICATION.md`
 
 ## Current UI consolidation (2026-07-11)
@@ -288,3 +291,19 @@ npm run dev
   glyphs are not used for memory UI.
 - [x] Source/article results use numbered cards with title, domain, and snippet
   hierarchy.
+
+## Presentation polish (2026-07-11 evening)
+
+- [x] App icon: `assets/icon.png` source → `build:icon` → `icon.icns`; unpackaged
+  macOS dock via `app.dock.setIcon`
+- [x] Queue: one quiet card, “N Queued” header, flat list, hover steer/dequeue
+- [x] Composer frost + chat-column veil so transcript softens under the input;
+  empty home has no veil; reduced-motion drops live blur
+- [x] Project/session ⋯ menus: trigger-anchored (flip above near bottom), toggle
+  on second click, no mousedown/click race, `aria-haspopup`/`aria-expanded`,
+  hidden triggers `pointer-events: none`
+- [x] Delete/archive confirm: title + detail, right-aligned Cancel / action pills
+- [x] Overlay scrollbars; hover copy chips with reserved gutters; Streamdown
+  strong/heading/list/code hierarchy; GFM table scroll shell; quieter source cards
+- [x] Preview scenarios `table`, `docs`, `sources`; docs synced
+  (UI/PARITY/README/AGENTS/VERIFICATION/ACCEPTANCE)

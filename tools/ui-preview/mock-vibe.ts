@@ -8,6 +8,9 @@
  *   welcome     — no project open (WelcomeGate)
  *   splash      — project open, empty session (wordmark + centered composer + pill starters)
  *   chat        — a finished coding turn: tools, diff, markdown reply
+ *   table       — finished turn whose reply is a wide GFM comparison table
+ *   docs        — dense markdown: bold labels, nested lists, inline tokens
+ *   sources     — assistant reply with a SourceList fence (cards + snippets)
  *   busy        — mid-turn: spinner, live tool, thinking, subagents, tasks
  *   permission  — pending permission card
  *   plan        — plan-approval card with sources + assumptions
@@ -306,6 +309,109 @@ async function chatTurn(): Promise<void> {
   });
 }
 
+/** Repro for GFM tables — wide prose cells must not clip on the left edge. */
+async function tableTurn(): Promise<void> {
+  emit({
+    type: "user-message",
+    sessionId: SID,
+    text: "make a table of pros/cons of eth vs btc",
+  });
+  await sleep(40);
+
+  await streamAssistant(
+    [
+      "Here is a comparison of the primary strengths and weaknesses of Bitcoin (BTC) and Ethereum (ETH).",
+      "",
+      "| Aspect | Bitcoin (BTC) | Ethereum (ETH) |",
+      "| --- | --- | --- |",
+      "| **Role** | Digital gold / store of value | Utility platform: a programmable blockchain for apps and contracts |",
+      "| **Ecosystem** | Payments, custody, ETFs | Largest hub for DeFi, NFTs, and tokenized assets |",
+      "| **Pros** | Scarcity, security, brand recognition | Staking yield, rapid upgrades, flexible design |",
+      "| **Cons** | Limited scripting, energy debate (PoW history) | Fee volatility, complexity, staking centralization risk |",
+      "| **Monetary policy** | Fixed supply, predictable issuance | Inflation/deflation mix; more complex policy |",
+      "",
+      "Use BTC when you want a long-horizon reserve asset; use ETH when you need programmable settlement and on-chain apps.",
+    ].join("\n"),
+    120,
+  );
+
+  emit({ type: "usage-updated", sessionId: SID, usage: { inputTokens: 2_400, outputTokens: 680, totalTokens: 3_080, costUSD: 0.012, cachedInputTokens: 0 } });
+  emit({ type: "context-updated", sessionId: SID, usedTokens: 3_080, contextWindow: 200_000 });
+  await sleep(40);
+  emit({ type: "turn-finished", sessionId: SID });
+  emit({ type: "session-idle", sessionId: SID });
+  emit({ type: "engine-idle", sessionId: SID, gate: "green" });
+}
+
+/** Dense markdown — bold labels, nested detail, inline tokens (Streamdown attrs). */
+async function docsTurn(): Promise<void> {
+  emit({
+    type: "user-message",
+    sessionId: SID,
+    text: "Summarize the design system primitives we just standardized.",
+  });
+  await sleep(40);
+
+  await streamAssistant(
+    [
+      "**Primitives standardized:**",
+      "",
+      "- **Button**",
+      "  - default: `h-8 px-3 text-[13px] rounded-lg gap-1.5`",
+      "  - sm: `h-7 px-2.5 text-[12px]`",
+      "  - lg: `h-9`",
+      "  - icon: `h-8 w-8`",
+      "- **Badge**: `rounded-full px-2 py-0 text-[11px] leading-5`",
+      "- **Input**: `h-8 rounded-lg px-3 text-[13px]` · placeholder muted · focus ring",
+      "- **Card**: `rounded-[16px]` hairline border + quiet shadow",
+      "  - header `p-4 pb-3` · title 13 · description 12",
+      "  - content `p-4 pt-0`",
+      "- **Skeleton**: soft surface fill · `rounded-md` · `h-4`",
+      "",
+      "**Shell:** rail / transcript / composer share the Graphite token set — no zinc, no violet.",
+    ].join("\n"),
+    100,
+  );
+
+  emit({ type: "usage-updated", sessionId: SID, usage: { inputTokens: 1_800, outputTokens: 420, totalTokens: 2_220, costUSD: 0.008, cachedInputTokens: 0 } });
+  emit({ type: "context-updated", sessionId: SID, usedTokens: 2_220, contextWindow: 200_000 });
+  await sleep(40);
+  emit({ type: "turn-finished", sessionId: SID });
+  emit({ type: "session-idle", sessionId: SID });
+  emit({ type: "engine-idle", sessionId: SID, gate: "green" });
+}
+
+/** Source cards — title / domain / snippet hierarchy for visual polish. */
+async function sourcesTurn(): Promise<void> {
+  emit({
+    type: "user-message",
+    sessionId: SID,
+    text: "Pull the B&G rebrand sources and quote the navy decisions.",
+  });
+  await sleep(40);
+
+  await streamAssistant(
+    [
+      "Sources: B&G media kit & 2024 logo rebrand navy deepening [2], Matchstic Going beyond the build [7], homepage [3], Pantone 281C #00205B [14][17].",
+      "",
+      "```sources",
+      "Brasfield & Gorrie Unveils New Logo and Brand Identity | logos-world.net | Deepened navy, refined ampersand, General Contractors dropped, modern contemporary type.",
+      "Brasfield & Gorrie | Matchstic | Going beyond the build — brand system, typography, and identity craft.",
+      "Brasfield & Gorrie | www.brasfieldgorrie.com | Homepage — primary mark, navy field, construction leadership.",
+      "Pantone 281 C | pantone.com | #00205B reference for the deepened navy used across the rebrand.",
+      "```",
+    ].join("\n"),
+    100,
+  );
+
+  emit({ type: "usage-updated", sessionId: SID, usage: { inputTokens: 3_100, outputTokens: 540, totalTokens: 3_640, costUSD: 0.014, cachedInputTokens: 0 } });
+  emit({ type: "context-updated", sessionId: SID, usedTokens: 3_640, contextWindow: 200_000 });
+  await sleep(40);
+  emit({ type: "turn-finished", sessionId: SID });
+  emit({ type: "session-idle", sessionId: SID });
+  emit({ type: "engine-idle", sessionId: SID, gate: "green" });
+}
+
 async function busyTurn(): Promise<void> {
   emit({ type: "user-message", sessionId: SID, text: "Refactor the billing webhook handlers to be idempotent, then prove it with the integration suite." });
   await sleep(50);
@@ -403,6 +509,15 @@ async function runTimeline(): Promise<void> {
     case "gate":
       await chatTurn();
       break;
+    case "table":
+      await tableTurn();
+      break;
+    case "docs":
+      await docsTurn();
+      break;
+    case "sources":
+      await sourcesTurn();
+      break;
     case "busy":
       await busyTurn();
       break;
@@ -412,8 +527,11 @@ async function runTimeline(): Promise<void> {
         type: "queue-changed",
         active: { id: "q_active", label: "Refactor billing webhook handlers" },
         pending: [
-          { id: "q1", label: "Add integration coverage for duplicate deliveries" },
-          { id: "q2", label: "Document the new webhook_events table" },
+          { id: "q1", label: "Tighten project menu layout and confirm actions" },
+          { id: "q2", label: "Polish source cards spacing and hierarchy" },
+          { id: "q3", label: "Use overlay scrollbars that hide when idle" },
+          { id: "q4", label: "Refine hover copy chips so they never cover prose" },
+          { id: "q5", label: "Ship the VC app icon for Dock and Finder" },
         ],
       });
       break;

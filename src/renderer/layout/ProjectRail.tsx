@@ -98,26 +98,23 @@ export function ProjectRail({
   const visibleProjects = useMemo(() => filterProjects(projects, query), [projects, query]);
   const searchIsOpen = searchOpen || query.length > 0;
 
-  const closeMenu = useCallback(
-    (restoreFocus = false) => {
-      if (!menu) return;
-      if (menuCloseTimerRef.current !== null) {
-        window.clearTimeout(menuCloseTimerRef.current);
+  const closeMenu = useCallback((restoreFocus = false) => {
+    if (!menu && !menuClosing) return;
+    if (menuCloseTimerRef.current !== null) {
+      window.clearTimeout(menuCloseTimerRef.current);
+    }
+    setConfirmAction(null);
+    setConfirmProjectAction(null);
+    setMenuClosing(true);
+    menuCloseTimerRef.current = window.setTimeout(() => {
+      setMenu(null);
+      setMenuClosing(false);
+      menuCloseTimerRef.current = null;
+      if (restoreFocus) {
+        window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
       }
-      setConfirmAction(null);
-      setConfirmProjectAction(null);
-      setMenuClosing(true);
-      menuCloseTimerRef.current = window.setTimeout(() => {
-        setMenu(null);
-        setMenuClosing(false);
-        menuCloseTimerRef.current = null;
-        if (restoreFocus) {
-          window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
-        }
-      }, 120);
-    },
-    [menu],
-  );
+    }, 120);
+  }, [menu, menuClosing]);
 
   useEffect(() => {
     if (!activeCwd) return;
@@ -127,9 +124,14 @@ export function ProjectRail({
   useEffect(() => {
     if (!menu) return;
     const first = menuRef.current?.querySelector<HTMLButtonElement>("button[role='menuitem']");
-    first?.focus();
+    // Prefer keyboard focus without scrolling the rail under a pointer click.
+    first?.focus({ preventScroll: true });
     const onPointer = (event: MouseEvent) => {
-      if (menuRef.current?.contains(event.target as Node)) return;
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      // Let the trigger's click handler toggle closed — don't race mousedown→close
+      // against click→reopen (that flicker is what made ⋯ feel glitched).
+      if (menuTriggerRef.current?.contains(target)) return;
       closeMenu();
     };
     // The session menu fully owns keyboard interaction while open. The keydown
@@ -145,19 +147,25 @@ export function ProjectRail({
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
         event.stopPropagation();
+        if (items.length === 0) return;
         const direction = event.key === "ArrowDown" ? 1 : -1;
-        items[(current + direction + items.length) % items.length]?.focus();
+        items[(current + direction + items.length) % items.length]?.focus({ preventScroll: true });
       } else if (event.key === "Home") {
         event.preventDefault();
         event.stopPropagation();
-        items[0]?.focus();
+        items[0]?.focus({ preventScroll: true });
       } else if (event.key === "End") {
         event.preventDefault();
         event.stopPropagation();
-        items.at(-1)?.focus();
+        items.at(-1)?.focus({ preventScroll: true });
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
+        if (confirmAction || confirmProjectAction) {
+          setConfirmAction(null);
+          setConfirmProjectAction(null);
+          return;
+        }
         closeMenu(true);
       }
     };
@@ -167,7 +175,7 @@ export function ProjectRail({
       window.removeEventListener("mousedown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
-  }, [closeMenu, menu]);
+  }, [closeMenu, menu, confirmAction, confirmProjectAction]);
 
   useEffect(() => {
     return () => {
@@ -188,7 +196,7 @@ export function ProjectRail({
     if (Math.abs(x - menu.x) > 0.5 || Math.abs(y - menu.y) > 0.5) {
       setMenu((current) => (current ? { ...current, x, y } : null));
     }
-  }, [menu]);
+  }, [menu, confirmAction, confirmProjectAction]);
 
   useEffect(() => {
     if (!renamingProject) return;
@@ -211,6 +219,32 @@ export function ProjectRail({
     });
   };
 
+  /** Anchor to the trigger so the menu isn't born under the cursor (avoids the
+   *  click/double-click landing on Rename). Flip above when near the bottom. */
+  const menuPositionFor = (trigger: HTMLElement) => {
+    const rect = trigger.getBoundingClientRect();
+    const estimatedWidth = 176;
+    const estimatedHeight = 120;
+    const gap = 4;
+    const pad = 8;
+    const openBelow = rect.bottom + gap + estimatedHeight <= window.innerHeight - pad;
+    return {
+      x: Math.max(pad, rect.right - estimatedWidth),
+      y: openBelow ? rect.bottom + gap : Math.max(pad, rect.top - estimatedHeight - gap),
+    };
+  };
+
+  const beginMenuOpen = (trigger: HTMLButtonElement) => {
+    if (menuCloseTimerRef.current !== null) {
+      window.clearTimeout(menuCloseTimerRef.current);
+      menuCloseTimerRef.current = null;
+    }
+    setMenuClosing(false);
+    setConfirmAction(null);
+    setConfirmProjectAction(null);
+    menuTriggerRef.current = trigger;
+  };
+
   const openMenu = (
     event: React.MouseEvent,
     cwd: string,
@@ -218,25 +252,31 @@ export function ProjectRail({
   ) => {
     event.preventDefault();
     event.stopPropagation();
-    if (menuCloseTimerRef.current !== null) {
-      window.clearTimeout(menuCloseTimerRef.current);
-      menuCloseTimerRef.current = null;
+    const trigger = event.currentTarget as HTMLButtonElement;
+    if (menu?.kind === "session" && menu.session.id === session.id && !menuClosing) {
+      closeMenu(true);
+      return;
     }
-    setMenuClosing(false);
-    menuTriggerRef.current = event.currentTarget as HTMLButtonElement;
-    setMenu({ kind: "session", cwd, session, x: event.clientX, y: event.clientY });
+    beginMenuOpen(trigger);
+    // Right-click stays at the pointer; the ⋯ control anchors to itself.
+    const pos =
+      event.type === "contextmenu"
+        ? { x: event.clientX, y: event.clientY }
+        : menuPositionFor(trigger);
+    setMenu({ kind: "session", cwd, session, ...pos });
   };
 
   const openProjectMenu = (event: React.MouseEvent, project: ProjectSummary) => {
     event.preventDefault();
     event.stopPropagation();
-    if (menuCloseTimerRef.current !== null) {
-      window.clearTimeout(menuCloseTimerRef.current);
-      menuCloseTimerRef.current = null;
+    const trigger = event.currentTarget as HTMLButtonElement;
+    if (menu?.kind === "project" && menu.cwd === project.cwd && !menuClosing) {
+      closeMenu(true);
+      return;
     }
-    setMenuClosing(false);
-    menuTriggerRef.current = event.currentTarget as HTMLButtonElement;
-    setMenu({ kind: "project", cwd: project.cwd, project, x: event.clientX, y: event.clientY });
+    beginMenuOpen(trigger);
+    const { x, y } = menuPositionFor(trigger);
+    setMenu({ kind: "project", cwd: project.cwd, project, x, y });
   };
 
   const commitRename = async () => {
@@ -423,6 +463,10 @@ export function ProjectRail({
                     type="button"
                     className="project-more"
                     aria-label={`Actions for project ${projectLabel(project, projects)}`}
+                    aria-haspopup="menu"
+                    aria-expanded={
+                      menu?.kind === "project" && menu.cwd === project.cwd && !menuClosing
+                    }
                     title="Project actions"
                     onClick={(event) => openProjectMenu(event, project)}
                   >
@@ -510,6 +554,12 @@ export function ProjectRail({
                                 ? `Session actions for ${session.title}. ${busyTitle}`
                                 : `Session actions for ${session.title}`
                             }
+                            aria-haspopup="menu"
+                            aria-expanded={
+                              menu?.kind === "session" &&
+                              menu.session.id === session.id &&
+                              !menuClosing
+                            }
                             disabled={busy}
                             title={busy ? busyTitle : undefined}
                             onClick={(event) => openMenu(event, project.cwd, session)}
@@ -530,7 +580,9 @@ export function ProjectRail({
       {menu && createPortal(
         <div
           ref={menuRef}
-          className={`session-menu${menuClosing ? " is-closing" : ""}`}
+          className={`session-menu${menuClosing ? " is-closing" : ""}${
+            (menu.kind === "project" ? confirmProjectAction : confirmAction) ? " is-confirm" : ""
+          }`}
           style={{ left: menu.x, top: menu.y }}
           role={menu.kind === "project" ? (confirmProjectAction ? "alertdialog" : "menu") : (confirmAction ? "alertdialog" : "menu")}
           aria-label={
@@ -547,13 +599,21 @@ export function ProjectRail({
             confirmProjectAction ? (
               <div className="session-menu-confirm">
                 <p className="session-menu-confirm-msg">
-                  {confirmProjectAction === "delete"
-                    ? `Delete ${projectLabel(menu.project, projects)} from project history? Its saved sessions will be removed.`
-                    : `Archive ${projectLabel(menu.project, projects)}? It will leave the project list but remain on disk.`}
+                  <span className="session-menu-confirm-title">
+                    {confirmProjectAction === "delete"
+                      ? `Delete ${projectLabel(menu.project, projects)}?`
+                      : `Archive ${projectLabel(menu.project, projects)}?`}
+                  </span>
+                  <span className="session-menu-confirm-detail">
+                    {confirmProjectAction === "delete"
+                      ? "Removes it from project history and deletes its saved sessions."
+                      : "Leaves the project list but remains on disk."}
+                  </span>
                 </p>
                 <div className="session-menu-confirm-actions">
                   <button
                     type="button"
+                    className="session-menu-confirm-cancel"
                     // biome-ignore lint/a11y/noAutofocus: focus the safe choice so Enter cancels, not confirms
                     autoFocus
                     onClick={() => setConfirmProjectAction(null)}
@@ -562,7 +622,7 @@ export function ProjectRail({
                   </button>
                   <button
                     type="button"
-                    className={confirmProjectAction === "delete" ? "danger" : ""}
+                    className={`session-menu-confirm-go${confirmProjectAction === "delete" ? " danger" : ""}`}
                     onClick={() => {
                       const { cwd } = menu;
                       const mode = confirmProjectAction;
@@ -611,13 +671,21 @@ export function ProjectRail({
           ) : confirmAction ? (
             <div className="session-menu-confirm">
               <p className="session-menu-confirm-msg">
-                {confirmAction === "delete"
-                  ? `Delete “${menu.session.title}”? This cannot be undone.`
-                  : `Archive “${menu.session.title}”? It will leave this project’s session list.`}
+                <span className="session-menu-confirm-title">
+                  {confirmAction === "delete"
+                    ? `Delete “${menu.session.title}”?`
+                    : `Archive “${menu.session.title}”?`}
+                </span>
+                <span className="session-menu-confirm-detail">
+                  {confirmAction === "delete"
+                    ? "This cannot be undone."
+                    : "Leaves this project’s session list."}
+                </span>
               </p>
               <div className="session-menu-confirm-actions">
                 <button
                   type="button"
+                  className="session-menu-confirm-cancel"
                   // biome-ignore lint/a11y/noAutofocus: focus the safe choice so Enter cancels, not confirms
                   autoFocus
                   onClick={() => setConfirmAction(null)}
@@ -626,7 +694,7 @@ export function ProjectRail({
                 </button>
                 <button
                   type="button"
-                  className={confirmAction === "delete" ? "danger" : ""}
+                  className={`session-menu-confirm-go${confirmAction === "delete" ? " danger" : ""}`}
                   onClick={() => {
                     const { cwd, session } = menu;
                     const mode = confirmAction;
