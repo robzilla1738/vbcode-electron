@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ProviderConfig } from "../../../shared/config-schema";
+import { PROVIDER_CHOICES } from "../../../shared/providers-catalog";
 import type { SectionProps } from "./types";
 import { SettingBadge, SettingField, SettingSection, TextArea, TextInput } from "../FormControls";
 
@@ -9,19 +10,25 @@ export function ProvidersSection({ config, updateConfig }: SectionProps) {
   const [expanded, setExpanded] = useState<string | null>(providerIds[0] ?? null);
   const [showAdd, setShowAdd] = useState(false);
   const [newId, setNewId] = useState("");
+  const [useCustom, setUseCustom] = useState(false);
 
   const updateProvider = (id: string, patch: Partial<ProviderConfig>) => {
     const next = { ...providers, [id]: { ...providers[id], ...patch } };
     updateConfig({ providers: next });
   };
 
-  const confirmAdd = () => {
-    const id = newId.trim();
-    if (!id || providers[id]) return;
-    updateProvider(id, {});
-    setExpanded(id);
+  const confirmAddForId = (id: string) => {
+    const trimmed = id.trim();
+    if (!trimmed || providers[trimmed]) return;
+    updateProvider(trimmed, {});
+    setExpanded(trimmed);
     setNewId("");
     setShowAdd(false);
+    setUseCustom(false);
+  };
+
+  const confirmAdd = () => {
+    confirmAddForId(newId);
   };
 
   const removeProvider = (id: string) => {
@@ -109,24 +116,51 @@ export function ProvidersSection({ config, updateConfig }: SectionProps) {
         </div>
       )}
       {showAdd ? (
-        <div className="git-create-row">
-          <input
-            type="text"
-            className="setting-input is-mono"
-            value={newId}
-            placeholder="provider-id (e.g. openai, anthropic, ollama)"
-            onChange={(e) => setNewId(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") confirmAdd();
-              if (e.key === "Escape") { setShowAdd(false); setNewId(""); }
-            }}
-          />
-          <button type="button" className="button primary" disabled={!newId.trim()} onClick={confirmAdd}>Add</button>
-          <button type="button" className="button" onClick={() => { setShowAdd(false); setNewId(""); }}>Cancel</button>
-        </div>
+        useCustom ? (
+          <div className="git-create-row">
+            <input
+              type="text"
+              className="setting-input is-mono"
+              value={newId}
+              placeholder="provider-id (e.g. openai, anthropic, ollama)"
+              onChange={(e) => setNewId(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmAdd();
+                if (e.key === "Escape") { setShowAdd(false); setNewId(""); setUseCustom(false); }
+              }}
+              // biome-ignore lint/a11y/noAutofocus: single autofocus owner in the custom add row
+              autoFocus
+            />
+            <button type="button" className="button primary" disabled={!newId.trim()} onClick={confirmAdd}>Add</button>
+            <button type="button" className="button" onClick={() => { setShowAdd(false); setNewId(""); setUseCustom(false); }}>Cancel</button>
+          </div>
+        ) : (
+          <div className="provider-add-row">
+            <select
+              className="setting-select"
+              value={newId}
+              onChange={(e) => {
+                const choice = PROVIDER_CHOICES.find((c) => c.registryId === e.target.value && c.registryId !== "");
+                setNewId(e.target.value);
+                if (choice && e.target.value) confirmAddForId(e.target.value);
+              }}
+              // biome-ignore lint/a11y/noAutofocus: single autofocus owner in the add row
+              autoFocus
+            >
+              <option value="">Select a provider…</option>
+              {PROVIDER_CHOICES.filter((c) => c.registryId !== "" && !c.customEndpoint).map((c) => (
+                <option key={c.key} value={c.registryId}>{c.label}</option>
+              ))}
+            </select>
+            <button type="button" className="button" onClick={() => { setUseCustom(true); setNewId(""); }}>
+              Type manually
+            </button>
+            <button type="button" className="button" onClick={() => { setShowAdd(false); setNewId(""); setUseCustom(false); }}>Cancel</button>
+          </div>
+        )
       ) : (
         <div className="setting-actions">
-          <button type="button" className="button" onClick={() => setShowAdd(true)}>Add provider</button>
+          <button type="button" className="button" onClick={() => { setShowAdd(true); setUseCustom(false); setNewId(""); }}>Add provider</button>
         </div>
       )}
     </SettingSection>

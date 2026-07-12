@@ -7777,3 +7777,40 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-base);
 }
+
+/* ── Accent preset swatches ───────────────────────────────────────────── */
+.accent-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.accent-swatch {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 0;
+  transition: transform var(--dur-micro) var(--ease-standard);
+}
+.accent-swatch:hover {
+  transform: scale(1.15);
+}
+.accent-swatch:active {
+  transform: scale(0.95);
+  transition-duration: var(--dur-press);
+}
+
+/* ── Provider add row (curated dropdown) ──────────────────────────────── */
+.provider-add-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.provider-add-row .setting-select {
+  flex: 1;
+  min-width: 200px;
+}

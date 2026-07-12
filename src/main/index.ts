@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, nativeTheme, session, shell } from "electron";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { writeFile, mkdir, readFile, rm } from "node:fs/promises";
 import { existsSync, statSync, readdirSync } from "node:fs";
@@ -71,6 +71,28 @@ function applyMacChrome(win: BrowserWindow): void {
     } catch (err) {
       console.warn("liquid glass unavailable:", err);
     }
+  });
+}
+
+
+/**
+ * In dev mode Vite injects inline scripts (React refresh preamble, HMR
+ * client) that the production CSP (`script-src 'self'` in index.html) would
+ * block. Relax the policy only when a dev server URL is present so the strict
+ * production CSP is untouched. The override uses onHeadersReceived so it
+ * applies to every dev-server response, not just the initial HTML.
+ */
+function configureDevCsp(): void {
+  if (!process.env.ELECTRON_RENDERER_URL) return;
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' ws: wss:",
+        ],
+      },
+    });
   });
 }
 
@@ -368,6 +390,7 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
+  configureDevCsp();
   applyDevDockIcon();
   wireBridge();
   registerIpc();

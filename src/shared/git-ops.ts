@@ -332,14 +332,14 @@ export async function commit(
     const stage = await stageAll(cwd, opts.stageAllIncludingUntracked ?? false);
     if (!stage.ok) return stage;
   }
-  const args = ["commit", "-m", message];
+  const args = ["commit"];
   if (opts.amend) {
-    args.push("--amend", "--no-edit");
-    // Replace the message if one was given
-    if (message) {
-      args.splice(2); // remove -m message
-      args.push("--amend", "-m", message);
-    }
+    args.push("--amend");
+    // When a new message is given, replace the old one; otherwise keep it.
+    if (message) args.push("-m", message);
+    else args.push("--no-edit");
+  } else {
+    args.push("-m", message);
   }
   const res = await runGit(cwd, args);
   return {
