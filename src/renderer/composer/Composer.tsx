@@ -1,11 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { type CSSProperties, type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  applyPalette,
-  isExactCommand,
-  paletteState,
-  type PaletteState,
-} from "../../shared/commands-catalog";
 import {
   agentsPickerQuery,
   mcpPickerQuery,
@@ -13,12 +7,18 @@ import {
   providersPickerQuery,
   skillsPickerFilter,
 } from "../../shared/catalog-draft";
-import { modeWord, type UiMode } from "../../shared/modes";
+import {
+  applyPalette,
+  isExactCommand,
+  type PaletteState,
+  paletteState,
+} from "../../shared/commands-catalog";
+import { applyComposerPaste } from "../../shared/composer-edit";
 import { densityLabel, isTranscriptDensity } from "../../shared/density";
+import { modeWord, type UiMode } from "../../shared/modes";
 import { accentNameOf } from "../../shared/themes";
 import { applyAtMention, useAtMention } from "../hooks/useAtMention";
 import { useFloatingAnchor } from "../hooks/useFloatingAnchor";
-import { applyComposerPaste } from "../../shared/composer-edit";
 import { IconChevron, IconPaperclip, IconSend, IconStop } from "../icons";
 
 const MODE_OPTIONS: UiMode[] = ["plan", "execute", "yolo"];
@@ -879,7 +879,7 @@ export function Composer({
             aria-label="Insert: mention a file, paste clipboard, or edit in external editor"
             title="Insert — mention a file, paste clipboard, or edit in external editor"
           >
-            <IconPaperclip size={13} />
+            <IconPaperclip size={12} />
           </button>
           <div className={`mode-dropdown${modeOpen ? " is-open" : ""}`}>
             <button
@@ -897,26 +897,16 @@ export function Composer({
               onClick={() => setModeOpen((open) => !open)}
             >
               <span>{displayModeLabel(uiMode)}</span>
-              <IconChevron open={modeOpen} size={13} />
+              <IconChevron open={modeOpen} size={12} />
             </button>
             {modeMenu}
           </div>
         </div>
         <div className="composer-status-trailing">
           <div
-            className={`composer-metrics-slot${busy || metrics.length ? " has-content" : ""}`}
-            aria-hidden={!busy && metrics.length === 0 ? true : undefined}
+            className={`composer-metrics-slot${metrics.length ? " has-content" : ""}`}
+            aria-hidden={metrics.length === 0 ? true : undefined}
           >
-            {busy ? (
-              <span
-                className="composer-chip composer-busy-cue"
-                title="Working · Esc to interrupt"
-                aria-label="Working"
-              >
-                <span className="spinner composer-busy-spinner" aria-hidden />
-                <span>Working</span>
-              </span>
-            ) : null}
             {metrics.map((metric) => (
               <span
                 key={metric.key}
@@ -966,7 +956,7 @@ export function Composer({
             {busy ? (
               <button
                 type="button"
-                className="composer-submit stop"
+                className="composer-chip composer-submit stop"
                 onClick={onAbort}
                 aria-label={
                   busyElapsed ? `Stop current turn · ${busyElapsed}` : "Stop current turn"

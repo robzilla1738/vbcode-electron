@@ -314,6 +314,74 @@ export function toolLabel(name: string, input: unknown): string {
   return `${toolIcon(name)} ${toolSummary(name, input)}`;
 }
 
+/**
+ * Friendly category for a permission prompt — shown as the card title instead
+ * of the raw tool id (`job_kill`, `bash`, …).
+ */
+export function permissionKind(name: string): string {
+  const key = name.toLowerCase();
+  switch (key) {
+    case "bash":
+    case "shell":
+      return "Run a command";
+    case "read":
+      return "Read a file";
+    case "write":
+      return "Write a file";
+    case "edit":
+    case "multiedit":
+      return "Edit a file";
+    case "apply_patch":
+      return "Apply a patch";
+    case "glob":
+    case "grep":
+    case "list":
+    case "ls":
+    case "repo_map":
+      return "Search the project";
+    case "webfetch":
+    case "web_fetch":
+    case "websearch":
+    case "web_search":
+    case "crawl_docs":
+      return "Access the web";
+    case "job_kill":
+      return "Stop a background job";
+    case "job_status":
+      return "Check a background job";
+    case "task":
+    case "subagent":
+    case "spawn_subagent":
+    case "spawn_tasks":
+    case "continue_subagent":
+      return "Start a subagent";
+    case "present_plan":
+      return "Present a plan";
+    default:
+      if (key.startsWith("git")) return "Run a git action";
+      if (key.startsWith("mcp") || key.includes("mcp")) return "Use an MCP tool";
+      return "Allow this action";
+  }
+}
+
+/** One-line detail under the kind — human summary, no glyph prefix. */
+export function permissionDetail(name: string, input: unknown): string {
+  const key = name.toLowerCase();
+  const a =
+    input && typeof input === "object"
+      ? (input as Record<string, unknown>)
+      : {};
+  if (key === "job_kill") {
+    const id = typeof a.id === "string" ? a.id : a.id != null ? String(a.id) : "";
+    return id ? `Stop ${id}` : "Stop the running job";
+  }
+  if (key === "job_status") {
+    const id = typeof a.id === "string" ? a.id : a.id != null ? String(a.id) : "";
+    return id ? `Check ${id}` : "Check job status";
+  }
+  return toolSummary(name, input);
+}
+
 /** Cap for permission-preview body lines — enough to judge the action, small
  * enough that the card never crowds out the input. */
 const PREVIEW_MAX_LINES = 12;

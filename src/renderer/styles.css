@@ -117,7 +117,7 @@
   --composer-max: var(--column-max);
   --composer-input-min: 24px;
   --composer-input-max: 320px;
-  --composer-submit-slot: 5.75rem;
+  --composer-chip-h: 26px;
   --ease-enter: cubic-bezier(0, 0, 0.2, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
@@ -261,7 +261,7 @@ button:disabled, input:disabled, textarea:disabled {
 
 /* Press feedback for primary/chip actions only — tiny icon controls opt out
    so dense toolbars don't twitch (I60). */
-button:active:not(:disabled):not(.icon-button):not(.composer-ghost):not(.copy-btn):not(.keys-close):not(.catalog-close):not(.catalog-search-clear):not(.session-more):not(.turn-fold):not(.queue-action):not(.rail-busy-stop) {
+button:active:not(:disabled):not(.icon-button):not(.composer-ghost):not(.copy-btn):not(.keys-close):not(.catalog-close):not(.catalog-search-clear):not(.session-more):not(.turn-fold):not(.queue-action) {
   transform: translateY(var(--press-offset));
   transition-duration: var(--dur-press);
 }
@@ -690,43 +690,6 @@ html[data-platform="darwin"] .rail-chrome {
   letter-spacing: -0.02em;
 }
 
-.rail-busy-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  margin: 0 var(--space-sm) var(--space-sm);
-  padding: 7px 10px;
-  border: 1px solid color-mix(in oklab, var(--notice) 28%, transparent);
-  border-radius: var(--radius-sm);
-  color: color-mix(in oklab, var(--notice) 88%, var(--assistant));
-  background: color-mix(in oklab, var(--notice) 8%, var(--surface-subtle));
-  font-size: var(--text-caption);
-  font-weight: 500;
-  line-height: 1.35;
-  letter-spacing: -0.01em;
-}
-.rail-busy-text { min-width: 0; }
-.rail-busy-stop {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
-  min-height: 28px;
-  padding: 0 8px;
-  border: 1px solid color-mix(in oklab, var(--notice) 40%, transparent);
-  border-radius: var(--radius-sm);
-  color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 60%, transparent);
-  font: inherit;
-  font-size: var(--text-caption);
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease-standard);
-}
-.rail-busy-stop:hover { background: color-mix(in oklab, var(--surface) 80%, transparent); }
-.rail-busy-stop:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
 .rail-actions {
   display: grid;
   gap: 2px;
@@ -885,7 +848,6 @@ html[data-platform="darwin"] .rail-chrome {
 
 .session-row-wrap.active {
   background: color-mix(in oklab, var(--surface) 64%, transparent);
-  box-shadow: inset 2.5px 0 0 var(--user);
 }
 
 .session-row {
@@ -1066,17 +1028,6 @@ html[data-platform="darwin"] .session-row-wrap:hover:not(.active) .session-row {
 html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible) { color: var(--assistant); }
 
 .session-title { min-width: 0; flex: 1 1 auto; font-size: var(--text-caption); font-weight: inherit; }
-
-.session-active-dot {
-  flex: 0 0 auto;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: transparent;
-}
-
-.session-active-dot.is-on {
-  background: var(--user);
-}
 
 .session-time {
   flex: 0 0 auto;
@@ -1782,30 +1733,10 @@ html[data-scheme="light"] .md pre {
   white-space: pre-wrap;
 }
 
-.tool-body > .md, .plan-text {
+.tool-body > .md {
   font-family: var(--font-sans);
   font-size: var(--text-ui);
   line-height: 1.58;
-}
-
-.plan-text {
-  position: relative;
-  white-space: normal;
-}
-
-.plan-text.has-copy > .copy-btn {
-  position: absolute;
-  z-index: var(--z-sticky);
-  top: 4px;
-  right: 6px;
-  opacity: 1;
-}
-
-.plan-text.has-copy:hover > .copy-btn,
-.plan-text.has-copy:focus-within > .copy-btn,
-.plan-text.has-copy > .copy-btn.is-copied {
-  color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 72%, transparent);
 }
 
 /* Tool body: full width of the parent disclosure */
@@ -2082,25 +2013,42 @@ html[data-scheme="light"] .md pre {
   z-index: var(--z-composer);
   display: flex;
   width: min(calc(100% - 2 * var(--column-inset)), var(--column-max));
-  max-height: 48%;
+  max-height: 52%;
   flex: 0 1 auto;
   flex-direction: column;
   gap: var(--space-sm);
   margin: 0 auto;
-  padding-bottom: var(--space-sm);
+  padding: 0 0 var(--space-sm);
   overflow-y: auto;
 }
 
 .panels:empty, .panels:not(:has(*)) { display: none; padding: 0; margin: 0; }
 
 .card {
-  padding: 12px var(--space-base);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  border: 1px solid color-mix(in oklab, var(--border) 34%, transparent);
+  border-radius: var(--radius-lg);
   color: var(--assistant);
-  background: var(--card-bg);
+  background: color-mix(in oklab, var(--surface-subtle) 88%, transparent);
   box-shadow: var(--elev-rest);
   animation: surface-enter var(--dur-standard) var(--ease-enter);
+}
+
+.card-head {
+  display: grid;
+  gap: 2px;
+  margin-bottom: var(--space-sm);
+}
+
+.card-eyebrow {
+  margin: 0;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 .card.panel-strip {
@@ -2156,46 +2104,92 @@ html[data-scheme="light"] .md pre {
 }
 
 .card.perm {
-  border-color: color-mix(in oklab, var(--notice) 22%, var(--border-soft));
-  background: color-mix(in oklab, var(--notice) 4%, var(--surface-subtle));
-  padding: var(--space-sm) var(--space-md);
+  border-color: color-mix(in oklab, var(--border) 34%, transparent);
+  background: color-mix(in oklab, var(--surface-subtle) 92%, transparent);
+  padding: 16px 18px;
 }
 
-.card.perm h3 { color: var(--notice); margin-bottom: 2px; }
+.card.perm .card-eyebrow {
+  color: var(--text-subtle);
+  letter-spacing: 0.04em;
+}
+
+.card.perm h3 {
+  margin: 0;
+  color: var(--assistant);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.perm-detail {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: 450;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.perm-detail.is-command {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in oklab, var(--border) 20%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface) 36%, transparent);
+  color: var(--assistant);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: 1.45;
+}
 
 .perm-tool-label {
   margin: 0;
-  color: var(--assistant);
+  color: var(--muted);
+  font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 400;
-  line-height: 1.4;
+  font-weight: 450;
+  line-height: 1.45;
 }
 
 .card.plan {
-  border-color: color-mix(in oklab, var(--plan) 22%, var(--border-soft));
-  background: color-mix(in oklab, var(--plan) 4%, var(--surface-subtle));
+  border-color: color-mix(in oklab, var(--border) 34%, transparent);
+  background: color-mix(in oklab, var(--surface-subtle) 92%, transparent);
+  padding: 16px 18px;
 }
 
-.card.plan h3 { color: var(--plan); }
+.card.plan .card-eyebrow {
+  color: var(--text-subtle);
+  letter-spacing: 0.04em;
+}
+.card.plan h3 {
+  margin: 0;
+  color: var(--assistant);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
 
-.card.perm h3::before, .card.plan h3::before {
-  content: "";
-  display: inline-block;
-  width: 6px; height: 6px;
-  margin-right: 8px;
-  border-radius: var(--radius-pill);
-  background: currentColor;
-  box-shadow: 0 0 0 4px color-mix(in oklab, currentColor 16%, transparent);
-  vertical-align: 1px;
+.card.plan .notice.warn {
+  margin: 0 0 var(--space-sm);
+  padding: 8px 10px;
+  font-size: var(--text-caption);
 }
 
 .card h3, .sidebar-section h4 {
   margin: 0 0 var(--space-xs);
   color: var(--muted);
-  font-size: var(--text-label);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.02em;
-  line-height: 1.2;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.card.perm h3,
+.card.plan h3 {
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .card.panel-strip h3 {
@@ -2235,20 +2229,25 @@ html[data-scheme="light"] .md pre {
 }
 
 .permission-preview {
-  margin-top: var(--space-xs);
-  max-height: 40vh;
+  margin-top: 12px;
+  max-height: 32vh;
+  padding: 10px 12px;
   overflow: auto;
+  border: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface) 32%, transparent);
   scrollbar-width: thin;
 }
 .permission-preview-more {
   display: inline-flex;
-  margin-top: 4px;
+  margin-top: 6px;
   padding: 2px 6px;
   border: 0;
   border-radius: var(--radius-xs);
   color: var(--text-subtle);
   background: transparent;
   font: inherit;
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-weight: 500;
   cursor: pointer;
@@ -2256,23 +2255,131 @@ html[data-scheme="light"] .md pre {
 }
 .permission-preview-more:hover { color: var(--assistant); background: color-mix(in oklab, var(--surface) 60%, transparent); }
 .permission-preview-more:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.decision-details { margin-top: var(--space-xs); }
+.decision-details { margin-top: 10px; }
 
-.decision-payload, .plan-text {
-  max-height: 280px;
+.card.perm .decision-details {
+  margin-top: 8px;
+  order: 3;
+}
+
+.card.perm .decision-details summary {
+  color: color-mix(in oklab, var(--text-subtle) 88%, transparent);
+  font-size: 11px;
+}
+
+.card.perm .card-actions {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top-color: color-mix(in oklab, var(--border) 14%, transparent);
+}
+
+.card.perm .chip,
+.card.plan .chip {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.card.perm .chip.primary,
+.card.plan .chip.primary {
+  background: var(--assistant);
+  color: var(--bg);
+}
+
+.card.perm .chip.danger {
+  border-color: color-mix(in oklab, var(--border) 28%, transparent);
+  color: color-mix(in oklab, var(--del) 70%, var(--muted));
+  background: transparent;
+}
+
+.card.perm .chip.danger:hover {
+  border-color: color-mix(in oklab, var(--del) 40%, transparent);
+  color: var(--del);
+  background: color-mix(in oklab, var(--del) 8%, transparent);
+}
+
+.card.perm .action-kbd,
+.card.plan .action-kbd {
+  margin-left: 7px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 3px;
+  color: color-mix(in oklab, var(--text-subtle) 90%, transparent);
+  background: color-mix(in oklab, var(--surface) 55%, transparent);
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.card.perm .chip.primary .action-kbd,
+.card.plan .chip.primary .action-kbd {
+  color: color-mix(in oklab, var(--bg) 70%, transparent);
+  background: color-mix(in oklab, var(--bg) 14%, transparent);
+}
+
+.card.perm .chip.danger .action-kbd {
+  color: inherit;
+  background: color-mix(in oklab, var(--surface) 40%, transparent);
+}
+
+.card.plan .chip.caution {
+  border-color: color-mix(in oklab, var(--border) 28%, transparent);
+  color: var(--muted);
+  background: transparent;
+}
+
+.card.plan .chip.caution:hover {
+  border-color: color-mix(in oklab, var(--notice) 36%, transparent);
+  color: color-mix(in oklab, var(--notice) 80%, var(--assistant));
+  background: color-mix(in oklab, var(--notice) 6%, transparent);
+}
+
+.card.plan .card-actions {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top-color: color-mix(in oklab, var(--border) 14%, transparent);
+}
+
+.decision-payload {
+  max-height: 200px;
   margin: 0;
   overflow: auto;
   overscroll-behavior: contain;
   color: var(--assistant);
-  border: 1px solid color-mix(in oklab, var(--border) 26%, transparent);
-  background: color-mix(in oklab, var(--surface) 58%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 24%, transparent);
+  background: color-mix(in oklab, var(--surface) 48%, transparent);
   border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-base);
+  padding: 10px 12px;
 }
+
+/* Plan body reads as chat content — open prose, not a nested code box */
+.plan-text {
+  position: relative;
+  max-height: min(42vh, 360px);
+  margin: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 2px 2px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--assistant);
+  white-space: normal;
+}
+
+.plan-text .md {
+  font-size: var(--text-ui);
+  line-height: 1.6;
+}
+
+.plan-text .md > :first-child { margin-top: 0; }
+.plan-text .md > :last-child { margin-bottom: 0; }
 
 .decision-details summary {
   cursor: pointer;
-  color: var(--muted);
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-weight: 500;
   list-style: none;
@@ -2286,20 +2393,28 @@ html[data-scheme="light"] .md pre {
 .cp-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs); }
 .cp-confirm-msg { width: 100%; margin-bottom: 2px; color: var(--muted); font-size: var(--text-caption); }
 
-.action-hint { color: var(--muted); font-size: var(--text-caption); }
+.action-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+  font-weight: 450;
+  text-align: right;
+}
 .action-hint-inline { margin-left: var(--space-2xs); color: var(--muted); font-size: var(--text-micro); }
 
 .action-kbd {
-  margin-left: var(--space-2xs);
+  margin-left: 6px;
   padding: 1px 5px;
-  border: 1px solid var(--border-soft);
-  border-bottom-width: 2px;
+  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
   border-radius: var(--radius-xs);
   color: var(--text-subtle);
-  background: color-mix(in oklab, var(--elevated) 72%, transparent);
-  font-size: var(--text-micro);
+  background: color-mix(in oklab, var(--elevated) 55%, transparent);
+  font-family: var(--font-sans);
+  font-size: 10px;
   font-weight: 500;
-  line-height: 1.25;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
 }
 
 .chip.primary .action-kbd {
@@ -2313,9 +2428,26 @@ html[data-scheme="light"] .md pre {
   color: color-mix(in oklab, var(--del) 85%, var(--assistant));
 }
 
-.plan-evidence { margin-top: var(--space-base); color: var(--muted); font-size: var(--text-caption); }
-.plan-evidence h4 { margin: 0 0 4px; color: var(--assistant); font-size: var(--text-caption); font-weight: 600; letter-spacing: 0.02em; }
-.plan-evidence ol, .plan-evidence ul { margin: 0; padding-left: 20px; }
+.plan-evidence-stack {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
+}
+
+.plan-evidence { color: var(--muted); font-size: var(--text-caption); }
+.plan-evidence h4 {
+  margin: 0 0 6px;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.plan-evidence ol, .plan-evidence ul { margin: 0; padding-left: 18px; }
+.plan-evidence li + li { margin-top: 3px; }
 .plan-evidence a { color: var(--tool); text-decoration: none; }
 .task-summary { color: var(--text-subtle); font-size: var(--text-caption); }
 
@@ -2323,31 +2455,42 @@ html[data-scheme="light"] .md pre {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-xs);
-  margin-top: var(--space-sm);
+  gap: 6px;
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
 }
 
-.card-actions.compact { margin-top: var(--space-xs); }
+.card-actions.compact { margin-top: var(--space-xs); padding-top: 0; border-top: 0; }
+
+.plan-actions .action-hint {
+  margin-left: auto;
+}
 
 .chip, .button {
   display: inline-flex;
-  min-height: 28px;
+  height: var(--composer-chip-h, 26px);
+  min-height: var(--composer-chip-h, 26px);
   align-items: center; justify-content: center;
-  padding: 0 var(--space-sm);
-  border: 1px solid color-mix(in oklab, var(--border) 32%, transparent);
+  padding: 0 10px;
+  border: 1px solid color-mix(in oklab, var(--border) 26%, transparent);
   border-radius: var(--radius-sm);
   color: var(--muted);
-  background: color-mix(in oklab, var(--surface) 60%, transparent);
-  box-shadow: var(--edge-highlight);
+  background: color-mix(in oklab, var(--surface) 48%, transparent);
+  box-shadow: none;
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), transform var(--dur-press);
 }
 
 .chip:hover, .button:hover {
-  border-color: color-mix(in oklab, var(--border) 72%, transparent);
+  border-color: color-mix(in oklab, var(--border) 52%, transparent);
   color: var(--assistant);
-  background: var(--surface);
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
 }
 
 .chip.primary, .button.primary {
@@ -2364,9 +2507,9 @@ html[data-scheme="light"] .md pre {
 }
 
 .chip.danger {
-  border-color: color-mix(in oklab, var(--del) 35%, transparent);
+  border-color: color-mix(in oklab, var(--del) 32%, transparent);
   color: var(--del);
-  background: color-mix(in oklab, var(--del-bg) 70%, transparent);
+  background: color-mix(in oklab, var(--del-bg) 55%, transparent);
 }
 
 .chip.danger:hover {
@@ -2375,7 +2518,7 @@ html[data-scheme="light"] .md pre {
   background: var(--del-bg);
 }
 
-.button { min-height: 32px; padding: 0 var(--space-base); font-size: var(--text-label); font-weight: var(--weight-medium); line-height: var(--leading-ui); }
+.button { min-height: 32px; height: auto; padding: 0 var(--space-base); font-size: var(--text-label); font-weight: var(--weight-medium); line-height: var(--leading-ui); }
 
 /* ── Queue ──────────────────────────────────────────────────────────────── */
 
@@ -2537,12 +2680,6 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   border-top-color: var(--assistant);
   border-radius: var(--radius-pill);
   animation: spin 0.75s linear infinite;
-}
-
-.composer-busy-spinner {
-  width: 10px;
-  height: 10px;
-  border-width: 1.5px;
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -2707,7 +2844,7 @@ html.electron-transparent .composer-wrap:focus-within {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
   padding-left: var(--space-2xs);
 }
@@ -2716,50 +2853,54 @@ html.electron-transparent .composer-wrap:focus-within {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: var(--space-xs);
+  gap: 6px;
   min-width: 0;
 }
 
-/* Stable trailing slot so busy/metrics don't shove mode on the left */
+/* Stable trailing slot so metrics don't shove mode on the left */
 .composer-metrics-slot {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
-  min-width: 4.5rem;
-  min-height: 26px;
+  gap: 6px;
+  min-width: 0;
+  min-height: var(--composer-chip-h);
 }
 
 .composer-metrics-slot:not(.has-content) {
-  visibility: hidden;
+  display: none;
 }
 
 .composer-density {
   text-transform: lowercase;
-  padding: 0 8px;
 }
 
-/* Composer status chips — shared size / border / type */
+/* Composer status chips — one size / type / chrome for the whole strip */
 .composer-chip,
 .mode-trigger,
 .ctx-ring,
 .composer-model,
 .composer-metric,
-.composer-busy-cue {
+.composer-density,
+.composer-submit.stop {
   display: inline-flex;
-  height: 26px;
-  min-height: 26px;
+  height: var(--composer-chip-h);
+  min-height: var(--composer-chip-h);
   align-items: center;
   box-sizing: border-box;
+  margin: 0;
+  padding: 0 8px;
+  gap: 5px;
   border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
   border-radius: var(--radius-sm);
   background: color-mix(in oklab, var(--surface) 42%, transparent);
   color: var(--muted);
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 500;
   letter-spacing: -0.01em;
   line-height: 1;
+  white-space: nowrap;
   transition:
     color var(--dur-fast) var(--ease-standard),
     background-color var(--dur-fast) var(--ease-standard),
@@ -2768,7 +2909,8 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .mode-trigger:hover,
 .ctx-ring:hover,
-.composer-model:hover {
+.composer-model:hover,
+.composer-density:hover {
   border-color: color-mix(in oklab, var(--border) 40%, transparent);
   color: var(--assistant);
   background: color-mix(in oklab, var(--surface) 68%, transparent);
@@ -2778,16 +2920,8 @@ html.electron-transparent .composer-wrap:focus-within {
   max-width: 28ch;
   min-width: 0;
   overflow: hidden;
-  padding: 0 8px;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.composer-busy-cue {
-  gap: 6px;
-  padding: 0 8px 0 7px;
-  color: var(--assistant);
 }
 
 .composer-wrap.is-plan:not(.is-busy) {
@@ -2806,10 +2940,7 @@ html.electron-transparent .composer-wrap:focus-within {
 }
 
 .mode-trigger {
-  gap: 4px;
-  padding: 0 7px 0 9px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  padding: 0 7px 0 8px;
   text-transform: uppercase;
 }
 
@@ -3003,37 +3134,42 @@ html.electron-transparent .composer-wrap:focus-within {
   color: color-mix(in oklab, var(--sel-fg) 78%, transparent);
 }
 
-/* Ghost actions — ultra-subtle file/command affordances */
+/* Ghost actions — same height as status chips */
 .composer-ghost {
   display: inline-flex;
-  width: 30px; height: 30px;
-  align-items: center; justify-content: center;
+  width: var(--composer-chip-h);
+  height: var(--composer-chip-h);
+  min-height: var(--composer-chip-h);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   color: color-mix(in oklab, var(--muted) 72%, transparent);
   background: transparent;
   font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
+  font-weight: 500;
   line-height: 1;
-  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
 }
 
-.composer-ghost:hover {
+.composer-ghost:hover,
+.composer-ghost.is-open {
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 82%, transparent);
+  border-color: color-mix(in oklab, var(--border) 22%, transparent);
+  background: color-mix(in oklab, var(--surface) 42%, transparent);
 }
 
 .composer-ghost:disabled { opacity: 0.32; }
 
 .composer-ghost svg { flex: 0 0 auto; }
 .composer-ghost:active:not(:disabled) {
-  background: color-mix(in oklab, var(--surface) 100%, transparent);
+  background: color-mix(in oklab, var(--surface) 68%, transparent);
   transform: translateY(var(--press-offset));
   transition-duration: var(--dur-press);
 }
 
 /* Context gauge */
 .ctx-ring {
-  gap: 5px;
   padding: 0 8px 0 6px;
   cursor: pointer;
   font-variant-numeric: tabular-nums;
@@ -3068,36 +3204,51 @@ html.electron-transparent .composer-wrap:focus-within {
 .composer-model {
   max-width: 20ch;
   overflow: hidden;
-  padding: 0 8px;
   cursor: pointer;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .composer-model:disabled { cursor: not-allowed; }
 
 .composer-submit-slot {
   display: flex;
-  width: var(--composer-submit-slot);
-  flex: 0 0 var(--composer-submit-slot);
+  width: auto;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: flex-end;
+  min-width: var(--composer-chip-h);
+}
+
+.composer-wrap.is-busy .composer-submit-slot {
+  min-width: 0;
 }
 
 .composer-submit {
   display: inline-flex;
-  width: 32px; height: 32px;
-  min-width: 32px; min-height: 32px;
+  width: var(--composer-chip-h);
+  height: var(--composer-chip-h);
+  min-width: var(--composer-chip-h);
+  min-height: var(--composer-chip-h);
   flex: 0 0 auto;
-  align-items: center; justify-content: center;
-  margin: 0; padding: 0;
-  border-radius: var(--radius-pill);
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   color: var(--bg);
   background: var(--assistant);
-  font-size: var(--text-prose);
-  font-weight: var(--weight-semibold);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 500;
   line-height: 1;
-  transition: opacity var(--dur-fast) var(--ease-standard), transform var(--dur-press), background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+  transition:
+    opacity var(--dur-fast) var(--ease-standard),
+    transform var(--dur-press),
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
 }
 
 .composer-submit:disabled {
@@ -3111,33 +3262,35 @@ html.electron-transparent .composer-wrap:focus-within {
   box-shadow: 0 2px 10px color-mix(in oklab, var(--shadow-ink) 22%, transparent);
 }
 
+/* Busy Stop — same chip grammar; assistant tint marks the interrupt action */
 .composer-submit.stop {
-  width: 100%;
+  width: auto;
   min-width: 0;
-  height: 32px; min-height: 32px;
-  padding: 0 10px;
+  height: var(--composer-chip-h);
+  min-height: var(--composer-chip-h);
+  padding: 0 8px;
   gap: 5px;
-  border: 1px solid color-mix(in oklab, var(--border-strong) 65%, transparent);
-  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
+  border-radius: var(--radius-sm);
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 76%, transparent);
+  background: color-mix(in oklab, var(--surface) 42%, transparent);
   font-size: var(--text-caption);
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  box-shadow: none;
 }
 
 .composer-submit.stop .stop-label {
   flex: 0 0 auto;
+  font: inherit;
 }
 
 .composer-submit.stop .stop-elapsed {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 3.5ch;
-  overflow: hidden;
   color: var(--text-subtle);
-  font-weight: 450;
+  font: inherit;
   font-variant-numeric: tabular-nums;
-  text-align: right;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -3145,6 +3298,7 @@ html.electron-transparent .composer-wrap:focus-within {
   border-color: color-mix(in oklab, var(--del) 52%, var(--border));
   color: color-mix(in oklab, var(--del) 75%, var(--assistant));
   background: color-mix(in oklab, var(--del) 10%, var(--surface));
+  box-shadow: none;
 }
 
 .composer-submit.stop:hover .stop-elapsed {
@@ -3739,7 +3893,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   margin: 0;
   padding: 0;
   border: 0;
-  background: color-mix(in oklab, var(--bg) 48%, transparent);
+  background: color-mix(in oklab, var(--bg) 52%, transparent);
   cursor: pointer;
   pointer-events: auto;
   animation: jobs-backdrop-in var(--dur-fast) var(--ease-enter);
@@ -3755,11 +3909,11 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   z-index: var(--z-raised);
   display: flex;
   width: min(calc(100% - 2 * var(--column-inset)), var(--column-max));
-  max-height: min(72%, 36rem);
+  max-height: min(78%, 42rem);
   flex-direction: column;
   margin: 0 auto var(--space-sm);
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 36%, transparent);
   border-radius: var(--radius-lg);
   background: var(--drawer-bg);
   box-shadow: var(--elev-modal);
@@ -3772,26 +3926,36 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  padding: var(--space-sm) var(--space-md) var(--space-md);
+  padding: 14px 16px 16px;
 }
 
 .jobs-heading {
   display: flex;
   flex: 0 0 auto;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-sm);
   margin: 0 0 var(--space-sm);
   padding: 0 0 var(--space-sm);
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
 }
 
 .jobs-heading-copy { flex: 1 1 auto; min-width: 0; }
 .jobs-heading-copy h2, .jobs-heading-copy p { margin: 0; }
+.jobs-eyebrow {
+  margin: 0 0 2px;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .jobs-heading-copy h2 {
   color: var(--assistant);
-  font-size: var(--text-title);
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.015em;
+  line-height: 1.25;
 }
 .jobs-heading-copy p {
   margin-top: 2px;
@@ -3801,37 +3965,40 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 .jobs-heading-icon {
   display: inline-flex;
-  width: 28px; height: 28px;
+  width: var(--composer-chip-h, 26px);
+  height: var(--composer-chip-h, 26px);
   flex: 0 0 auto;
-  align-items: center; justify-content: center;
-  border: 1px solid var(--border-soft);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
   border-radius: var(--radius-sm);
   color: var(--muted);
-  background: color-mix(in oklab, var(--surface-subtle) 68%, transparent);
-  box-shadow: var(--edge-highlight);
+  background: color-mix(in oklab, var(--surface) 42%, transparent);
 }
 
 .jobs-close {
   display: inline-flex;
   flex: 0 0 auto;
-  min-height: 28px;
+  height: var(--composer-chip-h, 26px);
+  min-height: var(--composer-chip-h, 26px);
   align-items: center;
-  gap: 6px;
-  padding: 0 8px;
-  border: 1px solid color-mix(in oklab, var(--border) 32%, transparent);
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in oklab, var(--border) 26%, transparent);
   border-radius: var(--radius-sm);
   color: var(--muted);
-  background: color-mix(in oklab, var(--surface) 48%, transparent);
-  box-shadow: var(--edge-highlight);
+  background: color-mix(in oklab, var(--surface) 42%, transparent);
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-weight: 500;
+  letter-spacing: -0.01em;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
 }
 
 .jobs-close:hover {
   color: var(--assistant);
-  border-color: color-mix(in oklab, var(--border) 64%, transparent);
-  background: var(--surface);
+  border-color: color-mix(in oklab, var(--border) 48%, transparent);
+  background: color-mix(in oklab, var(--surface) 68%, transparent);
 }
 
 .jobs-close:focus-visible {
@@ -3851,52 +4018,81 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .jobs-empty {
-  padding: var(--space-md) 0;
+  padding: var(--space-md) 2px;
   color: var(--muted);
-  font-size: var(--text-ui);
+  font-size: var(--text-caption);
+  line-height: 1.5;
 }
 
-.jobs-empty p { margin: 0; }
+.jobs-empty p { margin: 0; max-width: 42ch; }
 
 .job-card {
+  display: flex;
   width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   margin: 0;
-  padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--border-soft);
+  padding: 12px;
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
   border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--surface-subtle) 52%, transparent);
-  box-shadow: var(--edge-highlight);
-  font-size: var(--text-label);
+  background: color-mix(in oklab, var(--surface-subtle) 70%, transparent);
 }
 
-.job-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-sm); }
+.job-card.is-running {
+  border-color: color-mix(in oklab, var(--assistant) 16%, var(--border));
+}
+
+.job-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 
 .job-status {
   display: inline-flex;
   flex: 0 0 auto;
+  height: 22px;
   align-items: center;
   gap: 5px;
-  padding: 2px var(--space-xs);
-  border-radius: var(--radius-xs);
+  padding: 0 8px;
+  border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
 }
 
 .job-status::before {
   content: "";
-  width: 5px; height: 5px;
+  width: 5px;
+  height: 5px;
   border-radius: var(--radius-pill);
   background: currentColor;
 }
 
 .job-status-running::before { animation: engine-pulse 1.8s ease-in-out infinite; }
-.job-status-running { color: var(--task-active); background: color-mix(in oklab, var(--task-active) 14%, transparent); }
-.job-status-exited { color: var(--muted); background: color-mix(in oklab, var(--muted) 12%, transparent); }
-.job-status-killed { color: var(--del); background: color-mix(in oklab, var(--del) 12%, transparent); }
+.job-status-running {
+  color: var(--assistant);
+  border-color: color-mix(in oklab, var(--assistant) 22%, transparent);
+  background: color-mix(in oklab, var(--assistant) 8%, transparent);
+}
+.job-status-exited {
+  color: var(--muted);
+  background: color-mix(in oklab, var(--surface) 42%, transparent);
+}
+.job-status-killed {
+  color: var(--del);
+  border-color: color-mix(in oklab, var(--del) 28%, transparent);
+  background: color-mix(in oklab, var(--del) 8%, transparent);
+}
 
 .job-command {
-  flex: 1 1 12rem; min-width: 0;
+  flex: 1 1 12rem;
+  min-width: 0;
   color: var(--assistant);
   font-family: var(--font-mono);
   font-size: var(--text-code);
@@ -3906,48 +4102,174 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .job-pid, .job-exit {
   flex: 0 0 auto;
   color: var(--text-subtle);
+  font-family: var(--font-sans);
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
 
-.job-links { display: flex; flex-wrap: wrap; gap: var(--space-2xs); margin-top: var(--space-xs); }
+.job-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
 
 .job-links a {
   display: inline-flex;
+  height: var(--composer-chip-h, 26px);
   min-width: 0;
   align-items: center;
-  gap: var(--space-2xs);
+  gap: 5px;
   overflow: hidden;
-  padding: 3px var(--space-xs);
-  border-radius: var(--radius-xs);
-  color: var(--tool);
-  background: color-mix(in oklab, var(--tool) 8%, transparent);
+  padding: 0 10px;
+  border: 1px solid color-mix(in oklab, var(--border) 26%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: color-mix(in oklab, var(--surface) 42%, transparent);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
+  font-weight: 500;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
 }
 
 .job-links a:hover {
-  color: color-mix(in oklab, var(--tool) 78%, var(--assistant));
-  background: color-mix(in oklab, var(--tool) 14%, transparent);
+  color: var(--assistant);
+  border-color: color-mix(in oklab, var(--border) 48%, transparent);
+  background: color-mix(in oklab, var(--surface) 68%, transparent);
 }
 
-.job-output {
-  max-height: 180px;
-  margin: var(--space-sm) 0 0;
-  padding: var(--space-sm) var(--space-base);
-  overflow: auto;
-  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+.job-terminal {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 24%, transparent);
   border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--bg) 72%, transparent);
+}
+
+.job-terminal-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 8px 0 10px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
+  background: color-mix(in oklab, var(--surface) 28%, transparent);
+}
+
+.job-terminal-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.job-terminal-follow {
   color: var(--muted);
-  background: color-mix(in oklab, var(--bg) 52%, transparent);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.job-terminal.is-live .job-terminal-follow::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--assistant);
+  vertical-align: 0;
+  animation: engine-pulse 1.8s ease-in-out infinite;
+}
+
+.job-terminal-resume {
+  padding: 0;
+  border: 0;
+  color: var(--assistant);
+  background: transparent;
+  font: inherit;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.job-terminal-resume:hover { text-decoration: underline; text-underline-offset: 2px; }
+.job-terminal-resume:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.job-output {
+  flex: 1 1 auto;
+  min-height: 140px;
+  max-height: min(42vh, 280px);
+  margin: 0;
+  padding: 10px 12px 12px;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  color: color-mix(in oklab, var(--assistant) 88%, var(--muted));
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   scrollbar-width: thin;
 }
 
-.job-output:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.job-card.is-running .job-output {
+  max-height: min(48vh, 340px);
+}
+
+.job-output:focus-visible { outline: none; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--border-active) 55%, transparent); }
+
+.job-output-empty { color: var(--text-subtle); font-family: var(--font-sans); font-size: var(--text-caption); }
+
+.job-output-link {
+  color: var(--assistant);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--assistant) 28%, transparent);
+  text-underline-offset: 2px;
+}
+
+.job-output-link:hover {
+  text-decoration-color: color-mix(in oklab, var(--assistant) 70%, transparent);
+}
+
+.job-output-cursor {
+  display: inline-block;
+  width: 0.55ch;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: color-mix(in oklab, var(--assistant) 72%, transparent);
+  animation: job-cursor-blink 1.05s steps(1) infinite;
+}
+
+@keyframes job-cursor-blink {
+  0%, 45% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-output-cursor { animation: none; opacity: 0.7; }
+  .job-status-running::before,
+  .job-terminal.is-live .job-terminal-follow::before { animation: none; }
+}
 
 /* ── Splash / empty home ────────────────────────────────────────────────── */
 
@@ -4783,9 +5105,29 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   /* Touch targets outside the dense composer status strip */
   .rail-action, .project-heading, .session-row, .starter-pill, .catalog-row { min-height: 44px; }
   .chip, .button, .icon-button, .tool-head, .thinking-head { min-height: 44px; }
-  .composer-submit { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
-  .composer-submit-slot { width: 7rem; flex-basis: 7rem; }
-  .composer-submit.stop { width: 100%; min-width: 0; height: 44px; min-height: 44px; }
+  .composer-submit {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .composer-submit-slot { min-width: 44px; }
+  .composer-chip,
+  .mode-trigger,
+  .ctx-ring,
+  .composer-model,
+  .composer-metric,
+  .composer-density,
+  .composer-submit.stop,
+  .composer-ghost {
+    height: 32px;
+    min-height: 32px;
+  }
+  .composer-ghost { width: 32px; }
+  .composer-submit.stop {
+    width: auto;
+    min-width: 0;
+  }
   .project-rail, .activity-rail { padding-bottom: env(safe-area-inset-bottom); }
 
   /* Status row reflows instead of inflating every chip to 44px */
@@ -4798,16 +5140,6 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   .composer-status-trailing {
     flex-wrap: wrap;
     row-gap: 4px;
-  }
-  .composer-ghost {
-    width: 36px;
-    height: 36px;
-    min-height: 36px;
-  }
-  .mode-trigger {
-    min-height: 32px;
-    height: 32px;
-    padding-inline: 10px;
   }
 }
 
@@ -4980,40 +5312,66 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-size: var(--text-caption);
 }
 
-/* Optional deny-reason input (I39). */
-.perm-deny-reason { display: block; margin-top: var(--space-xs); }
+.plan-text.has-copy > .copy-btn {
+  position: absolute;
+  z-index: var(--z-sticky);
+  top: 0;
+  right: 0;
+  opacity: 0.72;
+}
+
+.plan-text.has-copy:hover > .copy-btn,
+.plan-text.has-copy:focus-within > .copy-btn,
+.plan-text.has-copy > .copy-btn.is-copied {
+  opacity: 1;
+  color: var(--assistant);
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+}
+
+/* Optional deny-reason input (I39) — revealed after Deny is pressed. */
+.perm-deny-reason {
+  display: block;
+  margin-top: 10px;
+  animation: surface-enter var(--dur-fast) var(--ease-enter);
+}
 .perm-deny-reason input {
   width: 100%;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--border-soft);
+  height: 34px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
   border-radius: var(--radius-sm);
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 52%, transparent);
-  font: inherit;
+  background: color-mix(in oklab, var(--surface) 36%, transparent);
+  font-family: var(--font-sans);
   font-size: var(--text-ui);
+  font-weight: 450;
+}
+.perm-deny-reason input::placeholder {
+  color: var(--text-subtle);
 }
 .perm-deny-reason input:focus-visible {
   outline: none;
-  border-color: var(--border-active);
+  border-color: color-mix(in oklab, var(--border-active) 70%, transparent);
   box-shadow: var(--focus-ring);
+  background: color-mix(in oklab, var(--surface) 52%, transparent);
 }
 
 /* Plan action separation: keep high-stakes YOLO away from Accept (I40). */
 .card-actions-sep {
   flex: 0 0 auto;
   width: 1px;
-  height: 22px;
+  height: 16px;
   margin: 0 2px;
-  background: var(--border-soft);
+  background: color-mix(in oklab, var(--border) 40%, transparent);
 }
 .chip.caution {
-  border-color: color-mix(in oklab, var(--notice) 36%, var(--border));
-  color: color-mix(in oklab, var(--notice) 88%, var(--assistant));
-  background: color-mix(in oklab, var(--notice) 6%, transparent);
+  border-color: color-mix(in oklab, var(--notice) 28%, var(--border));
+  color: color-mix(in oklab, var(--notice) 80%, var(--assistant));
+  background: color-mix(in oklab, var(--notice) 5%, transparent);
 }
 .chip.caution:hover {
-  background: color-mix(in oklab, var(--notice) 12%, transparent);
+  background: color-mix(in oklab, var(--notice) 10%, transparent);
 }
 
 /* One-click expand-all-tools-in-turn (I23). Appears only when there are

@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ProjectSessionSummary, ProjectSummary } from "../../shared/protocol";
 import {
   filterProjects,
   projectLabel,
   relativeSessionTime,
 } from "../../shared/project-index";
+import type { ProjectSessionSummary, ProjectSummary } from "../../shared/protocol";
 import {
   IconArchive,
   IconChevron,
@@ -17,7 +17,6 @@ import {
   IconRename,
   IconSearch,
   IconSidebar,
-  IconStop,
 } from "../icons";
 
 type SessionMenu = {
@@ -44,7 +43,6 @@ export function ProjectRail({
   onRenameSession,
   onDeleteSession,
   onArchiveSession,
-  onStop,
 }: {
   projects: ProjectSummary[];
   activeCwd: string | null;
@@ -62,7 +60,6 @@ export function ProjectRail({
   onRenameSession: (cwd: string, id: string, title: string) => Promise<boolean>;
   onDeleteSession: (cwd: string, id: string) => Promise<boolean>;
   onArchiveSession: (cwd: string, id: string) => Promise<boolean>;
-  onStop: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -233,22 +230,6 @@ export function ProjectRail({
         </button>
       </nav>
 
-      {busy ? (
-        <div className="rail-busy-banner" role="status">
-          <span className="rail-busy-text">Working — stop the turn to switch sessions</span>
-          <button
-            type="button"
-            className="rail-busy-stop"
-            onClick={onStop}
-            aria-label="Stop current turn"
-            title="Stop current turn"
-          >
-            <IconStop size={13} />
-            <span>Stop</span>
-          </button>
-        </div>
-      ) : null}
-
       <label className="rail-filter is-open">
         <span className="sr-only">Filter projects and sessions</span>
         <IconSearch size={14} />
@@ -359,10 +340,6 @@ export function ProjectRail({
                             }
                             title={busy ? busyTitle : `${session.title}\n${session.model}`}
                           >
-                            <span
-                              className={`session-active-dot${isActive ? " is-on" : ""}`}
-                              aria-hidden
-                            />
                             <span className="session-title">{session.title}</span>
                             <time
                               className="session-time"

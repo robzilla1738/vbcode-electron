@@ -76,11 +76,11 @@ Severity: **High** = can lose work, misfire destructive actions, or hide core co
 | I09 | **High** | Hover hides `.session-time` for ⋯ | Time ↔ actions swap; layout jumps | Friction + mis-clicks | Don’t hide time; stack or reserve space |
 | I10 | Med | `window.confirm` Archive/Delete in `ProjectRail.tsx` | Unthemed native dialog | Breaks immersion; no post-delete undo | In-app confirm; soft-delete/archive first |
 | I11 | Med | Rename commits on blur | Accidental rename when clicking away | Title intent lost | Commit on Enter only; blur = cancel or ask |
-| I12 | Med | Busy disables New/Open/Continue/resume + ⋯ | Dead end until Stop found in composer | Users stuck | In-row or banner “Stop turn” control |
+| I12 | Med | ~~Busy disables New/Open/Continue/resume + ⋯~~ | Dead end until Stop found in composer | Done — composer Stop is the sole interrupt; rail shows busy titles on disabled actions |
 | I13 | Med | Session menu Esc closes menu but **no `stopPropagation`** | App Esc stack can clear draft / deny / abort same keypress | Dangerous collision | Own Esc completely; join App stack |
 | I14 | Low | Project heading only expands/collapses | Feels like navigation but doesn’t switch cwd | Mental model mismatch | Optional primary action vs chevron |
 | I15 | Low | Filter Esc clears then closes rail | Surprise dismiss | Clear-only first; second Esc closes |
-| I16 | Low | `.session-active-dot.is-on` soft halo | Decoration > signal | Solid dot or quieter indicator |
+| I16 | Low | ~~`.session-active-dot.is-on` soft halo~~ | Decoration > signal | Done — active session uses surface highlight only |
 
 ### 2.4 Transcript
 
@@ -102,7 +102,7 @@ Severity: **High** = can lose work, misfire destructive actions, or hide core co
 | I25 | **High** | Mode menu Esc on `document` (`Composer.tsx`); App Esc on `window` — no stopPropagation | Closing mode can deny perm / keep-planning / abort | Highest-risk Esc bug | `stopPropagation` + restore focus to mode trigger |
 | I26 | Med | `.composer-model` / `.ctx-ring` have `:hover` but are `<span>`s | **False affordance** — look like buttons | Users click expecting `/model` or inspector | Make buttons **or** remove hover |
 | I27 | Med | Paperclip only; image paste + ⌘G have no chrome | A25/A26 keyboard-only | Desktop users won’t find them | Overflow menu / tooltips near paperclip |
-| I28 | Med | Busy cue shimmer “Esc” **and** Stop button | Two interrupt languages | Split attention | One primary interrupt; Esc as hint only |
+| I28 | Med | ~~Busy cue shimmer “Esc” and Stop button~~ | Two interrupt languages | Done — Stop + elapsed only; Esc via keyboard / title |
 | I29 | Med | Status chip cluster (metrics, density, ctx, model, send) | Dense; metrics inert but hoverable | Mis-clicks | De-hover inert chips; open useful ones |
 | I30 | Med | Queue steer/remove ~24px | Mis-taps when busy | Larger targets | ≥28–32px |
 | I31 | Low | Send icon-only; Stop labeled + elapsed | Asymmetric grammar | Acceptable if intentional; document |
@@ -114,12 +114,12 @@ Severity: **High** = can lose work, misfire destructive actions, or hide core co
 
 | ID | Sev | Where | Problem | Why it matters | Suggested direction |
 |----|-----|-------|---------|----------------|---------------------|
-| I35 | Med | Cards don’t autofocus when appearing | Rely on global y/a/n while composer focused | Easy to type instead of decide | Focus first primary action (or card region) |
-| I36 | Med | Plan Esc labeled “Keep planning” but App clears draft first if non-empty | Label lies during revision | Trust break | Match label to stack; or clear then keep on second Esc |
-| I37 | Med | `.panels { max-height: 32% }` + payload max-heights | Cramped approvals on short windows | Hard to read plans | Raise cap or expand-to-overlay |
-| I38 | Low | Permission preview 8 lines + “…” | Incomplete risk review | Expand-in-place |
-| I39 | Low | Deny is instant N; free-text deny via submit routing | Feedback path obscure | Optional reason field |
-| I40 | Low | “Accept + YOLO” beside Accept | High-stakes adjacent | Visual separation / confirm |
+| I35 | Med | ~~Cards don’t autofocus~~ | Rely on global y/a/n while composer focused | Done — Allow once autofocus |
+| I36 | Med | ~~Plan Esc label vs draft clear~~ | Label lies during revision | Done — honest Esc hint when draft present |
+| I37 | Med | ~~`.panels { max-height: 32% }`~~ | Cramped approvals | Done — raised panel/plan body caps |
+| I38 | Low | ~~Permission preview 8 lines + “…”~~ | Incomplete risk review | Done — expand/collapse |
+| I39 | Low | ~~Deny feedback obscure~~ | Feedback path obscure | Done — Deny reveals optional reason |
+| I40 | Low | ~~“Accept + YOLO” beside Accept~~ | High-stakes adjacent | Done — separator + quieter caution chip |
 
 ### 2.7 Catalogs / slash / mentions
 
@@ -203,7 +203,7 @@ Recent ACCEPTANCE audit-log entries celebrate “glass blur 24px,” “hot puls
 | P06 | Low | Composer input `15px` / weights hardcoded | Scale drift vs tokens | Use type tokens |
 | P07 | Low | `.chip` ≈ `.button` | Two names, one look | Collapse or differentiate |
 | P08 | Low | Icon sizes 12/13/14/15 without scale | Visual jitter | 2–3 size steps tied to control height |
-| P09 | Low | Four busy languages (Working / Esc shimmer / Stop+elapsed / rail banner) | Cognitive load | One primary + optional quiet banner |
+| P09 | Low | ~~Four busy languages (Working / Esc shimmer / Stop+elapsed / rail banner)~~ | Cognitive load | Done — Stop + elapsed is the sole interrupt surface; Esc via keyboard / title |
 | P10 | Low | Queue stack vs composer vs card radii disagree | Adjacent surfaces clash | Shared radius for stacked chrome |
 
 ---
@@ -343,6 +343,7 @@ Copy and tick as work lands:
 - [x] I27 paste / editor affordances
 - [x] I28 one busy language
 - [x] I35–I37 permission/plan focus & space
+- [x] I38–I40 permission expand / deny reason / YOLO separation
 - [x] I41–I42 catalog Tab + inline errors
 - [x] I47 jobs focus restore
 - [x] I56 onboarding dismiss persistence

@@ -42,7 +42,7 @@ Engine ownership stays in `@vibe/core`; this app is a presentation shell over ND
 - [x] `/jobs` opens a jobs drawer overlay (chat stays); Esc / Close dismisses
 - [x] Esc aborts in-flight turn
 - [x] Graceful quit finalizes session (`finalize` RPC + shutdown)
-- [x] Busy cue until engine-idle (composer Stop button + quiet "Working" status; one interrupt language)
+- [x] Busy cue until engine-idle (composer Stop + elapsed; Esc via keyboard / Stop title)
 - [x] `engine-idle.gate` red banner
 
 ## Transcript fidelity
@@ -75,7 +75,7 @@ Engine ownership stays in `@vibe/core`; this app is a presentation shell over ND
 - [x] Native catalog dialog: focus trap (Tab cycle + focusin guard; draft-linked allows composer), arrows, Enter, Esc, focus return, aria-modal
 - [x] Catalog filtering, no-results state, current-model marker, and RPC failure feedback
 - [x] Multi-project sessions rail with titles + new/resume/continue/filter
-- [x] `/jobs` drawer + localhost links; focus trap + Close/Esc (single dialog landmark)
+- [x] `/jobs` drawer: live auto-follow terminal (full outputTail, stick-to-bottom, jump-to-latest); Close without Esc chip; quiet status/link chips
 - [x] `@` fuzzy file attach (TUI `file-fuzzy` ranking)
 - [x] Clipboard image → `@.vibe/clipboard/….png` (⌘V)
 - [x] External-editor compose (⌘G; empty/non-zero keeps draft)
@@ -154,7 +154,7 @@ npm run dev
 - [x] User message left accent border using --user color (TUI ❯ marker parity)
 - [x] Splash wordmark brand gradient sweep (TUI brandSpans parity via CSS background-clip)
 - [x] Busy cue shows elapsed time via workingLabel (TUI parity)
-- [x] Busy cue: Stop button is the primary interrupt; quiet spinner + "Working" status (Esc hint via Stop title)
+- [x] Busy cue: Stop button is the primary interrupt (elapsed + Esc hint via title; no separate Esc chip)
 - [x] Goal suffix: plan phase reads "planning" (not "plan"), no round/max until execute (TUI parity)
 - [x] CycleMode shows notice when plan-pending prevents mode switch (TUI parity)
 - [x] Stream flush interval matches TUI (24ms, was 32ms)
@@ -165,7 +165,7 @@ npm run dev
 - [x] Jobs view shows PID when running (TUI parity)
 - [x] Inline panel titles show counts: "Tasks · N/M", "Subagents · N/M done" (TUI parity)
 - [x] Inline subagent rows show activity, result glimpse, elapsed time (TUI parity)
-- [x] Permission card shows toolLabel + TUI header wording "Permission required · 1/N"
+- [x] Permission card: human kind title (not raw tool id); soft neutral chrome; Deny reveals reason; technical JSON collapsed
 - [x] Slash menu + catalog headers use --heading color (TUI palette.heading)
 - [x] --focus CSS variable wired into --focus-ring (dead variable cleanup)
 - [x] Clipboard temp dir cleanup on quit (TUI cleanupClipboardTempDir parity)
@@ -202,7 +202,7 @@ npm run dev
 - [x] Inspector: h2 heading, aria-labels on file rows and subagent buttons, keyboard-scrollable subagent stream
 - [x] ProjectRail: h2 heading, aria-controls, role=group, first menu item focus on open
 - [x] Splash: section with aria-labelledby, aria-label on starter prompts
-- [x] Busy cue: composer Stop button + elapsed; quiet "Working" status; sr-only busy/idle live status
+- [x] Busy cue: composer Stop + elapsed; sr-only busy/idle live status; Esc via keyboard / Stop title
 - [x] OnboardingHint: aside with role=region, h2 heading; no autofocus (composer / perm / plan own focus)
 - [x] SourceList + MarkdownView: role=status on empty state, aria-label on list, title on external links
 - [x] App toast: aria-live and aria-atomic
@@ -231,14 +231,14 @@ npm run dev
 ## Agent-home polish + typography (session 6)
 
 - [x] Empty-home: brand-first (wordmark/type), quiet tagline, text starters (not cards); container-query compact brand; WelcomeGate + SessionBoot shared boot copy; recent projects on cold start
-- [x] ProjectRail: active session `--user` inset bar + dot (no blue glow); always-on search; measured context menus; busy switch banner; archive confirm; topbar brand when rail closed
+- [x] ProjectRail: active session surface highlight (no accent bar/dot); always-on search; measured context menus; archive confirm; topbar brand when rail closed
 - [x] Composer: no status divider; queue tray + composer share one continuous card (no seam)
 - [x] Mode dropdown Plan / Agent / Yolo (`selectModeAction`); Shift+Tab still cycles; plan-pending guard unchanged
 - [x] Lucide stroke icons for chrome + composer; tool-row glyphs via renderer `tool-glyph.tsx` (shared unicode `toolIcon` labels unchanged)
 - [x] Sans UI chrome; mono reserved for real code (fences, tool/diff/job bodies, wordmark, rich charts)
 - [x] Streamdown markdown fences use Shiki `CodeBlock` + line numbers; theme follows app palette via `shikiThemeFor` (not hardcoded github)
 - [x] One copy control (`CopyButton`) for fences, tool output, answers, thinking, plans; Streamdown table copy enabled
-- [x] Plan approval body renders as markdown; rich ASCII charts measure host width via ResizeObserver
+- [x] Plan approval body renders as markdown in the chat column; sources/assumptions as quiet footers; Accept / Keep / YOLO row
 - [x] `selectModeAction` unit coverage + Shiki theme registry coverage
 
 ## Sleek modern Codex alternative — opencode-inspired polish (session 7)
@@ -247,7 +247,7 @@ npm run dev
 - [x] Composer: floating surface 14px radius with inner highlight `::before`, focus ring 32%/10%, status top border + surface bg, mode dropdown solid assistant/bg, ghost actions 26px subtle, context gauge pill with border + hot pulse, user bubble tokenized (`--bubble-user-*`)
 - [x] Transcript: tool head 100% width no overflow hack, tool body side-border indented (Cursor-feel), thinking opacity token, code block 10px radius with bottom border header, diff 2.5px accent
 - [x] Menus: slash/mention quiet surface-enter, header 10px bold uppercase, denser items 38px radius 8px, highlight `.hl`, catalog grouping (favorites via localStorage + recent 8 + provider buckets opencode-first, Free badge, clear ×)
-- [x] Rails: active session left accent bar solid user (no glow); project row radius 7px, topbar 14px semibold, activity rail border 22% + blur 12px sticky header, meta-block tighter
+- [x] Rails: active session uses surface highlight only; project row radius 7px, topbar 14px semibold, activity rail border 22% + blur 12px sticky header, meta-block tighter
 - [x] Secondary: cards compact 12px, engine dot pulse, busy Stop + Esc cue, jobs drawer, earlier/jump pills refined, toast compact, toast + catalog origins bottom-center
 - [x] Model pill bordered 18% + hover 68%, transcript gap 28px/10px, code 12.5px
 - [x] Light scheme: restored edge-highlight + soft frost elevation; hairlines via `--border-soft` (not hard card borders)
@@ -260,7 +260,7 @@ npm run dev
 - [x] Mode dropdown: trigger + options menu (`selectModeAction`), label 11px 600 uppercase, ghost 26px radius 7px
 - [x] Slash/mention menu: quiet surface-enter, shadow 0 0 0 1px + 4/16 + 16/48, header 10px 700, body 6px padding, footer bg surface 18%
 - [x] Catalog popover: 46vh/440px max, 14px radius, origin bottom center, header/Footer borders 18%, section 10px 700, tag pill free variant, empty hint, clear button
-- [x] Project rail: active bar 2.5px solid `--user` + session dot, row radius 7px, session row 72% assistant text
+- [x] Project rail: active session surface + weight; row radius 7px, session row 72% assistant text
 - [x] Side popups: activity rail 94% bg, heading 14px sticky blur 12px, meta-block 2px padding 10px radius + 1px 6% highlight, meta-label 10px 700 0.06em upper, sidebar-heading 14px padding
 - [x] Transcript: user bubble max 92%/48rem, 14px radius + 1px 10% highlight, assistant prose optimizeLegibility, tool body margin 20px + 10px padding 36% bg, thinking 24% bg, source cards 10px radius softer, diff 2.5px solid + 82%/88% bg + 72% ctx, earlier/jump refined, composer-stack 14px radius 36% border + 1px 12% highlight
 - [x] Composer stack single surface when queue present: 14px radius 36% border, queue tray 22% divider, busy Stop control (no separate working strip)

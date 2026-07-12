@@ -454,6 +454,35 @@ async function runTimeline(): Promise<void> {
       setComposerDraft("/jobs");
       await sleep(80);
       pressComposerEnter();
+      // Stream more output so the live terminal follow behavior is visible.
+      await sleep(400);
+      emit({
+        type: "jobs-changed",
+        sessionId: SID,
+        jobs: [
+          {
+            ...JOBS[0]!,
+            outputTail:
+              JOBS[0]!.outputTail +
+              "\n\n  12:04:18 AM [vite] hmr update /src/App.tsx\n  12:04:19 AM [vite] page reload index.html",
+          },
+          JOBS[1]!,
+        ],
+      });
+      await sleep(500);
+      emit({
+        type: "jobs-changed",
+        sessionId: SID,
+        jobs: [
+          {
+            ...JOBS[0]!,
+            outputTail:
+              JOBS[0]!.outputTail +
+              "\n\n  12:04:18 AM [vite] hmr update /src/App.tsx\n  12:04:19 AM [vite] page reload index.html\n  12:04:22 AM [vite] hmr update /src/styles.css",
+          },
+          JOBS[1]!,
+        ],
+      });
       break;
     case "inspector":
       await chatTurn();

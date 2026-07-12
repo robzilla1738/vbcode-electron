@@ -171,12 +171,13 @@ Everything the TUI exposes through `EngineCommand` / `UIEvent` — tools, MCP, m
 Shell-owned surfaces:
 
 - Streaming transcript (Streamdown markdown with Shiki + line numbers while generating, diffs, tools, thinking, notices)
-- Permission + plan approval cards with toolLabel, prompt queue steer/dequeue
+- Permission + plan approval cards (human titles, soft chrome, deny-reason on demand)
 - Slash palette (builtins + custom `commandNames`), catalog pickers (model context window shown)
-- Multi-project sessions rail (new / resume / continue latest / filter), `/jobs` with PID
+- Multi-project sessions rail (new / resume / continue latest / filter)
+- `/jobs` drawer with live auto-follow output, localhost links, and copy
 - Anchored streaming with intentional scroll disengagement and Jump to latest
 - `@` fuzzy attach, clipboard image paste, external editor
-- Working Stop control with elapsed time + Esc interrupt chip until `engine-idle`; green-gate RED notice
+- Stop control with elapsed time until `engine-idle` (Esc still interrupts); green-gate RED notice
 - Inspector: context, changed files, checkpoints, DAG, subagent stream
 - Theme-faithful selection colors, headings, and user-message accent (white band on Graphite; `/accent` remaps)
 - Empty-home splash: quieter ASCII wordmark, project/branch crumb, centered composer, pill starters

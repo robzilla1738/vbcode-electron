@@ -84,11 +84,11 @@ export function IconPaperclip(props: IconProps) {
 }
 
 export function IconSend(props: IconProps) {
-  return <ArrowUp {...lucide({ size: 16, ...props })} />;
+  return <ArrowUp {...lucide({ size: 14, ...props })} />;
 }
 
 export function IconStop(props: IconProps) {
-  return <Square {...lucide({ size: 11, strokeWidth: 0, ...props })} fill="currentColor" />;
+  return <Square {...lucide({ size: 10, strokeWidth: 0, ...props })} fill="currentColor" />;
 }
 
 export function IconJobs(props: IconProps) {

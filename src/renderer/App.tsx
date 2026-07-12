@@ -968,7 +968,6 @@ export function App() {
           onRenameSession={renameSession}
           onDeleteSession={(projectCwd, id) => removeSession(projectCwd, id, "delete")}
           onArchiveSession={(projectCwd, id) => removeSession(projectCwd, id, "archive")}
-          onStop={() => void session.send({ type: "abort" })}
         />
         {projectRailOpen && (
           <button

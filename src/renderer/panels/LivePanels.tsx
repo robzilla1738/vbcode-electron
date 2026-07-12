@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { permissionPreview, toolLabel } from "../../shared/tool-icons";
 import type { PendingPerm } from "../../shared/reducer";
+import {
+  permissionDetail,
+  permissionKind,
+  permissionPreview,
+} from "../../shared/tool-icons";
 import type { QueuedItem } from "../../shared/types";
-import { IconChevron, IconRemove, IconSteer } from "../icons";
 import { CopyButton } from "../CopyButton";
+import { IconChevron, IconRemove, IconSteer } from "../icons";
 import { ExternalLink } from "../primitives";
 import { MarkdownView } from "../transcript/MarkdownView";
 
@@ -23,14 +27,24 @@ export function PermissionCard({
   onDecide: (decision: "once" | "always" | "always-project" | "deny", feedback?: string) => void;
 }) {
   const onceRef = useRef<HTMLButtonElement>(null);
+  const denyInputRef = useRef<HTMLInputElement>(null);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [denyReason, setDenyReason] = useState("");
+  const [denyOpen, setDenyOpen] = useState(false);
   // Move focus to the primary action when a new permission card appears so the
   // decision is obvious instead of letting typed prose route into the composer
   // (I35). preventScroll avoids yanking the viewport.
   useEffect(() => {
     onceRef.current?.focus({ preventScroll: true });
+    setDenyReason("");
+    setDenyOpen(false);
+    setPreviewExpanded(false);
   }, [perm.id]);
+
+  useEffect(() => {
+    if (!denyOpen) return;
+    denyInputRef.current?.focus({ preventScroll: true });
+  }, [denyOpen]);
 
   const preview = permissionPreview(perm.toolName, perm.input);
   const payload = JSON.stringify(perm.input, null, 2).slice(0, 800);
@@ -39,20 +53,44 @@ export function PermissionCard({
     ? allPreviewLines
     : allPreviewLines.slice(0, PREVIEW_MAX_LINES);
   const previewClipped = allPreviewLines.length > PREVIEW_MAX_LINES;
+  const kind = permissionKind(perm.toolName);
+  const detail = permissionDetail(perm.toolName, perm.input);
+  const isCommand =
+    perm.toolName.toLowerCase() === "bash" || perm.toolName.toLowerCase() === "shell";
 
-  const title = `Permission required${count > 1 ? ` · 1/${count}` : ""} · ${perm.toolName}`;
+  const submitDeny = () => {
+    if (!denyOpen) {
+      setDenyOpen(true);
+      return;
+    }
+    onDecide("deny", denyReason.trim() || undefined);
+  };
 
   return (
     <div className="card perm" role="region" aria-labelledby="permission-card-title">
-      <h3 id="permission-card-title">{title}</h3>
-      <p className="perm-tool-label">{toolLabel(perm.toolName, perm.input)}</p>
-      {preview && previewLines.length > 0 && (
+      <header className="card-head">
+        <p className="card-eyebrow">
+          Needs your approval{count > 1 ? ` · 1 of ${count}` : ""}
+        </p>
+        <h3 id="permission-card-title">{kind}</h3>
+        {detail ? (
+          <p className={`perm-detail${isCommand ? " is-command" : ""}`}>{detail}</p>
+        ) : null}
+      </header>
+
+      {preview && previewLines.length > 0 ? (
         <div className="tool-body permission-preview">
           {previewLines.map((l, i) => (
             <div
               key={i}
               className={
-                preview.diff ? (l.startsWith("+") ? "diff-add" : l.startsWith("-") ? "diff-del" : undefined) : undefined
+                preview.diff
+                  ? l.startsWith("+")
+                    ? "diff-add"
+                    : l.startsWith("-")
+                      ? "diff-del"
+                      : undefined
+                  : undefined
               }
             >
               {l}
@@ -77,12 +115,9 @@ export function PermissionCard({
             </button>
           ) : null}
         </div>
-      )}
-      <details className="decision-details" open={!preview}>
-        <summary>{preview ? "Show input" : "Input"}</summary>
-        <pre className="decision-payload">{payload}</pre>
-      </details>
-      <div className="card-actions">
+      ) : null}
+
+      <div className="card-actions perm-actions">
         <button
           type="button"
           ref={onceRef}
@@ -97,36 +132,54 @@ export function PermissionCard({
           className="chip"
           onClick={() => onDecide("always")}
           aria-keyshortcuts="a"
+          title="Allow this for the rest of the session (A)"
         >
-          Allow for session <ActionKbd>A</ActionKbd>
+          Always <ActionKbd>A</ActionKbd>
         </button>
         <button
           type="button"
           className="chip"
           onClick={() => onDecide("always-project")}
           aria-keyshortcuts="Meta+p"
+          title="Allow this for the project (⌘P)"
         >
-          Allow for project <ActionKbd>⌘P</ActionKbd>
+          For project <ActionKbd>⌘P</ActionKbd>
         </button>
         <button
           type="button"
           className="chip danger"
-          onClick={() => onDecide("deny", denyReason.trim() || undefined)}
+          onClick={submitDeny}
           aria-keyshortcuts="n"
+          aria-expanded={denyOpen}
         >
-          Deny <ActionKbd>N</ActionKbd>
+          {denyOpen ? "Confirm deny" : "Deny"} <ActionKbd>N</ActionKbd>
         </button>
       </div>
-      <label className="perm-deny-reason">
-        <span className="sr-only">Optional deny reason</span>
-        <input
-          type="text"
-          value={denyReason}
-          onChange={(event) => setDenyReason(event.target.value)}
-          placeholder="Optional reason for denying"
-          aria-label="Optional reason for denying"
-        />
-      </label>
+
+      {denyOpen ? (
+        <label className="perm-deny-reason is-open">
+          <span className="sr-only">Optional deny reason</span>
+          <input
+            ref={denyInputRef}
+            type="text"
+            value={denyReason}
+            onChange={(event) => setDenyReason(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                onDecide("deny", denyReason.trim() || undefined);
+              }
+            }}
+            placeholder="Why deny? Optional — press Enter to confirm"
+            aria-label="Optional reason for denying"
+          />
+        </label>
+      ) : null}
+
+      <details className="decision-details">
+        <summary>Technical details</summary>
+        <pre className="decision-payload">{payload}</pre>
+      </details>
     </div>
   );
 }
@@ -150,43 +203,61 @@ export function PlanCard({
   onAcceptYolo: () => void;
   onKeep: () => void;
 }) {
+  const hasEvidence =
+    (plan.sources && plan.sources.length > 0) ||
+    (plan.assumptions && plan.assumptions.length > 0);
+
   return (
     <div className="card plan" role="region" aria-labelledby="plan-card-title">
-      <h3 id="plan-card-title">Plan approval</h3>
+      <header className="card-head">
+        <p className="card-eyebrow">Plan</p>
+        <h3 id="plan-card-title">Plan approval</h3>
+        <p className="perm-detail">Review the plan, then accept or send feedback below.</p>
+      </header>
+
       {plan.ungrounded && (
         <div className="notice warn" role="status">
-          Ungrounded — presented without the research this request required
+          This plan was presented without the research the request called for.
         </div>
       )}
+
       <div className="plan-text has-copy">
         {plan.text ? <CopyButton text={plan.text} label="Copy plan" /> : null}
         <div className="md">
           <MarkdownView>{plan.text}</MarkdownView>
         </div>
       </div>
-      {plan.sources && plan.sources.length > 0 && (
-        <div className="plan-evidence">
-          <h4>Sources</h4>
-          <ol className="plan-sources">
-            {plan.sources.map((source) => (
-              <li key={source.url}>
-                <ExternalLink href={source.url}>
-                  {source.title || source.url}
-                </ExternalLink>
-              </li>
-            ))}
-          </ol>
+
+      {hasEvidence ? (
+        <div className="plan-evidence-stack">
+          {plan.sources && plan.sources.length > 0 ? (
+            <div className="plan-evidence">
+              <h4>Sources</h4>
+              <ol className="plan-sources">
+                {plan.sources.map((source) => (
+                  <li key={source.url}>
+                    <ExternalLink href={source.url}>
+                      {source.title || source.url}
+                    </ExternalLink>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+          {plan.assumptions && plan.assumptions.length > 0 ? (
+            <div className="plan-evidence assumptions">
+              <h4>Assumptions to verify</h4>
+              <ul>
+                {plan.assumptions.map((assumption, index) => (
+                  <li key={index}>{assumption}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
-      )}
-      {plan.assumptions && plan.assumptions.length > 0 && (
-        <div className="plan-evidence assumptions">
-          <h4>Assumptions to verify</h4>
-          <ul>
-            {plan.assumptions.map((assumption, index) => <li key={index}>{assumption}</li>)}
-          </ul>
-        </div>
-      )}
-      <div className="card-actions">
+      ) : null}
+
+      <div className="card-actions plan-actions">
         <button
           type="button"
           className="chip primary"
@@ -194,6 +265,22 @@ export function PlanCard({
           aria-keyshortcuts="Enter"
         >
           Accept <ActionKbd>Enter</ActionKbd>
+        </button>
+        <button
+          type="button"
+          className="chip"
+          onClick={onKeep}
+          aria-keyshortcuts="Escape"
+          title={
+            hasDraft
+              ? "Esc clears your feedback, press again to keep planning"
+              : "Keep planning without accepting"
+          }
+        >
+          Keep planning <ActionKbd>Esc</ActionKbd>
+          {hasDraft ? (
+            <span className="action-hint-inline">clears draft first</span>
+          ) : null}
         </button>
         <span className="card-actions-sep" aria-hidden />
         <button
@@ -203,26 +290,9 @@ export function PlanCard({
           aria-keyshortcuts="Meta+y"
           title="Accept the plan and auto-approve all future tool calls this turn"
         >
-          Accept + YOLO <ActionKbd>⌘Y</ActionKbd>
+          Accept + auto-approve <ActionKbd>⌘Y</ActionKbd>
         </button>
-        <button
-          type="button"
-          className="chip"
-          onClick={onKeep}
-          aria-keyshortcuts="Escape"
-          title={hasDraft ? "Esc clears your feedback, press again to keep planning" : "Keep planning without accepting"}
-        >
-          Keep planning{" "}
-          {hasDraft ? (
-            <>
-              <ActionKbd>Esc</ActionKbd>
-              <span className="action-hint-inline">clears, again to keep</span>
-            </>
-          ) : (
-            <ActionKbd>Esc</ActionKbd>
-          )}
-        </button>
-        <span className="action-hint">Type feedback to revise</span>
+        <span className="action-hint">Type below to revise</span>
       </div>
     </div>
   );

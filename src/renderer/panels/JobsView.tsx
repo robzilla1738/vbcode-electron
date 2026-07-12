@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { JobInfo } from "../../shared/types";
+import { CopyButton } from "../CopyButton";
 import { IconClose, IconJobs, IconLink } from "../icons";
 import { ExternalLink } from "../primitives";
 
@@ -19,6 +20,98 @@ function focusableIn(root: ParentNode | null): HTMLElement[] {
     const style = window.getComputedStyle(el);
     return style.visibility !== "hidden" && style.display !== "none";
   });
+}
+
+const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
+
+/** Render job output with clickable http(s) URLs. */
+function JobOutputText({ text }: { text: string }) {
+  const parts = text.split(URL_RE);
+  return (
+    <>
+      {parts.map((part, index) =>
+        index % 2 === 1 ? (
+          <ExternalLink key={`url-${index}`} href={part} className="job-output-link">
+            {part}
+          </ExternalLink>
+        ) : (
+          <span key={`t-${index}`}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/** Live output pane — follows new tails unless the user scrolls up. */
+function JobTerminal({
+  jobId,
+  status,
+  output,
+}: {
+  jobId: string;
+  status: JobInfo["status"];
+  output: string;
+}) {
+  const scrollerRef = useRef<HTMLPreElement>(null);
+  const [follow, setFollow] = useState(true);
+  const running = status === "running";
+
+  useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || !follow) return;
+    el.scrollTop = el.scrollHeight;
+  }, [output, follow, jobId]);
+
+  const onScroll = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setFollow(distance < 28);
+  };
+
+  return (
+    <div className={`job-terminal${running ? " is-live" : ""}`}>
+      <div className="job-terminal-bar">
+        <span className="job-terminal-label">
+          {running ? "Live output" : "Output"}
+          {running && follow ? <span className="job-terminal-follow">following</span> : null}
+          {running && !follow ? (
+            <button
+              type="button"
+              className="job-terminal-resume"
+              onClick={() => {
+                setFollow(true);
+                const el = scrollerRef.current;
+                if (el) el.scrollTop = el.scrollHeight;
+              }}
+            >
+              Jump to latest
+            </button>
+          ) : null}
+        </span>
+        {output ? <CopyButton text={output} label="Copy output" /> : null}
+      </div>
+      <pre
+        ref={scrollerRef}
+        className="job-output"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable live output region
+        tabIndex={0}
+        aria-label={running ? "Live job output" : "Job output"}
+        aria-live={running ? "polite" : undefined}
+        aria-relevant={running ? "additions text" : undefined}
+        onScroll={onScroll}
+      >
+        {output ? (
+          <JobOutputText text={output} />
+        ) : (
+          <span className="job-output-empty">
+            {running ? "Waiting for output…" : "No output captured."}
+          </span>
+        )}
+        {running ? <span className="job-output-cursor" aria-hidden /> : null}
+      </pre>
+    </div>
+  );
 }
 
 export function JobsView({
@@ -73,16 +166,17 @@ export function JobsView({
   }, []);
 
   const heading = (
-    <div className="jobs-heading">
+    <header className="jobs-heading">
       <span className="jobs-heading-icon" aria-hidden>
-        <IconJobs size={15} />
+        <IconJobs size={14} />
       </span>
       <div className="jobs-heading-copy">
+        <p className="jobs-eyebrow">Session</p>
         <h2 id="jobs-drawer-title">Background jobs</h2>
         <p>
           {jobs.length === 0
-            ? "None running"
-            : `${jobs.length} ${jobs.length === 1 ? "process" : "processes"} from this session`}
+            ? "None yet"
+            : `${jobs.length} ${jobs.length === 1 ? "process" : "processes"}`}
         </p>
       </div>
       {onClose ? (
@@ -91,13 +185,13 @@ export function JobsView({
           className="jobs-close"
           onClick={onClose}
           aria-label="Close jobs"
+          title="Close (Esc)"
         >
           <IconClose size={14} />
           <span>Close</span>
-          <kbd className="action-kbd">Esc</kbd>
         </button>
       ) : null}
-    </div>
+    </header>
   );
 
   if (jobs.length === 0) {
@@ -110,7 +204,10 @@ export function JobsView({
       >
         {heading}
         <div className="jobs-empty">
-          <p>Long-running commands and local servers will appear here.</p>
+          <p>
+            Long-running commands and local servers appear here when started with
+            background mode. Output streams live as the job prints.
+          </p>
         </div>
       </div>
     );
@@ -129,7 +226,7 @@ export function JobsView({
         {jobs.map((j) => (
           <article
             key={j.id}
-            className="job-card"
+            className={`job-card${j.status === "running" ? " is-running" : ""}`}
             aria-labelledby={`job-command-${j.id}`}
           >
             <div className="job-header">
@@ -142,33 +239,24 @@ export function JobsView({
               <span className="job-command" id={`job-command-${j.id}`}>
                 {j.command}
               </span>
-              {j.status === "running" && j.pid != null && (
+              {j.status === "running" && j.pid != null ? (
                 <span className="job-pid">pid {j.pid}</span>
-              )}
-              {j.exitCode != null && j.status !== "running" && (
+              ) : null}
+              {j.exitCode != null && j.status !== "running" ? (
                 <span className="job-exit">exit {j.exitCode}</span>
-              )}
+              ) : null}
             </div>
             {j.servers.length > 0 ? (
               <div className="job-links" aria-label="Detected server URLs">
                 {j.servers.map((server) => (
                   <ExternalLink key={server} href={server}>
-                    <IconLink size={13} />
+                    <IconLink size={12} />
                     {server}
                   </ExternalLink>
                 ))}
               </div>
             ) : null}
-            {j.outputTail && (
-              <pre
-                className="job-output"
-                // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable output region for screen reader users
-                tabIndex={0}
-                aria-label="Job output tail"
-              >
-                {j.outputTail.slice(-600)}
-              </pre>
-            )}
+            <JobTerminal jobId={j.id} status={j.status} output={j.outputTail} />
           </article>
         ))}
       </div>

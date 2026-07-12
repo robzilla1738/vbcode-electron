@@ -508,3 +508,13 @@ describe("theme palette parity", () => {
     expect(contrastOn("#0a0a0a")).toBe("#eeeeee");
   });
 });
+
+describe("permission copy", () => {
+  it("uses human kinds instead of raw tool ids", async () => {
+    const { permissionKind, permissionDetail } = await import("./tool-icons");
+    expect(permissionKind("job_kill")).toBe("Stop a background job");
+    expect(permissionKind("bash")).toBe("Run a command");
+    expect(permissionDetail("job_kill", { id: "job_1" })).toBe("Stop job_1");
+    expect(permissionDetail("bash", { command: "npm run dev" })).toBe("npm run dev");
+  });
+});
