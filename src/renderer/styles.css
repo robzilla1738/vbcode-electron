@@ -1034,6 +1034,7 @@ html[data-platform="darwin"] .rail-chrome {
   border-top-color: color-mix(in oklab, var(--assistant) 82%, transparent);
   border-right-color: color-mix(in oklab, var(--assistant) 54%, transparent);
   border-radius: var(--radius-pill);
+  transition: opacity var(--dur-fast) var(--ease-standard);
 }
 
 .session-status-indicator.is-busy {
@@ -1042,6 +1043,9 @@ html[data-platform="darwin"] .rail-chrome {
 
 .session-row-wrap:hover .session-time,
 .session-row-wrap:focus-within .session-time { opacity: 0; }
+
+.session-row-wrap:hover .session-status-indicator,
+.session-row-wrap:focus-within .session-status-indicator { opacity: 0; }
 
 .session-row-wrap:hover .session-more,
 .session-row-wrap:focus-within .session-more {
