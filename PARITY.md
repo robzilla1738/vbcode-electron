@@ -113,7 +113,7 @@ Engine ownership stays in `@vibe/core`; this app is a presentation shell over ND
 - Interactive orchestration DAG graph (list only; TUI ignores the event)
 - Full-window Liquid Glass replacing CLI theme surfaces (glass tints chrome only; palettes still drive semantic roles)
 - Permission/Plan button labels use human verbs with `<kbd>` hints (TUI key chords still work)
-- Electron reading measure uses `--reading-max: 56rem` / assistant `72ch` (AGENTS ~130ch is TUI column guidance)
+- Electron reading measure uses `--reading-max: 52rem` / assistant `72ch` (AGENTS ~130ch is TUI column guidance); composer uses `--composer-max: 40rem` with a taller resting input (`--composer-input-min: 44px`)
 - TUI select-to-copy auto-clipboard toast (Electron uses native selection + Cmd/Ctrl+C)
 - TUI `/mouse` capture (palette lists it; Electron UI ignores `mouse-changed`)
 - Width-fitted footer key-hint bands (Electron uses composer metrics + `/keys` help)
@@ -232,7 +232,7 @@ npm run dev
 
 - [x] Empty-home: brand-first (wordmark/type), quiet tagline, text starters (not cards); container-query compact brand; WelcomeGate + SessionBoot shared boot copy; recent projects on cold start
 - [x] ProjectRail: active session surface highlight (no accent bar/dot); always-on search; measured context menus; archive confirm; topbar brand when rail closed
-- [x] Composer: no status divider; queue tray + composer share one continuous card (no seam)
+- [x] Composer: narrower than transcript (`--composer-max: 40rem`), taller resting input (`--composer-input-min: 44px`); queue tray + composer share one continuous card (no seam)
 - [x] Mode dropdown Plan / Agent / Yolo (`selectModeAction`); Shift+Tab still cycles; plan-pending guard unchanged
 - [x] Lucide stroke icons for chrome + composer; tool-row glyphs via renderer `tool-glyph.tsx` (shared unicode `toolIcon` labels unchanged)
 - [x] Sans UI chrome; mono reserved for real code (fences, tool/diff/job bodies, wordmark, rich charts)

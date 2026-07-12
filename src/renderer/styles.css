@@ -110,12 +110,13 @@
   --rail-icon-size: 16px;
   --activity-rail-w: clamp(280px, 26vw, 340px);
   --content-max: 100%;
-  /* Single conversation column — transcript, panels, composer, jobs share this */
+  /* Conversation column — transcript + panels + jobs. Composer uses --composer-max. */
   --column-max: 52rem;
   --column-inset: var(--space-xl);
   --reading-max: var(--column-max);
-  --composer-max: var(--column-max);
-  --composer-input-min: 24px;
+  /* Composer is intentionally tighter/taller than the transcript column */
+  --composer-max: 40rem;
+  --composer-input-min: 44px;
   --composer-input-max: 320px;
   --composer-chip-h: 26px;
   --ease-enter: cubic-bezier(0, 0, 0.2, 1);
@@ -2605,7 +2606,7 @@ html[data-scheme="light"] .md pre {
   position: relative;
   z-index: var(--z-composer);
   display: flex;
-  width: min(calc(100% - 2 * var(--column-inset)), var(--column-max));
+  width: min(calc(100% - 2 * var(--column-inset)), var(--composer-max));
   flex: 0 0 auto;
   flex-direction: column;
   margin: 0 auto var(--space-md);
@@ -2759,9 +2760,9 @@ html.electron-transparent .composer-wrap:focus-within {
   position: relative;
   z-index: var(--z-raised);
   display: flex;
-  min-height: 42px;
+  min-height: 56px;
   align-items: flex-start;
-  padding: 14px var(--space-base) 6px;
+  padding: 12px var(--space-base) 4px;
 }
 
 .composer-input {
@@ -4460,8 +4461,8 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .starter-pill:active { background: color-mix(in oklab, var(--surface) 64%, transparent); }
 
 .chat-column.is-empty .composer-row {
-  min-height: 48px;
-  padding-top: var(--space-sm);
+  min-height: 60px;
+  padding-top: 14px;
 }
 
 .chat-column.is-empty .composer-input { min-height: var(--composer-input-min); }
