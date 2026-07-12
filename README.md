@@ -6,7 +6,7 @@ macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/v
 
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
-**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project rail, centered empty-home composer, terminal themes/accents, and a live activity rail at wide widths.
+**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project rail, centered empty-home composer, terminal themes/accents, and a single Session panel (toggle; opens on send).
 
 Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmacos) (SwiftUI). This repo is the Electron equivalent.
 
@@ -136,7 +136,7 @@ surface (14px radius, inner highlight `::before`, focus ring 32%/10%, top border
 + surface bg, hot pulse, amber ≥80% red ≥95%) and a Plan/Agent/Yolo mode
 dropdown (solid assistant/bg active, 11px uppercase 600). Queue + composer share
 one card with no seam. Slash/mention menus use a quiet surface enter,
-activity rail has a blurred sticky heading, tool rows use side-border indented
+activity rail / Session panel has a blurred sticky heading, tool rows use side-border indented
 output (Cursor-feel), thinking uses opacity token, model picker groups favorites
 (localStorage) + recent 8 + provider buckets with Free badges. Light scheme keeps
 edge-lit elevation and soft frost on floating chrome; `/accent` remaps selection
@@ -178,7 +178,7 @@ Shell-owned surfaces:
 - Anchored streaming with intentional scroll disengagement and Jump to latest
 - `@` fuzzy attach, clipboard image paste, external editor
 - Stop control with elapsed time until `engine-idle` (Esc still interrupts); green-gate RED notice
-- Inspector: context, changed files, checkpoints, DAG, subagent stream
+- Inspector Session panel: sole session side view; opens on send; topbar toggle to close/reopen
 - Theme-faithful selection colors, headings, and user-message accent (white band on Graphite; `/accent` remaps)
 - Empty-home splash: quieter ASCII wordmark, project/branch crumb, centered composer, pill starters
 - Lucide icons across chrome, composer, and tool-row glyphs

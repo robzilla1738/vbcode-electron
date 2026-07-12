@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import type { SessionChrome } from "../hooks/useSession";
+import { belowBreakpoint } from "../../shared/breakpoints";
 import type { ChangedFile } from "../../shared/reducer";
 import { hasUnfinishedTasks } from "../../shared/task-window";
-import { belowBreakpoint } from "../../shared/breakpoints";
+import type { SessionChrome } from "../hooks/useSession";
 import { IconClose, IconFolderOpen } from "../icons";
 import {
-  MetaRow,
-  TasksSection,
-  OrchestrationSection,
-  SubagentsSection,
-  ThinkingTrail,
   formatGitLine,
   formatGoalLine,
+  MetaRow,
+  OrchestrationSection,
   projectName,
+  SubagentsSection,
   subagentLabel,
+  TasksSection,
+  ThinkingTrail,
 } from "./activity-shared";
 
 export function Inspector({
@@ -187,6 +187,7 @@ export function Inspector({
     >
       <div className="sidebar-heading-row">
         <div className="sidebar-heading-copy">
+          <p className="sidebar-eyebrow">Workspace</p>
           <h2 id="inspector-title" className="sidebar-heading-title">
             {title}
           </h2>
@@ -197,8 +198,9 @@ export function Inspector({
           className="icon-button sidebar-close"
           onClick={onClose}
           aria-label="Close session panel"
+          title="Close session panel"
         >
-          <IconClose size={15} />
+          <IconClose size={14} />
         </button>
       </div>
 
@@ -304,7 +306,7 @@ export function Inspector({
                 </div>
               ))
             ) : (
-              <p className="inspector-empty">Edits from this session will show up here.</p>
+              <p className="inspector-empty">No file edits yet this session.</p>
             )}
           </div>
         )}
@@ -414,7 +416,7 @@ export function Inspector({
 
         {idle && (
           <p className="inspector-hint">
-            As you work, tasks, file diffs, and checkpoints land in this panel.
+            File diffs, tasks, and checkpoints appear here as the turn progresses.
           </p>
         )}
       </div>

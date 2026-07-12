@@ -12,7 +12,7 @@ import { chromium } from "playwright";
 const BASE = process.env.PREVIEW_URL ?? "http://localhost:4517";
 const OUT = process.argv[2] ?? "tools/ui-preview/shots";
 
-/** [name, query, viewport] — wide viewports exercise the live activity rail. */
+/** [name, query, viewport] — wide viewports exercise the Session panel layout. */
 const SHOTS = [
   ["welcome", "scenario=welcome", { width: 1440, height: 900 }],
   ["splash", "scenario=splash", { width: 1440, height: 900 }],

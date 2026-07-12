@@ -3583,11 +3583,11 @@ html[data-scheme="light"].electron-transparent .activity-rail {
   top: 0; z-index: var(--z-raised);
   display: flex;
   flex: 0 0 auto;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-md);
   margin: 0;
-  padding: 14px var(--space-base);
+  padding: 14px 16px 12px;
   border-bottom: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
   background: color-mix(in oklab, var(--bg) 92%, transparent);
   backdrop-filter: blur(12px);
@@ -3599,24 +3599,41 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 .sidebar-heading-copy { min-width: 0; }
 
+.sidebar-eyebrow {
+  margin: 0 0 2px;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .sidebar-heading-row h4,
 .sidebar-heading-row .sidebar-heading-title {
   margin: 0;
   color: var(--assistant);
-  font-size: var(--text-title);
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
 .sidebar-heading-sub {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--text-subtle);
   font-size: var(--text-caption);
   font-weight: 450;
   line-height: 1.35;
 }
 
-.sidebar-close { width: 30px; min-width: 30px; height: 30px; padding: 0; }
+.sidebar-close {
+  width: var(--composer-chip-h, 26px);
+  min-width: var(--composer-chip-h, 26px);
+  height: var(--composer-chip-h, 26px);
+  margin-top: 2px;
+  padding: 0;
+}
 
 .sidebar-section > h4 {
   margin: 0 0 var(--space-sm);
@@ -4988,7 +5005,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 /*
  * Breakpoints — keep max-width values in sync with src/shared/breakpoints.ts
- *   wide    1280  live activity rail seats
+ *   wide    1280  Session panel fits beside column
  *   laptop  1100  topbar labels compress
  *   tablet   900  project rail → start drawer
  *   compact  720  activity/inspector → end drawer

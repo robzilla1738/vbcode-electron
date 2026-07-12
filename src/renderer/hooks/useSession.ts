@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { EngineCommand } from "../../shared/commands";
 import type { UIEvent } from "../../shared/events";
-import type { EngineSnapshot } from "../../shared/types";
-import {
-  groupIntoTurns,
-  initialTranscript,
-  reduceTranscript,
-  type TranscriptAction,
-  type TranscriptState,
-} from "../../shared/reducer";
-import { getTheme } from "../../shared/themes";
-import { applyPalette } from "../theme/applyPalette";
-import { Trail, turnWindowStart, windowStartIndex } from "../../shared/trail";
+import { GLYPH } from "../../shared/glyphs";
+import { hydrateFromHistory } from "../../shared/history-hydrate";
 import {
   cycleModeAction,
   deriveUiMode,
@@ -20,15 +11,22 @@ import {
   selectModeAction,
   type UiMode,
 } from "../../shared/modes";
-import { GLYPH } from "../../shared/glyphs";
-import { firstLine } from "../../shared/reducer";
-import { hydrateFromHistory } from "../../shared/history-hydrate";
-import { hasUnfinishedTasks } from "../../shared/task-window";
 import { isUIEvent } from "../../shared/protocol";
+import {firstLine, 
+  groupIntoTurns,
+  initialTranscript,
+  reduceTranscript,
+  type TranscriptAction,
+  type TranscriptState
+} from "../../shared/reducer";
 import { isEngineSnapshot, isRenderableUIEvent } from "../../shared/runtime-guards";
-import { atBreakpoint } from "../../shared/breakpoints";
+import { getTheme } from "../../shared/themes";
+import { Trail, turnWindowStart, windowStartIndex } from "../../shared/trail";
+import type { EngineSnapshot } from "../../shared/types";
+import { applyPalette } from "../theme/applyPalette";
 import { RequestGate } from "./request-gate";
 import { initialChrome, reduceChrome } from "./session-state";
+
 export type { OrchestrationRow, SessionChrome } from "./session-state";
 
 type TxAction =
@@ -75,7 +73,6 @@ export function useSession(cwd: string | null) {
   const [bootError, setBootError] = useState<string | null>(null);
   const [booting, setBooting] = useState(false);
   const [ready, setReady] = useState(false);
-  const [wide, setWide] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const deltaBuf = useRef("");
@@ -98,15 +95,6 @@ export function useSession(cwd: string | null) {
     applyPalette(getTheme(chrome.theme), chrome.accent || undefined, chrome.theme);
     document.documentElement.style.setProperty("--mode", modeColor(uiMode));
   }, [chrome.theme, chrome.accent, uiMode]);
-
-  useEffect(() => {
-    const measure = () => {
-      setWide(atBreakpoint("wide"));
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, []);
 
   // Events suppressed while the clear-gate is active (TUI parity:
   // clearScopedEventTypes).  Stale stream/notice/subagent/checkpoint/verify
@@ -637,46 +625,6 @@ export function useSession(cwd: string | null) {
     [revealedTurnItems],
   );
 
-  const liveSidebarWanted =
-    wide &&
-    (chrome.busy ||
-      hasUnfinishedTasks(chrome.tasks) ||
-      chrome.subagents.some((s) => s.status === "running") ||
-      chrome.orchestration.some((o) => o.status === "running") ||
-      !!chrome.thinkingStream ||
-      chrome.thoughtLog.length > 0);
-
-  const [liveSidebar, setLiveSidebar] = useState(false);
-  const [liveSidebarClosing, setLiveSidebarClosing] = useState(false);
-
-  useEffect(() => {
-    if (!wide) {
-      setLiveSidebar(false);
-      setLiveSidebarClosing(false);
-      return;
-    }
-    if (liveSidebarWanted) {
-      setLiveSidebar(true);
-      setLiveSidebarClosing(false);
-      return;
-    }
-    if (!liveSidebar) return;
-    setLiveSidebarClosing(true);
-    // Honor prefers-reduced-motion: the slide-out CSS animation collapses to
-    // instant under the media query, so a 280ms unmount delay only adds lag (P04).
-    const reduced =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(
-      () => {
-        setLiveSidebar(false);
-        setLiveSidebarClosing(false);
-      },
-      reduced ? 0 : 280,
-    );
-    return () => window.clearTimeout(timer);
-  }, [wide, liveSidebarWanted, liveSidebar]);
-
   const dismissToast = useCallback(() => {
     if (toastTimer.current != null) {
       window.clearTimeout(toastTimer.current);
@@ -723,9 +671,6 @@ export function useSession(cwd: string | null) {
     setBootError,
     booting,
     ready,
-    wide,
-    liveSidebar,
-    liveSidebarClosing,
     uiMode,
     modeLabel: modeWord(uiMode),
     turns: visibleTurns,

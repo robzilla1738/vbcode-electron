@@ -247,7 +247,8 @@ npm run dev
 - [x] Composer: floating surface 14px radius with inner highlight `::before`, focus ring 32%/10%, status top border + surface bg, mode dropdown solid assistant/bg, ghost actions 26px subtle, context gauge pill with border + hot pulse, user bubble tokenized (`--bubble-user-*`)
 - [x] Transcript: tool head 100% width no overflow hack, tool body side-border indented (Cursor-feel), thinking opacity token, code block 10px radius with bottom border header, diff 2.5px accent
 - [x] Menus: slash/mention quiet surface-enter, header 10px bold uppercase, denser items 38px radius 8px, highlight `.hl`, catalog grouping (favorites via localStorage + recent 8 + provider buckets opencode-first, Free badge, clear ×)
-- [x] Rails: active session uses surface highlight only; project row radius 7px, topbar 14px semibold, activity rail border 22% + blur 12px sticky header, meta-block tighter
+- [x] Session panel (Inspector): sole session side view; topbar toggle; opens on send / plan accept; user can close; LiveSidebar removed
+- [x] Rails: active session uses surface highlight only; project row radius 7px, topbar 14px semibold, Session panel border 22% + blur 12px sticky header, meta-block tighter
 - [x] Secondary: cards compact 12px, engine dot pulse, busy Stop + Esc cue, jobs drawer, earlier/jump pills refined, toast compact, toast + catalog origins bottom-center
 - [x] Model pill bordered 18% + hover 68%, transcript gap 28px/10px, code 12.5px
 - [x] Light scheme: restored edge-highlight + soft frost elevation; hairlines via `--border-soft` (not hard card borders)

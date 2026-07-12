@@ -171,7 +171,7 @@ export function JobsView({
         <IconJobs size={14} />
       </span>
       <div className="jobs-heading-copy">
-        <p className="jobs-eyebrow">Session</p>
+        <p className="jobs-eyebrow">Workspace</p>
         <h2 id="jobs-drawer-title">Background jobs</h2>
         <p>
           {jobs.length === 0

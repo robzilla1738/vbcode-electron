@@ -3,20 +3,20 @@
  *
  * CSS `@media (max-width: …)` values for laptop/tablet/compact/narrow live in
  * `styles.css` and must stay in sync with those pixel numbers. `wide` is JS-only
- * today (`useSession` seats the live activity rail) — there is no matching
- * `@media (min-width: 1280px)` rule.
+ * (layout comfort when project rail + column + Session panel fit) — there is no
+ * matching `@media (min-width: 1280px)` rule.
  *
- * Measure notes (AGENTS): content column ~130ch, activity rail ~42ch;
- * `wide` is when project rail + column + activity rail fit without crushing.
+ * Measure notes (AGENTS): content column ~130ch, Session panel ~42ch;
+ * `wide` is when project rail + column + Session panel fit without crushing.
  */
 export const BREAKPOINTS = {
-  /** Live activity rail seats beside the column. */
+  /** Comfortable width for project rail + column + Session panel. */
   wide: 1280,
   /** Topbar action labels compress. */
   laptop: 1100,
   /** Project rail becomes a start-edge overlay drawer. */
   tablet: 900,
-  /** Activity / inspector become an end-edge overlay drawer. */
+  /** Session panel becomes an end-edge overlay drawer. */
   compact: 720,
   /** Phone-narrow chrome densifies (model chip stays, truncated). */
   narrow: 640,

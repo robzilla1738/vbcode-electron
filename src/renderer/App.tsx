@@ -1,28 +1,41 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  AgentInfo,
-  ModelSummary,
-  ProviderInfo,
-  SkillInfo,
-  McpServerInfo,
-} from "../shared/types";
-import type { ProjectSummary } from "../shared/protocol";
-import { isProjectSummaryArray } from "../shared/runtime-guards";
-import { RequestGate } from "./hooks/request-gate";
-import { lineToCommands, routePendingPermLine } from "../shared/slash";
-import { densityLabel, nextDensity } from "../shared/density";
+import { belowBreakpoint } from "../shared/breakpoints";
 import {
   agentsPickerQuery,
   currentModelForTarget,
+  type ModelPickerTarget,
   mcpPickerQuery,
   modelPicker,
   normalizeMcpServer,
   providersPickerQuery,
   skillsPickerFilter,
-  type ModelPickerTarget,
 } from "../shared/catalog-draft";
-import { belowBreakpoint } from "../shared/breakpoints";
+import { densityLabel, nextDensity } from "../shared/density";
 import { projectLabel } from "../shared/project-index";
+import type { ProjectSummary } from "../shared/protocol";
+import { isProjectSummaryArray } from "../shared/runtime-guards";
+import { lineToCommands, routePendingPermLine } from "../shared/slash";
+import { hasUnfinishedTasks } from "../shared/task-window";
+import type {
+  AgentInfo,
+  McpServerInfo,
+  ModelSummary,
+  ProviderInfo,
+  SkillInfo,
+} from "../shared/types";
+import { Composer, type ComposerMetric } from "./composer/Composer";
+import { RequestGate } from "./hooks/request-gate";
+import { useSession } from "./hooks/useSession";
+import { IconJobs, IconPanel, IconSidebar } from "./icons";
+import { ProjectRail } from "./layout/ProjectRail";
+import { Splash, StarterPills } from "./layout/Splash";
+import { SessionBoot, SessionBootError, WelcomeGate } from "./layout/WelcomeGate";
+import { Inspector } from "./panels/Inspector";
+import { JobsView } from "./panels/JobsView";
+import { KeysOverlay } from "./panels/KeysOverlay";
+import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
+import { OnboardingHint } from "./panels/OnboardingHint";
+import { type CatalogChoice, CatalogModal, type CatalogPickerState } from "./pickers/CatalogModal";
 import {
   formatChromeSummary,
   formatGitLine,
@@ -30,21 +43,7 @@ import {
   projectName,
   StatusDot,
 } from "./primitives";
-import { useSession } from "./hooks/useSession";
-import { Splash, StarterPills } from "./layout/Splash";
-import { SessionBoot, SessionBootError, WelcomeGate } from "./layout/WelcomeGate";
-import { LiveSidebar } from "./layout/Sidebar";
 import { TranscriptView } from "./transcript/TranscriptView";
-import { Composer, type ComposerMetric } from "./composer/Composer";
-import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
-import { JobsView } from "./panels/JobsView";
-import { OnboardingHint } from "./panels/OnboardingHint";
-import { KeysOverlay } from "./panels/KeysOverlay";
-import { CatalogModal, type CatalogChoice, type CatalogPickerState } from "./pickers/CatalogModal";
-import { Inspector } from "./panels/Inspector";
-import { ProjectRail } from "./layout/ProjectRail";
-import { IconJobs, IconPanel, IconSidebar } from "./icons";
-import { hasUnfinishedTasks } from "../shared/task-window";
 
 type Picker = CatalogPickerState | null;
 
@@ -322,6 +321,9 @@ export function App() {
       });
       if (!sent) return false;
       session.dispatchChrome({ type: "clear-plan" });
+      if (decision === "accept" || decision === "edit") {
+        session.setInspectorOpen(true);
+      }
       return true;
     },
     [session],
@@ -548,6 +550,7 @@ export function App() {
       session.setBusy(true);
       const sent = await session.sendMany(lineToCommands(trimmed));
       if (!sent) session.setBusy(false);
+      else session.setInspectorOpen(true);
       return sent;
     },
     [session, answerPerm, answerPlan, openModelsPicker, presentCatalog],
@@ -1072,7 +1075,7 @@ export function App() {
               }`}
               aria-label="Conversation"
             >
-            {!session.liveSidebar && (session.transcript.blocks.length > 0 || chrome.busy) && (
+            {(session.transcript.blocks.length > 0 || chrome.busy) && (
               <div className="context-line">
                 {formatChromeSummary({
                   project: activeProject
@@ -1186,8 +1189,7 @@ export function App() {
                   onKeep={() => void answerPlan("keep-planning")}
                 />
               )}
-              {!session.liveSidebar &&
-                !session.inspectorOpen &&
+              {!session.inspectorOpen &&
                 (hasUnfinishedTasks(chrome.tasks) || chrome.subagents.length > 0) && (
                 <div className="panel-strip-compact" role="group" aria-label="Live activity">
                   {hasUnfinishedTasks(chrome.tasks) && (
@@ -1328,16 +1330,6 @@ export function App() {
             </div>
           </main>
 
-          {!session.inspectorOpen && session.liveSidebar && (
-            <LiveSidebar
-              chrome={chrome}
-              closing={session.liveSidebarClosing}
-              onOpenSubagent={(id) => {
-                session.setSelectedSubagent(id);
-                session.setInspectorOpen(true);
-              }}
-            />
-          )}
           {session.inspectorOpen && (
             <Inspector
               chrome={chrome}
