@@ -33,6 +33,7 @@ const SHOTS = [
   ["catalog", "scenario=catalog", { width: 1440, height: 900 }],
   ["catalog-draft", "scenario=catalog-draft", { width: 1440, height: 900 }],
   ["mention", "scenario=mention", { width: 1440, height: 900 }],
+  ["attachments", "scenario=attachments", { width: 1440, height: 900 }],
   ["jobs", "scenario=jobs", { width: 1440, height: 900 }],
   ["inspector", "scenario=inspector", { width: 1720, height: 1000 }],
   ["toast", "scenario=toast", { width: 1440, height: 900 }],

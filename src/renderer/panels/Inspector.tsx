@@ -4,6 +4,7 @@ import type { ChangedFile } from "../../shared/reducer";
 import { hasUnfinishedTasks } from "../../shared/task-window";
 import type { SessionChrome } from "../hooks/useSession";
 import { IconClose, IconFolderOpen } from "../icons";
+import { SidebarResizeHandle } from "../layout/SidebarResizeHandle";
 import {
   formatGitLine,
   formatGoalLine,
@@ -14,6 +15,43 @@ import {
   TasksSection,
   ThinkingTrail,
 } from "./activity-shared";
+
+type ReviewMode = "diff" | "file";
+
+function DiffPreview({ path, diff }: { path: string; diff?: string }) {
+  const lines = diff?.split("\n") ?? [];
+  if (!diff) {
+    return <p className="inspector-empty">No diff was returned for this change.</p>;
+  }
+
+  return (
+    <div
+      className="activity-stream inspector-stream diff-preview"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable preview
+      tabIndex={0}
+      role="region"
+      aria-label={`Diff for ${path}`}
+    >
+      {lines.map((line, index) => {
+        const kind = line.startsWith("@@")
+          ? "hunk"
+          : line.startsWith("+")
+            ? "add"
+            : line.startsWith("-")
+              ? "del"
+              : line.startsWith("\\")
+                ? "meta"
+                : "context";
+        return (
+          <div className={`diff-line is-${kind}`} key={`${index}-${line}`}>
+            <span className="diff-line-number" aria-hidden>{index + 1}</span>
+            <code>{line || " "}</code>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function Inspector({
   chrome,
@@ -38,6 +76,7 @@ export function Inspector({
   const [previewTruncated, setPreviewTruncated] = useState(false);
   const [confirmCp, setConfirmCp] = useState<"undo" | "redo" | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [reviewMode, setReviewMode] = useState<ReviewMode>("diff");
 
   const ctxPct =
     chrome.ctxWindow > 0
@@ -113,7 +152,7 @@ export function Inspector({
   }, [isDrawer]);
 
   useEffect(() => {
-    if (!previewPath || !cwd) {
+    if (!previewPath || !cwd || reviewMode !== "file") {
       setPreviewText(null);
       setPreviewError(null);
       setPreviewTruncated(false);
@@ -142,7 +181,7 @@ export function Inspector({
     return () => {
       cancelled = true;
     };
-  }, [previewPath, cwd]);
+  }, [previewPath, cwd, reviewMode]);
 
   // Clear stale preview when the file leaves the changed set.
   useEffect(() => {
@@ -158,12 +197,15 @@ export function Inspector({
     chrome.subagents.length === 0 &&
     !hasUnfinishedTasks(chrome.tasks) &&
     chrome.thoughtLog.length === 0;
+  const selectedFile = previewPath
+    ? changedFiles.find((file) => file.path === previewPath)
+    : undefined;
 
   let title = "Session";
   let subtitle = "Model, context, and changes";
   if (previewPath) {
     title = previewPath.split(/[/\\]/).pop() || previewPath;
-    subtitle = "File preview";
+    subtitle = reviewMode === "diff" ? "Change review" : "File preview";
   }
 
   return (
@@ -220,18 +262,41 @@ export function Inspector({
         {!previewPath && <TasksSection tasks={chrome.tasks} />}
 
         {previewPath ? (
-          <div className="sidebar-section">
-            <div className="file-preview-toolbar">
-              <button
-                type="button"
-                className="button"
-                onClick={() => setPreviewPath(null)}
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                className="button"
+            <div className="sidebar-section">
+              <div className="file-preview-toolbar">
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setPreviewPath(null);
+                    setReviewMode("diff");
+                  }}
+                >
+                  Back
+                </button>
+                <div className="review-mode-toggle" role="tablist" aria-label="Review mode">
+                  <button
+                    type="button"
+                    className={`review-mode-button${reviewMode === "diff" ? " is-active" : ""}`}
+                    role="tab"
+                    aria-selected={reviewMode === "diff"}
+                    onClick={() => setReviewMode("diff")}
+                  >
+                    Diff
+                  </button>
+                  <button
+                    type="button"
+                    className={`review-mode-button${reviewMode === "file" ? " is-active" : ""}`}
+                    role="tab"
+                    aria-selected={reviewMode === "file"}
+                    onClick={() => setReviewMode("file")}
+                  >
+                    File
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="button"
                 onClick={() => onRevealFile(previewPath)}
                 title="Reveal in Finder"
               >
@@ -242,7 +307,9 @@ export function Inspector({
             <p className="inspector-path" title={previewPath}>
               {previewPath}
             </p>
-            {previewLoading ? (
+            {reviewMode === "diff" ? (
+              <DiffPreview path={previewPath} diff={selectedFile?.diff} />
+            ) : previewLoading ? (
               <p className="inspector-empty">
                 <span className="spinner" aria-hidden /> Loading preview…
               </p>
@@ -266,14 +333,31 @@ export function Inspector({
           </div>
         ) : (
           <div className="sidebar-section">
-            <h4>Changed files</h4>
+            <div className="sidebar-section-title-row">
+              <h4>Changed files</h4>
+              {changedFiles.length > 0 && (
+                <button
+                  type="button"
+                  className="sidebar-section-action"
+                  onClick={() => {
+                    setReviewMode("diff");
+                    setPreviewPath(changedFiles.at(-1)!.path);
+                  }}
+                >
+                  Review
+                </button>
+              )}
+            </div>
             {changedFiles.length > 0 ? (
               changedFiles.map((f) => (
                 <div key={f.path} className="file-row-actions">
                   <button
                     type="button"
                     className="activity-button file-row"
-                    onClick={() => setPreviewPath(f.path)}
+                    onClick={() => {
+                      setReviewMode("diff");
+                      setPreviewPath(f.path);
+                    }}
                     aria-label={`Preview ${f.path}, +${f.added} −${f.removed}`}
                     title={`Preview ${f.path}`}
                   >
@@ -384,6 +468,15 @@ export function Inspector({
           </p>
         )}
       </div>
+      <SidebarResizeHandle
+        side="end"
+        cssVar="--activity-rail-w"
+        defaultWidth={320}
+        min={280}
+        max={520}
+        storageKey="vibe.activity-rail-width"
+        label="Resize session panel"
+      />
     </aside>
   );
 }

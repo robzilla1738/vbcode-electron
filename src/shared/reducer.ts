@@ -16,8 +16,8 @@ import { isLongOutputTool, LONG_OUTPUT_COLLAPSE_LINES, toolLabel } from "./tool-
  * the block currently being mutated re-renders. `id` is a stable click handle.
  */
 export type Block =
-  | { kind: "user"; id: number; text: string }
-  | { kind: "assistant"; id: number; text: string; streaming: boolean; gap: boolean }
+  | { kind: "user"; id: number; text: string; timestamp: number }
+  | { kind: "assistant"; id: number; text: string; streaming: boolean; gap: boolean; timestamp: number }
   | {
       kind: "tool";
       id: number;
@@ -82,6 +82,8 @@ export interface ChangedFile {
   path: string;
   added: number;
   removed: number;
+  /** Latest unified diff hunk, used by the docked review view. */
+  diff?: string;
 }
 
 export interface PendingPerm {
@@ -126,9 +128,9 @@ export function initialTranscript(): TranscriptState {
 /** Transcript-affecting actions. app.tsx maps engine UIEvents (and its own
  * coalesced deltas + click toggles) onto these. */
 export type TranscriptAction =
-  | { type: "user"; text: string }
+  | { type: "user"; text: string; timestamp?: number }
   /** A coalesced batch of streamed assistant text (app.tsx buffers per frame). */
-  | { type: "delta"; text: string }
+  | { type: "delta"; text: string; timestamp?: number }
   /** Land the streaming reply: flip `streaming` off so <markdown> closes fences. */
   | { type: "finalize" }
   /** `at` = app-time stamp (ms); with tool-finish's it yields the row's duration. */
@@ -173,7 +175,7 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       const f = finalizeActive(s);
       return {
         ...f,
-        blocks: [...f.blocks, { kind: "user", id: f.nextId, text: a.text }],
+        blocks: [...f.blocks, { kind: "user", id: f.nextId, text: a.text, timestamp: a.timestamp ?? Date.now() }],
         nextId: f.nextId + 1,
         // A new turn starts with clean per-turn call maps.
         toolByCallId: {},
@@ -190,7 +192,14 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       // The first flushed delta opens a new block with a blank line above it.
       const blocks = [
         ...s.blocks,
-        { kind: "assistant" as const, id: s.nextId, text: a.text, streaming: true, gap: true },
+        {
+          kind: "assistant" as const,
+          id: s.nextId,
+          text: a.text,
+          streaming: true,
+          gap: true,
+          timestamp: a.timestamp ?? Date.now(),
+        },
       ];
       return { ...s, blocks, nextId: s.nextId + 1, activeAssistant: blocks.length - 1 };
     }
@@ -311,9 +320,22 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       if (ci >= 0) {
         changedFiles = s.changedFiles.slice();
         const f = changedFiles[ci]!;
-        changedFiles[ci] = { path: f.path, added: f.added + a.added, removed: f.removed + a.removed };
+        changedFiles[ci] = {
+          path: f.path,
+          added: f.added + a.added,
+          removed: f.removed + a.removed,
+          ...(a.diff || f.diff ? { diff: a.diff || f.diff } : {}),
+        };
       } else {
-        changedFiles = [...s.changedFiles, { path: a.path, added: a.added, removed: a.removed }];
+        changedFiles = [
+          ...s.changedFiles,
+          {
+            path: a.path,
+            added: a.added,
+            removed: a.removed,
+            ...(a.diff ? { diff: a.diff } : {}),
+          },
+        ];
       }
       const fin = finalizeActive({ ...s, suppressCallIds, changedFiles });
       const idx = fin.toolByCallId[a.toolCallId];

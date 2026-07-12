@@ -6,7 +6,7 @@ macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/v
 
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
-**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project rail, quiet empty home, terminal themes/accents, and an explicitly toggled Session panel.
+**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project rail, quiet empty home, terminal themes/accents, resizable sidebars, a toggleable Diff/File review panel, and an explicitly toggled Session panel.
 
 Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmacos) (SwiftUI). This repo is the Electron equivalent.
 
@@ -21,8 +21,8 @@ Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmaco
 
 | Layer | Path | Role |
 |-------|------|------|
-| Renderer | `src/renderer/` | Transcript, composer, slash menu, permissions, plan, themes, inspector |
-| Preload | `src/preload/` | `window.vibe` bridge API |
+| Renderer | `src/renderer/` | Transcript, composer, drag/drop attachments, slash menu, permissions, plan, themes, inspector/review |
+| Preload | `src/preload/` | `window.vibe` bridge API, including native dropped-file path resolution |
 | Main | `src/main/` | Host spawn, NDJSON, folder picker, clipboard image, `@` file walk |
 | Shared UI logic | `src/shared/` | Ported from `@vibe/tui`: reducer, slash, themes, modes, file-fuzzy |
 | Engine host | vibe-codr `packages/macos-bridge` | In-process Engine over stdio |
@@ -74,8 +74,9 @@ npm run ui:shots -- tools/ui-preview/shots
 
 Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 `permission`, `plan`, `gate`, `mode`, `queue`, `onboarding`, `slash`, `catalog`,
-`catalog-draft`, `mention`, `jobs`, `inspector`, `toast`, `density-quiet`,
-`density-verbose`, `ctx-hot` — plus `&theme=<name>` for any TUI theme. See
+`catalog-draft`, `mention`, `attachments`, `jobs`, `inspector`, `toast`,
+`density-quiet`, `density-verbose`, `ctx-hot`, `settings`, `git` — plus
+`&theme=<name>` for any TUI theme. See
 [tools/ui-preview/README.md](./tools/ui-preview/README.md).
 
 ### Host resolution order
@@ -90,7 +91,7 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 |---------|---------|
 | `npm run dev` | electron-vite + Electron window |
 | `npm run build` | Compile main / preload / renderer → `out/` |
-| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests (74) |
+| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests |
 | `npm run test:e2e` | Hermetic Electron UI/IPC/bridge parity scenarios |
 | `npm run lint` | Biome correctness and maintainability gate |
 | `npm run verify` | Lint + unit + source parity + types + build + bundle budget |
@@ -110,12 +111,13 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 ┌────────────┬──────────────────────────────────────────┬─────────────┐
 │ Projects  │  Project / session top bar               │ Live /      │
 │ + sessions│  Transcript / splash / jobs              │ Inspector   │
-│ + filter  │  Plan · permissions · queue · spinner    │ (⇧⌘I)       │
-│           │  Anchored composer + status + pickers    │             │
+│ + filter  │  Plan · permissions · queue · spinner    │ Diff / File │
+│           │  Anchored composer + status + pickers    │ (⇧⌘I)       │
 └────────────┴──────────────────────────────────────────┴─────────────┘
 ```
 
 - Content max ~130ch; transcript prose, tool output, approval panels, and the composer share the `--composer-max: 40rem` reading measure
+- Project and Session rails have desktop drag handles plus Arrow/Home/End keyboard resizing; widths persist locally and drawer layouts disable resizing on narrow screens
 - Projects and meaningful session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 15 palettes as OpenTUI); accents via `/accent`
 - Modes: **Plan / Agent / Yolo** dropdown in the composer (Shift+Tab still cycles)
@@ -141,14 +143,17 @@ quiet card above the composer with a flat “N Queued” list and hover
 steer/dequeue. Slash, mention, and catalog menus are floating and
 keyboard-contained; the Session panel opens only from its explicit topbar
 control. Project/session ⋯ menus are portal-mounted, trigger-anchored, and
-toggle cleanly. Assistant answers expose clean white Copy/Edit icons below the
-response on hover/focus; tool and table copy controls use the same backgroundless
-icon language. Tool/thinking rows stay compact and group consecutive activity
-under a click-to-expand Thinking disclosure; subagent rows show status and
-elapsed activity without an expandable robot/detail view, user turns fold by
-clicking the message, and source/article results use structured cards. Light
-scheme keeps edge-lit elevation and soft frost on floating chrome; `/accent`
-remaps selection and focus tokens together.
+toggle cleanly. User-message Copy/Edit/time actions sit beside the bubble;
+assistant actions remain below the response. Tool/thinking rows stay compact
+and group consecutive activity under a click-to-expand Thinking disclosure;
+subagent rows show status and elapsed activity without an expandable detail
+view, user turns fold by clicking the message, and source/article results use
+structured cards. Dropped images and files render as removable attachment chips
+and submit as project-aware `@` references. Finder drops use native path
+resolution with `file://` URI fallbacks. The Session panel offers changed-file
+review with Diff/File modes and Reveal. Light scheme keeps edge-lit elevation
+and soft frost on floating chrome; `/accent` remaps selection and focus tokens
+together.
 
 ## Keyboard (essentials)
 
@@ -185,8 +190,11 @@ Shell-owned surfaces:
 - `/jobs` drawer with live auto-follow output, localhost links, and copy
 - Anchored streaming with intentional scroll disengagement and Jump to latest
 - `@` fuzzy attach, clipboard image paste, external editor
+- Finder drag/drop for images and files, including removable previews, mixed
+  batches, duplicate detection, native path resolution, and URI fallback
 - Stop control with elapsed time until `engine-idle` (Esc still interrupts); green-gate RED notice
-- Inspector Session panel: sole session side view; closed by default and opened/closed from the topbar toggle
+- Inspector Session panel: sole session side view; closed by default and opened/closed from the topbar toggle; changed files open in Diff/File review mode
+- Project and Session sidebars are pointer- and keyboard-resizable with persisted widths
 - Theme-faithful selection colors, headings, and user-message accent (white band on Graphite; `/accent` remaps)
 - Empty-home splash: quiet ASCII wordmark, centered composer, and no automatic prompt suggestions
 - Project rail: project rename/archive/delete actions on hover, titled sessions,
@@ -208,13 +216,12 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AG
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **76 unit tests**, **10 e2e scenarios**, Biome, typecheck,
-production build, and renderer behavior are exercised. The source-parity gate
-must be run against a synchronized sibling `vibe-codr` checkout; the local
-checkout used for this update has upstream declaration drift and is recorded
-in [VERIFICATION.md](./VERIFICATION.md). The renderer bundle is currently just
-over the historical 1.85 MB single-chunk budget and is also called out there.
-See [ACCEPTANCE.md](./ACCEPTANCE.md) for the acceptance contract.
+Current baseline: **98 unit tests**, **10 Electron E2E scenarios**, 19 source
+parity pairs, Biome, typecheck, production build, bridge smoke, and renderer
+bundle budget all pass. The deterministic preview matrix covers attachments,
+settings, Git, Session review, light mode, and alternate themes. See
+[VERIFICATION.md](./VERIFICATION.md) and [ACCEPTANCE.md](./ACCEPTANCE.md) for
+the current acceptance contract and release gates.
 
 ## Project layout
 

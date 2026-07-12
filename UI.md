@@ -17,7 +17,8 @@ The shell has four primary surfaces:
 2. A central transcript with user bubbles, assistant prose, tools, thinking,
    notices, source cards, and rich data views.
 3. A floating composer with mode, model, context, queue, and submit controls.
-4. Optional floating Jobs and Session panels opened from explicit topbar controls.
+4. Optional floating Jobs and Session panels opened from explicit topbar controls;
+   the Session panel includes changed-file review with Diff/File modes.
 
 Transcript output, approval cards, and the composer use the same centered
 `--composer-max: 40rem` measure. The central chat pane fills its workspace
@@ -25,6 +26,10 @@ edge-to-edge without an outer inset or decorative corner curve. Output may
 scroll behind the floating composer; continuous full-surface frost blurs that
 overlap without allowing text to remain readable through the top edge.
 Approval cards stay opaque.
+
+The project and Session rails are resizable on desktop with pointer and
+keyboard handles. Widths persist locally; narrow drawer layouts intentionally
+hide the handles.
 
 ## Visual language
 
@@ -35,6 +40,9 @@ Approval cards stay opaque.
 - Use the shared sans font for interface copy, tool labels, metadata, notices,
   and prose. Reserve mono for code, diffs, job output, fenced blocks, and rich
   chart glyphs.
+- Metadata labels, section headings, costs, model names, and session telemetry
+  use the same primary sans treatment and normal tracking. File paths and raw
+  code remain mono only when they are genuinely code/data.
 - Use modest radii, hairline borders, and restrained shadows. Avoid gradients,
   decorative side borders on controls, animated dots, sparkle glyphs, and
   ornamental badge clouds.
@@ -69,6 +77,8 @@ Approval cards stay opaque.
   The working spinner appears only beside the active session while that
   session is busy; it must never read as a persistent selected-state marker.
 - Busy state disables navigation actions with an honest stop-turn reason.
+- A desktop resize separator exposes pointer dragging plus ArrowLeft/ArrowRight
+  and Home/End keyboard sizing, with a persisted width per rail.
 
 ### Transcript
 
@@ -81,6 +91,8 @@ Approval cards stay opaque.
 - User messages are interactive disclosure controls: click or press Enter/Space
   on the message to fold or unfold the rest of its turn. Do not render a
   persistent collapse arrow beside the bubble.
+- User-message Copy/Edit/time actions sit to the right of the bubble as one
+  compact hover/focus cluster; assistant actions remain below the response.
 - Streaming follows only while the reader is near the bottom. Upward scrolling
   disengages follow and exposes Jump to latest.
 - Hover utility actions (answer Copy/Edit, tool/thinking/plan copy, table
@@ -117,6 +129,10 @@ untrusted HTML directly.
 - Queue is a single quiet card above the composer: muted “N Queued” header and a
   flat list of labels (no per-item cards). Steer and remove appear on row hover
   as icon-only actions with accessible labels.
+- Finder drag/drop accepts images and files as removable attachment chips. The
+  renderer resolves Electron native paths first, then Finder `file://` URI and
+  plain-text path payloads, normalizes duplicates, preserves spaces, and sends
+  project-aware `@` references to the engine.
 - Slash, mention, mode, and catalog menus are floating surfaces with keyboard
   focus containment and focus restoration.
 - Suggestions are intentionally removed from the empty home. Users start by
@@ -138,6 +154,9 @@ untrusted HTML directly.
 - The Session inspector is closed by default and opens only from its explicit
   topbar toggle or another deliberate session-panel control. Sending a message
   must not reopen it.
+- Changed files can be opened from the review affordance or file row. Diff mode
+  renders the latest unified diff with line-number gutters; File mode reads the
+  current file through the preload bridge; Reveal opens the file in Finder.
 - The Jobs panel is a clean floating drawer with a compact header, status,
   live-following output, safe localhost links, and focus restoration on close.
 
@@ -148,7 +167,9 @@ untrusted HTML directly.
 | Shell / overlay ownership | `src/renderer/App.tsx` |
 | Tokens and layout | `src/renderer/styles.css` |
 | Composer / mode / menus | `src/renderer/composer/Composer.tsx` |
+| Native dropped-file paths | `src/preload/index.ts` (`webUtils.getPathForFile`) |
 | Project rail | `src/renderer/layout/ProjectRail.tsx` |
+| Rail resizing | `src/renderer/layout/SidebarResizeHandle.tsx` |
 | Transcript and folding | `src/renderer/transcript/TranscriptView.tsx` |
 | Source/article cards | `src/renderer/transcript/SourceList.tsx` |
 | Permission / plan / queue | `src/renderer/panels/LivePanels.tsx` |
@@ -174,8 +195,10 @@ npm run test:e2e
 For visual changes, use the deterministic preview scenarios in
 `tools/ui-preview/README.md`. At minimum inspect `chat`, `docs`, `table`,
 `sources`, `permission`, `plan`, `queue`, `jobs`, `inspector`, `catalog`, and
-`splash`, plus a light theme and a narrow viewport. Do not treat screenshots as
-a substitute for code-level verification.
+`attachments`, `settings`, `git`, and `splash`, plus a light theme and a narrow
+viewport. Exercise Finder-style `file://` drops, Diff/File review, rail
+resizing, and the user-message action cluster. Do not treat screenshots as a
+substitute for code-level verification.
 
 See [PARITY.md](./PARITY.md), [VERIFICATION.md](./VERIFICATION.md), and
 [ACCEPTANCE.md](./ACCEPTANCE.md) for engine contracts and release gates.

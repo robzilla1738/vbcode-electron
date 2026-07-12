@@ -12,7 +12,8 @@ export function applyPalette(p: Palette, accentOverride?: string, themeName?: st
     ? {
         ...p,
         assistant: "#20242e",
-        muted: "#5f6878",
+        muted: "#68707a",
+        heading: "#20242e",
         border: "#d5d8df",
         background: "#f8f8f7",
         panel: "#eff0f2",
@@ -43,7 +44,10 @@ export function applyPalette(p: Palette, accentOverride?: string, themeName?: st
   root.style.setProperty("--add-bg", p.addBg);
   root.style.setProperty("--del-bg", p.delBg);
   root.style.setProperty("--gutter", p.gutter);
-  root.style.setProperty("--heading", chrome.heading);
+  // Light mode keeps headings and interface chrome neutral even when the CLI
+  // palette uses a blue heading accent. Blue remains available through the
+  // dedicated code/link role for filenames and references.
+  root.style.setProperty("--heading", scheme === "light" ? ui.heading : chrome.heading);
   root.style.setProperty("--code", p.code);
   root.style.setProperty("--sel-bg", chrome.selBg);
   root.style.setProperty("--sel-fg", chrome.selFg);

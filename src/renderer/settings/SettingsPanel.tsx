@@ -206,9 +206,6 @@ function SettingsFormArea({
           <h2 className="settings-form-title">{activeMeta?.label}</h2>
           <p className="settings-form-sub">{activeMeta?.description}</p>
         </div>
-        <button type="button" className="icon-button settings-close-btn" onClick={onClose} aria-label="Close settings" title="Close settings (Esc)">
-          <IconClose size={16} />
-        </button>
       </div>
 
       <div className="settings-form-scroll">

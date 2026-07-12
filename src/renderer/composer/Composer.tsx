@@ -1,4 +1,4 @@
-import { type CSSProperties, type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type Dispatch, type DragEvent, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   agentsPickerQuery,
@@ -19,7 +19,7 @@ import { modeWord, type UiMode } from "../../shared/modes";
 import { accentNameOf } from "../../shared/themes";
 import { applyAtMention, useAtMention } from "../hooks/useAtMention";
 import { useFloatingAnchor } from "../hooks/useFloatingAnchor";
-import { IconChevron, IconPaperclip, IconSend, IconStop } from "../icons";
+import { IconChevron, IconFile, IconPaperclip, IconRemove, IconSend, IconStop } from "../icons";
 
 const MODE_OPTIONS: UiMode[] = ["plan", "execute", "yolo"];
 
@@ -31,6 +31,91 @@ const MODE_HINT: Record<UiMode, string> = {
 
 /** Matches `--composer-input-max` — keep JS clamp and CSS in sync. */
 const COMPOSER_INPUT_MAX_PX = 320;
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "tif", "tiff"]);
+
+type DroppedFile = File & { path?: string };
+
+type ComposerAttachment = {
+  id: string;
+  name: string;
+  path: string;
+  token: string;
+  isImage: boolean;
+  size: number;
+  previewUrl: string | null;
+};
+
+function normalizedPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+/g, "/");
+}
+
+function comparablePath(path: string): string {
+  const normalized = normalizedPath(path);
+  return /^[A-Z]:\//i.test(normalized) ? normalized.toLowerCase() : normalized;
+}
+
+function hasFilePayload(transfer: DataTransfer): boolean {
+  return ["Files", "text/uri-list", "public.file-url"].some((type) => transfer.types.includes(type));
+}
+
+function pathFromTransferValue(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith("#")) return "";
+  if (/^file:/i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      if (url.protocol !== "file:") return "";
+      let path = decodeURIComponent(url.pathname);
+      if (url.hostname && url.hostname !== "localhost") path = `//${url.hostname}${path}`;
+      if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1);
+      return path;
+    } catch {
+      return "";
+    }
+  }
+  return /^\/?(?:[A-Za-z]:[\\/]|\/|\\\\)/.test(trimmed) ? trimmed : "";
+}
+
+function transferPaths(transfer: DataTransfer): string[] {
+  const uriPaths = transfer
+    .getData("text/uri-list")
+    .split(/\r?\n/)
+    .map(pathFromTransferValue)
+    .filter(Boolean);
+  if (uriPaths.length > 0) return uriPaths;
+  return transfer
+    .getData("text/plain")
+    .split(/\r?\n/)
+    .map(pathFromTransferValue)
+    .filter(Boolean);
+}
+
+function fileName(path: string): string {
+  const normalized = normalizedPath(path).replace(/\/$/, "");
+  return normalized.slice(normalized.lastIndexOf("/") + 1) || normalized;
+}
+
+function relativePath(path: string, cwd: string | null): string {
+  if (!cwd) return normalizedPath(path);
+  const normalized = normalizedPath(path);
+  const root = normalizedPath(cwd).replace(/\/$/, "");
+  const comparablePath = /^[A-Z]:\//i.test(normalized) ? normalized.toLowerCase() : normalized;
+  const comparableRoot = /^[A-Z]:\//i.test(root) ? root.toLowerCase() : root;
+  if (comparablePath === comparableRoot) return ".";
+  if (comparablePath.startsWith(`${comparableRoot}/`)) return normalized.slice(root.length + 1);
+  return normalized;
+}
+
+/** Use a quoted @ mention only when Finder gave us a path containing spaces. */
+function attachmentToken(path: string, cwd: string | null): string {
+  const displayPath = relativePath(path, cwd).replace(/\\/g, "/");
+  const escaped = displayPath.replace(/"/g, '\\"');
+  return /\s/.test(displayPath) ? `@"${escaped}"` : `@${escaped}`;
+}
+
+function pathExtension(path: string): string {
+  return path.split(".").at(-1)?.toLowerCase() ?? "";
+}
 
 export type ComposerMetric = {
   key: string;
@@ -216,11 +301,15 @@ export function Composer({
   const modeMenuRef = useRef<HTMLDivElement>(null);
   const modeSelRef = useRef(0);
   const submitPending = useRef(false);
+  const dragDepthRef = useRef(0);
+  const attachmentsRef = useRef<ComposerAttachment[]>([]);
   const [sel, setSel] = useState(0);
   const [modeOpen, setModeOpen] = useState(false);
   const [modeSel, setModeSel] = useState(0);
   const [insertOpen, setInsertOpen] = useState(false);
   const [insertSel, setInsertSel] = useState(0);
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const [dropTarget, setDropTarget] = useState(false);
   const insertTriggerRef = useRef<HTMLButtonElement>(null);
   const insertMenuRef = useRef<HTMLDivElement>(null);
   const insertSelRef = useRef(0);
@@ -243,13 +332,32 @@ export function Composer({
     ? currentValueFor(palette.command.name, { theme, accent, approvals, density, reasoning })
     : undefined;
 
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      for (const attachment of attachmentsRef.current) {
+        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+      }
+    };
+  }, []);
+
   const submitAndClear = async (line: string, originalDraft = draft) => {
     if (submitPending.current) return;
     submitPending.current = true;
     try {
-      const accepted = await onSubmit(line);
+      const prompt = line.startsWith("/")
+        ? line
+        : [line, ...attachments.map((attachment) => attachment.token)].filter(Boolean).join(" ");
+      const accepted = await onSubmit(prompt);
       if (accepted) {
         setDraft((current) => current === originalDraft ? "" : current);
+        for (const attachment of attachments) {
+          if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+        }
+        setAttachments([]);
       }
     } finally {
       submitPending.current = false;
@@ -523,14 +631,14 @@ export function Composer({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       const line = draft.trim();
-      if (!line) return;
+      if (!line && !attachments.length) return;
       void submitAndClear(line);
     }
   };
 
   const submitDraft = () => {
     const line = draft.trim();
-    if (!line) return;
+    if (!line && !attachments.length) return;
     void submitAndClear(line);
   };
 
@@ -575,6 +683,98 @@ export function Composer({
     event.preventDefault();
     const textarea = event.currentTarget;
     runPasteClipboard(textarea.selectionStart, textarea.selectionEnd);
+  };
+
+  const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (disabled || !hasFilePayload(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current += 1;
+    setDropTarget(true);
+  };
+
+  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (disabled || !hasFilePayload(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    setDropTarget(true);
+  };
+
+  const onDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (disabled || !hasFilePayload(event.dataTransfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDropTarget(false);
+  };
+
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = 0;
+    setDropTarget(false);
+
+    const dropped = Array.from(event.dataTransfer.files) as DroppedFile[];
+    const pathsFromTransfer = transferPaths(event.dataTransfer);
+    const seen = new Set(attachments.map((attachment) => comparablePath(attachment.path)));
+    const next: ComposerAttachment[] = [];
+    let inaccessible = 0;
+    for (const [index, file] of dropped.entries()) {
+      let path = file.path?.trim() ?? "";
+      if (!path) {
+        try {
+          const resolver = window.vibe.getPathForFile;
+          if (typeof resolver === "function") path = resolver(file).trim();
+        } catch {
+          path = "";
+        }
+      }
+      if (!path) {
+        path = pathsFromTransfer[index] ?? pathsFromTransfer.find((candidate) => fileName(candidate) === file.name) ?? "";
+      }
+      if (!path) {
+        inaccessible += 1;
+        continue;
+      }
+      path = normalizedPath(path);
+      const key = comparablePath(path);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const token = attachmentToken(path, cwd);
+      const isImage = file.type.startsWith("image/") || IMAGE_EXTENSIONS.has(pathExtension(path));
+      next.push({
+        id: `${path}:${file.lastModified}:${file.size}`,
+        name: fileName(path),
+        path,
+        token,
+        isImage,
+        size: file.size,
+        previewUrl: isImage ? URL.createObjectURL(file) : null,
+      });
+    }
+
+    if (!dropped.length) {
+      onPasteError("Drop an image or file onto the composer.");
+      return;
+    }
+    if (!next.length) {
+      onPasteError(
+        inaccessible > 0
+          ? "Couldn’t access that file. Try dropping it directly from Finder."
+          : "Those files are already attached.",
+      );
+      return;
+    }
+    setAttachments((current) => [...current, ...next]);
+    window.requestAnimationFrame(() => ref.current?.focus());
+  };
+
+  const removeAttachment = (attachment: ComposerAttachment) => {
+    if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachments((current) => current.filter((item) => item.id !== attachment.id));
+    window.requestAnimationFrame(() => ref.current?.focus());
   };
 
   /** Paste from the system clipboard at the caret (insert-menu action, I27). */
@@ -844,9 +1044,52 @@ export function Composer({
         : "Ask to build, fix, explain, or review…";
 
   return (
-    <div className={`composer-wrap${busy ? " is-busy" : ""}${planPending ? " is-plan" : ""}`} ref={wrapRef}>
+    <div
+      className={`composer-wrap${busy ? " is-busy" : ""}${planPending ? " is-plan" : ""}${dropTarget ? " is-drop-target" : ""}`}
+      ref={wrapRef}
+      role="region"
+      aria-label="Message composer"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       {slashMenu}
       {insertMenu}
+      {attachments.length > 0 ? (
+        <div className="composer-attachments" aria-label={`${attachments.length} attached file${attachments.length === 1 ? "" : "s"}`}>
+          {attachments.map((attachment) => (
+            <div className="composer-attachment" key={attachment.id} title={attachment.path}>
+              <span className={`composer-attachment-preview${attachment.isImage ? " is-image" : ""}`}>
+                {attachment.previewUrl ? (
+                  <img src={attachment.previewUrl} alt="" />
+                ) : (
+                  <IconFile size={16} />
+                )}
+              </span>
+              <span className="composer-attachment-copy">
+                <span className="composer-attachment-name">{attachment.name}</span>
+                <span className="composer-attachment-kind">{attachment.isImage ? "Image" : "File"}</span>
+              </span>
+              <button
+                type="button"
+                className="composer-attachment-remove"
+                onClick={() => removeAttachment(attachment)}
+                aria-label={`Remove ${attachment.name}`}
+                title={`Remove ${attachment.name}`}
+              >
+                <IconRemove size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {dropTarget ? (
+        <div className="composer-drop-overlay" role="status" aria-live="polite">
+          <span className="composer-drop-icon"><IconPaperclip size={16} /></span>
+          <span><strong>Release to attach</strong><small>Images, code, and documents</small></span>
+        </div>
+      ) : null}
       <div className="composer-row">
         <textarea
           ref={ref}
@@ -976,7 +1219,7 @@ export function Composer({
                 type="button"
                 className="composer-submit"
                 onClick={submitDraft}
-                disabled={!draft.trim()}
+                disabled={!draft.trim() && attachments.length === 0}
                 aria-label="Send message"
               >
                 <IconSend />

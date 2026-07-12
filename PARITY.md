@@ -1,6 +1,6 @@
 # CLI ↔ Electron parity checklist
 
-Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 76 tests), `npm run test:e2e` (10 scenarios), plus `npm run verify:source-parity`.
+Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 98 tests), `npm run test:e2e` (10 scenarios), plus `npm run verify:source-parity`.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
@@ -85,13 +85,20 @@ to weaken the parity guard.
 - [x] Project/session rename, archive, and delete menus with in-app confirmation; project menus escape rail clipping
 - [x] `/jobs` drawer: live auto-follow terminal (full outputTail, stick-to-bottom, jump-to-latest); Close without Esc chip; quiet status/link chips
 - [x] `@` fuzzy file attach (TUI `file-fuzzy` ranking)
+- [x] Finder drag/drop for images and files: removable chips, mixed batches,
+  duplicate normalization, native Electron path resolution, and `file://` /
+  plain-text path fallbacks
 - [x] Clipboard image → `@.vibe/clipboard/….png` (⌘V)
 - [x] External-editor compose (⌘G; empty/non-zero keeps draft)
 - [x] Theme / accent via engine events → CSS variables; value menu marks current
 - [x] Theme palette also drives native control/dialog color scheme
 - [x] Goal header ★ + phase/round; git dirty count / ahead / behind
 - [x] Composer status: model · changed +/− · ctx% (hot ≥80%) · tokens · cost · queue · working
-- [x] Inspector (⇧⌘I): dynamic session/file title, shared activity sections, in-panel file preview + Reveal, checkpoints undo/redo; subagent rows remain static and non-expandable
+- [x] Inspector (⇧⌘I): dynamic session/file title, shared activity sections,
+  changed-file Diff/File review with line gutters, in-panel file preview +
+  Reveal, checkpoints undo/redo; subagent rows remain static and non-expandable
+- [x] Project and Session rails: pointer and Arrow/Home/End keyboard resizing,
+  persisted widths, and hidden handles in narrow drawer layouts
 - [x] `/keys` local help surface
 - [x] Onboarding points at shared `~/.config/vibe-codr/config.json`
 - [x] Plugins / custom commands via `snapshot.commandNames` (no install UI — same as TUI)
@@ -354,7 +361,7 @@ npm run dev
 - [x] Formatting in markdown-blocks, rich-blocks, spinner synced to match
   upstream TUI exactly (import paths only difference)
 - [x] 2 new unit tests: subagent-started in-place update + fresh-id append
-- [x] 76 unit tests, 10 e2e tests, 19 source pairs, lint, typecheck all green
+- [x] 98 unit tests, 10 e2e tests, 19 source pairs, lint, typecheck all green
 
 ## Settings & Git integration (2026-07-12)
 
@@ -394,3 +401,23 @@ npm run dev
   trailing commas, string-aware comment stripping) + git operations (repo
   detection, status parsing, branch listing, commit history)
 - [x] 98 unit tests, lint, typecheck, build, bundle, source parity all green
+
+## Attachments, review, and final renderer polish (2026-07-12)
+
+- [x] Finder drag/drop accepts image and file batches with removable chips,
+  image previews, duplicate normalization, and project-aware `@` references
+- [x] Native dropped-file resolution uses Electron `webUtils.getPathForFile`,
+  then `text/uri-list` and `text/plain` Finder path fallbacks for environments
+  where `File.path` is empty
+- [x] Session inspector changed files retain their latest unified diff and open
+  in a toggleable Diff/File review surface with line gutters and Reveal
+- [x] Project and Session rails expose pointer and Arrow/Home/End keyboard
+  resizing with persisted desktop widths and responsive drawer fallbacks
+- [x] User-message Copy/Edit/time actions sit beside the bubble; assistant
+  actions remain below assistant responses
+- [x] Metadata, costs, model/session telemetry, and section headings use the
+  shared sans UI font; mono remains reserved for code and raw output
+- [x] Preview harness covers `attachments`, `settings`, `git`, light mode, and
+  Finder-style URI fallback behavior
+- [x] 98 unit tests, 10 E2E scenarios, lint, typecheck, build, bundle, source
+  parity, and bridge smoke all pass

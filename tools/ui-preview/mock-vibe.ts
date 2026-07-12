@@ -27,12 +27,13 @@
  *   toast       — finished chat with a toast banner
  *   density-quiet / density-verbose — details density cue in composer
  *   ctx-hot     — high context % (topbar warn chip at laptop width)
+ *   attachments — composer with dropped image + source file references
  *
  * This file never ships in the app bundle — it is dev tooling only.
  */
 import type { UIEvent } from "../../src/shared/events";
-import type { EngineSnapshot, JobInfo, Task } from "../../src/shared/types";
 import type { ProjectSummary } from "../../src/shared/protocol";
+import type { EngineSnapshot, JobInfo, Task } from "../../src/shared/types";
 
 type EventCb = (event: unknown) => void;
 
@@ -237,6 +238,29 @@ function setComposerDraft(value: string): void {
 function pressComposerEnter(): void {
   const el = document.querySelector<HTMLTextAreaElement>(".composer-input");
   el?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+}
+
+function previewDropAttachments(): void {
+  const composer = document.querySelector<HTMLElement>(".composer-wrap");
+  if (!composer) return;
+  const png = Uint8Array.from(
+    atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="),
+    (char) => char.charCodeAt(0),
+  );
+  const image = new File([png], "Reference frame.png", { type: "image/png" }) as File & { path?: string };
+  const source = new File(["export function Panel() { return null; }\n"], "Panel.tsx", { type: "text/typescript" }) as File & { path?: string };
+  Object.defineProperty(source, "path", { value: `${CWD}/src/components/Panel.tsx` });
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(image);
+  dataTransfer.items.add(source);
+  for (const type of ["dragenter", "dragover"]) {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+    composer.dispatchEvent(event);
+  }
+  const drop = new Event("drop", { bubbles: true, cancelable: true });
+  Object.defineProperty(drop, "dataTransfer", { value: dataTransfer });
+  composer.dispatchEvent(drop);
 }
 
 /* ────────────────────────── scenario timelines ────────────────────────── */
@@ -606,7 +630,7 @@ async function runTimeline(): Promise<void> {
       await chatTurn();
       await inspectorExtras();
       await sleep(80);
-      document.querySelector<HTMLButtonElement>('[aria-label="Toggle session panel"]')?.click();
+      document.querySelector<HTMLButtonElement>('[aria-label="Show session panel"]')?.click();
       break;
     case "toast":
       await chatTurn();
@@ -626,6 +650,10 @@ async function runTimeline(): Promise<void> {
         usedTokens: 188_000,
         contextWindow: 200_000,
       });
+      break;
+    case "attachments":
+      await sleep(240);
+      previewDropAttachments();
       break;
     default:
       await chatTurn();
@@ -705,6 +733,7 @@ const mock = {
   }),
   composeInEditor: async () => ({ ok: false, reason: "no-editor" as const }),
   getPath: async () => "/Users/rob",
+  getPathForFile: (file: File & { path?: string }) => file.path ?? `${CWD}/${file.name}`,
   listFiles: async ({ query }: { query: string }) => {
     const q = query.toLowerCase();
     return FILES.filter((f) => f.toLowerCase().includes(q)).slice(0, 8);

@@ -95,7 +95,7 @@ describe("transcript reducer", () => {
       diff: "+x",
     });
     expect(s.blocks[0]).toMatchObject({ kind: "tool", isDiff: true, done: true });
-    expect(s.changedFiles).toEqual([{ path: "a.ts", added: 1, removed: 0 }]);
+    expect(s.changedFiles).toEqual([{ path: "a.ts", added: 1, removed: 0, diff: "+x" }]);
   });
 });
 

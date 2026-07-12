@@ -21,6 +21,7 @@ import {
   IconSidebar,
   IconGitBranch,
 } from "../icons";
+import { SidebarResizeHandle } from "./SidebarResizeHandle";
 
 type SessionMenu = {
   kind: "session";
@@ -610,6 +611,18 @@ export function ProjectRail({
           <span>Settings</span>
         </button>
       </div>
+
+      {open && (
+        <SidebarResizeHandle
+          side="start"
+          cssVar="--project-rail-w"
+          defaultWidth={288}
+          min={240}
+          max={420}
+          storageKey="vibe.project-rail-width"
+          label="Resize project sidebar"
+        />
+      )}
 
       {menu && createPortal(
         <div

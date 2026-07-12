@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { EngineCommand } from "../shared/commands";
 import type {
   ConfigReadResult,
@@ -72,6 +72,7 @@ export interface VibeApi {
   >;
   composeInEditor(draft: string): Promise<{ ok: boolean; text?: string; reason?: "failed" | "no-editor" | "kept"; error?: string }>;
   getPath(name: "home" | "userData"): Promise<string>;
+  getPathForFile(file: File): string;
   listFiles(opts: { cwd: string; query: string; limit?: number }): Promise<string[]>;
   pasteClipboard(cwd?: string): Promise<
     | { kind: "image"; path: string }
@@ -139,6 +140,7 @@ const api: VibeApi = {
   pasteClipboard: (cwd) => ipcRenderer.invoke("clipboard:paste", { cwd }),
   composeInEditor: (draft) => ipcRenderer.invoke("editor:compose", draft),
   getPath: (name) => ipcRenderer.invoke("app:getPath", name),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   listFiles: (opts) => ipcRenderer.invoke("fs:listFiles", opts),
   globalConfigPath: () => ipcRenderer.invoke("config:globalPath"),
 

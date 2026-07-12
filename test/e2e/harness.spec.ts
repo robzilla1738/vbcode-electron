@@ -99,6 +99,7 @@ test("renames, archives, and deletes saved sessions through host RPC", async () 
 test("streams reasoning, tools, diffs, markdown, telemetry, and engine-idle", async () => {
   await submit("fixture:stream");
   await expect(page.getByText("Done with markdown.")).toBeVisible();
+  await page.locator("details.thinking-group > summary").first().click();
   await expect(page.getByRole("button", { name: /edited src\/example\.ts/ })).toBeVisible();
   await expect(page.getByText("fixture:stream")).toBeVisible();
   await expect(page.getByText(/15 tok/)).toBeVisible();
@@ -139,7 +140,7 @@ test("contains hostile markdown and applies CLI theme events", async () => {
   expect(lightRoles).toMatchObject({
     background: "#f8f8f7",
     elevated: "#ffffff",
-    muted: "#5f6878",
+    muted: "#68707a",
   });
   expect(lightRoles.contentBackground).not.toBe("rgba(0, 0, 0, 0)");
   expect(lightRoles.railBackground).not.toBe("rgba(0, 0, 0, 0)");
@@ -187,6 +188,7 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Session details" })).toBeHidden();
   await page.getByRole("button", { name: "Toggle background jobs" }).click();
+  await page.locator("details.thinking-group > summary").first().click();
   await page.getByRole("button", { name: /Expand.*search.*fixture/ }).click();
   await expect(page.getByRole("link", { name: "Fixture search" })).toBeVisible();
 });

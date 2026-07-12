@@ -2,7 +2,7 @@
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
 > Last updated: 2026-07-12 (current UI, host, icon, and publication audit)
-> Status: implementation complete; publication gates require the sibling parity and bundle follow-ups recorded below
+> Status: implementation complete; automated publication gates are green on 2026-07-12
 
 ## Summary
 
@@ -46,21 +46,21 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | A21 | P0 | Catalogs | Models/providers/agents | Main/subagent/agent targets, current markers, inherit clearing, configured/keyless provider flows, and new-agent prefills produce valid CLI commands. | test: catalog option builders; manual: each target/provider path | pass |
 | A22 | P0 | Catalogs | Skills and MCP | Skills prefill editable invocations; MCP status reflects connected state, tool count, and error data from host RPC. | test: catalog normalization; manual: live skills and MCP rosters | pass |
 | A23 | P0 | Catalogs | Dialog semantics | Catalog dialogs trap focus, support arrows/Enter/Escape, restore focus, report RPC failure, and never submit empty placeholders. | e2e: all live catalogs + Escape; review:`CatalogModal.tsx` native dialog semantics | pass |
-| A24 | P0 | Files | At mentions | `@` detects the active query, fuzzy-ranks project files like the CLI, inserts the selection, and handles empty/error results. | test: mention/fuzzy parity; e2e: README selection | pass |
+| A24 | P0 | Files | At mentions and drop attachments | `@` detects the active query, fuzzy-ranks project files like the CLI, inserts the selection, and handles empty/error results. Finder drag/drop accepts images and files, resolves native Electron paths or `file://`/plain-text fallbacks, previews images, and supports removal. | test: mention/fuzzy parity; e2e: README selection; preview: `attachments`; manual: Finder image/file drop | pass |
 | A25 | P0 | Files | Clipboard images | Cmd-V writes a clipboard image through main/preload and inserts a usable `.vibe/clipboard` mention; failures preserve the draft. | e2e: native clipboard image creates and inserts project-relative path | pass |
 | A26 | P0 | Editor | External compose | Cmd-G round-trips the draft through `$VISUAL`/`$EDITOR`; empty or nonzero exits preserve the original draft and focus. | test:`editor-compose.test.ts`; e2e: replacement + focus restoration | pass |
 | A27 | P0 | Jobs | Jobs view | `/jobs` toggles a navigable view with accurate status and safe localhost links; Escape returns to the transcript. | e2e: empty and active jobs, localhost link, Escape | pass |
-| A28 | P0 | Inspector | Context and checkpoints | Inspector exposes context, changed files, checkpoints with undo/redo commands, and DAG/task state without duplicating engine state; subagent activity is represented by compact non-expandable status rows. | e2e: checkpoint, DAG, static subagent rows, Escape | pass |
+| A28 | P0 | Inspector | Context, review, and checkpoints | Inspector exposes context, changed files, Diff/File review with line gutters and Reveal, checkpoints with undo/redo commands, and DAG/task state without duplicating engine state; subagent activity is represented by compact non-expandable status rows. | e2e: checkpoint, DAG, static subagent rows, Escape; preview: `git`/`inspector` | pass |
 | A29 | P0 | Status | Session telemetry | Header/composer show model, mode, goal phase/round, git state, changed lines, context pressure, tokens, cost, queue, and working state from snapshots/events. | test: chrome/event reducers; manual: live session status comparison | pass |
 | A30 | P0 | Themes | CLI theme semantics | Every CLI theme/accent maps semantic roles, updates from engine events, marks the current value, and drives native control color scheme. | test: theme registry/scheme; manual: light and dark theme sweep | pass |
 | A31 | P0 | Keyboard | Reachability | All essential CLI-equivalent actions are keyboard reachable with documented shortcuts and deterministic priority when states overlap. | test: key help/parsers; e2e: dialogs, cards, Escape, editor, composer | pass |
 | A32 | P0 | Accessibility | Desktop accessibility | Controls have names, focus indicators, semantic roles, reduced-motion support, AA contrast, and work at 200% zoom without lost actions. | e2e: role-based controls, flat focus state, 200% zoom; review: reduced-motion CSS | pass |
 | A33 | P0 | Resilience | Empty/error/narrow states | First run, no sessions, no catalog results, RPC errors, host disconnect, long text, and narrow window states remain understandable and recoverable. | test: bridge/error cases; e2e: empty jobs + 200% zoom; review: empty/error surfaces | pass |
 | A34 | P0 | Quality | Source parity guard | Pure modules ported from TUI have drift-detection coverage or shared fixtures so upstream changes cannot silently break parity. | script: source parity audit; test: shared behavioral vectors | pass |
-| A35 | P0 | Quality | Verification gates | Lint, unit tests, source parity, typecheck, production build, bundle budget, bridge smoke, and focused UI smoke are documented and must pass before release. | script:`npm run verify && npm run smoke:bridge && npm run test:e2e` | attention |
+| A35 | P0 | Quality | Verification gates | Lint, unit tests, source parity, typecheck, production build, bundle budget, bridge smoke, and focused UI smoke are documented and must pass before release. | script:`npm run verify && npm run smoke:bridge && npm run test:e2e` | pass |
 | A36 | P0 | Packaging | Standalone app | Packaged app includes/resolves the engine host without `VIBE_CODR_ROOT`, launches, opens a project, runs a turn, and shuts down cleanly. | script:`npm run pack && npm run smoke:packaged` | pass |
-| A37 | P1 | Layout | Desktop composition | Rail, edge-to-edge transcript pane, composer, approval panels, and activity surfaces preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints; output and composer share the reading measure. | review: responsive shell CSS; e2e: 200% zoom reachability | pass |
-| A38 | P1 | Typography | Dense readability | Prose, labels, metadata, and controls use a uniform sans system; monospace is reserved for real code (fences, tool/diff/job output, wordmark). Source cards and memory notices have readable hierarchy. | review: locked tokens + Streamdown Shiki code blocks | pass |
+| A37 | P1 | Layout | Desktop composition and resizing | Rail, edge-to-edge transcript pane, composer, approval panels, and activity surfaces preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints; output and composer share the reading measure. Desktop rails resize by pointer or keyboard, persist their widths, and become drawer-safe on narrow layouts. | review: responsive shell CSS; e2e: 200% zoom reachability; manual: drag and keyboard rail handles | pass |
+| A38 | P1 | Typography | Dense readability | Prose, labels, metadata, and controls use a uniform sans system with normal tracking; monospace is reserved for real code (fences, tool/diff/job output, wordmark). Source cards and memory notices have readable hierarchy. | review: locked tokens + Streamdown Shiki code blocks; preview: `settings`/`git` | pass |
 | A39 | P1 | Interaction | Motion and feedback | Hover, focus, open/close, streaming, folding, and spinner feedback are restrained, interruptible, and reduced-motion aware. | design lint; e2e: focus/working states; review: reduced-motion CSS | pass |
 | A40 | P1 | Polish | Native desktop finish | Chrome tint, continuous full-surface frosted composer + bottom veil, backgroundless white Copy/Edit icons, optically sized macOS app icon, portal menus, dialogs, overlay scrollbars, truncation, source cards, and empty/error copy feel intentional while preserving theme semantics. | design lint + renderer code audit | pass |
 
@@ -85,23 +85,25 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | 2026-07-11 | Grok | 36/36 | 4/4 | Presentation polish: VC app icon, Cursor-like queue card, composer frost/veil, fixed ⋯ menu anchor/toggle, overlay scrollbars, hover copy gutters, Streamdown hierarchy + table/source polish. 74 tests; lint/typecheck green; docs fully synced. |
 | 2026-07-12 | Codex | 36/36 | 4/4 | Final UI and host hardening: optically padded macOS icon, edge-to-edge chat pane, continuous composer blur, clean white Copy/Edit icons, static subagent spinner/check rows, stale compiled-host fallback, and approved background-dev-server flow. 74 unit tests, 10 E2E scenarios, lint, typecheck, build, bridge smoke, and diff checks pass; sibling source parity and bundle budget remain attention gates. |
 | 2026-07-12 | Codex | n/a | n/a | Renderer interaction polish: compact grouped Thinking disclosure with uniform tool/thought rows, quiet expandable memory notes, busy-only active-session spinner, normalized Workspace sans typography, and tightened project-rail affordances. 76 unit tests, typecheck, lint, diff checks, browser interaction checks, and the full UI preview matrix pass. |
+| 2026-07-12 | Codex | 36/36 | 4/4 | Complete attachment/review/resize and documentation pass: Finder image/file drops resolve native paths with URI/plain-text fallback, duplicate and inaccessible states are distinct, changed files support Diff/File review and Reveal, desktop rails resize by pointer or keyboard with persistence, and message actions are positioned beside user bubbles with hover timestamps. 98 unit tests, 10 E2E scenarios, lint, typecheck, build, bundle budget, source parity, bridge smoke, and docs checks pass. |
 
 ## Sign-off
 
-- [ ] All P0 rows are `pass` — A34/A35 remain attention items until sibling parity and the renderer bundle budget are reconciled.
+- [x] All P0 rows are `pass`
 - [x] No P0 row is `visual-only`
 - [x] Verification commands were run (list below)
 
 **Current verification snapshot (2026-07-12):**
 
 ```text
-npm test                         # 76/76 pass
-npm run lint                     # clean; 89 files checked
+npm test                         # 98/98 pass
+npm run lint                     # clean; 118 files checked
 npm run typecheck                # pass
 npm run build                    # pass
 npm run build:icon               # icon PNG/ICNS regeneration pass
 npm run test:e2e                 # 10/10 pass
 npm run verify:source-parity     # pass (19 source pairs, drift+extras flags fixed)
-npm run verify:bundle            # attention: 1.879 MB vs 1.85 MB chunk budget (pre-existing)
-npm run verify                   # blocked by the bundle budget gate only
+npm run verify:bundle            # pass; 2,023,589 total / 2,022,915 largest chunk bytes
+npm run verify                   # pass
+npm run smoke:bridge             # pass; ready, snapshot, and project-list checks
 ```

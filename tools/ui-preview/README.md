@@ -17,11 +17,14 @@ npm run ui:shots -- tools/ui-preview/shots
 
 Scenarios: `welcome`, `splash` (quiet empty home + composer), `chat`, `table`,
 `docs`, `sources`, `busy`, `permission`, `plan`, `gate`, `mode`, `queue`,
-`onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`, `jobs`,
-`inspector`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot`, `settings`, `git`
-— plus `&theme=<name>` for any registered TUI theme (e.g.
+`onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`, `attachments`,
+`jobs`, `inspector`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot`,
+`settings`, `git` — plus `&theme=<name>` for any registered TUI theme (e.g.
 `?scenario=chat&theme=opencode`). Shots also capture `busy-narrow`, `busy-wide`,
-`light`, and `theme-opencode`.
+`light`, and `theme-opencode`. `attachments` previews the dropped-image and
+file-reference composer state, including Finder-style URI path fallback. The
+`inspector` scenario exercises the Session panel and changed-file review flow;
+`settings` and `git` cover full-workspace sidebars.
 
 Dev tooling only: nothing in this folder ships in the app bundle, and the mock
 event timelines live entirely in `mock-vibe.ts`.

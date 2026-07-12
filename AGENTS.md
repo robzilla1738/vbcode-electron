@@ -22,8 +22,12 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | Host spawn + NDJSON | `src/main/engine-bridge.ts`, `host-resolver.ts` (freshness-checked compiled host) |
 | App icon | `assets/icon.png` → `npm run build:icon` → `assets/icon.icns`; unpackaged dock via `src/main/index.ts` |
 | IPC surface | `src/preload/index.ts` → `window.vibe` |
+| Native dropped-file paths | `src/preload/index.ts` → `window.vibe.getPathForFile`; `src/renderer/composer/Composer.tsx` fallback parsing |
 | Session / event wiring | `src/renderer/hooks/useSession.ts` |
 | Keyboard + submit routing | `src/renderer/App.tsx` |
+| Composer attachments | `src/renderer/composer/Composer.tsx` |
+| Resizable rails | `src/renderer/layout/SidebarResizeHandle.tsx`, `ProjectRail.tsx` |
+| Session review | `src/renderer/panels/Inspector.tsx` |
 | Icons (Lucide wrappers) | `src/renderer/icons.tsx`, `tool-glyph.tsx` |
 | Contracts | `src/shared/commands.ts`, `events.ts`, `protocol.ts` |
 | Breakpoints | `src/shared/breakpoints.ts` (`wide` JS-only; laptop→narrow sync CSS `@media`) |
@@ -58,7 +62,7 @@ cd ~/Code/vibe-codr && bun run build:macos-bridge
 - Mirror TUI `packages/tui/src/app.tsx` semantics first; then macOS `PARITY.md` for GUI-adapted cases.
 - Update `PARITY.md` checkboxes when you close a gap.
 - Add a Vitest case in `src/shared/parity.test.ts` for pure logic (slash, reducer, fuzzy, chrome-seed).
-- Keep interaction contracts current: the Session inspector is explicitly toggled, project menus support rename/archive/delete, subagent rows are static status summaries, and user turns fold from the message itself.
+- Keep interaction contracts current: the Session inspector is explicitly toggled, project menus support rename/archive/delete, subagent rows are static status summaries, user turns fold from the message itself, user Copy/Edit actions sit beside the user bubble while assistant Copy stays below assistant output, Finder drops resolve native paths with URI/plain-text fallback, changed files support Diff/File review and Reveal, and desktop rails support pointer/keyboard resizing with persisted widths.
 
 ## When changing UI presentation (design system)
 
@@ -88,7 +92,7 @@ All renderer styling lives in `src/renderer/styles.css`, token-first. Rules:
    `` `code` ``, tool/diff/job output bodies, ASCII wordmark, and rich chart
    glyphs. (TUI still uses mono machine-voice labels in the CLI.)
 6. **Verify visually with the preview harness** (no engine needed):
-   `npm run ui:preview`, then `?scenario=welcome|splash|chat|table|docs|sources|busy|permission|plan|gate|mode|queue|onboarding|slash|catalog|catalog-draft|mention|jobs|inspector|toast|density-quiet|density-verbose|ctx-hot`
+   `npm run ui:preview`, then `?scenario=welcome|splash|chat|table|docs|sources|busy|permission|plan|gate|mode|queue|onboarding|slash|catalog|catalog-draft|mention|attachments|jobs|inspector|toast|density-quiet|density-verbose|ctx-hot`
    plus `settings` and `git` for the new panels; plus `&theme=<name>`; `npm run ui:shots` captures the matrix headlessly
    (`npx playwright install chromium` once). Screenshot before/after when
    touching shared primitives.

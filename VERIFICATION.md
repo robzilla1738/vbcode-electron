@@ -16,21 +16,17 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (currently 76 tests), Playwright Electron E2E green (10
-scenarios), upstream source pairs aligned,
-Biome and `tsc` clean, electron-vite build and renderer bundle budget OK, and
-smoke prints `ready` + `snapshot ok`. `npm run verify` runs the non-E2E subset
-as one gate.
+Expect: Vitest green (currently 98 tests), Playwright Electron E2E green (10
+scenarios), all 19 upstream source pairs aligned, Biome and `tsc` clean,
+electron-vite build and renderer bundle budget OK, and smoke prints `ready` +
+`snapshot ok`. `npm run verify` runs the non-E2E subset as one gate.
 
 The source-parity command compares against the live sibling checkout selected
 by `VIBE_CODR_ROOT` or `~/Code/vibe-codr`. Keep that checkout on the revision
-expected by this repository before calling the full gate green. On 2026-07-12, source parity was fixed: the parity script now allows
-intentional Electron-specific additions (reducer isMarkdown, density isMarkdown
-check, tool-icons permission functions, themes Electron palette, protocol
-encodeInbound) and normalizes whitespace to avoid false formatting drift.
-Formatting in markdown-blocks, rich-blocks, and spinner was synced to match
-upstream exactly. The renderer bundle measures 1.879 MB against the historical
-1.85 MB single-chunk budget and requires a budget/size follow-up before release.
+expected by this repository before calling the full gate green. The parity
+script allows intentional Electron-specific additions and normalizes
+whitespace to avoid false formatting drift. On the current checkout, all 19
+source pairs pass and the renderer bundle is within its configured budget.
 
 GitHub CI repeats this gate plus Electron E2E on Linux and an unsigned bundled-host smoke on macOS. Public signing/notarization remains a release-credential step.
 
@@ -45,14 +41,17 @@ npm run ui:shots -- tools/ui-preview/shots
 Visually sweep the scenario matrix (`welcome`, `splash`, `chat`, `table`,
 `docs`, `sources`, `busy`, `permission`, `plan`, `gate`, `mode`, `queue`,
 `onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`, `jobs`,
-`inspector`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot`) in the
-default theme, plus `&theme=light` and one accent theme (e.g.
+`attachments`, `inspector`, `settings`, `git`, `toast`, `density-quiet`,
+`density-verbose`, `ctx-hot`) in the default theme, plus `&theme=light` and one accent theme (e.g.
 `&theme=opencode`). Focus rings must be visible keyboard-only, overlays must
 animate (and respect reduced motion), and no surface may lose theme colors.
 Confirm queue is one card above the composer, Copy/Edit actions are clean white
 icons without filled backgrounds, scrollbars stay overlay-only, the chat pane
 reaches its workspace edges, and the composer’s continuous frost fully blurs
-text that scrolls underneath, including at the top edge.
+text that scrolls underneath, including at the top edge. Confirm the
+attachments scenario accepts images/files, the Session panel opens changed
+files in Diff/File mode, metadata uses the primary sans font, and rail resize
+handles respond to pointer and keyboard input.
 
 ## Packaged app
 
@@ -95,5 +94,13 @@ npm run dev
 15. Hover an assistant response — confirm clean white Copy/Edit icons appear below it; inspect a subagent row — confirm spinner/check status and no detail expansion.
 16. `/clear` mid-turn — abort + empty transcript.
 17. Quit app — host finalizes (no orphan process).
+18. Drag one image and one file from Finder onto the composer; confirm both
+    become removable chips, image previews render, spaces in names survive, and
+    submit references the project-aware paths.
+19. Drop the same Finder file twice; confirm only one chip is retained and the
+    duplicate toast appears only for the second drop.
+20. Open Session, select a changed file, switch Diff/File, use Reveal, and drag
+    both the project and Session rail handles; verify keyboard Arrow/Home/End
+    resizing and width persistence after reopening.
 
 Full matrix: [PARITY.md](./PARITY.md).

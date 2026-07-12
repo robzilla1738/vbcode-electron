@@ -30,6 +30,10 @@ function scrollBehavior(pref: ScrollBehavior): ScrollBehavior {
   return pref === "smooth" && prefersReducedMotion() ? "auto" : pref;
 }
 
+function formatMessageTime(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(timestamp);
+}
+
 function memoryNotice(text: string): { count: string; details: string[] } | null {
   const match = text.match(
     /^Recalled\s+(\d+)\s+prior note\(s\)(?:\s*\([^)]*\))?:\s*([\s\S]*)$/i,
@@ -96,14 +100,12 @@ function ThinkingGroup({
   theme,
   now,
   onToggle,
-  onEdit,
 }: {
   blocks: ActivityBlock[];
   density: TranscriptDensity;
   theme: string;
   now: number;
   onToggle: (id: number) => void;
-  onEdit: (text: string) => void;
 }) {
   const [expanded, setExpanded] = useState(density === "verbose");
   const items = blocks.filter((block) => block.kind !== "thinking" || showThinkingRows(density));
@@ -136,7 +138,6 @@ function ThinkingGroup({
             theme={theme}
             now={now}
             onToggle={onToggle}
-            onEdit={onEdit}
           />
         ))}
       </div>
@@ -150,14 +151,12 @@ function BlockView({
   theme,
   now,
   onToggle,
-  onEdit,
 }: {
   block: Block;
   density: TranscriptDensity;
   theme: string;
   now: number;
   onToggle: (id: number) => void;
-  onEdit: (text: string) => void;
 }) {
   switch (block.kind) {
     case "assistant":
@@ -171,15 +170,9 @@ function BlockView({
           {!block.streaming && block.text ? (
             <div className="assistant-actions" role="toolbar" aria-label="Assistant message actions">
               <CopyButton text={block.text} label="Copy answer" />
-              <button
-                type="button"
-                className="assistant-action"
-                onClick={() => onEdit(block.text)}
-                aria-label="Edit response"
-                title="Edit response"
-              >
-                <IconRename size={13} />
-              </button>
+              <time className="message-time" dateTime={new Date(block.timestamp).toISOString()}>
+                {formatMessageTime(block.timestamp)}
+              </time>
             </div>
           ) : null}
         </div>
@@ -438,7 +431,6 @@ export function TranscriptView({
                     theme={theme}
                     now={now}
                     onToggle={onToggleBlock}
-                    onEdit={onEdit}
                   />,
                 );
                 continue;
@@ -451,7 +443,6 @@ export function TranscriptView({
                   theme={theme}
                   now={now}
                   onToggle={onToggleBlock}
-                  onEdit={onEdit}
                 />,
               );
               index += 1;
@@ -461,25 +452,45 @@ export function TranscriptView({
                 <div className="turn-content" id={`turn-items-${turn.key}`}>
                   {turn.user && (
                     <div className="block-user-row">
-                      <div
-                        className="block-user"
-                        role="button"
-                        tabIndex={0}
-                        aria-expanded={!folded}
-                        aria-controls={`turn-items-${turn.key}`}
-                        aria-label={folded ? "Expand user message" : "Collapse user message"}
-                        onClick={() => onToggleTurn(turn.key)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            onToggleTurn(turn.key);
-                          }
-                        }}
-                      >
-                        <span className="block-user-text">{turn.user.text}</span>
-                        {folded ? (
-                          <span className="folded-hint">{turn.items.length} hidden</span>
-                        ) : null}
+                      <div className="block-user-stack">
+                        <div
+                          className="block-user"
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={!folded}
+                          aria-controls={`turn-items-${turn.key}`}
+                          aria-label={folded ? "Expand user message" : "Collapse user message"}
+                          onClick={() => onToggleTurn(turn.key)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              onToggleTurn(turn.key);
+                            }
+                          }}
+                        >
+                          <span className="block-user-text">{turn.user.text}</span>
+                          {folded ? (
+                            <span className="folded-hint">{turn.items.length} hidden</span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="assistant-actions user-message-actions" role="toolbar" aria-label="User message actions">
+                        <CopyButton text={turn.user.text} label="Copy message" />
+                        <button
+                          type="button"
+                          className="assistant-action"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onEdit(turn.user!.text);
+                          }}
+                          aria-label="Edit message"
+                          title="Edit message"
+                        >
+                          <IconRename size={13} />
+                        </button>
+                        <time className="message-time" dateTime={new Date(turn.user.timestamp).toISOString()}>
+                          {formatMessageTime(turn.user.timestamp)}
+                        </time>
                       </div>
                     </div>
                   )}

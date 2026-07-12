@@ -1338,8 +1338,23 @@ export function App() {
                 />
               )}
               {!session.inspectorOpen &&
-                (hasUnfinishedTasks(chrome.tasks) || chrome.subagents.length > 0) && (
+                (hasUnfinishedTasks(chrome.tasks) ||
+                  chrome.subagents.length > 0 ||
+                  session.transcript.changedFiles.length > 0) && (
                 <div className="panel-strip-compact" role="group" aria-label="Live activity">
+                  {session.transcript.changedFiles.length > 0 && (
+                    <button
+                      type="button"
+                      className="panel-strip-chip"
+                      onClick={() => session.setInspectorOpen(true)}
+                      title="Open the review panel for changed files"
+                    >
+                      <StatusDot status="done" />
+                      <span>
+                        Changed files · {session.transcript.changedFiles.length} · Review
+                      </span>
+                    </button>
+                  )}
                   {hasUnfinishedTasks(chrome.tasks) && (
                     <button
                       type="button"
