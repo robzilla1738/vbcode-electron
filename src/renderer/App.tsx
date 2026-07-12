@@ -282,6 +282,35 @@ export function App() {
     await openProjectAt(path);
   }, [openProjectAt, session]);
 
+  // Application menu actions (File → Open Project, Tools → Settings/Git, etc.)
+  useEffect(() => {
+    const off = window.vibe.onMenuAction((action) => {
+      switch (action) {
+        case "openProject":
+          void openProject();
+          break;
+        case "continueLatest":
+          if (cwd) void session.bootstrap({ cwd, continueLatest: true });
+          break;
+        case "toggleSettings":
+          setSettingsOpen((prev) => !prev);
+          setGitOpen(false);
+          session.setInspectorOpen(false);
+          break;
+        case "toggleGit":
+          if (!cwd) return;
+          setGitOpen((prev) => !prev);
+          setSettingsOpen(false);
+          session.setInspectorOpen(false);
+          break;
+        case "toggleInspector":
+          session.setInspectorOpen(!session.inspectorOpen);
+          break;
+      }
+    });
+    return off;
+  }, [cwd, session, openProject]);
+
   // Restore last project on launch; otherwise load recent projects for the welcome gate.
   useEffect(() => {
     if (didRestoreProject.current) return;

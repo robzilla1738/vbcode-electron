@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, nativeTheme, session, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell } from "electron";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { writeFile, mkdir, readFile, rm } from "node:fs/promises";
 import { existsSync, statSync, readdirSync } from "node:fs";
@@ -94,6 +94,113 @@ function configureDevCsp(): void {
       },
     });
   });
+}
+
+
+/**
+ * Build the application menu — standard macOS/Windows roles plus app-specific
+ * actions (Open Project, Settings, Git). Without a custom menu, Electron's
+ * default lacks app-specific items and some role shortcuts (⌘W, ⌘Q) don't
+ * map to the right actions.
+ */
+function buildApplicationMenu(): void {
+  const isMac = process.platform === "darwin";
+  const menu = Menu.buildFromTemplate([
+    // ── App menu (macOS only — the first item gets the app name) ────────
+    ...(isMac
+      ? [{
+          label: app.name,
+          submenu: [
+            { role: "about" as const },
+            { type: "separator" as const },
+            { role: "services" as const },
+            { type: "separator" as const },
+            { role: "hide" as const },
+            { role: "hideOthers" as const },
+            { role: "unhide" as const },
+            { type: "separator" as const },
+            { role: "quit" as const },
+          ],
+        }]
+      : []),
+    // ── File ────────────────────────────────────────────────────────────
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "Open Project…",
+          accelerator: "CmdOrCtrl+O",
+          click: () => mainWindow?.webContents.send("menu:openProject"),
+        },
+        {
+          label: "Continue Latest Session",
+          accelerator: "CmdOrCtrl+Shift+N",
+          click: () => mainWindow?.webContents.send("menu:continueLatest"),
+        },
+        { type: "separator" as const },
+        { role: "close" as const },
+      ],
+    },
+    // ── Edit (standard clipboard roles) ────────────────────────────────
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" as const },
+        { role: "redo" as const },
+        { type: "separator" as const },
+        { role: "cut" as const },
+        { role: "copy" as const },
+        { role: "paste" as const },
+        { role: "selectAll" as const },
+      ],
+    },
+    // ── View ────────────────────────────────────────────────────────────
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" as const },
+        { role: "forceReload" as const },
+        { role: "toggleDevTools" as const },
+        { type: "separator" as const },
+        { role: "resetZoom" as const },
+        { role: "zoomIn" as const },
+        { role: "zoomOut" as const },
+        { type: "separator" as const },
+        { role: "togglefullscreen" as const },
+      ],
+    },
+    // ── Tools (app-specific) ────────────────────────────────────────────
+    {
+      label: "Tools",
+      submenu: [
+        {
+          label: "Settings…",
+          accelerator: "CmdOrCtrl+,",
+          click: () => mainWindow?.webContents.send("menu:toggleSettings"),
+        },
+        {
+          label: "Git…",
+          accelerator: "CmdOrCtrl+Shift+B",
+          click: () => mainWindow?.webContents.send("menu:toggleGit"),
+        },
+        {
+          label: "Toggle Inspector",
+          accelerator: "CmdOrCtrl+Shift+I",
+          click: () => mainWindow?.webContents.send("menu:toggleInspector"),
+        },
+      ],
+    },
+    // ── Window ──────────────────────────────────────────────────────────
+    {
+      label: "Window",
+      submenu: [
+        { role: "minimize" as const },
+        { role: "zoom" as const },
+        ...(isMac ? [{ type: "separator" as const }, { role: "front" as const }] : []),
+      ],
+    },
+  ]);
+  Menu.setApplicationMenu(menu);
 }
 
 function createWindow(): void {
@@ -391,6 +498,7 @@ function registerIpc(): void {
 
 app.whenReady().then(() => {
   configureDevCsp();
+  buildApplicationMenu();
   applyDevDockIcon();
   wireBridge();
   registerIpc();

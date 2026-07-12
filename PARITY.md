@@ -459,3 +459,26 @@ npm run dev
 - [x] Dead code removed: `OnboardingHint.tsx` + its CSS (replaced by
   `OnboardingModal`)
 - [x] 125+ unit tests, lint, typecheck, build, bundle, source parity all green
+
+## Production hardening round 2 (2026-07-12)
+
+- [x] React ErrorBoundary: catches uncaught render errors so a single component
+  failure doesn't blank the window — shows a recovery card with Reload button
+- [x] Dev-mode CSP relaxation: Vite injects inline scripts (React refresh, HMR)
+  that the production CSP blocks — `onHeadersReceived` injects a dev-friendly
+  CSP only when `ELECTRON_RENDERER_URL` is present; production CSP untouched
+- [x] Application menu: standard macOS roles (App, Edit, View, Window) plus
+  app-specific actions (File → Open Project, Continue Latest; Tools → Settings,
+  Git, Inspector) wired via `onMenuAction` IPC
+- [x] Theme list fix: AppearanceSection had completely wrong theme names
+  (midnight, solarized-dark, github, rose-pine — none exist in the registry).
+  Fixed to use the actual `THEME_NAMES` from `theme-registry.ts` with labels
+- [x] Accent preset swatches: quick-select buttons for the 10 named accent
+  presets from `ACCENT_PRESETS`
+- [x] Curated provider dropdown: ProvidersSection "Add provider" uses a dropdown
+  of the 33 curated `PROVIDER_CHOICES` (with labels) instead of free-text only;
+  "Type manually" option preserved for custom/advanced IDs
+- [x] git commit --amend arg construction bug fixed: the old splice(2) logic
+  left a dangling `-m` that took `--amend` as its message value
+- [x] 140 unit tests, 10 e2e tests, lint, typecheck, build, bundle, source
+  parity all green; 31 UI preview scenarios all render correctly
