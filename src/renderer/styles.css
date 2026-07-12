@@ -6160,3 +6160,1120 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .catalog-section {
   text-transform: none;
 }
+
+/* ── Settings & Git views (full-workspace) ──────────────────────────────── */
+
+/* The sidebar reuses .project-rail styling; these additions style the
+   settings-specific nav list and the git status display inside the rail. */
+.settings-rail {
+  /* Ensure the rail fills height and the nav scrolls */
+}
+
+.settings-nav-list {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 var(--space-2xs) var(--space-base);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.settings-nav-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
+.settings-nav-item:hover {
+  background: color-mix(in oklab, var(--surface) 44%, transparent);
+  color: var(--assistant);
+}
+
+.settings-nav-item.active {
+  background: color-mix(in oklab, var(--surface) 60%, transparent);
+  color: var(--assistant);
+}
+
+.settings-nav-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.01em;
+  line-height: var(--leading-tight);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.settings-nav-desc {
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Git status display in the rail */
+.git-rail-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--space-base) var(--space-xs);
+}
+
+.git-rail-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+/* ── Settings / Git form area (center content) ─────────────────────────── */
+
+.settings-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.settings-form-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding: var(--space-md) var(--space-lg) var(--space-sm);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 14%, transparent);
+}
+
+.settings-form-header-copy {
+  min-width: 0;
+}
+
+.settings-form-title {
+  margin: 0;
+  color: var(--assistant);
+  font-family: var(--font-sans);
+  font-size: var(--text-display-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+  line-height: var(--leading-tight);
+}
+
+.settings-form-sub {
+  margin: var(--space-2xs) 0 0;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.settings-close-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.settings-form-scroll {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-base) var(--space-lg) var(--space-xl);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.settings-loading,
+.settings-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-base);
+  padding: var(--space-xl) var(--space-base);
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+}
+
+.settings-error p {
+  margin: 0;
+  color: var(--del);
+  text-align: center;
+}
+
+.settings-save-error {
+  margin: 0;
+  padding: var(--space-sm) var(--space-base);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--del-bg) 60%, transparent);
+  color: var(--del);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+}
+
+/* ── Form controls ─────────────────────────────────────────────────────── */
+
+.setting-field {
+  display: flex;
+  gap: var(--space-base);
+  margin-bottom: var(--space-base);
+}
+
+.setting-field-label {
+  display: flex;
+  flex: 1 1 45%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setting-field-label label {
+  color: var(--assistant);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.01em;
+  line-height: var(--leading-ui);
+}
+
+.setting-field-desc {
+  margin: 0;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.setting-field-control {
+  display: flex;
+  flex: 1 1 55%;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.setting-input,
+.setting-select,
+.setting-textarea {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--bg) 50%, transparent);
+  color: var(--assistant);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-ui);
+  box-shadow: var(--edge-highlight);
+  transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.setting-input.is-mono,
+.setting-textarea.is-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+
+.setting-input::placeholder,
+.setting-textarea::placeholder {
+  color: var(--text-subtle);
+}
+
+.setting-input:focus-visible,
+.setting-select:focus-visible,
+.setting-textarea:focus-visible {
+  outline: none;
+  border-color: color-mix(in oklab, var(--ring) 40%, var(--border));
+  box-shadow: var(--focus-ring);
+}
+
+.setting-input:disabled,
+.setting-select:disabled,
+.setting-textarea:disabled {
+  opacity: 0.5;
+}
+
+.setting-textarea {
+  resize: vertical;
+  min-height: 60px;
+  line-height: var(--leading-prose);
+}
+
+.setting-select {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23808080' stroke-width='1.5' stroke-linecap='round' d='M3 4.5L6 8L9 4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+}
+
+/* Toggle switch */
+.setting-toggle {
+  display: inline-flex;
+  align-items: center;
+  width: 36px;
+  height: 20px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--border) 50%, transparent);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.setting-toggle.is-on {
+  background: color-mix(in oklab, var(--accent) 70%, var(--border));
+}
+
+.setting-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.setting-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.setting-toggle-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--assistant);
+  box-shadow: 0 1px 3px color-mix(in oklab, var(--shadow-ink) 30%, transparent);
+  transform: translateX(0);
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.setting-toggle.is-on .setting-toggle-thumb {
+  transform: translateX(16px);
+}
+
+/* Radio group */
+.setting-radio-group {
+  display: flex;
+  gap: var(--space-base);
+}
+
+.setting-radio-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  cursor: pointer;
+}
+
+.setting-radio-group input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+/* Section card */
+.setting-section {
+  margin-bottom: var(--space-md);
+}
+
+.setting-section-header {
+  margin-bottom: var(--space-sm);
+}
+
+.setting-section-title {
+  margin: 0;
+  color: var(--assistant);
+  font-family: var(--font-sans);
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+}
+
+.setting-section-desc {
+  margin: var(--space-2xs) 0 0;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: 1.35;
+}
+
+.setting-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Setting list (providers, MCP, hooks, permissions) */
+.setting-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.setting-empty {
+  margin: 0 0 var(--space-sm);
+  padding: var(--space-sm);
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  text-align: center;
+}
+
+.setting-card {
+  border: 1px solid color-mix(in oklab, var(--border) 24%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface-subtle) 30%, transparent);
+  overflow: hidden;
+}
+
+.setting-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.setting-card-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  border: 0;
+  background: transparent;
+  color: var(--assistant);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  padding: 0;
+}
+
+.setting-card-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+
+.setting-card-body {
+  padding: var(--space-sm);
+  border-top: 1px solid color-mix(in oklab, var(--border) 14%, transparent);
+}
+
+/* Badge */
+.setting-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in oklab, var(--surface) 60%, transparent);
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.setting-badge.is-warn {
+  background: color-mix(in oklab, var(--notice) 16%, transparent);
+  color: var(--notice);
+}
+
+.setting-badge.is-danger {
+  background: color-mix(in oklab, var(--del-bg) 50%, transparent);
+  color: var(--del);
+}
+
+/* Actions row */
+.setting-actions {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  margin-top: var(--space-sm);
+}
+
+/* Permission rule row */
+.setting-perm-rule {
+  display: grid;
+  grid-template-columns: 1fr 1fr 90px auto;
+  gap: var(--space-xs);
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+
+.setting-perm-rule .setting-input,
+.setting-perm-rule .setting-select {
+  width: 100%;
+}
+
+/* Hook card */
+.setting-hook-card {
+  border: 1px solid color-mix(in oklab, var(--border) 24%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface-subtle) 30%, transparent);
+  padding: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.setting-hook-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+/* Save bar */
+.settings-save-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-lg);
+  border-top: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
+}
+
+.settings-save-status {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+}
+
+.settings-dirty-indicator {
+  color: var(--notice);
+  font-weight: var(--weight-medium);
+}
+
+.settings-clean-indicator {
+  color: var(--text-subtle);
+}
+
+.settings-save-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+/* Scope toggle (shared by settings sidebar + instructions) */
+.settings-scope-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface-subtle) 60%, transparent);
+}
+
+.settings-scope-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
+.settings-scope-btn:hover:not(:disabled) {
+  color: var(--assistant);
+}
+
+.settings-scope-btn.active {
+  background: color-mix(in oklab, var(--surface) 80%, var(--border));
+  color: var(--assistant);
+  box-shadow: var(--edge-highlight);
+}
+
+.settings-scope-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Rail footer (settings + git buttons) ──────────────────────────────── */
+
+.rail-footer {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-sm) calc(var(--space-sm) + env(safe-area-inset-bottom));
+  border-top: 1px solid color-mix(in oklab, var(--border) 14%, transparent);
+}
+
+.rail-footer-btn {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  height: 34px;
+  padding: 0 var(--space-sm);
+  border: 1px solid color-mix(in oklab, var(--border) 26%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface) 30%, transparent);
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
+}
+
+.rail-footer-btn:hover:not(:disabled) {
+  color: var(--assistant);
+  background: color-mix(in oklab, var(--surface) 50%, transparent);
+  border-color: color-mix(in oklab, var(--border) 40%, transparent);
+}
+
+.rail-footer-btn.active {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+.rail-footer-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Git content styles ────────────────────────────────────────────────── */
+
+.git-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.git-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.git-changes-heading,
+.git-remote-heading {
+  margin: var(--space-sm) 0 var(--space-xs);
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.git-branch-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-ui);
+  color: var(--assistant);
+}
+
+.git-upstream {
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+
+.git-ahead {
+  color: var(--add);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+
+.git-behind {
+  color: var(--notice);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+
+.git-clean {
+  color: var(--add);
+  font-size: var(--text-caption);
+}
+
+.git-dirty {
+  color: var(--notice);
+  font-size: var(--text-caption);
+}
+
+.git-clean-msg {
+  padding: var(--space-lg) var(--space-base);
+  text-align: center;
+}
+
+/* Branch list */
+.git-branch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.git-branch-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0;
+  border-radius: var(--radius-xs);
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.git-branch-row:hover {
+  background: color-mix(in oklab, var(--surface-subtle) 30%, transparent);
+}
+
+.git-branch-row.current {
+  background: color-mix(in oklab, var(--surface) 40%, transparent);
+}
+
+.git-branch-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+
+.git-branch-main:hover:not(:disabled) {
+  color: var(--assistant);
+}
+
+.git-branch-main:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.git-branch-row.current .git-branch-main {
+  color: var(--assistant);
+  font-weight: var(--weight-medium);
+}
+
+.git-branch-marker {
+  flex: 0 0 auto;
+  font-size: 8px;
+  color: var(--accent);
+}
+
+.git-branch-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  white-space: nowrap;
+}
+
+.git-branch-subject {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+}
+
+.git-branch-date {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+  font-size: var(--text-micro);
+}
+
+.git-branch-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-subtle);
+  font-size: var(--text-ui);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
+.git-branch-row:hover .git-branch-action {
+  opacity: 1;
+}
+
+.git-branch-action:hover {
+  color: var(--del);
+  background: color-mix(in oklab, var(--del-bg) 30%, transparent);
+}
+
+.git-confirm-delete {
+  display: flex;
+  gap: var(--space-2xs);
+  padding-right: var(--space-xs);
+}
+
+.git-create-row {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+/* File list (changes tab) */
+.git-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: var(--space-sm);
+}
+
+.git-file-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-2xs) var(--space-xs);
+  border-radius: var(--radius-xs);
+}
+
+.git-file-row:hover {
+  background: color-mix(in oklab, var(--surface-subtle) 30%, transparent);
+}
+
+.git-file-status {
+  flex: 0 0 auto;
+  width: 16px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+}
+
+.git-status-staged { color: var(--add); }
+.git-status-unstaged { color: var(--notice); }
+.git-status-untracked { color: var(--text-subtle); }
+
+.git-file-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+
+.git-file-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-subtle);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+
+.git-file-row:hover .git-file-action {
+  opacity: 1;
+}
+
+.git-file-action:hover {
+  color: var(--accent);
+}
+
+.git-changes-actions {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  margin-bottom: var(--space-sm);
+}
+
+.git-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+
+.git-checkbox input {
+  accent-color: var(--accent);
+}
+
+/* Commit area */
+.git-commit-area {
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px solid color-mix(in oklab, var(--border) 14%, transparent);
+}
+
+.git-commit-actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+/* Commit history */
+.git-commit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.git-commit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-2xs) var(--space-xs);
+  border-radius: var(--radius-xs);
+}
+
+.git-commit-row:hover {
+  background: color-mix(in oklab, var(--surface-subtle) 30%, transparent);
+}
+
+.git-commit-hash {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+.git-commit-subject {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+}
+
+.git-commit-author {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+}
+
+.git-commit-date {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+  font-size: var(--text-micro);
+}
+
+/* Remotes */
+.git-remote-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.git-remote-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid color-mix(in oklab, var(--border) 16%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.git-remote-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.git-remote-name {
+  font-family: var(--font-mono);
+  font-size: var(--text-ui);
+  color: var(--assistant);
+  font-weight: var(--weight-medium);
+}
+
+.git-remote-url {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-remote-host {
+  flex: 0 0 auto;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--text-subtle);
+}
+
+/* Pull requests */
+.git-pr-create {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm);
+  border: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface-subtle) 20%, transparent);
+}
+
+.git-pr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.git-pr-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+
+.git-pr-row:hover {
+  background: color-mix(in oklab, var(--surface-subtle) 30%, transparent);
+  color: var(--assistant);
+}
+
+.git-pr-number {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+.git-pr-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+}
+
+.git-pr-state {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
+  text-transform: capitalize;
+}
+
+.git-pr-state.open {
+  background: color-mix(in oklab, var(--add) 16%, transparent);
+  color: var(--add);
+}
+
+.git-pr-state.closed {
+  background: color-mix(in oklab, var(--del) 16%, transparent);
+  color: var(--del);
+}
+
+.git-pr-state.merged {
+  background: color-mix(in oklab, var(--plan) 16%, transparent);
+  color: var(--plan);
+}
+
+.git-pr-branch {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-subtle);
+}
+
+.git-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--accent) 50%, transparent);
+  color: var(--bg);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+}
+
+/* ── Responsive: settings/git form fields ─────────────────────────────── */
+
+@media (max-width: 900px) {
+  .setting-field {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .setting-field-label,
+  .setting-field-control {
+    flex: 1 1 100%;
+  }
+
+  .setting-perm-rule {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-xs);
+  }
+}
+
+/* Scope toggle in the rail (full-width variant for settings sidebar) */
+.settings-scope-row {
+  padding: 0 var(--space-sm) var(--space-xs);
+}
+
+.settings-scope-toggle-full {
+  width: 100%;
+}
+
+.settings-scope-btn-grow {
+  flex: 1;
+  justify-content: center;
+}

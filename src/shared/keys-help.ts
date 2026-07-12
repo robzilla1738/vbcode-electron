@@ -16,6 +16,8 @@ export const ESSENTIAL_KEYS: readonly KeyChord[] = [
   { keys: "Ctrl+T", action: "Expand / collapse all thinking rows" },
   { keys: "Ctrl+D", action: "Cycle transcript density (quiet → normal → verbose)" },
   { keys: "Ctrl+G", action: "Compose draft in $VISUAL / $EDITOR" },
+  { keys: "⌘,", action: "Toggle settings panel" },
+  { keys: "⌘⇧B", action: "Toggle git panel" },
   { keys: "Ctrl+V", action: "Paste clipboard image as @file" },
   { keys: "Ctrl+C", action: "Clear draft · quit gracefully when empty" },
   { keys: "y / a / Ctrl+P / n", action: "Permission: once · session · project · deny" },

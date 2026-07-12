@@ -355,3 +355,42 @@ npm run dev
   upstream TUI exactly (import paths only difference)
 - [x] 2 new unit tests: subagent-started in-place update + fresh-id append
 - [x] 76 unit tests, 10 e2e tests, 19 source pairs, lint, typecheck all green
+
+## Settings & Git integration (2026-07-12)
+
+- [x] Full-workspace settings view: replaces the left rail with section
+  navigation + scope toggle and the center with the scrollable form area
+  (not a narrow side drawer)
+- [x] 15 settings sections: Models, Providers, MCP Servers, Permissions,
+  Appearance, Behavior, Subagents, Build & Verify, Memory, Search & Web,
+  Compaction, Budget & Retry, Hooks, Custom Instructions, Advanced
+- [x] Settings read/write via direct config file I/O (global + project scope),
+  mirroring `@vibe/config`'s JSONC parsing and deep-merge write semantics
+- [x] Config scope toggle (Global / Project) with save/reset/dirty indicator
+- [x] Custom instructions (VIBE.md) editor with global and project scope, live
+  save, and dirty tracking
+- [x] Provider management: API keys, base URLs, token files, extra headers per
+  provider with expand/collapse cards and inline add form (no window.prompt)
+- [x] MCP server management: stdio + remote (HTTP/SSE) with env-var expansion,
+  per-server enable/disable, timeout, inline add form
+- [x] Permission rules editor: tool/match/action with add/remove
+- [x] Hooks editor: 8 lifecycle events, shell command or URL, async toggle
+- [x] Full-workspace git view: left rail shows branch status + quick actions +
+  tab navigation; center shows the active tab content
+- [x] Git tabs: Branches (create/switch/delete), Changes (stage/unstage/commit/
+  amend), History (recent commits), Remotes (URLs + host/owner/repo),
+  Pull Requests (list/create via gh CLI)
+- [x] Git quick actions: fetch, pull, push from the rail sidebar
+- [x] GitHub PR workflow: list PRs, create PR (title/body/base/draft), open in
+  browser, gh CLI availability check
+- [x] Settings & Git icons at the bottom of the project rail (rail-footer),
+  not in the chat-area topbar
+- [x] Keyboard shortcuts: ⌘, for settings, ⌘⇧B for git; Esc closes either view
+- [x] Slash commands: /settings, /config, /git, /branches
+- [x] Preview scenarios: ?scenario=settings and ?scenario=git
+- [x] IPC security: all new handlers assert trusted sender via shared
+  ipc-security module; inline styles removed (token-driven CSS only)
+- [x] 22 new unit tests: config I/O (JSONC parsing, deep merge, null-delete,
+  trailing commas, string-aware comment stripping) + git operations (repo
+  detection, status parsing, branch listing, commit history)
+- [x] 98 unit tests, lint, typecheck, build, bundle, source parity all green

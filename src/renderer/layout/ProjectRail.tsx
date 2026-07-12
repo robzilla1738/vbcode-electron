@@ -17,7 +17,9 @@ import {
   IconPlus,
   IconRename,
   IconSearch,
+  IconSettings,
   IconSidebar,
+  IconGitBranch,
 } from "../icons";
 
 type SessionMenu = {
@@ -58,6 +60,10 @@ export function ProjectRail({
   onRenameSession,
   onDeleteSession,
   onArchiveSession,
+  onOpenSettings,
+  onOpenGit,
+  settingsActive,
+  gitActive,
 }: {
   projects: ProjectSummary[];
   activeCwd: string | null;
@@ -78,6 +84,10 @@ export function ProjectRail({
   onRenameSession: (cwd: string, id: string, title: string) => Promise<boolean>;
   onDeleteSession: (cwd: string, id: string) => Promise<boolean>;
   onArchiveSession: (cwd: string, id: string) => Promise<boolean>;
+  onOpenSettings: () => void;
+  onOpenGit: () => void;
+  settingsActive: boolean;
+  gitActive: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -575,6 +585,30 @@ export function ProjectRail({
             </section>
           );
         })}
+      </div>
+
+      <div className="rail-footer" aria-label="App panels">
+        <button
+          type="button"
+          className={`rail-footer-btn${gitActive ? " active" : ""}`}
+          onClick={onOpenGit}
+          disabled={!activeCwd}
+          aria-pressed={gitActive}
+          title={activeCwd ? "Git branches and remotes" : "Open a project first"}
+        >
+          <IconGitBranch size={15} />
+          <span>Git</span>
+        </button>
+        <button
+          type="button"
+          className={`rail-footer-btn${settingsActive ? " active" : ""}`}
+          onClick={onOpenSettings}
+          aria-pressed={settingsActive}
+          title="Settings"
+        >
+          <IconSettings size={15} />
+          <span>Settings</span>
+        </button>
       </div>
 
       {menu && createPortal(

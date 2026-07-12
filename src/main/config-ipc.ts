@@ -1,0 +1,104 @@
+/**
+ * Config IPC handlers for the Electron main process.
+ *
+ * Registers `config:*` and `memory:*` IPC channels so the renderer's Settings
+ * panel can read/write the vibe-codr config files and memory (VIBE.md) files
+ * directly. The engine reads these on bootstrap, so changes take effect on the
+ * next session — or immediately via `run-slash` for the subset the engine
+ * supports live.
+ */
+
+import { ipcMain } from "electron";
+import {
+  configPathForScope,
+  readConfigFile,
+  readMemoryFile,
+  writeConfigFile,
+  writeMemoryFile,
+  memoryPathForScope,
+} from "../shared/config-io";
+import type {
+  ConfigReadResult,
+  ConfigScope,
+  ConfigWriteRequest,
+  MemoryFileRequest,
+  MemoryFileResult,
+  MemoryWriteRequest,
+} from "../shared/config-schema";
+import type { AssertTrustedIpc } from "./ipc-security";
+
+export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
+  ipcMain.handle("config:read", async (event, opts: { scope: ConfigScope; cwd?: string }) => {
+    assertTrusted(event);
+    if (!opts || (opts.scope !== "global" && opts.scope !== "project")) {
+      return { ok: false as const, error: "Invalid scope" };
+    }
+    try {
+      const path = configPathForScope(opts.scope, opts.cwd);
+      const read = await readConfigFile(path);
+      if (!read) {
+        return { ok: true as const, config: {}, path, raw: "" } as ConfigReadResult;
+      }
+      return { ok: true as const, config: read.config, path, raw: read.raw } as ConfigReadResult;
+    } catch (err) {
+      return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcMain.handle("config:write", async (event, req: ConfigWriteRequest) => {
+    assertTrusted(event);
+    if (!req || (req.scope !== "global" && req.scope !== "project") || typeof req.patch !== "object") {
+      return { ok: false as const, error: "Invalid write request" };
+    }
+    try {
+      const path = configPathForScope(req.scope, req.cwd);
+      await writeConfigFile(path, req.patch);
+      return { ok: true as const, path };
+    } catch (err) {
+      return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcMain.handle("config:globalPath", (event) => {
+    assertTrusted(event);
+    return configPathForScope("global");
+  });
+
+  ipcMain.handle("config:projectPath", (event, cwd: string) => {
+    assertTrusted(event);
+    if (typeof cwd !== "string" || !cwd) {
+      throw new Error("Project config path requires a cwd");
+    }
+    return configPathForScope("project", cwd);
+  });
+
+  // ── Memory (VIBE.md / custom instructions) ───────────────────────────
+
+  ipcMain.handle("memory:read", async (event, opts: MemoryFileRequest) => {
+    assertTrusted(event);
+    if (!opts || (opts.scope !== "global" && opts.scope !== "project")) {
+      return { ok: false as const, error: "Invalid scope" };
+    }
+    try {
+      const path = memoryPathForScope(opts.scope, opts.cwd);
+      const read = await readMemoryFile(path);
+      return { ok: true as const, path, content: read.content, exists: read.exists } as MemoryFileResult;
+    } catch (err) {
+      return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  ipcMain.handle("memory:write", async (event, req: MemoryWriteRequest) => {
+    assertTrusted(event);
+    if (!req || (req.scope !== "global" && req.scope !== "project") || typeof req.content !== "string") {
+      return { ok: false as const, error: "Invalid write request" };
+    }
+    try {
+      const path = memoryPathForScope(req.scope, req.cwd);
+      await writeMemoryFile(path, req.content);
+      return { ok: true as const, path };
+    } catch (err) {
+      return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+}

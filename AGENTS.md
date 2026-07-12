@@ -27,6 +27,11 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | Icons (Lucide wrappers) | `src/renderer/icons.tsx`, `tool-glyph.tsx` |
 | Contracts | `src/shared/commands.ts`, `events.ts`, `protocol.ts` |
 | Breakpoints | `src/shared/breakpoints.ts` (`wide` JS-only; laptop→narrow sync CSS `@media`) |
+| Settings panel | `src/renderer/settings/SettingsPanel.tsx`, sections in `src/renderer/settings/sections/` |
+| Git panel | `src/renderer/git/GitPanel.tsx` |
+| Config I/O (JSONC read/write) | `src/shared/config-io.ts`, `config-schema.ts` |
+| Git operations | `src/shared/git-ops.ts`, `git-types.ts` |
+| Config + git IPC | `src/main/config-ipc.ts`, `git-ipc.ts`, `ipc-security.ts` |
 | Parity checklist | `PARITY.md` |
 | UI contract | `UI.md` |
 
@@ -84,7 +89,7 @@ All renderer styling lives in `src/renderer/styles.css`, token-first. Rules:
    glyphs. (TUI still uses mono machine-voice labels in the CLI.)
 6. **Verify visually with the preview harness** (no engine needed):
    `npm run ui:preview`, then `?scenario=welcome|splash|chat|table|docs|sources|busy|permission|plan|gate|mode|queue|onboarding|slash|catalog|catalog-draft|mention|jobs|inspector|toast|density-quiet|density-verbose|ctx-hot`
-   plus `&theme=<name>`; `npm run ui:shots` captures the matrix headlessly
+   plus `settings` and `git` for the new panels; plus `&theme=<name>`; `npm run ui:shots` captures the matrix headlessly
    (`npx playwright install chromium` once). Screenshot before/after when
    touching shared primitives.
 

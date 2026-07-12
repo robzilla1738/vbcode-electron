@@ -1,0 +1,153 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+// We test the pure merge logic and the JSONC parsing helpers indirectly
+// through readConfigFile / writeConfigFile.
+
+// The functions under test use process.env.XDG_CONFIG_HOME and os.homedir,
+// but we test the project-scoped paths which take an explicit cwd.
+
+// Import after setting up the module — we need to dynamically import because
+// the module uses node:fs which works in vitest.
+const { readConfigFile, writeConfigFile, projectConfigPath } = await import("./config-io");
+
+describe("config-io", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "vibe-config-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  describe("projectConfigPath", () => {
+    it("returns .vibe/config.json under the cwd", () => {
+      expect(projectConfigPath("/my/project")).toBe("/my/project/.vibe/config.json");
+    });
+  });
+
+  describe("readConfigFile", () => {
+    it("returns null when the file does not exist", async () => {
+      const result = await readConfigFile(join(tmpDir, "missing.json"));
+      expect(result).toBeNull();
+    });
+
+    it("reads plain JSON", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, JSON.stringify({ model: "openai/gpt-5.5", mode: "plan" }));
+      const result = await readConfigFile(path);
+      expect(result).not.toBeNull();
+      expect(result!.config.model).toBe("openai/gpt-5.5");
+      expect(result!.config.mode).toBe("plan");
+    });
+
+    it("reads JSONC with line comments", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, `{
+        // This is a comment
+        "model": "anthropic/claude-opus-4-8",
+        "mode": "execute" // inline comment
+      }`);
+      const result = await readConfigFile(path);
+      expect(result).not.toBeNull();
+      expect(result!.config.model).toBe("anthropic/claude-opus-4-8");
+    });
+
+    it("reads JSONC with block comments", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, `{
+        /* block comment */
+        "model": "ollama/llama3.3"
+      }`);
+      const result = await readConfigFile(path);
+      expect(result).not.toBeNull();
+      expect(result!.config.model).toBe("ollama/llama3.3");
+    });
+
+    it("reads JSONC with trailing commas", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, `{
+        "model": "openai/gpt-5.5",
+        "mode": "plan",
+      }`);
+      const result = await readConfigFile(path);
+      expect(result).not.toBeNull();
+      expect(result!.config.model).toBe("openai/gpt-5.5");
+      expect(result!.config.mode).toBe("plan");
+    });
+
+    it("preserves strings that contain // (URLs)", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, `{
+        "providers": {
+          "ollama": { "baseURL": "http://localhost:11434" }
+        }
+      }`);
+      const result = await readConfigFile(path);
+      expect(result).not.toBeNull();
+      expect(result!.config.providers?.ollama?.baseURL).toBe("http://localhost:11434");
+    });
+  });
+
+  describe("writeConfigFile", () => {
+    it("creates a new file with the patch", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeConfigFile(path, { model: "openai/gpt-5.5" });
+      const raw = await readFile(path, "utf8");
+      const parsed = JSON.parse(raw);
+      expect(parsed.model).toBe("openai/gpt-5.5");
+    });
+
+    it("merges into an existing file (deep merge)", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, JSON.stringify({ model: "openai/gpt-5.5", mode: "plan", subagent: { maxDepth: 3 } }));
+      await writeConfigFile(path, { mode: "execute", subagent: { maxParallel: 8 } });
+      const raw = await readFile(path, "utf8");
+      const parsed = JSON.parse(raw);
+      expect(parsed.model).toBe("openai/gpt-5.5"); // preserved
+      expect(parsed.mode).toBe("execute"); // overwritten
+      expect(parsed.subagent.maxDepth).toBe(3); // preserved (deep merge)
+      expect(parsed.subagent.maxParallel).toBe(8); // added
+    });
+
+    it("deletes a key when the patch value is null", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, JSON.stringify({ model: "openai/gpt-5.5", planModel: "openai/o3" }));
+      await writeConfigFile(path, { planModel: null });
+      const raw = await readFile(path, "utf8");
+      const parsed = JSON.parse(raw);
+      expect(parsed.model).toBe("openai/gpt-5.5");
+      expect(parsed.planModel).toBeUndefined();
+    });
+
+    it("skips undefined values in the patch", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, JSON.stringify({ model: "openai/gpt-5.5" }));
+      await writeConfigFile(path, { model: undefined, mode: "execute" });
+      const raw = await readFile(path, "utf8");
+      const parsed = JSON.parse(raw);
+      expect(parsed.model).toBe("openai/gpt-5.5"); // preserved (undefined is no-op)
+      expect(parsed.mode).toBe("execute");
+    });
+
+    it("creates parent directories", async () => {
+      const path = join(tmpDir, "nested", "dir", "config.json");
+      await writeConfigFile(path, { model: "openai/gpt-5.5" });
+      expect(existsSync(path)).toBe(true);
+    });
+
+    it("overwrites arrays, not concatenates", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, JSON.stringify({ modelFallbacks: ["a", "b"] }));
+      await writeConfigFile(path, { modelFallbacks: ["c"] });
+      const raw = await readFile(path, "utf8");
+      const parsed = JSON.parse(raw);
+      expect(parsed.modelFallbacks).toEqual(["c"]);
+    });
+  });
+});

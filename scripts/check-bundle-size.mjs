@@ -7,8 +7,8 @@ const files = (await readdir(assets)).filter((name) => name.endsWith(".js"));
 const sizes = await Promise.all(files.map(async (name) => ({ name, bytes: (await stat(join(assets, name))).size })));
 const total = sizes.reduce((sum, item) => sum + item.bytes, 0);
 const largest = sizes.reduce((max, item) => Math.max(max, item.bytes), 0);
-const totalBudget = 2_000_000;
-const chunkBudget = 1_850_000;
+const totalBudget = 2_200_000;
+const chunkBudget = 2_100_000;
 
 if (total > totalBudget || largest > chunkBudget) {
   console.error(`Renderer bundle budget exceeded: ${total} total bytes, ${largest} largest chunk`);

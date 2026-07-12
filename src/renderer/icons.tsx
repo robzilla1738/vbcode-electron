@@ -11,6 +11,7 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  GitBranch,
   LayoutDashboard,
   Link,
   MoreVertical,
@@ -21,6 +22,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Settings,
   Square,
   Trash2,
   X,
@@ -149,4 +151,12 @@ export function IconCopy(props: IconProps) {
 
 export function IconCheck(props: IconProps) {
   return <Check {...lucide(props)} />;
+}
+
+export function IconSettings(props: IconProps) {
+  return <Settings {...lucide(props)} />;
+}
+
+export function IconGitBranch(props: IconProps) {
+  return <GitBranch {...lucide(props)} />;
 }

@@ -3,7 +3,7 @@ import { join, resolve, relative, isAbsolute } from "node:path";
 import { writeFile, mkdir, readFile, rm } from "node:fs/promises";
 import { existsSync, statSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import liquidGlass from "electron-liquid-glass";
 import type { EngineCommand } from "../shared/commands";
@@ -11,6 +11,9 @@ import { decodeInbound, type HostInbound, type RpcMethod } from "../shared/proto
 import { EngineBridge } from "./engine-bridge";
 import { listProjectFiles, rankPaths } from "../shared/file-fuzzy";
 import { composeInEditor } from "../shared/editor-compose";
+import { assertTrustedIpc, assertTrustedSender, setMainWindow } from "./ipc-security";
+import { registerConfigIpc } from "./config-ipc";
+import { registerGitIpc } from "./git-ipc";
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new EngineBridge();
@@ -34,18 +37,6 @@ function inbound(value: unknown): HostInbound | null {
     return typeof encoded === "string" ? decodeInbound(encoded) : null;
   } catch {
     return null;
-  }
-}
-
-function assertTrustedIpc(event: Electron.IpcMainInvokeEvent): void {
-  if (!mainWindow || event.sender !== mainWindow.webContents) {
-    throw new Error("IPC request did not originate from the application renderer");
-  }
-}
-
-function assertTrustedSender(sender: Electron.WebContents): void {
-  if (!mainWindow || sender !== mainWindow.webContents) {
-    throw new Error("IPC message did not originate from the application renderer");
   }
 }
 
@@ -134,8 +125,11 @@ function createWindow(): void {
 
   if (isMac) applyMacChrome(mainWindow);
 
+  setMainWindow(mainWindow);
+
   mainWindow.on("closed", () => {
     mainWindow = null;
+    setMainWindow(null);
   });
 }
 
@@ -368,13 +362,9 @@ function registerIpc(): void {
     },
   );
 
-  ipcMain.handle("config:globalPath", (event) => {
-    assertTrustedIpc(event);
-    const xdg = process.env.XDG_CONFIG_HOME;
-    return xdg
-      ? join(xdg, "vibe-codr", "config.json")
-      : join(homedir(), ".config", "vibe-codr", "config.json");
-  });
+  // Config and git IPC are registered by their feature modules.
+  registerConfigIpc(assertTrustedIpc);
+  registerGitIpc(assertTrustedIpc);
 }
 
 app.whenReady().then(() => {

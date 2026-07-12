@@ -1,5 +1,26 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { EngineCommand } from "../shared/commands";
+import type {
+  ConfigReadResult,
+  ConfigScope,
+  ConfigWriteRequest,
+  MemoryFileRequest,
+  MemoryFileResult,
+  MemoryWriteRequest,
+} from "../shared/config-schema";
+import type {
+  GhPrCreateRequest,
+  GhPrCreateResult,
+  GhPrListResult,
+  GitCheckoutRequest,
+  GitCommitRequest,
+  GitCreateBranchRequest,
+  GitDeleteBranchRequest,
+  GitFullStatus,
+  GitMergeRequest,
+  GitPullRequest,
+  GitPushRequest,
+} from "../shared/git-types";
 import type { RpcMethod } from "../shared/protocol";
 import type { ProjectSummary } from "../shared/protocol";
 
@@ -9,6 +30,12 @@ export interface BootstrapOpts {
   continueLatest?: boolean;
   model?: string;
   mode?: "plan" | "execute" | "yolo";
+}
+
+export interface GitOperationResult {
+  ok: boolean;
+  message?: string;
+  error?: string;
 }
 
 export interface VibeApi {
@@ -53,6 +80,28 @@ export interface VibeApi {
     | { kind: "error"; error: string }
   >;
   globalConfigPath(): Promise<string>;
+
+  // ── Config (settings) ────────────────────────────────────────────────
+  readConfig(opts: { scope: ConfigScope; cwd?: string }): Promise<ConfigReadResult | { ok: false; error: string }>;
+  writeConfig(req: ConfigWriteRequest): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
+  projectConfigPath(cwd: string): Promise<string>;
+  readMemory(opts: MemoryFileRequest): Promise<MemoryFileResult | { ok: false; error: string }>;
+  writeMemory(req: MemoryWriteRequest): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
+
+  // ── Git / GitHub ──────────────────────────────────────────────────────
+  gitStatus(cwd: string): Promise<{ ok: true; status: GitFullStatus | null } | { ok: false; error: string }>;
+  gitCreateBranch(req: GitCreateBranchRequest): Promise<GitOperationResult>;
+  gitCheckout(req: GitCheckoutRequest): Promise<GitOperationResult>;
+  gitDeleteBranch(req: GitDeleteBranchRequest): Promise<GitOperationResult>;
+  gitStage(opts: { cwd: string; paths?: string[]; all?: boolean; allIncludingUntracked?: boolean }): Promise<GitOperationResult>;
+  gitCommit(req: GitCommitRequest): Promise<GitOperationResult>;
+  gitMerge(req: GitMergeRequest): Promise<GitOperationResult>;
+  gitPush(req: GitPushRequest): Promise<GitOperationResult>;
+  gitPull(req: GitPullRequest): Promise<GitOperationResult>;
+  gitFetch(opts: { cwd: string; remote?: string }): Promise<GitOperationResult>;
+  ghCheckAvailable(): Promise<{ available: boolean }>;
+  ghPrList(cwd: string): Promise<GhPrListResult>;
+  ghPrCreate(req: GhPrCreateRequest): Promise<GhPrCreateResult>;
 }
 
 const api: VibeApi = {
@@ -92,6 +141,28 @@ const api: VibeApi = {
   getPath: (name) => ipcRenderer.invoke("app:getPath", name),
   listFiles: (opts) => ipcRenderer.invoke("fs:listFiles", opts),
   globalConfigPath: () => ipcRenderer.invoke("config:globalPath"),
+
+  // Config
+  readConfig: (opts) => ipcRenderer.invoke("config:read", opts),
+  writeConfig: (req) => ipcRenderer.invoke("config:write", req),
+  projectConfigPath: (cwd) => ipcRenderer.invoke("config:projectPath", cwd),
+  readMemory: (opts) => ipcRenderer.invoke("memory:read", opts),
+  writeMemory: (req) => ipcRenderer.invoke("memory:write", req),
+
+  // Git
+  gitStatus: (cwd) => ipcRenderer.invoke("git:status", cwd),
+  gitCreateBranch: (req) => ipcRenderer.invoke("git:createBranch", req),
+  gitCheckout: (req) => ipcRenderer.invoke("git:checkout", req),
+  gitDeleteBranch: (req) => ipcRenderer.invoke("git:deleteBranch", req),
+  gitStage: (opts) => ipcRenderer.invoke("git:stage", opts),
+  gitCommit: (req) => ipcRenderer.invoke("git:commit", req),
+  gitMerge: (req) => ipcRenderer.invoke("git:merge", req),
+  gitPush: (req) => ipcRenderer.invoke("git:push", req),
+  gitPull: (req) => ipcRenderer.invoke("git:pull", req),
+  gitFetch: (opts) => ipcRenderer.invoke("git:fetch", opts),
+  ghCheckAvailable: () => ipcRenderer.invoke("gh:checkAvailable"),
+  ghPrList: (cwd) => ipcRenderer.invoke("gh:prList", cwd),
+  ghPrCreate: (req) => ipcRenderer.invoke("gh:prCreate", req),
 };
 
 contextBridge.exposeInMainWorld("vibe", api);

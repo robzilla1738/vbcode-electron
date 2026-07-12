@@ -18,7 +18,7 @@ npm run ui:shots -- tools/ui-preview/shots
 Scenarios: `welcome`, `splash` (quiet empty home + composer), `chat`, `table`,
 `docs`, `sources`, `busy`, `permission`, `plan`, `gate`, `mode`, `queue`,
 `onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`, `jobs`,
-`inspector`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot`
+`inspector`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot`, `settings`, `git`
 — plus `&theme=<name>` for any registered TUI theme (e.g.
 `?scenario=chat&theme=opencode`). Shots also capture `busy-narrow`, `busy-wide`,
 `light`, and `theme-opencode`.

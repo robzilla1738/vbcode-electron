@@ -31,6 +31,8 @@ import { ProjectRail } from "./layout/ProjectRail";
 import { Splash } from "./layout/Splash";
 import { SessionBoot, SessionBootError, WelcomeGate } from "./layout/WelcomeGate";
 import { Inspector } from "./panels/Inspector";
+import { SettingsView } from "./settings/SettingsPanel";
+import { GitView } from "./git/GitPanel";
 import { JobsView } from "./panels/JobsView";
 import { KeysOverlay } from "./panels/KeysOverlay";
 import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
@@ -104,6 +106,8 @@ export function App() {
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [keysOpen, setKeysOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [gitOpen, setGitOpen] = useState(false);
   const [projectRailOpen, setProjectRailOpen] = useState(true);
   const [followSignal, setFollowSignal] = useState(0);
   const didRestoreProject = useRef(false);
@@ -143,6 +147,39 @@ export function App() {
     window.addEventListener("vibe-preview-toast", onPreviewToast);
     return () => window.removeEventListener("vibe-preview-toast", onPreviewToast);
   }, []);
+
+  // Preview harness: auto-open a panel when a `vibe-preview-open-panel` event
+  // is dispatched (used by `npm run ui:preview ?scenario=settings|git`).
+  useEffect(() => {
+    const onOpenPanel = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (detail === "settings") { setSettingsOpen(true); setGitOpen(false); session.setInspectorOpen(false); }
+      if (detail === "git") { setGitOpen(true); setSettingsOpen(false); session.setInspectorOpen(false); }
+    };
+    window.addEventListener("vibe-preview-open-panel", onOpenPanel);
+    return () => window.removeEventListener("vibe-preview-open-panel", onOpenPanel);
+  }, [session]);
+
+  // Global keyboard shortcuts for settings (⌘,) and git (⌘ShiftB) panels.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === ",") {
+        event.preventDefault();
+        setSettingsOpen((prev) => !prev);
+        setGitOpen(false);
+        session.setInspectorOpen(false);
+      }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && (event.key === "b" || event.key === "B")) {
+        event.preventDefault();
+        if (!cwd) return;
+        setGitOpen((prev) => !prev);
+        setSettingsOpen(false);
+        session.setInspectorOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [cwd, session]);
 
   const chromeRef = useRef(session.chrome);
   chromeRef.current = session.chrome;
@@ -518,6 +555,21 @@ export function App() {
 
       if (trimmed === "/keys") {
         setKeysOpen(true);
+        return true;
+      }
+
+      if (trimmed === "/settings" || trimmed === "/config") {
+        setSettingsOpen(true);
+        setGitOpen(false);
+        session.setInspectorOpen(false);
+        return true;
+      }
+
+      if (trimmed === "/git" || trimmed === "/branches") {
+        if (!cwd) return false;
+        setGitOpen(true);
+        setSettingsOpen(false);
+        session.setInspectorOpen(false);
         return true;
       }
 
@@ -1018,8 +1070,22 @@ export function App() {
           <a className="skip-link" href="#session-panel">Skip to session panel</a>
         ) : null}
       </nav>
-      <div className={`workspace${projectRailOpen ? " rail-open" : ""}${session.inspectorOpen ? " inspector-open" : ""}`}>
-        <ProjectRail
+      <div className={`workspace${(settingsOpen || gitOpen || projectRailOpen) ? " rail-open" : ""}${session.inspectorOpen ? " inspector-open" : ""}`}>
+        {settingsOpen && cwd ? (
+          <SettingsView
+            cwd={cwd}
+            onClose={() => setSettingsOpen(false)}
+            showToast={session.showToast}
+          />
+        ) : gitOpen && cwd ? (
+          <GitView
+            cwd={cwd}
+            onClose={() => setGitOpen(false)}
+            showToast={session.showToast}
+          />
+        ) : (
+          <>
+          <ProjectRail
           projects={projects}
           activeCwd={cwd}
           activeSessionId={chrome.sessionId}
@@ -1028,6 +1094,10 @@ export function App() {
           error={projectsError}
           busy={chrome.busy || session.booting}
           onClose={() => setProjectRailOpen(false)}
+          onOpenSettings={() => { setSettingsOpen(true); setGitOpen(false); }}
+          onOpenGit={() => { if (cwd) { setGitOpen(true); setSettingsOpen(false); } }}
+          settingsActive={settingsOpen}
+          gitActive={gitOpen}
           onRetry={() => void refreshProjects()}
           onOpenProject={() => void openProject()}
           onNewSession={() => {
@@ -1067,6 +1137,7 @@ export function App() {
             onClick={() => session.setInspectorOpen(false)}
           />
         )}
+
         <div className={`content-inset${projectRailOpen ? "" : " is-expanded"}`}>
           <header className="topbar">
             <div className="topbar-leading">
@@ -1405,8 +1476,11 @@ export function App() {
               }}
             />
           )}
+
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {keysOpen && <KeysOverlay onClose={() => setKeysOpen(false)} />}

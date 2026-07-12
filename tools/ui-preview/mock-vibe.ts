@@ -645,6 +645,15 @@ if (scenario === "welcome") {
   window.localStorage.setItem("vibe.lastCwd", CWD);
 }
 
+// Auto-open settings or git panel for preview scenarios.
+if (scenario === "settings" || scenario === "git") {
+  window.setTimeout(() => {
+    window.dispatchEvent(
+      new CustomEvent("vibe-preview-open-panel", { detail: scenario }),
+    );
+  }, 400);
+}
+
 const rpcHandlers: Record<string, () => unknown> = {
   snapshot: () => {
     void runTimeline();
@@ -702,6 +711,116 @@ const mock = {
   },
   pasteClipboard: async () => ({ kind: "none" as const }),
   globalConfigPath: async () => "/Users/rob/.config/vibe-codr/config.json",
+
+  // Config mocks
+  readConfig: async (opts: { scope: "global" | "project" }) => {
+    if (opts.scope === "project") {
+      return {
+        ok: true as const,
+        config: {
+          model: "anthropic/claude-opus-4-8",
+          mode: "execute",
+          approvalMode: "ask",
+          details: "normal",
+          mcp: { servers: { "filesystem": { command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "."] } } },
+        },
+        path: "/Users/rob/Code/acme-web/.vibe/config.json",
+        raw: "{}",
+      };
+    }
+    return {
+      ok: true as const,
+      config: {
+        model: "anthropic/claude-opus-4-8",
+        planModel: "openai/o3",
+        mode: "execute",
+        approvalMode: "ask",
+        theme: "default",
+        details: "normal",
+        mouse: true,
+        maxSteps: 64,
+        subagent: { maxDepth: 3, maxParallel: 8, timeoutMs: 300000, model: "openai/gpt-5.5" },
+        memory: { semantic: { enabled: true, model: "local" }, proactiveRecall: true, sessionDigest: true },
+        search: { enabled: true },
+        build: { enabled: true, gate: { enabled: true, maxRounds: 5, checks: ["typecheck", "test", "build"] } },
+        providers: {
+          openai: { apiKey: "sk-…", baseURL: "https://api.openai.com/v1" },
+          anthropic: { apiKey: "sk-ant-…" },
+          ollama: { baseURL: "http://localhost:11434" },
+        },
+        permissions: [{ tool: "bash", match: "git push*", action: "ask" }],
+        caching: { enabled: true, cacheTools: true, cacheConversation: true },
+      },
+      path: "/Users/rob/.config/vibe-codr/config.json",
+      raw: "{}",
+    };
+  },
+  writeConfig: async () => ({ ok: true as const, path: "/Users/rob/.config/vibe-codr/config.json" }),
+  projectConfigPath: async () => "/Users/rob/Code/acme-web/.vibe/config.json",
+  readMemory: async (opts: { scope: "global" | "project" }) => ({
+    ok: true as const,
+    path: opts.scope === "global" ? "/Users/rob/.config/vibe-codr/VIBE.md" : "/Users/rob/Code/acme-web/VIBE.md",
+    content: opts.scope === "global" ? "# Global instructions\n\n- Use TypeScript strict mode\n- Prefer functional components" : "# ACME Web\n\n- Next.js 15 app router\n- Tailwind for styling",
+    exists: true,
+  }),
+  writeMemory: async () => ({ ok: true as const, path: "/Users/rob/.config/vibe-codr/VIBE.md" }),
+
+  // Git mocks
+  gitStatus: async () => ({
+    ok: true as const,
+    status: {
+      branch: "feature/settings-panel",
+      upstream: "origin/feature/settings-panel",
+      ahead: 2,
+      behind: 1,
+      clean: false,
+      entries: [
+        { index: "M", working: " ", path: "src/renderer/App.tsx" },
+        { index: "M", working: "M", path: "src/renderer/styles.css" },
+        { index: "A", working: " ", path: "src/renderer/settings/SettingsPanel.tsx" },
+        { index: " ", working: "M", path: "src/preload/index.ts" },
+        { index: "?", working: "?", path: "src/renderer/git/GitPanel.tsx" },
+      ],
+      stagedCount: 3,
+      unstagedCount: 2,
+      untrackedCount: 1,
+      remotes: [
+        { name: "origin", url: "git@github.com:robzilla1738/vbcode-electron.git", host: "github.com", owner: "robzilla1738", repo: "vbcode-electron" },
+      ],
+      branches: [
+        { name: "main", current: false, remote: false, upstream: "origin/main", ahead: 0, behind: 2, lastSubject: "Prevent session spinner action overlap", lastDate: Date.now() - 2 * 3600_000 },
+        { name: "feature/settings-panel", current: true, remote: false, upstream: "origin/feature/settings-panel", ahead: 2, behind: 1, lastSubject: "Add settings panel", lastDate: Date.now() - 30 * 60_000 },
+        { name: "ui/design-system-polish", current: false, remote: false, lastSubject: "Polish shell UI", lastDate: Date.now() - 3 * 24 * 3600_000 },
+        { name: "origin/main", current: false, remote: true, lastSubject: "Prevent session spinner action overlap", lastDate: Date.now() - 2 * 3600_000 },
+        { name: "origin/feature/settings-panel", current: false, remote: true, lastSubject: "Add settings panel", lastDate: Date.now() - 30 * 60_000 },
+      ],
+      recentCommits: [
+        { hash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0", shortHash: "a1b2c3d", author: "Robert", date: Date.now() - 30 * 60_000, subject: "Add settings panel with full config management" },
+        { hash: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1", shortHash: "b2c3d4e", author: "Robert", date: Date.now() - 2 * 3600_000, subject: "Add git integration panel" },
+        { hash: "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2", shortHash: "c3d4e5f", author: "Robert", date: Date.now() - 5 * 3600_000, subject: "Prevent session spinner action overlap" },
+        { hash: "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3", shortHash: "d4e5f6a", author: "Robert", date: Date.now() - 26 * 3600_000, subject: "Polish transcript disclosures" },
+        { hash: "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4", shortHash: "e5f6a7b", author: "Robert", date: Date.now() - 2 * 24 * 3600_000, subject: "Logic audit and hardening" },
+      ],
+    },
+  }),
+  gitCreateBranch: async () => ({ ok: true, message: "Created branch" }),
+  gitCheckout: async () => ({ ok: true, message: "Switched" }),
+  gitDeleteBranch: async () => ({ ok: true, message: "Deleted" }),
+  gitStage: async () => ({ ok: true, message: "Staged" }),
+  gitCommit: async () => ({ ok: true, message: "Committed" }),
+  gitMerge: async () => ({ ok: true, message: "Merged" }),
+  gitPush: async () => ({ ok: true, message: "Pushed" }),
+  gitPull: async () => ({ ok: true, message: "Pulled" }),
+  gitFetch: async () => ({ ok: true, message: "Fetched" }),
+  ghCheckAvailable: async () => ({ available: true }),
+  ghPrList: async () => ({
+    ok: true as const,
+    prs: [
+      { number: 42, title: "Add settings and git panels", state: "OPEN", head: "feature/settings-panel", url: "https://github.com/robzilla1738/vbcode-electron/pull/42" },
+      { number: 38, title: "Polish shell UI and harden host resolution", state: "MERGED", head: "ui/design-system-polish", url: "https://github.com/robzilla1738/vbcode-electron/pull/38" },
+    ],
+  }),
+  ghPrCreate: async () => ({ ok: true as const, url: "https://github.com/robzilla1738/vbcode-electron/pull/43", message: "PR created" }),
 };
 
 (window as unknown as { vibe: typeof mock }).vibe = mock;
