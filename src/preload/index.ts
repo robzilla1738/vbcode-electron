@@ -136,18 +136,8 @@ const api: VibeApi = {
   },
   onMenuAction: (cb) => {
     const handler = (_: Electron.IpcRendererEvent, action: string) => cb(action);
-    ipcRenderer.on("menu:openProject", () => cb("openProject"));
-    ipcRenderer.on("menu:continueLatest", () => cb("continueLatest"));
-    ipcRenderer.on("menu:toggleSettings", () => cb("toggleSettings"));
-    ipcRenderer.on("menu:toggleGit", () => cb("toggleGit"));
-    ipcRenderer.on("menu:toggleInspector", () => cb("toggleInspector"));
-    return () => {
-      ipcRenderer.removeListener("menu:openProject", handler);
-      ipcRenderer.removeListener("menu:continueLatest", handler);
-      ipcRenderer.removeListener("menu:toggleSettings", handler);
-      ipcRenderer.removeListener("menu:toggleGit", handler);
-      ipcRenderer.removeListener("menu:toggleInspector", handler);
-    };
+    ipcRenderer.on("menu:action", handler);
+    return () => ipcRenderer.removeListener("menu:action", handler);
   },
   openProject: () => ipcRenderer.invoke("dialog:openProject"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),

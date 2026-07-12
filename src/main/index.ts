@@ -130,12 +130,12 @@ function buildApplicationMenu(): void {
         {
           label: "Open Project…",
           accelerator: "CmdOrCtrl+O",
-          click: () => mainWindow?.webContents.send("menu:openProject"),
+          click: () => mainWindow?.webContents.send("menu:action", "openProject"),
         },
         {
           label: "Continue Latest Session",
           accelerator: "CmdOrCtrl+Shift+N",
-          click: () => mainWindow?.webContents.send("menu:continueLatest"),
+          click: () => mainWindow?.webContents.send("menu:action", "continueLatest"),
         },
         { type: "separator" as const },
         { role: "close" as const },
@@ -176,17 +176,17 @@ function buildApplicationMenu(): void {
         {
           label: "Settings…",
           accelerator: "CmdOrCtrl+,",
-          click: () => mainWindow?.webContents.send("menu:toggleSettings"),
+          click: () => mainWindow?.webContents.send("menu:action", "toggleSettings"),
         },
         {
           label: "Git…",
           accelerator: "CmdOrCtrl+Shift+B",
-          click: () => mainWindow?.webContents.send("menu:toggleGit"),
+          click: () => mainWindow?.webContents.send("menu:action", "toggleGit"),
         },
         {
           label: "Toggle Inspector",
           accelerator: "CmdOrCtrl+Shift+I",
-          click: () => mainWindow?.webContents.send("menu:toggleInspector"),
+          click: () => mainWindow?.webContents.send("menu:action", "toggleInspector"),
         },
       ],
     },
