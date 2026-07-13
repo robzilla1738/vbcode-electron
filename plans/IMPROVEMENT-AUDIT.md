@@ -1,8 +1,8 @@
 # vbcode-electron — verified improvement backlog (post-implementation)
 
 **Date:** 2026-07-13  
-**Commit base audited:** `e29923f`  
-**Implementation pass:** residual §§1–5 closed to industry standard (this tree)  
+**Commit base audited:** `2dc10e0`
+**Implementation pass:** public-release logic and distribution hardening (this tree)
 **Scope:** Electron presentation shell only (main · preload · renderer · shared · scripts/tests/docs)
 
 This document is the living backlog. **Open residual** items are only those still deferred with an explicit label (engine-adjacent, credential-gated, or intentional non-goal). Everything else from the prior residual list is in the **Fixed inventory**.
@@ -11,19 +11,29 @@ This document is the living backlog. **Open residual** items are only those stil
 
 ## Executive summary
 
-The shell now closes the residual hardening gaps from the `e29923f` re-audit:
+The shell now closes the residual hardening gaps from the prior re-audit and
+the public-release pass:
 
 1. **Lifecycle** — `disposeForQuit` preempts bootstrap waiters; process-group kill; ownership retained if unreaped after SIGKILL wait.
 2. **Security** — byte-capped + realpath file reads; `gh` capture caps; cwd allowlist for git/config/fs; clipboard text cap; config/memory read caps; editor draft cap.
 3. **Busy rule** — failed incidental `send` no longer clears mid-turn busy.
 4. **Long-session** — retained block ceiling; plain streaming markdown; file-diff line caps; stabilized session API memo.
 5. **Test/CI** — coverage + `smoke:bridge` in CI/`verify:ci`; preload↔mock key contract; expanded unit net; dock e2e case; `ui:shots` fails non-zero.
+6. **Config/MCP parity** — all 40 engine fields are represented; engine ranges,
+   structural types, remote endpoints, OAuth, and queue timeouts are rejected
+   before an invalid file can be persisted.
+7. **Bounded state** — project file lookup uses a 32-entry TTL/LRU; settled
+   config write chains are evicted; config writes share the reader's 2 MB cap;
+   delayed process-kill timers are cancelled after child exit.
+8. **Release supply chain** — engine source is commit-locked, GitHub Actions are
+   SHA-pinned, unsigned smoke and signed public builds are separate, and tags run
+   sign/notarize/Gatekeeper/stapler/checksum verification before publishing.
 
 | Tier | Residual open | Status |
 |------|---------------|--------|
 | **P0–P3 shell fixes** | 0 in-scope | **Closed** this pass |
-| **Credential-gated** | signing / live auto-update channel | Deferred (needs Apple credentials) |
-| **Engine-adjacent** | edit-resubmit, host protocol version emit, shared Zod package | Labeled; shell exposes `getShellInfo` only |
+| **Credential-gated** | execution of signing/notarization workflow | Implemented; run requires Apple credentials |
+| **Engine-adjacent** | edit-resubmit, host protocol version emit | Labeled; shell exposes `getShellInfo` only |
 | **Intentional non-goals** | OpenTUI grid, job-kill UI, plugin store, etc. | Not shell bugs |
 
 ---
@@ -52,10 +62,17 @@ The shell now closes the residual hardening gaps from the `e29923f` re-audit:
 | P2 config/memory reads unbounded | size gates in `config-io.ts` |
 | P2 unreaped after SIGKILL | ownership retained if still alive (`stopCurrent`) |
 | P2 process-group kill | detached spawn + `process.kill(-pid)` on POSIX |
-| P2 listFiles main-thread stalls | 5s TTL cache `listProjectFilesCached` |
+| P2 listFiles main-thread stalls/growth | 5s TTL, 32-entry LRU `listProjectFilesCached` |
 | P2 second-instance null window | `createWindow()` when `!mainWindow` |
 | P2 crash reporter | local-only `crashReporter.start` (no upload) |
-| P2 unsigned / auto-update | **Deferred** credential-gated (see §7) |
+| P2 unsigned public artifacts | Signed/notarized tag workflow with Gatekeeper, stapler, and checksum verification |
+| P1 config schema drift | `verify:config-shape` compares all 40 top-level engine fields; CI uses `ENGINE_COMMIT` |
+| P1 engine-invalid Settings writes | Authoritative range/type checks, MCP/OAuth validation, queue timeout field, and regression tests |
+| P2 config write growth | 2 MB symmetric read/write cap + settled write-chain eviction |
+| P2 project file cache growth | Bounded 32-entry TTL/LRU + unit test |
+| P3 stale kill timers | SIGKILL escalation timers are cancelled on child error/close/exit |
+| P2 project config path disclosure | `config:projectPath` now enforces the bootstrap cwd allowlist |
+| P1 clean-install Electron race | `postinstall` prefetches Electron 43 before native rebuild/tests, preventing parallel lazy-download extraction races |
 | P3 dialog mainWindow! | null-safe `showOpenDialog` |
 | P3 stdin backpressure | real `StdinWriteQueue` serializes writes behind drain |
 | P3 editor draft uncapped | 2 MiB reject before compose |
@@ -106,7 +123,8 @@ The shell now closes the residual hardening gaps from the `e29923f` re-audit:
 
 ### Residual open
 
-None in-scope. Signing/notarization/auto-update **channel** remain credential-gated (local crashReporter is on).
+None in-scope. The public tag workflow is implemented; executing it remains
+credential-gated. Local crashReporter is on without upload.
 
 ---
 
@@ -136,7 +154,6 @@ None. `getShellInfo` provides shell version + launch description. Host protocol 
 
 | Item | Label |
 |------|-------|
-| Shared Zod with `@vibe/config` | **Engine-adjacent** single source of truth |
 | Source-parity large allowlists | Intentional alarm; behavioral parity tests remain |
 
 ---
@@ -147,7 +164,7 @@ None. `getShellInfo` provides shell version + launch description. Host protocol 
 
 | Item | Label |
 |------|-------|
-| Live auto-update + notarization | **Credential-gated** |
+| Execute signed/notarized release | **Credential-gated**, workflow implemented |
 | Nightly real-host e2e | Engine-adjacent CI pin |
 | Biome formatter enable | Optional DX (large reformat) |
 | macOS full e2e matrix | Cost trade-off; pack smoke covers host path |
@@ -165,7 +182,6 @@ D1–D5 remain **options** beyond the residual fix list. Partial delivery: long-
 ## Engine-adjacent
 - Edit/regenerate turn protocol  
 - Host protocol version emission  
-- Shared Zod config package  
 - Snapshot-native full diff map  
 - Real-host e2e pin  
 
@@ -173,14 +189,14 @@ D1–D5 remain **options** beyond the residual fix list. Partial delivery: long-
 OpenTUI grid, mouse capture, engine reimplementation, plugin install UI, job-kill, interactive DAG, subagent drill-in, full Liquid Glass themes.
 
 ## Deferred / credential-gated
-- Public signing/notarization  
-- Production auto-update channel requiring those credentials  
+- Running the implemented public release workflow requires Apple credentials
 
 ---
 
 # 8. Recommended execution order
 
-**Completed** for in-scope residual. Next optional work: virtualization polish, engine protocol coordination, notarization when credentials exist.
+**Completed** for in-scope residual. Next optional product work is
+virtualization polish or engine protocol coordination; neither is release debt.
 
 ---
 
@@ -213,9 +229,11 @@ OpenTUI grid, mouse capture, engine reimplementation, plugin install UI, job-kil
 # 11. How verification was done
 
 1. One-item-at-a-time implementation with unit tests on real exports.  
-2. Full `npm test` (269) + `npm run typecheck`.
+2. Full `npm test` (289) + `npm run typecheck`.
 3. Structural audit test + vibe-api-keys + busy/path/stream caps.  
-4. CI YAML + package scripts read for coverage/bridge smoke wiring.  
+4. CI/release YAML parsed; actions and engine commit pinned.
+5. Clean locked-engine archive passed source/config parity, native host build,
+   unsigned package, bundled-host boot, restore/command smoke, and orphan check.
 
 ---
 

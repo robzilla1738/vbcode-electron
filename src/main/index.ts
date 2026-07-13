@@ -12,6 +12,7 @@ import { composeInEditor } from "../shared/editor-compose";
 import { listProjectFiles, rankPaths } from "../shared/file-fuzzy";
 import { resolvePathInsideRoot } from "../shared/path-safe";
 import { chatsCwdFromHome } from "../shared/project-index";
+import { TtlLruCache } from "../shared/ttl-lru-cache";
 import { decodeInbound, type HostInbound, type RpcMethod } from "../shared/protocol";
 import { registerConfigIpc } from "./config-ipc";
 import { EngineBridge } from "./engine-bridge";
@@ -25,12 +26,12 @@ const bridge = new EngineBridge();
 
 /** Short-TTL cache for `@` mention tree walks (avoids main-thread stalls). */
 const LIST_FILES_CACHE_TTL_MS = 5_000;
-const listFilesCache = new Map<string, { paths: string[]; at: number }>();
+const listFilesCache = new TtlLruCache<string, string[]>(32, LIST_FILES_CACHE_TTL_MS);
 
 function listProjectFilesCached(cwd: string): string[] {
   const now = Date.now();
   const hit = listFilesCache.get(cwd);
-  if (hit && now - hit.at < LIST_FILES_CACHE_TTL_MS) return hit.paths;
+  if (hit) return hit;
   const paths = listProjectFiles(cwd, {
     maxFiles: 2000,
     maxDepth: 6,
@@ -45,7 +46,7 @@ function listProjectFilesCached(cwd: string): string[] {
       }
     },
   });
-  listFilesCache.set(cwd, { paths, at: now });
+  listFilesCache.set(cwd, paths, now);
   return paths;
 }
 
@@ -509,21 +510,26 @@ function registerIpc(): void {
             stdio: "inherit",
             env: enrichedEnv(),
           });
+          let forceTimer: NodeJS.Timeout | null = null;
           const timer = setTimeout(() => {
             try {
               child.kill("SIGTERM");
-              setTimeout(() => child.kill("SIGKILL"), 2000);
+              forceTimer = setTimeout(() => child.kill("SIGKILL"), 2000);
             } catch {
               /* ignore */
             }
             reject(new Error("External editor timed out"));
           }, EDITOR_TIMEOUT_MS);
-          child.once("error", (err) => {
+          const clearTimers = () => {
             clearTimeout(timer);
+            if (forceTimer) clearTimeout(forceTimer);
+          };
+          child.once("error", (err) => {
+            clearTimers();
             reject(err);
           });
           child.once("exit", (code) => {
-            clearTimeout(timer);
+            clearTimers();
             resolve(code ?? 1);
           });
         }),

@@ -230,6 +230,15 @@ describe("config-io", () => {
       await expect(writeMemoryFile(path, huge)).rejects.toThrow(/exceeds/);
     });
 
+    it("rejects a config larger than the read ceiling", async () => {
+      const { CONFIG_MAX_WRITE_BYTES } = await import("./config-io");
+      const path = join(tmpDir, "oversize.json");
+      await expect(
+        writeConfigFile(path, { model: "x".repeat(CONFIG_MAX_WRITE_BYTES) }),
+      ).rejects.toThrow(/exceeds/);
+      expect(existsSync(path)).toBe(false);
+    });
+
     it("writes secret-bearing config with mode 0o600 when platform supports chmod", async () => {
       const { writeConfigFile } = await import("./config-io");
       const { stat } = await import("node:fs/promises");

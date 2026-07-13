@@ -66,19 +66,24 @@ export async function runGit(cwd: string, args: string[]): Promise<GitRunResult>
       stdio: ["ignore", "pipe", "pipe"],
     }) as unknown as SpawnedChild;
     const capture = createCaptureBuffers(GIT_MAX_CAPTURE_BYTES);
+    let forceTimer: NodeJS.Timeout | null = null;
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), 2000);
+      forceTimer = setTimeout(() => child.kill("SIGKILL"), 2000);
     }, GIT_TIMEOUT_MS);
+    const clearTimers = () => {
+      clearTimeout(timer);
+      if (forceTimer) clearTimeout(forceTimer);
+    };
 
     child.stdout.on("data", (chunk: Buffer) => appendCapture(capture, "stdout", chunk));
     child.stderr.on("data", (chunk: Buffer) => appendCapture(capture, "stderr", chunk));
     child.on("error", (err: Error) => {
-      clearTimeout(timer);
+      clearTimers();
       resolve({ ok: false, stdout: capture.stdout, stderr: err.message });
     });
     child.on("close", (code: number | null) => {
-      clearTimeout(timer);
+      clearTimers();
       if (capture.truncated) {
         resolve({
           ok: false,

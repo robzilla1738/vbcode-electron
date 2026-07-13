@@ -22,8 +22,9 @@ describe("validateConfig", () => {
     expect(errs.some((e) => e.includes("providers.openai.baseURL"))).toBe(true);
   });
 
-  it("accepts an empty provider baseURL (unset)", () => {
-    expect(validateConfig({ providers: { openai: { baseURL: "" } } })).toEqual([]);
+  it("rejects an empty provider baseURL instead of persisting an engine-invalid value", () => {
+    const errors = validateConfig({ providers: { openai: { baseURL: "" } } });
+    expect(errors.some((error) => error.includes("providers.openai.baseURL"))).toBe(true);
   });
 
   it("rejects an MCP url without a host", () => {
@@ -99,5 +100,59 @@ describe("validateConfig", () => {
       mcp: { servers: { remote: { url: "" } } },
     });
     expect(errs.some((e) => e.includes("mcp.servers.remote.url"))).toBe(true);
+  });
+
+  it("rejects invalid remote MCP URLs even while the server is disabled", () => {
+    const errs = validateConfig({
+      mcp: { servers: { remote: { url: "", enabled: false } } },
+    });
+    expect(errs.some((e) => e.includes("mcp.servers.remote.url"))).toBe(true);
+  });
+
+  it("validates nested remote MCP OAuth settings", () => {
+    const errs = validateConfig({
+      mcp: {
+        servers: {
+          remote: {
+            url: "https://example.com/mcp",
+            oauth: { scopes: "read", redirectUri: "ftp://example.com/callback" },
+          },
+        },
+      },
+    });
+    expect(errs.some((e) => e.includes("oauth.scopes"))).toBe(true);
+    expect(errs.some((e) => e.includes("oauth.redirectUri"))).toBe(true);
+  });
+
+  it.each([
+    [{ budget: { limitUSD: 0 } }, "budget.limitUSD"],
+    [{ goal: { maxRounds: 0 } }, "goal.maxRounds"],
+    [{ goal: { maxRounds: 101 } }, "goal.maxRounds"],
+    [{ loop: { defaultMax: 1001 } }, "loop.defaultMax"],
+    [{ loop: { maxUntilEvalFailures: 0 } }, "loop.maxUntilEvalFailures"],
+    [{ retry: { maxAttempts: 11 } }, "retry.maxAttempts"],
+    [{ retry: { baseDelayMs: 60_001 } }, "retry.baseDelayMs"],
+    [{ mcp: { servers: { remote: { url: "https://example.com", timeoutMs: 0 } } } }, "mcp.servers.remote.timeoutMs"],
+    [{ reasoning: { budgetTokens: 0 } }, "reasoning.budgetTokens"],
+    [{ itemTimeoutMs: -1 }, "itemTimeoutMs"],
+    [{ build: { gate: { maxRounds: 11 } } }, "build.gate.maxRounds"],
+    [{ build: { review: { maxRounds: 6 } } }, "build.review.maxRounds"],
+    [{ verify: { maxRetries: 11 } }, "verify.maxRetries"],
+    [{ contextWindow: { "custom/model": 0 } }, "contextWindow.custom/model"],
+  ] as const)("rejects authoritative engine-schema mismatch %#", (config, path) => {
+    expect(validateConfig(config as Record<string, unknown>).some((error) => error.includes(path))).toBe(true);
+  });
+
+  it("rejects wrong structural types instead of silently accepting them", () => {
+    const errors = validateConfig({
+      plugins: "plugin-a",
+      memory: { semantic: { enabled: "yes" } },
+      caching: { cacheTools: 1 },
+      providers: { openai: "invalid" },
+      permissions: {},
+    });
+    for (const path of ["plugins", "memory.semantic.enabled", "caching.cacheTools", "providers.openai", "permissions"]) {
+      expect(errors.some((error) => error.includes(path))).toBe(true);
+    }
   });
 });

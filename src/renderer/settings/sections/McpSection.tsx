@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { McpServerConfig } from "../../../shared/config-schema";
 import { mcpServerTypeTemplate } from "../../../shared/mcp-server-edit";
 import type { SectionProps } from "./types";
-import { SettingBadge, SettingField, SettingSection, TextArea, TextInput, ToggleSwitch } from "../FormControls";
+import { NumberInput, SettingBadge, SettingField, SettingSection, TextArea, TextInput, ToggleSwitch } from "../FormControls";
 
 export function McpSection({ config, updateConfig }: SectionProps) {
   const servers = config.mcp?.servers ?? {};
@@ -178,15 +178,12 @@ export function McpSection({ config, updateConfig }: SectionProps) {
                         onChange={(v) => updateServer(name, { ...server, enabled: v })}
                       />
                     </SettingField>
-                    <SettingField label="Timeout (ms)" description="Per-server connect/list deadline. 0 = hub default.">
-                      <TextInput
-                        value={server.timeoutMs?.toString() ?? ""}
-                        onChange={(v) => {
-                          const n = Number(v);
-                          updateServer(name, { ...server, timeoutMs: v && Number.isFinite(n) ? n : undefined });
-                        }}
+                    <SettingField label="Timeout (ms)" description="Per-server connect/list deadline. Leave empty for the hub default.">
+                      <NumberInput
+                        value={server.timeoutMs}
+                        onChange={(v) => updateServer(name, { ...server, timeoutMs: v })}
+                        min={1}
                         placeholder="default"
-                        monospace
                       />
                     </SettingField>
                   </div>

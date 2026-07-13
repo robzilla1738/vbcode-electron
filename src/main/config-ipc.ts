@@ -91,6 +91,8 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     if (typeof cwd !== "string" || !cwd) {
       throw new Error("Project config path requires a cwd");
     }
+    const guard = projectCwdGuard("project", cwd);
+    if (guard) throw new Error(guard);
     return configPathForScope("project", cwd);
   });
 

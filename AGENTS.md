@@ -47,12 +47,15 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | Config I/O (JSONC read/write) | `src/shared/config-io.ts`, `config-schema.ts` |
 | Config diff patch builder | `src/shared/config-diff.ts` |
 | Config pre-write validation | `src/shared/config-validate.ts` |
+| Config shape parity gate | `scripts/check-config-shape.mjs`, locked engine revision in `ENGINE_COMMIT` |
+| Bounded main-process cache | `src/shared/ttl-lru-cache.ts` |
 | Provider catalog (onboarding) | `src/shared/providers-catalog.ts` |
 | Onboarding modal (first-run) | `src/renderer/panels/OnboardingModal.tsx` |
 | Error boundary | `src/renderer/ErrorBoundary.tsx` |
 | Application menu + dev CSP | `src/main/index.ts` |
 | Git operations | `src/shared/git-ops.ts`, `git-types.ts` |
 | Config + git IPC | `src/main/config-ipc.ts`, `git-ipc.ts`, `ipc-security.ts` |
+| Release automation | `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `build/entitlements.mac*.plist` |
 | Parity checklist | `PARITY.md` |
 | UI contract | `UI.md` |
 
@@ -60,15 +63,16 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 
 ```bash
 npm run dev            # launch Electron
-npm test               # unit tests (Vitest; 269 at the current baseline)
+npm test               # unit tests (Vitest; 289 at the current baseline)
 npm run test:coverage  # coverage floors (shared + bridge)
 npm run typecheck
-npm run verify         # lint + unit + source-parity + typecheck + build + bundle
+npm run verify         # lint + unit + source/config parity + typecheck + build + bundle
 npm run verify:ci      # verify + coverage + smoke:bridge + e2e
 npm run test:e2e       # Playwright Electron harness (12 scenarios)
 npm run ui:preview     # renderer in a browser, mocked window.vibe (no engine)
 npm run ui:shots       # headless screenshots (non-zero exit on capture failure)
 npm run smoke:bridge   # host NDJSON smoke (needs vibe-codr dist host)
+npm run smoke:packaged # launch packaged app against its bundled host
 npm run copy-host      # embed host for pack (freshness + arch checks)
 ```
 

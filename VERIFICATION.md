@@ -10,6 +10,7 @@ npm test
 npm run test:coverage  # V8 floors on shared + bridge/host-resolver/ipc-security
 npm run lint
 npm run verify:source-parity
+npm run verify:config-shape
 npm run typecheck
 npm run build
 npm run verify:bundle
@@ -17,25 +18,29 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (**269** tests as of 2026-07-13), Playwright Electron E2E
+Expect: Vitest green (**289** tests as of 2026-07-13), Playwright Electron E2E
 green (**12** scenarios), all 19 upstream source pairs aligned, Biome and `tsc`
-clean, electron-vite build and renderer/host bundle budget OK, and smoke prints
+clean, all 40 engine config fields represented, electron-vite build and
+renderer/host bundle budget OK, and smoke prints
 `ready` + `snapshot ok` and a structurally valid project-list response (which
 may be empty when every project is archived). Prefer live suite output over frozen counts in prose.
 The xterm runtime must remain in a deferred chunk: aggregate renderer payload
 may include it, but the initial/largest chunk retains the pre-terminal budget.
+`npm ci` must finish the `install-electron` prefetch before Vitest starts; this
+prevents parallel test workers from racing Electron 43's lazy binary download.
 
 | Gate | Includes |
 |------|----------|
-| `npm run verify` | lint + unit + source-parity + typecheck + build + bundle |
+| `npm run verify` | lint + unit + source/config parity + typecheck + build + bundle |
 | `npm run verify:fast` | lint + unit + typecheck |
 | `npm run verify:ci` | verify + coverage + bridge smoke + E2E |
 
-The source-parity command compares against the live sibling checkout selected
-by `VIBE_CODR_ROOT` or `~/Code/vibe-codr`. Keep that checkout on the revision
-expected by this repository before calling the full gate green. The parity
-script allows intentional Electron-specific additions and normalizes
-whitespace to avoid false formatting drift.
+The source and config parity commands compare against the checkout selected by
+`VIBE_CODR_ROOT` or `~/Code/vibe-codr`. CI and release builds fetch the exact
+revision in `ENGINE_COMMIT`; local release proof should point
+`VIBE_CODR_ROOT` at a clean checkout of that revision. The source parity script
+allows documented Electron-specific additions and normalizes whitespace to
+avoid false formatting drift.
 
 CI checks the engine source out at `./vibe-codr`. That directory is excluded
 from this repository's Biome scope so both checkouts retain independent root
@@ -45,9 +50,15 @@ and loaded only after a Darwin platform check; Linux CI must typecheck, build,
 and run the Electron harness without installing that native module.
 
 GitHub CI (`.github/workflows/ci.yml`) runs `verify`, coverage floors,
-`smoke:bridge`, and Electron E2E on Linux, plus an unsigned bundled-host smoke
-on macOS. Public signing/notarization and a live auto-update channel remain
-release-credential steps. Local crash breadcrumbs are enabled without upload.
+`smoke:bridge`, and Electron E2E on Linux, plus an explicitly unsigned
+bundled-host smoke on macOS. A `v<package-version>` tag triggers
+`.github/workflows/release.yml`, which runs the full gate against the locked
+engine, signs and notarizes the hardened arm64 app/DMG, validates Gatekeeper and
+stapling, emits `SHA256SUMS`, and publishes the GitHub release. The protected
+`release` environment must provide the Apple signing certificate and App Store
+Connect API secrets: `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`,
+`APPLE_API_KEY_P8` (the `.p8` contents), `APPLE_API_KEY_ID`, and
+`APPLE_API_ISSUER`. Local crash breadcrumbs remain enabled without upload.
 
 ## UI preview (renderer-only, no engine)
 
@@ -92,9 +103,17 @@ Codr wordmark remains visible rather than switching to a plain text fallback.
 ```bash
 npm run build:icon   # assets/icon.png → assets/icon.icns
 npm run pack
+npm run smoke:packaged
 ```
 
-Verify `release/mac-arm64/Vibe Codr.app` launches with the renderer sandbox enabled, uses `Contents/Resources/vibecodr-engine-host`, shows the optically padded VC app icon at a comparable size to neighboring macOS icons in Dock/Finder, and does not require `VIBE_CODR_ROOT`. Its final plist must keep `NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth permission strings.
+`pack` is intentionally unsigned and disables hardened runtime only for local/CI
+launch proof; public artifacts use the signed/notarized release path. Verify
+`release/mac-arm64/Vibe Codr.app` launches with the renderer sandbox enabled,
+uses `Contents/Resources/vibecodr-engine-host`, shows the optically padded VC
+app icon at a comparable size to neighboring macOS icons in Dock/Finder, and
+does not require `VIBE_CODR_ROOT`. Its final plist must keep
+`NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth
+permission strings.
 
 ## Manual (dev window)
 

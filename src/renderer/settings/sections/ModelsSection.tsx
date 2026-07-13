@@ -75,6 +75,15 @@ export function ModelsSection({ config, updateConfig, updateNested }: SectionPro
             placeholder="600000"
           />
         </SettingField>
+        <SettingField label="Queued item timeout (ms)" description="Ultimate safety net for a stuck queued turn or continuation. 0 = disabled.">
+          <NumberInput
+            value={config.itemTimeoutMs}
+            onChange={(v) => updateConfig({ itemTimeoutMs: v })}
+            min={0}
+            step={1000}
+            placeholder="1800000"
+          />
+        </SettingField>
       </SettingSection>
 
       <SettingSection title="Pricing Overrides" description="Per-model price overrides keyed by model string (provider/model), in USD per 1M tokens. Overrides catalog pricing for cost tracking.">

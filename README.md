@@ -95,10 +95,11 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 | `npm run test:coverage` | Same suite with V8 coverage floors (shared + bridge) |
 | `npm run test:e2e` | Hermetic Electron UI/IPC/bridge parity scenarios |
 | `npm run lint` | Biome correctness and maintainability gate |
-| `npm run verify` | Lint + unit + source parity + types + build + bundle budget |
+| `npm run verify` | Lint + unit + source/config parity + types + build + bundle budget |
 | `npm run verify:fast` | Lint + unit + typecheck |
 | `npm run verify:ci` | `verify` + coverage + bridge smoke + E2E |
 | `npm run verify:source-parity` | AST drift gate against live CLI/shared/bridge sources |
+| `npm run verify:config-shape` | Top-level Settings schema drift gate against the engine `ConfigSchema` |
 | `npm run verify:bundle` | Renderer JavaScript + staged host binary budget |
 | `npm run typecheck` | `tsc` for node + web projects |
 | `npm run ui:preview` | Renderer in a browser with a mocked bridge (no engine) |
@@ -106,8 +107,8 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 | `npm run smoke:bridge` | NDJSON bootstrap → snapshot → shutdown |
 | `npm run smoke:packaged` | Packaged app smoke without developer host fallback |
 | `npm run copy-host` | Copy host binary into `resources/` (freshness + arch checks) |
-| `npm run pack` | macOS dir build (copies host first) |
-| `npm run dist` | macOS `.dmg` / distributable |
+| `npm run pack` | Explicitly unsigned macOS dir build for local/CI smoke |
+| `npm run dist` | Hardened macOS `.dmg` / distributable (release workflow signs and notarizes) |
 
 ## Layout
 
@@ -199,7 +200,8 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   the CLI's `PROVIDER_CHOICES`), key entry with get-a-key links, base URL for
   custom endpoints, model preselect, and save → re-bootstrap
 - **Full-workspace settings**: 15 sections covering every config field — Models
-  (default, planning, fallbacks, reasoning, pricing/context-window overrides),
+  (default, planning, fallbacks, reasoning, turn/stream/queue limits,
+  pricing/context-window overrides),
   Providers (curated dropdown + free-text), MCP Servers (stdio + remote),
   Permissions (tool/match/matchExact/action), Appearance (16 themes + accent
   swatches), Behavior (mode, approvals, sandbox, checkpoints, trust), Subagents,
@@ -207,10 +209,14 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   gate), Memory, Search & Web, Compaction, Budget & Retry, Hooks, Custom
   Instructions (VIBE.md), Advanced (plugins, LSP, vision relay, verify, updates,
   goal/loop, orchestration)
-- **Atomic config writes**: temp+rename so a crash mid-write can't corrupt the
-  config; per-path write serialization prevents concurrent clobber
-- **Pre-write validation**: URLs, enums, and numeric ranges checked before
-  persisting — invalid values are rejected with a helpful error, not written
+- **Atomic, bounded config writes**: temp+rename so a crash mid-write can't
+  corrupt the config; per-path write serialization prevents concurrent
+  clobber, settled queues are evicted, and the writer cannot create a file the
+  reader's 2 MB safety limit would reject
+- **Pre-write validation**: structural types, MCP/OAuth URLs, enums, and engine
+  numeric ranges are checked before persisting — invalid values are rejected
+  with a helpful error, not written; CI also fails if the engine adds or removes
+  a top-level config field without a matching shell type
 - **Deep-diff save**: only changed keys are persisted; clearing a field sends
   `null` (delete) instead of `undefined` (no-op)
 - Config is shared with the CLI at `~/.config/vibe-codr/config.json`
@@ -228,6 +234,10 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   sandbox enabled; `nodeIntegration: false`
 - **ATS**: `NSAllowsArbitraryLoads=false`, `NSAllowsLocalNetworking=true`;
   unused permission strings (camera/mic/Bluetooth) stripped in `after-pack`
+- **Release integrity**: CI and release jobs pin third-party actions by commit
+  SHA and build the host from the commit in `ENGINE_COMMIT`; version tags run the
+  full gate, sign and notarize the hardened arm64 app/DMG, validate Gatekeeper
+  and stapling, and publish a SHA-256 checksum
 
 ## Features (shell)
 
@@ -275,11 +285,12 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **269 unit tests**, **12 Electron E2E scenarios**, 19 source
-parity pairs, Biome, typecheck, production build, and renderer bundle budget
-pass in the current checkout. CI runs `verify` + coverage floors + bridge smoke
-+ E2E on Linux and unsigned pack smoke on macOS. Prefer live `npm test` counts
-over frozen numbers in prose. The deterministic preview matrix covers
+Current baseline: **289 unit tests**, **12 Electron E2E scenarios**, 19 source
+parity pairs, 40 top-level config fields, Biome, typecheck, production build,
+and renderer bundle budget pass in the current checkout. CI runs `verify` +
+coverage floors + bridge smoke + E2E on Linux and unsigned pack smoke on macOS;
+the tag workflow signs, notarizes, verifies, and publishes public artifacts.
+Prefer live `npm test` counts over frozen numbers in prose. The deterministic preview matrix covers
 attachments, settings, Git, Session review, light mode, and alternate themes.
 Hardening backlog: [plans/IMPROVEMENT-AUDIT.md](./plans/IMPROVEMENT-AUDIT.md).
 See [design-system.md](./design-system.md), [VERIFICATION.md](./VERIFICATION.md),

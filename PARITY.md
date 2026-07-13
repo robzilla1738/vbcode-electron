@@ -1,14 +1,19 @@
 # CLI ↔ Electron parity checklist
 
-Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (269 unit tests), `npm run test:e2e` (12 scenarios), plus `npm run verify:source-parity` and CI coverage/`smoke:bridge` gates.
+Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated:
+`npm test` (289 unit tests), `npm run test:e2e` (12 scenarios),
+`npm run verify:source-parity` (19 declaration pairs),
+`npm run verify:config-shape` (40 top-level engine fields), and CI
+coverage/bridge/packaged-host gates.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
-The parity script compares declaration ASTs with the sibling checkout selected
-by `VIBE_CODR_ROOT` or `~/Code/vibe-codr`. Run it against the synchronized
-engine revision. A local sibling checkout can legitimately be ahead or carry
-provider/protocol changes; that state is a release attention item, not a reason
-to weaken the parity guard.
+The parity scripts compare declaration/config ASTs with the checkout selected
+by `VIBE_CODR_ROOT` or `~/Code/vibe-codr`. CI and public releases fetch the
+exact revision in `ENGINE_COMMIT`; use a clean archive of that revision for
+local release proof. A local sibling checkout can legitimately be ahead or
+carry provider/protocol changes; that state is a release attention item, not a
+reason to weaken either guard.
 
 ## Automated (unit)
 
@@ -512,6 +517,6 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current local gate: 269 unit tests, 12 e2e scenarios, lint, typecheck,
-  build, bundle budget, source parity (19 pairs), coverage floors in CI, and
-  bridge smoke in `verify:ci` / GitHub Actions.
+- [x] Current release gate: 289 unit tests, 12 e2e scenarios, lint, typecheck,
+  build, bundle budget, source parity (19 pairs), config-shape parity (40
+  fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.

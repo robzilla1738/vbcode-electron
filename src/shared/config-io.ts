@@ -143,6 +143,9 @@ export function configPathForScope(scope: ConfigScope, cwd?: string): string {
 
 /** Config reads refuse multi-megabyte files (Settings open must not OOM main). */
 export const CONFIG_MAX_READ_BYTES = 2_000_000;
+/** Config writes use the same ceiling as reads so the app cannot create a file
+ * it will refuse to open on the next Settings load. */
+export const CONFIG_MAX_WRITE_BYTES = CONFIG_MAX_READ_BYTES;
 
 export async function readConfigFile(path: string): Promise<{ config: VibeConfig; raw: string } | null> {
   if (!existsSync(path)) return null;
@@ -175,9 +178,13 @@ async function atomicWriteJson(path: string, value: Record<string, unknown>): Pr
   const dir = dirname(path);
   await mkdir(dir, { recursive: true });
   const stripped = stripSecurityNotices(value);
+  const serialized = `${JSON.stringify(stripped, null, 2)}\n`;
+  if (Buffer.byteLength(serialized, "utf8") > CONFIG_MAX_WRITE_BYTES) {
+    throw new Error(`Config at ${path} exceeds ${CONFIG_MAX_WRITE_BYTES} bytes`);
+  }
   const tmp = join(dir, `.config.${process.pid}.${Date.now()}.tmp`);
   try {
-    await writeFile(tmp, `${JSON.stringify(stripped, null, 2)}\n`, {
+    await writeFile(tmp, serialized, {
       encoding: "utf8",
       mode: SECRET_FILE_MODE,
     });
@@ -206,13 +213,16 @@ function scheduleWrite<T>(path: string, work: () => Promise<T>): Promise<T> {
   const result = chain.then(work, work);
   // Advance the chain past this write's settlement, swallowing errors so one
   // failed write doesn't wedge every subsequent persist on that path.
-  writeChains.set(
-    path,
-    result.then(
-      () => undefined,
-      () => undefined,
-    ),
+  const tail = result.then(
+    () => undefined,
+    () => undefined,
   );
+  writeChains.set(path, tail);
+  // Keep serialization state only while work is pending. A long-running app
+  // may visit many projects; settled path entries must not accumulate forever.
+  void tail.then(() => {
+    if (writeChains.get(path) === tail) writeChains.delete(path);
+  });
   return result;
 }
 

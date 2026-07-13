@@ -69,18 +69,23 @@ function spawnGh(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: st
       stdio: ["ignore", "pipe", "pipe"],
     }) as unknown as SpawnedChild;
     const capture = createCaptureBuffers(DEFAULT_CAPTURE_MAX_BYTES);
+    let forceTimer: NodeJS.Timeout | null = null;
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), 2000);
+      forceTimer = setTimeout(() => child.kill("SIGKILL"), 2000);
     }, 30_000);
+    const clearTimers = () => {
+      clearTimeout(timer);
+      if (forceTimer) clearTimeout(forceTimer);
+    };
     child.stdout.on("data", (c: Buffer) => appendCapture(capture, "stdout", c));
     child.stderr.on("data", (c: Buffer) => appendCapture(capture, "stderr", c));
     child.on("error", () => {
-      clearTimeout(timer);
+      clearTimers();
       resolve({ ok: false, stdout: capture.stdout, stderr: "gh CLI not found" });
     });
     child.on("close", (code: number | null) => {
-      clearTimeout(timer);
+      clearTimers();
       if (capture.truncated) {
         resolve({
           ok: false,

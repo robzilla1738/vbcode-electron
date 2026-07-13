@@ -176,9 +176,16 @@ snippet. External links go through `ExternalLink` / host bridge.
 - Host fatal / boot error: primary **New session**, plus Retry and Choose
   another project.
 
-### Settings (Custom Instructions)
+### Settings (Configuration and Custom Instructions)
 
-- Config sections save via the bottom save bar. **Instructions** (VIBE.md)
+- Config sections save via the bottom save bar. The Models performance group
+  exposes turn, stream-idle, and queued-item limits; MCP server timeouts accept
+  positive values only. Switching MCP transport disables the entry until its
+  new command/endpoint is reviewed, and a remote draft always remains
+  engine-schema-valid.
+- The save path deep-diffs, validates structural types/URLs/OAuth/ranges, and
+  writes atomically under a bounded per-path queue. Invalid merged config is
+  surfaced in Settings and never persisted. **Instructions** (VIBE.md)
   keeps its own Save/Reset and stays **mounted (hidden)** when navigating away
   so drafts and dirty bind survive section switches. Closing settings still
   clears the shell dirty guard.
@@ -208,6 +215,7 @@ snippet. External links go through `ExternalLink` / host bridge.
 | Boot / fatal recovery | `src/renderer/layout/WelcomeGate.tsx` |
 | Catalogs | `src/renderer/pickers/CatalogModal.tsx` |
 | Settings + instructions mount | `src/renderer/settings/SettingsPanel.tsx` |
+| Settings config integrity | `src/shared/config-diff.ts`, `config-validate.ts`, `config-io.ts` |
 | Icons | `src/renderer/icons.tsx`, `src/renderer/tool-glyph.tsx` |
 | Preview harness | `tools/ui-preview/` |
 
@@ -219,6 +227,7 @@ npm test
 npm run typecheck
 npm run build
 npm run test:e2e
+npm run verify:config-shape
 npm run verify   # full non-E2E gate
 ```
 

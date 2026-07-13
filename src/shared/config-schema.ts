@@ -126,6 +126,7 @@ export interface VibeConfig {
   mode?: "plan" | "execute";
   maxSteps?: number;
   streamIdleTimeoutMs?: number;
+  itemTimeoutMs?: number;
   providers?: Record<string, ProviderConfig>;
   permissions?: PermissionRule[];
   sandbox?: {

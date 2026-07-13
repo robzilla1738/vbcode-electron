@@ -481,8 +481,12 @@ describe("EngineBridge lifecycle", () => {
     const bridge = new EngineBridge({
       resolveLaunch: () =>
         fixture(String.raw`
-          process.on("SIGTERM", () => { /* ignore first soft signal briefly */ });
-          setTimeout(() => process.exit(0), 150);
+          process.on("SIGTERM", () => {
+            // Exit after the soft signal, not after process startup. Coverage
+            // instrumentation may delay the parent long enough that a
+            // startup-relative timer fires before bootstrap is observed.
+            setTimeout(() => process.exit(0), 150);
+          });
           const readline = require("node:readline");
           const rl = readline.createInterface({ input: process.stdin });
           rl.on("line", (line) => {

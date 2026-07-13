@@ -4,18 +4,18 @@
 
 import type { McpServerConfig } from "./config-schema";
 
-/** Shared fields preserved when switching server transport type. */
-export function mcpCommonFields(server: McpServerConfig): Pick<McpServerConfig, "enabled" | "timeoutMs"> {
+/** Transport-independent fields preserved while the new endpoint is disabled. */
+export function mcpCommonFields(server: McpServerConfig): Pick<McpServerConfig, "timeoutMs"> {
   return {
-    enabled: server.enabled,
     timeoutMs: server.timeoutMs,
   };
 }
 
 /**
  * Replace a server with a blank template of the chosen kind while preserving
- * `enabled` / `timeoutMs` so a newly-added disabled server cannot flip to
- * "enabled with empty url/command" and brick the whole Settings save.
+ * `timeoutMs`. A transport switch is disabled until the user confirms the new
+ * endpoint; remote templates use a reserved, schema-valid placeholder because
+ * the engine requires a valid URL even for disabled servers.
  */
 export function mcpServerTypeTemplate(
   kind: "stdio" | "remote",
@@ -23,7 +23,7 @@ export function mcpServerTypeTemplate(
 ): McpServerConfig {
   const common = mcpCommonFields(previous);
   if (kind === "stdio") {
-    return { command: "", args: [], ...common };
+    return { command: "", args: [], ...common, enabled: false };
   }
-  return { url: "", ...common };
+  return { url: "https://example.invalid/mcp", ...common, enabled: false };
 }

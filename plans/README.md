@@ -2,7 +2,7 @@
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| [IMPROVEMENT-AUDIT.md](./IMPROVEMENT-AUDIT.md) | Verified improvement backlog; residual §§1–5 implemented 2026-07-13 | In-scope residual closed; credential/engine-adjacent deferred |
+| [IMPROVEMENT-AUDIT.md](./IMPROVEMENT-AUDIT.md) | Verified improvement backlog and public-release hardening record | In-scope residual closed; release workflow implemented |
 | [DESIGN-POLISH-AUDIT.md](./DESIGN-POLISH-AUDIT.md) | Visual/interaction polish inventory (layout, motion, focus, type, responsive) | Implemented — all 62 findings dispositioned; terminal/sidebar follow-up complete |
 
 ## Implemented (this pass)
@@ -15,13 +15,20 @@
 6. UI polish: structural five-view activity sidebar, persistent project PTY,
    compact terminal typography, invariant ASCII wordmark, quiet transcript
    notices, diff/plan/task spacing, and project-rail interaction cleanup
+7. Release hardening: engine commit lock, SHA-pinned Actions, symmetric config
+   size limits, bounded TTL/LRU state, complete 40-field config shape, MCP/OAuth
+   validation, and signed/notarized/stapled tag publishing with checksums
 
-## Still deferred
+## External or optional follow-up
 
-- Apple signing / notarization / live auto-update (credentials)  
-- Engine-adjacent: edit-resubmit protocol, host protocol version, shared Zod  
-- Optional: true list virtualization, Biome format enable, macOS full e2e matrix  
+- Running the implemented public release workflow requires the protected
+  environment's Apple credentials.
+- Engine-adjacent: edit-resubmit protocol and host protocol version emission.
+- Optional product work: in-app auto-update channel, true list virtualization,
+  Biome formatter enablement, and a larger macOS e2e matrix.
 
 ## Verification snapshot (2026-07-13)
 
-269 unit tests, 12 e2e scenarios, typecheck green. See root `VERIFICATION.md` / `ACCEPTANCE.md`.
+289 unit tests, 12 e2e scenarios, 19 source pairs, 40 config fields, coverage
+floors, bridge smoke, and locked-engine packaged smoke green. See root
+`VERIFICATION.md` / `ACCEPTANCE.md`.

@@ -294,7 +294,7 @@ Panels must remain predictable:
 | Transcript | `src/renderer/transcript/TranscriptView.tsx` | Plain streaming text, finalized Streamdown hierarchy, anchored scrolling, foldable user turns |
 | Composer | `src/renderer/composer/Composer.tsx` | Floating, continuously frosted, attachment-aware, keyboard-contained menus |
 | Turn changes | `src/renderer/panels/TurnChangesCard.tsx` | Compact file summary above composer; Review opens the same diff surface |
-| Settings | `src/renderer/settings/SettingsPanel.tsx` | Full-workspace section navigation, saved config, mounted Instructions draft |
+| Settings | `src/renderer/settings/SettingsPanel.tsx` | Full-workspace section navigation, engine-shape-validated saved config, mounted Instructions draft |
 | Git | `src/renderer/git/GitPanel.tsx` | Full Git content inside the shared right-side activity rail |
 | Icons | `src/renderer/icons.tsx`, `src/renderer/tool-glyph.tsx` | Lucide stroke wrappers with stable sizing and labels |
 

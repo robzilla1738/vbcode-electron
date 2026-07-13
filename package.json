@@ -19,11 +19,11 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:icon": "node scripts/build-icon.mjs",
-    "postinstall": "electron-rebuild -f -w node-pty",
+    "postinstall": "install-electron --no && electron-builder install-app-deps",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "biome lint --error-on-warnings .",
-    "verify": "npm run lint && npm test && npm run verify:source-parity && npm run typecheck && npm run build && npm run verify:bundle",
+    "verify": "npm run lint && npm test && npm run verify:source-parity && npm run verify:config-shape && npm run typecheck && npm run build && npm run verify:bundle",
     "verify:fast": "npm run lint && npm test && npm run typecheck",
     "verify:ci": "npm run verify && npm run test:coverage && npm run smoke:bridge && npm run test:e2e",
     "test": "vitest run",
@@ -31,10 +31,11 @@
     "test:e2e": "npm run build && playwright test",
     "test:watch": "vitest",
     "verify:source-parity": "node scripts/check-source-parity.mjs",
+    "verify:config-shape": "node scripts/check-config-shape.mjs",
     "verify:bundle": "node scripts/check-bundle-size.mjs",
     "ui:preview": "vite --config tools/ui-preview/vite.config.ts",
     "ui:shots": "node tools/ui-preview/shoot.mjs",
-    "pack": "npm run copy-host && npm run build && electron-builder --mac --dir",
+    "pack": "npm run copy-host && npm run build && electron-builder --mac --dir --config.mac.identity=null --config.mac.hardenedRuntime=false",
     "dist": "npm run copy-host && npm run build && electron-builder --mac",
     "copy-host": "node scripts/copy-engine-host.mjs",
     "smoke:bridge": "node scripts/smoke-bridge.mjs",
@@ -53,8 +54,7 @@
     "electron-liquid-glass": "^1.1.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.1",
-    "@electron/rebuild": "^4.2.0",
+    "@biomejs/biome": "2.5.3",
     "@playwright/test": "^1.61.1",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.5",
@@ -77,11 +77,13 @@
     },
     "mac": {
       "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
       "target": [
         "dmg",
         "dir"
       ],
-      "identity": null,
       "extendInfo": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,

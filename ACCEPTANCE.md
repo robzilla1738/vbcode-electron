@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-13 (residual audit implementation pass)
+> Last updated: 2026-07-13 (public-release hardening pass)
 > Status: shell product complete for P0 acceptance rows; residual risks and verification methods documented below — do not treat frozen unit/e2e counts as a live baseline
 
 ## Summary
@@ -14,8 +14,11 @@ Rows marked `pass` below may still rely on **review** or **manual** verification
 
 - Settings write / Git mutation / Finder multi-drop / onboarding first-run are not fully covered by Playwright e2e (unit + preview + review cover most; dock mutual exclusivity has a hermetic e2e case).
 - Visual regression screenshots (`ui:shots`) fail on capture errors but are not pixel-diff gated in CI.
-- Public signing/notarization/auto-update require release credentials (see VERIFICATION.md). Local crashReporter is on without upload.
-- Engine-adjacent: edit-message resubmit protocol, host protocol version handshake, shared Zod config package, snapshot-native full diff map if history lacks tool inputs.
+- Executing public signing/notarization requires the protected release
+  environment's Apple credentials; the tag workflow and verification steps are
+  implemented (see VERIFICATION.md). Local crashReporter is on without upload.
+- Engine-adjacent: edit-message resubmit protocol, host protocol version
+  handshake, and snapshot-native full diff map if history lacks tool inputs.
 
 Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat frozen unit/e2e counts in prose as a live baseline. Hardening residual status: [plans/IMPROVEMENT-AUDIT.md](./plans/IMPROVEMENT-AUDIT.md).
 
@@ -68,7 +71,7 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | A32 | P0 | Accessibility | Desktop accessibility | Controls have names, focus indicators, semantic roles, reduced-motion support, AA contrast, and work at 200% zoom without lost actions. | e2e: role-based controls, flat focus state, 200% zoom; review: reduced-motion CSS | pass |
 | A33 | P0 | Resilience | Empty/error/narrow states | First run, no sessions, no catalog results, RPC errors, host disconnect, long text, and narrow window states remain understandable and recoverable. | test: bridge/error cases; e2e: empty jobs + 200% zoom; review: empty/error surfaces | pass |
 | A34 | P0 | Quality | Source parity guard | Pure modules ported from TUI have drift-detection coverage or shared fixtures so upstream changes cannot silently break parity. | script: source parity audit; test: shared behavioral vectors | pass |
-| A35 | P0 | Quality | Verification gates | Lint, unit tests, source parity, typecheck, production build, bundle budget, bridge smoke, and focused UI smoke are documented and must pass before release. | script:`npm run verify && npm run smoke:bridge && npm run test:e2e` | pass |
+| A35 | P0 | Quality | Verification gates | Lint, unit tests, source/config parity, typecheck, production build, bundle budget, coverage, bridge smoke, Electron E2E, and packaged-host smoke are documented and must pass before release. | script:`npm run verify:ci && npm run pack && npm run smoke:packaged` | pass |
 | A36 | P0 | Packaging | Standalone app | Packaged app includes/resolves the engine host without `VIBE_CODR_ROOT`, launches, opens a project, runs a turn, and shuts down cleanly. | script:`npm run pack && npm run smoke:packaged` | pass |
 | A37 | P1 | Layout | Desktop composition and resizing | Rail, edge-to-edge transcript pane, composer, approval panels, and the shared activity sidebar preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints; output and composer share the reading measure, and the activity column is reserved rather than occluding chat. Desktop rails resize by pointer or keyboard, persist their widths, and become drawer-safe on narrow layouts. | review: responsive shell CSS; e2e: 200% zoom reachability; manual: drag and keyboard rail/activity handles | pass |
 | A38 | P1 | Typography | Dense readability | Prose, labels, metadata, and controls use a uniform sans system with normal tracking; monospace is reserved for real code (terminal grids, fences, tool/diff/job output, wordmark). Source cards and memory notices have readable hierarchy. | review: locked tokens + Streamdown Shiki code blocks; preview: `settings`/`git` | pass |
@@ -111,16 +114,18 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | 2026-07-13 | Grok | 36/36 | 4/4 | Shell hardening + design direction: host lifecycle (dispose/reap/single-instance), session Trail/handoff/busy optimism, git ref safety + force-with-lease, host-resolver tests, long-session stream/markdown bounds, quiet dock contract (Session/Changes/Git/Jobs/Files only). 226 unit tests, typecheck green. |
 | 2026-07-13 | Grok | 36/36 | 4/4 | Residual audit implementation: disposeForQuit bootstrap preemption, busy-on-send-failure policy, realpath+capped reads, cwd allowlist, stream/gh capture caps, stdin write queue with epoch, plain streaming markdown, block retention, CI coverage+bridge smoke, preload VibeApi key contract, dock exclusivity e2e. 259 unit + 11 e2e; typecheck green. |
 | 2026-07-13 | Codex | 36/36 | 4/4 | Design-polish completion: structural five-view activity sidebar, persistent main-owned project PTY with bounded replay, compact terminal typography, responsive invariant ASCII wordmark, quieter notices/queue state, transcript/diff/plan spacing, and project-rail interaction cleanup. 269 unit + 12 e2e scenarios at the release baseline. |
+| 2026-07-13 | Codex | 36/36 | 4/4 | Public-release hardening: engine commit lock, SHA-pinned CI/release actions, deterministic Electron 43 binary prefetch, signed/notarized tag workflow, bounded LRU/file/config state, timer cleanup, project-path allowlist, authoritative config validation including MCP/OAuth and queue timeout, plus permanent 40-field config-shape parity. 289 unit + 12 e2e scenarios; locked-engine packaged smoke green. |
 
 **Current verification snapshot (2026-07-13):**
 
 ```text
-npm test                         # 269/269 pass
+npm test                         # 289/289 pass
 npm run test:coverage            # floors on shared + bridge modules
 npm run lint                     # clean
 npm run typecheck                # pass
 npm run test:e2e                 # 12 scenarios (incl. persistent terminal + dock exclusivity)
 npm run verify:source-parity     # pass (19 source pairs)
+npm run verify:config-shape      # pass (40 top-level fields)
 npm run verify:bundle            # pass
 npm run verify                   # pass
 npm run smoke:bridge             # pass; ready, snapshot, and project-list checks

@@ -8,7 +8,7 @@ describe("mcpServerTypeTemplate", () => {
       args: [],
       enabled: false,
     });
-    expect(next).toEqual({ url: "", enabled: false, timeoutMs: undefined });
+    expect(next).toEqual({ url: "https://example.invalid/mcp", enabled: false, timeoutMs: undefined });
     expect(next.enabled).toBe(false);
   });
 
@@ -27,13 +27,17 @@ describe("mcpServerTypeTemplate", () => {
     expect("url" in next).toBe(false);
   });
 
-  it("preserves enabled when switching a filled stdio server to remote", () => {
+  it("disables a filled stdio server while its new remote endpoint is reviewed", () => {
     const next = mcpServerTypeTemplate("remote", {
       command: "npx",
       args: ["-y", "pkg"],
       enabled: true,
       timeoutMs: 1000,
     });
-    expect(next).toMatchObject({ url: "", enabled: true, timeoutMs: 1000 });
+    expect(next).toMatchObject({
+      url: "https://example.invalid/mcp",
+      enabled: false,
+      timeoutMs: 1000,
+    });
   });
 });
