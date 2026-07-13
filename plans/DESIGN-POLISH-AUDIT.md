@@ -20,7 +20,7 @@ This is distinct from the engineering backlog in [`plans/IMPROVEMENT-AUDIT.md`](
 
 Each finding: **title · severity · where · issue · direction** (design-system-preserving, not a redesign).
 
-**Sources:** `src/renderer/styles.css` (~8.9k lines), layout/composer/transcript/panels/settings/git components, `design-system.md`, `UI.md`, `tools/ui-preview` scenarios + existing `tools/ui-preview/shots/*` (many shots lag live chrome — see D-55).
+**Sources:** `src/renderer/styles.css` (~8.9k lines), layout/composer/transcript/panels/settings/git components, `design-system.md`, `UI.md`, the tracked `tools/ui-preview/shoot.mjs` / `tools/ui-preview/mock-vibe.ts` harness, and locally generated `tools/ui-preview/shots/*` (many shots lag live chrome — see D-55).
 
 ---
 

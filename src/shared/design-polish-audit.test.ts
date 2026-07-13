@@ -35,7 +35,8 @@ const REQUIRED_PATH_ANCHORS = [
   "src/renderer/panels/Inspector.tsx",
   "design-system.md",
   "UI.md",
-  "tools/ui-preview/shots",
+  "tools/ui-preview/shoot.mjs",
+  "tools/ui-preview/mock-vibe.ts",
 ] as const;
 
 /** Severity vocabulary used by findings. */
@@ -65,11 +66,8 @@ describe("design polish audit deliverable", () => {
     const text = readFileSync(AUDIT_PATH, "utf8");
     for (const path of REQUIRED_PATH_ANCHORS) {
       expect(text.includes(path), `audit must cite ${path}`).toBe(true);
-      if (path.startsWith("src/") || path === "design-system.md" || path === "UI.md") {
+      if (path.startsWith("src/") || path.startsWith("tools/") || path === "design-system.md" || path === "UI.md") {
         expect(existsSync(join(process.cwd(), path)), `broken path anchor ${path}`).toBe(true);
-      }
-      if (path === "tools/ui-preview/shots") {
-        expect(existsSync(join(process.cwd(), path)), `missing shots dir`).toBe(true);
       }
     }
   });
