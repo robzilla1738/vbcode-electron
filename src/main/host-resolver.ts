@@ -10,12 +10,59 @@ export interface HostLaunch {
   description: string;
 }
 
-const CONVENTIONAL_ROOTS = [
-  join(homedir(), "Code", "vibe-codr"),
-  join(homedir(), "code", "vibe-codr"),
-  join(homedir(), "Developer", "vibe-codr"),
-  join(homedir(), "src", "vibe-codr"),
-];
+/** Injectable filesystem / app seams for pure unit tests. */
+export interface HostResolverDeps {
+  existsSync: (path: string) => boolean;
+  statSync: (path: string) => { mtimeMs: number; isFile(): boolean; isDirectory(): boolean };
+  readdirSync: (path: string) => string[];
+  homedir: () => string;
+  env: NodeJS.ProcessEnv;
+  isPackaged: boolean;
+  resourcesPath: string | null;
+  appPath: string;
+  /** Override wall clock for mtime cache TTL tests. */
+  now?: () => number;
+}
+
+const DEFAULT_DEPS = (): HostResolverDeps => ({
+  existsSync,
+  statSync: (path) => {
+    const s = statSync(path);
+    return {
+      mtimeMs: s.mtimeMs,
+      isFile: () => s.isFile(),
+      isDirectory: () => s.isDirectory(),
+    };
+  },
+  readdirSync: (path) => readdirSync(path),
+  homedir,
+  env: process.env,
+  isPackaged: app.isPackaged,
+  resourcesPath: (() => {
+    try {
+      return process.resourcesPath;
+    } catch {
+      return null;
+    }
+  })(),
+  appPath: (() => {
+    try {
+      return app.getAppPath();
+    } catch {
+      return process.cwd();
+    }
+  })(),
+  now: () => Date.now(),
+});
+
+function conventionalRoots(home: string): string[] {
+  return [
+    join(home, "Code", "vibe-codr"),
+    join(home, "code", "vibe-codr"),
+    join(home, "Developer", "vibe-codr"),
+    join(home, "src", "vibe-codr"),
+  ];
+}
 
 // A compiled host is only safe to use while it still represents the checked
 // out engine. Keep this list focused on runtime source so a stale binary
@@ -33,13 +80,27 @@ const ENGINE_SOURCE_PATHS = [
 
 const SOURCE_EXTENSIONS = new Set([".json", ".ts", ".tsx"]);
 
-function newestSourceMtime(root: string): number {
+/** Cache newest source mtime per root for a short TTL (avoids multi-second
+ * main-thread walks on every bootstrap during project switches). */
+const MTIME_CACHE_TTL_MS = 5_000;
+const mtimeCache = new Map<string, { value: number; at: number }>();
+
+/** Test / hot-reload seam: clear the source-mtime cache. */
+export function clearHostResolverMtimeCache(): void {
+  mtimeCache.clear();
+}
+
+export function newestSourceMtime(root: string, deps: HostResolverDeps = DEFAULT_DEPS()): number {
+  const now = (deps.now ?? Date.now)();
+  const cached = mtimeCache.get(root);
+  if (cached && now - cached.at < MTIME_CACHE_TTL_MS) return cached.value;
+
   let newest = 0;
 
   const visit = (path: string): void => {
-    let entry: ReturnType<typeof statSync>;
+    let entry: ReturnType<HostResolverDeps["statSync"]>;
     try {
-      entry = statSync(path);
+      entry = deps.statSync(path);
     } catch {
       return;
     }
@@ -55,7 +116,7 @@ function newestSourceMtime(root: string): number {
 
     let children: string[];
     try {
-      children = readdirSync(path);
+      children = deps.readdirSync(path);
     } catch {
       return;
     }
@@ -65,27 +126,37 @@ function newestSourceMtime(root: string): number {
   for (const relativePath of ENGINE_SOURCE_PATHS) {
     visit(join(root, relativePath));
   }
+  mtimeCache.set(root, { value: newest, at: now });
   return newest;
 }
 
-function whichBun(): string | null {
+function whichBun(deps: HostResolverDeps): string | null {
+  const home = deps.homedir();
   const candidates = [
-    join(homedir(), ".bun", "bin", "bun"),
+    join(home, ".bun", "bin", "bun"),
     "/opt/homebrew/bin/bun",
     "/usr/local/bin/bun",
   ];
+  // Also honor PATH entries (GUI apps often still have a usable PATH in tests).
+  const pathDirs = (deps.env.PATH ?? "").split(":").filter(Boolean);
+  for (const dir of pathDirs) {
+    candidates.push(join(dir, "bun"));
+  }
+  const seen = new Set<string>();
   for (const c of candidates) {
-    if (existsSync(c)) return c;
+    if (seen.has(c)) continue;
+    seen.add(c);
+    if (deps.existsSync(c)) return c;
   }
   return null;
 }
 
-function tryCompiledHost(root: string): HostLaunch | null {
+function tryCompiledHost(root: string, deps: HostResolverDeps): HostLaunch | null {
   const bin = join(root, "dist", "vibecodr-engine-host");
-  if (!existsSync(bin)) return null;
+  if (!deps.existsSync(bin)) return null;
   try {
-    const binaryMtime = statSync(bin).mtimeMs;
-    const sourceMtime = newestSourceMtime(root);
+    const binaryMtime = deps.statSync(bin).mtimeMs;
+    const sourceMtime = newestSourceMtime(root, deps);
     if (sourceMtime > binaryMtime) return null;
   } catch {
     return null;
@@ -98,10 +169,10 @@ function tryCompiledHost(root: string): HostLaunch | null {
   };
 }
 
-function trySourceHost(root: string): HostLaunch | null {
+function trySourceHost(root: string, deps: HostResolverDeps): HostLaunch | null {
   const entry = join(root, "packages", "macos-bridge", "bin", "engine-host.ts");
-  if (!existsSync(entry)) return null;
-  const bun = whichBun();
+  if (!deps.existsSync(entry)) return null;
+  const bun = whichBun(deps);
   if (!bun) return null;
   return {
     executable: bun,
@@ -111,57 +182,62 @@ function trySourceHost(root: string): HostLaunch | null {
   };
 }
 
-function tryRoot(root: string): HostLaunch | null {
-  return tryCompiledHost(root) ?? trySourceHost(root);
+function tryRoot(root: string, deps: HostResolverDeps): HostLaunch | null {
+  return tryCompiledHost(root, deps) ?? trySourceHost(root, deps);
 }
 
-function bundledHost(): HostLaunch | null {
-  try {
-    const resources = process.resourcesPath;
-    const bin = join(resources, "vibecodr-engine-host");
-    if (existsSync(bin)) {
+function bundledHost(deps: HostResolverDeps): HostLaunch | null {
+  if (deps.resourcesPath) {
+    const bin = join(deps.resourcesPath, "vibecodr-engine-host");
+    if (deps.existsSync(bin)) {
       return {
         executable: bin,
         arguments: [],
-        workingDirectory: homedir(),
+        workingDirectory: deps.homedir(),
         description: `bundled ${bin}`,
       };
     }
-  } catch {
-    /* unpackaged */
   }
   // Dev: resources/ next to project root
-  const devBin = join(app.getAppPath(), "resources", "vibecodr-engine-host");
-  if (existsSync(devBin)) {
+  const devBin = join(deps.appPath, "resources", "vibecodr-engine-host");
+  if (deps.existsSync(devBin)) {
     return {
       executable: devBin,
       arguments: [],
-      workingDirectory: app.getAppPath(),
+      workingDirectory: deps.appPath,
       description: `dev resources ${devBin}`,
     };
   }
   return null;
 }
 
-/** Resolve vibecodr-engine-host the same way as the macOS Swift shell. */
-export function resolveHostLaunch(): HostLaunch {
-  const envRoot = process.env.VIBE_CODR_ROOT;
+/**
+ * Resolve vibecodr-engine-host the same way as the macOS Swift shell.
+ * Pass `deps` only from tests — production uses live Electron/fs.
+ */
+export function resolveHostLaunch(deps: HostResolverDeps = DEFAULT_DEPS()): HostLaunch {
+  const envRoot = deps.env.VIBE_CODR_ROOT;
   if (envRoot) {
-    const hit = tryRoot(envRoot);
+    const hit = tryRoot(envRoot, deps);
     if (hit) return hit;
+    // Explicit override that fails must not silently fall through — that
+    // produced "wrong engine" debugging nightmares.
+    throw new Error(
+      `VIBE_CODR_ROOT=${envRoot} does not contain a usable vibecodr-engine-host (compiled dist or Bun source). Build with \`bun run build:macos-bridge\` or install Bun.`,
+    );
   }
   // A packaged app must prefer the host shipped with that exact release. A
   // developer may also have ~/Code/vibe-codr, but it can be older/newer and
   // protocol-incompatible. VIBE_CODR_ROOT remains the explicit override.
-  if (app.isPackaged) {
-    const bundled = bundledHost();
+  if (deps.isPackaged) {
+    const bundled = bundledHost(deps);
     if (bundled) return bundled;
   }
-  for (const root of CONVENTIONAL_ROOTS) {
-    const hit = tryRoot(root);
+  for (const root of conventionalRoots(deps.homedir())) {
+    const hit = tryRoot(root, deps);
     if (hit) return hit;
   }
-  const bundled = bundledHost();
+  const bundled = bundledHost(deps);
   if (bundled) return bundled;
   throw new Error(
     "Could not find vibecodr-engine-host. Clone vibe-codr to ~/Code/vibe-codr, set VIBE_CODR_ROOT, run `bun run build:macos-bridge`, or install Bun.",
@@ -169,8 +245,9 @@ export function resolveHostLaunch(): HostLaunch {
 }
 
 /** PATH enrichment so GUI-launched hosts find bun/git/node. */
-export function enrichedEnv(): NodeJS.ProcessEnv {
-  const home = homedir();
+export function enrichedEnv(deps?: Pick<HostResolverDeps, "homedir" | "env">): NodeJS.ProcessEnv {
+  const home = (deps?.homedir ?? homedir)();
+  const env = deps?.env ?? process.env;
   const extras = [
     join(home, ".bun", "bin"),
     "/opt/homebrew/bin",
@@ -178,10 +255,10 @@ export function enrichedEnv(): NodeJS.ProcessEnv {
     "/usr/bin",
     "/bin",
   ].join(":");
-  const path = process.env.PATH ? `${extras}:${process.env.PATH}` : extras;
+  const path = env.PATH ? `${extras}:${env.PATH}` : extras;
   return {
-    ...process.env,
-    HOME: process.env.HOME ?? home,
+    ...env,
+    HOME: env.HOME ?? home,
     PATH: path,
   };
 }

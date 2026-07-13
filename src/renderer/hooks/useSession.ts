@@ -80,7 +80,7 @@ const CLEAR_SCOPED_TYPES = new Set<string>([
   "checkpoint-restored",
   "verify-started",
   "verify-finished",
-  "engine-error",
+  // engine-error is intentionally NOT listed — clear/abort failures must surface.
 ]);
 const WINDOW_TURNS = 40;
 const REVEAL_PAGE = 20;
@@ -108,6 +108,9 @@ export function useSession(cwd: string | null) {
   const reasoningStarted = useRef<number | null>(null);
   const flushTimer = useRef<number | null>(null);
   const suppressAfterClear = useRef(false);
+  /** While true, drop all UI events except pre-seed context samples so a dying
+   * host cannot mutate the still-visible previous transcript mid-handoff. */
+  const bootstrapHandoff = useRef(false);
   const lastSnap = useRef<EngineSnapshot | null>(null);
   const trail = useRef(new Trail());
   const bootstrapGate = useRef(new RequestGate());
@@ -135,6 +138,12 @@ export function useSession(cwd: string | null) {
       const text = deltaBuf.current;
       deltaBuf.current = "";
       dispatchTranscript({ type: "delta", text });
+    }
+    // Coalesce live thinking/trail chrome onto the same 24ms cadence as text
+    // so multi-minute reasoning does not re-render the full App tree per token.
+    if (reasoningBuf.current) {
+      dispatchChrome({ type: "set-thinking", text: reasoningBuf.current });
+      dispatchChrome({ type: "set-trail", lines: trail.current.snapshot() });
     }
   }, []);
 
@@ -176,6 +185,17 @@ export function useSession(cwd: string | null) {
         return;
       }
       const event: UIEvent = raw;
+      // Bootstrap handoff: never treat empty activeSessionId as "accept all".
+      // Drop foreign/stale host traffic until snapshot commits the new id.
+      if (bootstrapHandoff.current) {
+        if (event.type === "context-updated") {
+          bootstrapContext.current = {
+            usedTokens: event.usedTokens,
+            contextWindow: event.contextWindow,
+          };
+        }
+        return;
+      }
       if ("sessionId" in event && activeSessionId.current && event.sessionId !== activeSessionId.current) return;
       // A throwing handler must not kill the event loop (TUI parity: try/catch
       // around the per-event switch that surfaces errors as transcript notices).
@@ -196,9 +216,12 @@ export function useSession(cwd: string | null) {
       // user-message arrives — mirroring the TUI's clearScopedEventTypes gate.
       // Keep the gate open through turn-finished / session-idle / engine-idle so
       // late deltas from the aborted turn cannot reappear after the idle flush.
+      // engine-error always surfaces (abort/clear failures must not be silent).
       if (suppressAfterClear.current) {
         if (event.type === "user-message") {
           suppressAfterClear.current = false;
+        } else if (event.type === "engine-error") {
+          // fall through — show the error notice
         } else if (
           CLEAR_SCOPED_TYPES.has(event.type) ||
           event.type === "turn-finished" ||
@@ -223,6 +246,10 @@ export function useSession(cwd: string | null) {
         case "user-message":
           flushDeltas();
           landReasoning();
+          // Per-turn clean slate for the reasoning trail (chrome thoughtLog is
+          // also cleared in session-state on user-message). Without this, the
+          // next burst appends onto previous-turn lines in the Inspector.
+          trail.current.reset();
           // The engine may append vision-relay captions to the downstream
           // prompt for a text-only model. Keep that transport context internal;
           // the user should see the message they wrote, not an implementation
@@ -254,8 +281,10 @@ export function useSession(cwd: string | null) {
           // Append to the persistent trail (TUI parity: accumulates across bursts,
           // survives past turn end — reset only on the next user-message).
           trail.current.append(event.delta);
-          dispatchChrome({ type: "set-thinking", text: reasoningBuf.current });
-          dispatchChrome({ type: "set-trail", lines: trail.current.snapshot() });
+          // Chrome updates flush on the shared 24ms timer (see flushDeltas).
+          if (flushTimer.current == null) {
+            flushTimer.current = window.setTimeout(flushDeltas, 24);
+          }
           break;
         case "tool-call-started":
           if (event.subagentId) break;
@@ -459,7 +488,9 @@ export function useSession(cwd: string | null) {
       continueLatest?: boolean;
     }) => {
       const request = bootstrapGate.current.begin();
-      activeSessionId.current = "";
+      // Keep the previous activeSessionId for any race that slips past the
+      // handoff gate; never open the filter with "" (accept-all) during bootstrap.
+      bootstrapHandoff.current = true;
       bootstrapContext.current = null;
       setBooting(true);
       setBootError(null);
@@ -475,6 +506,7 @@ export function useSession(cwd: string | null) {
       progressBuf.current.clear();
       reasoningBuf.current = "";
       reasoningStarted.current = null;
+      trail.current.reset();
       if (flushTimer.current != null) {
         window.clearTimeout(flushTimer.current);
         flushTimer.current = null;
@@ -490,6 +522,7 @@ export function useSession(cwd: string | null) {
       const res = await window.vibe.bootstrap(opts);
       if (!bootstrapGate.current.isCurrent(request)) return false;
       if (!res.ok) {
+        bootstrapHandoff.current = false;
         setBootError(res.error + (res.stderr ? `\n${res.stderr}` : ""));
         setBooting(false);
         return false;
@@ -497,12 +530,14 @@ export function useSession(cwd: string | null) {
       const snapRes = await window.vibe.rpc("snapshot");
       if (!bootstrapGate.current.isCurrent(request)) return false;
       if (!snapRes.ok) {
+        bootstrapHandoff.current = false;
         await window.vibe.stop().catch(() => undefined);
         setBootError(`Engine snapshot failed: ${snapRes.error}`);
         setBooting(false);
         return false;
       }
       if (!isEngineSnapshot(snapRes.value)) {
+        bootstrapHandoff.current = false;
         await window.vibe.stop().catch(() => undefined);
         setBootError("Engine snapshot failed validation");
         setBooting(false);
@@ -510,6 +545,7 @@ export function useSession(cwd: string | null) {
       }
       const snap: EngineSnapshot = snapRes.value;
       activeSessionId.current = snap.sessionId;
+      bootstrapHandoff.current = false;
       lastSnap.current = snap;
       // Commit the new session atomically after bootstrap + snapshot succeed.
       // Until this point the previous transcript remains visible behind the

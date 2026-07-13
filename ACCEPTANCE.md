@@ -8,6 +8,17 @@
 
 Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine used by the CLI. Parity means every user-visible CLI workflow that can sensibly exist in a desktop shell has equivalent behavior, state transitions, keyboard access, failure handling, and persistence without forking engine logic. Terminal-cell rendering and mouse-capture details are intentionally excluded; semantic themes and harness behavior are not.
 
+## Residual risks (honest automation gaps)
+
+Rows marked `pass` below may still rely on **review** or **manual** verification for some sub-behaviors. Known residual automation gaps (not product non-goals):
+
+- Settings write / Git mutation / dock lane exclusivity / Finder multi-drop / onboarding first-run are not fully covered by Playwright e2e (unit + preview + review cover most).
+- Visual regression screenshots (`ui:shots`) are capture-only, not pixel-diff gated in CI.
+- Public signing/notarization/auto-update require release credentials (see VERIFICATION.md).
+- Engine-adjacent: edit-message resubmit protocol, snapshot-native full diff map if history lacks tool inputs.
+
+Prefer `npm run verify` + CI for automated gates; do not treat frozen unit/e2e counts in prose as a live baseline.
+
 ## Areas
 
 - Engine lifecycle and protocol

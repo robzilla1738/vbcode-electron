@@ -11,10 +11,9 @@
 import { ipcMain } from "electron";
 import {
   configPathForScope,
-  previewMergedConfig,
   readConfigFile,
   readMemoryFile,
-  writeConfigFile,
+  writeConfigFileValidated,
   writeMemoryFile,
   memoryPathForScope,
 } from "../shared/config-io";
@@ -60,15 +59,10 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     }
     try {
       const path = configPathForScope(req.scope, req.cwd);
-      // Validate the merged result BEFORE persisting so an invalid value
-      // (e.g. a scheme-less baseURL) is rejected up front — mirroring the
-      // engine's ConfigSchema.safeParse gate in writeGlobalConfig.
-      const merged = await previewMergedConfig(path, req.patch);
-      const errors = validateConfig(merged);
-      if (errors.length) {
-        return { ok: false as const, error: `Invalid configuration: ${errors.join("; ")}` };
-      }
-      await writeConfigFile(path, req.patch);
+      // Single critical section: read → merge → validate → write under the
+      // per-path lock so concurrent saves cannot persist an unvalidated merge.
+      const result = await writeConfigFileValidated(path, req.patch, validateConfig);
+      if (!result.ok) return { ok: false as const, error: result.error };
       return { ok: true as const, path };
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };

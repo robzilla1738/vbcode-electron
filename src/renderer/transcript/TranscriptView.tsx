@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Block, Turn } from "../../shared/reducer";
 import { collapsedHint, toolDurationLabel } from "../../shared/reducer";
 import {
@@ -145,7 +145,7 @@ function ThinkingGroup({
   );
 }
 
-function BlockView({
+const BlockView = memo(function BlockView({
   block,
   density,
   theme,
@@ -325,7 +325,7 @@ function BlockView({
     default:
       return null;
   }
-}
+});
 
 export function TranscriptView({
   turns,

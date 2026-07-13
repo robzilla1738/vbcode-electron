@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { decodeInbound, decodeOutbound } from "./protocol";
+import {
+  decodeInbound,
+  decodeOutbound,
+  listedEngineCommandTypes,
+  listedUIEventTypes,
+} from "./protocol";
 
 describe("NDJSON protocol runtime validation", () => {
   it("rejects malformed inbound messages", () => {
@@ -52,5 +57,17 @@ describe("NDJSON protocol runtime validation", () => {
     expect(decodeOutbound(JSON.stringify({ type: "event", event: { type: "jobs-changed", sessionId: "s", jobs: "bad" } }))).toBeNull();
     expect(decodeOutbound(JSON.stringify({ type: "event", event: { type: "permission-settled", sessionId: "s", ids: [3], reason: "aborted" } }))).toBeNull();
     expect(decodeOutbound(JSON.stringify({ type: "resp", id: 1, ok: false }))).toBeNull();
+  });
+
+  it("lists exhaustive UIEvent and EngineCommand allowlists", () => {
+    const events = listedUIEventTypes();
+    const commands = listedEngineCommandTypes();
+    expect(events).toContain("engine-idle");
+    expect(events).toContain("user-message");
+    expect(events.length).toBeGreaterThanOrEqual(40);
+    expect(commands).toContain("submit-prompt");
+    expect(commands).toContain("resolve-permission");
+    expect(new Set(events).size).toBe(events.length);
+    expect(new Set(commands).size).toBe(commands.length);
   });
 });

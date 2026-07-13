@@ -1,6 +1,9 @@
 import type { EngineCommand } from "./commands";
 import type { UIEvent } from "./events";
 
+// Re-export for exhaustiveness tests that compare against the type unions.
+export type { EngineCommand, UIEvent };
+
 /** Electron main → vibecodr-engine-host (mirrors macos-bridge protocol). */
 export type HostInbound =
   | {
@@ -72,24 +75,89 @@ const RPC_METHODS = new Set<RpcMethod>([
   "finalize", "listSessions", "listProjects", "renameProject", "archiveProject", "deleteProject", "renameSession", "deleteSession", "archiveSession",
 ]);
 
-const ENGINE_COMMAND_TYPES = new Set([
-  "submit-prompt", "run-slash", "set-mode", "set-approvals", "set-model",
-  "set-subagent-model", "set-agent-model", "create-agent", "set-goal", "resume-goal",
-  "abort", "dequeue", "steer", "compact", "resolve-permission", "resolve-plan", "shutdown",
-]);
+/** Exhaustive map — TypeScript fails compile if a command type is missing. */
+const ENGINE_COMMAND_TYPE_MAP = {
+  "submit-prompt": 1,
+  "run-slash": 1,
+  "set-mode": 1,
+  "set-approvals": 1,
+  "set-model": 1,
+  "set-subagent-model": 1,
+  "set-agent-model": 1,
+  "create-agent": 1,
+  "set-goal": 1,
+  "resume-goal": 1,
+  abort: 1,
+  dequeue: 1,
+  steer: 1,
+  compact: 1,
+  "resolve-permission": 1,
+  "resolve-plan": 1,
+  shutdown: 1,
+} as const satisfies Record<EngineCommand["type"], 1>;
 
-const UI_EVENT_TYPES = new Set<UIEvent["type"]>([
-  "session-start", "user-message", "assistant-text-delta", "reasoning-delta",
-  "tool-call-started", "tool-call-progress", "tool-call-finished", "step-finished",
-  "usage-updated", "context-updated", "mode-changed", "model-changed", "goal-changed",
-  "goal-run", "theme-changed", "accent-changed", "details-changed", "mouse-changed",
-  "git-updated", "jobs-changed", "approvals-changed", "plan-presented",
-  "permission-request", "permission-settled", "tasks-updated", "orchestration-task",
-  "queue-changed", "file-changed", "checkpoint-created", "checkpoint-restored",
-  "verify-started", "verify-finished", "compacted", "subagent-started",
-  "subagent-activity", "subagent-finished", "loop-tick", "loop-stopped", "notice",
-  "engine-error", "turn-finished", "session-idle", "engine-idle",
-]);
+const ENGINE_COMMAND_TYPES = new Set<string>(Object.keys(ENGINE_COMMAND_TYPE_MAP));
+
+/** Exhaustive map — TypeScript fails compile if a UIEvent type is missing. */
+const UI_EVENT_TYPE_MAP = {
+  "session-start": 1,
+  "user-message": 1,
+  "assistant-text-delta": 1,
+  "reasoning-delta": 1,
+  "tool-call-started": 1,
+  "tool-call-progress": 1,
+  "tool-call-finished": 1,
+  "step-finished": 1,
+  "usage-updated": 1,
+  "context-updated": 1,
+  "mode-changed": 1,
+  "model-changed": 1,
+  "goal-changed": 1,
+  "goal-run": 1,
+  "theme-changed": 1,
+  "accent-changed": 1,
+  "details-changed": 1,
+  "mouse-changed": 1,
+  "git-updated": 1,
+  "jobs-changed": 1,
+  "approvals-changed": 1,
+  "plan-presented": 1,
+  "permission-request": 1,
+  "permission-settled": 1,
+  "tasks-updated": 1,
+  "orchestration-task": 1,
+  "queue-changed": 1,
+  "file-changed": 1,
+  "checkpoint-created": 1,
+  "checkpoint-restored": 1,
+  "verify-started": 1,
+  "verify-finished": 1,
+  compacted: 1,
+  "subagent-started": 1,
+  "subagent-activity": 1,
+  "subagent-finished": 1,
+  "loop-tick": 1,
+  "loop-stopped": 1,
+  notice: 1,
+  "engine-error": 1,
+  "turn-finished": 1,
+  "session-idle": 1,
+  "engine-idle": 1,
+} as const satisfies Record<UIEvent["type"], 1>;
+
+const UI_EVENT_TYPES = new Set<UIEvent["type"]>(
+  Object.keys(UI_EVENT_TYPE_MAP) as UIEvent["type"][],
+);
+
+/** For unit tests: every UIEvent type is registered. */
+export function listedUIEventTypes(): readonly UIEvent["type"][] {
+  return Object.keys(UI_EVENT_TYPE_MAP) as UIEvent["type"][];
+}
+
+/** For unit tests: every EngineCommand type is registered. */
+export function listedEngineCommandTypes(): readonly string[] {
+  return Object.keys(ENGINE_COMMAND_TYPE_MAP);
+}
 
 const SESSION_EVENT_TYPES = new Set<UIEvent["type"]>([
   "session-start", "user-message", "assistant-text-delta", "reasoning-delta",

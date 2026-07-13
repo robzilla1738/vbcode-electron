@@ -13,6 +13,10 @@ import { isRenderableUIEvent, isRpcResult } from "../shared/runtime-guards";
 const READY_TIMEOUT_MS = 45_000;
 const RPC_TIMEOUT_MS = 20_000;
 const STOP_TIMEOUT_MS = 2_000;
+/** Hard ceiling after SIGKILL before we abandon waiting on a wedged OS process. */
+const KILL_WAIT_MS = 1_000;
+/** Finalize budget during app quit — must be well under the overall quit budget. */
+const QUIT_FINALIZE_MS = 1_500;
 
 export type BridgeEventHandler = (event: unknown) => void;
 export type BridgeFatalHandler = (message: string) => void;
@@ -24,6 +28,8 @@ export interface EngineBridgeOptions {
   readyTimeoutMs?: number;
   rpcTimeoutMs?: number;
   stopTimeoutMs?: number;
+  quitFinalizeTimeoutMs?: number;
+  killWaitMs?: number;
   /** Test seam for deterministic stream/process failure injection. */
   onSpawn?: (proc: ChildProcessWithoutNullStreams) => void;
 }
@@ -63,8 +69,24 @@ export class EngineBridge {
 
   constructor(private readonly options: EngineBridgeOptions = {}) {}
 
+  /**
+   * True while this bridge still owns a child that has not exited.
+   * Uses exit/signal codes — NOT `proc.killed` — so a soft-killed host still
+   * reports owned until reap completes (quit must never skip cleanup).
+   */
   get isRunning(): boolean {
-    return this.proc != null && !this.proc.killed;
+    return this.hasOwnedChild();
+  }
+
+  /** Host accepted bootstrap and can service RPC/send. */
+  get isReady(): boolean {
+    return this.didReady && this.hasOwnedChild() && !this.lastFatal;
+  }
+
+  private hasOwnedChild(): boolean {
+    const proc = this.proc;
+    if (!proc) return false;
+    return proc.exitCode === null && proc.signalCode === null;
   }
 
   start(opts: EngineStartOptions): Promise<string> {
@@ -76,7 +98,7 @@ export class EngineBridge {
     this.failAllRpc(new Error("Engine host stopped"));
     return this.schedule(async () => {
       if (request !== this.startRequest) throw new Error("Engine host stopped");
-      if (this.proc) await this.stopCurrent();
+      if (this.hasOwnedChild()) await this.stopCurrent();
       if (request !== this.startRequest) throw new Error("Engine host stopped");
       return this.startCurrent(opts);
     });
@@ -136,14 +158,15 @@ export class EngineBridge {
       rl.close();
       if (!isCurrent()) return;
       this.proc = null;
+      this.didReady = false;
       const errText = this.consumeStderr();
       if (errText) this.lastStderr = errText;
       const msg =
         signal
           ? errText || `Engine host exited on ${signal}`
           : code && code !== 0
-          ? errText || `Engine host exited (${code})`
-          : "Engine host exited";
+            ? errText || `Engine host exited (${code})`
+            : "Engine host exited";
       // Any exit from the current generation is unexpected. Planned stop/start
       // paths increment generation first, so their exit handlers fail isCurrent.
       if (!this.lastFatal) {
@@ -157,6 +180,7 @@ export class EngineBridge {
     proc.on("error", (error) => {
       if (!isCurrent()) return;
       this.proc = null;
+      this.didReady = false;
       const message = `Could not start engine host: ${error.message}`;
       this.lastFatal = message;
       this.onFatal?.(message);
@@ -184,41 +208,115 @@ export class EngineBridge {
     return this.schedule(() => this.stopCurrent());
   }
 
+  /**
+   * App-quit path: best-effort short finalize (only if ready), then always reap
+   * the child with SIGTERM→SIGKILL. Never leave an orphan host.
+   */
+  disposeForQuit(): Promise<void> {
+    return this.schedule(async () => {
+      const finalizeMs = this.options.quitFinalizeTimeoutMs ?? QUIT_FINALIZE_MS;
+      if (this.isReady) {
+        try {
+          await Promise.race([
+            this.rpcUnlocked("finalize"),
+            sleep(finalizeMs).then(() => {
+              throw new Error("finalize timed out");
+            }),
+          ]);
+        } catch {
+          /* best-effort — stop still reaps */
+        }
+      }
+      this.startRequest += 1;
+      this.generation += 1;
+      this.failReady(new Error("Engine host stopped"));
+      this.failAllRpc(new Error("Engine host stopped"));
+      await this.stopCurrent();
+    });
+  }
+
   private async stopCurrent(): Promise<void> {
     this.generation += 1;
     this.failReady(new Error("Engine host stopped"));
     this.failAllRpc(new Error("Engine host stopped"));
     const proc = this.proc;
-    if (proc && !proc.killed) {
+    if (!proc) {
+      this.didReady = false;
+      return;
+    }
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      this.proc = null;
+      this.didReady = false;
+      return;
+    }
+
+    // Graceful: ask host to exit, then escalate SIGTERM → SIGKILL.
+    try {
+      this.writeRaw(proc, { op: "shutdown" });
+    } catch {
+      /* stdin may already be closed */
+    }
+
+    const graceMs = this.options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
+    const killWait = this.options.killWaitMs ?? KILL_WAIT_MS;
+
+    await this.waitForExit(proc, graceMs);
+
+    if (proc.exitCode === null && proc.signalCode === null) {
       try {
-        this.write({ op: "shutdown" });
+        proc.kill("SIGTERM");
       } catch {
         /* ignore */
       }
-      await Promise.race([
-        new Promise<void>((resolve) => proc.once("exit", () => resolve())),
-        sleep(this.options.stopTimeoutMs ?? STOP_TIMEOUT_MS),
-      ]);
+      await this.waitForExit(proc, graceMs);
     }
-    if (this.proc === proc) {
-      proc?.kill();
-      this.proc = null;
+
+    if (proc.exitCode === null && proc.signalCode === null) {
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        /* ignore */
+      }
+      await this.waitForExit(proc, killWait);
     }
+
+    if (this.proc === proc) this.proc = null;
     this.didReady = false;
+  }
+
+  private waitForExit(proc: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<void> {
+    if (proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve();
+    return Promise.race([
+      new Promise<void>((resolve) => {
+        proc.once("exit", () => resolve());
+      }),
+      sleep(timeoutMs),
+    ]);
   }
 
   private schedule<T>(work: () => Promise<T>): Promise<T> {
     const run = this.lifecycle.then(work);
-    this.lifecycle = run.then(() => undefined, () => undefined);
+    this.lifecycle = run.then(
+      () => undefined,
+      () => undefined,
+    );
     return run;
   }
 
   send(command: EngineCommand): void {
+    if (!this.isReady) throw new Error("Engine host not ready");
     this.write({ op: "send", command });
   }
 
   async rpc(method: RpcMethod, params?: Record<string, unknown>): Promise<unknown> {
-    if (!this.isRunning) throw new Error("Engine host not running");
+    if (!this.hasOwnedChild()) throw new Error("Engine host not running");
+    if (!this.didReady) throw new Error("Engine host not ready");
+    return this.rpcUnlocked(method, params);
+  }
+
+  /** RPC without the ready gate — used only for quit finalize after isReady check. */
+  private rpcUnlocked(method: RpcMethod, params?: Record<string, unknown>): Promise<unknown> {
+    if (!this.hasOwnedChild()) throw new Error("Engine host not running");
     const id = this.nextRpcId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -242,8 +340,18 @@ export class EngineBridge {
   }
 
   private write(msg: HostInbound): void {
-    if (!this.proc?.stdin.writable) throw new Error("Engine host stdin closed");
-    this.proc.stdin.write(encodeInbound(msg));
+    const proc = this.proc;
+    if (!proc?.stdin.writable) throw new Error("Engine host stdin closed");
+    this.writeRaw(proc, msg);
+  }
+
+  private writeRaw(proc: ChildProcessWithoutNullStreams, msg: HostInbound): void {
+    if (!proc.stdin.writable) throw new Error("Engine host stdin closed");
+    const payload = encodeInbound(msg);
+    // Respect backpressure: when write returns false, wait for drain before further
+    // large writes would matter; for NDJSON control messages a single buffered
+    // chunk is fine — Node retains the buffer until drain.
+    proc.stdin.write(payload);
   }
 
   private handleLine(
@@ -308,9 +416,8 @@ export class EngineBridge {
         // Mark lastFatal before kill so the exit handler does not emit a second
         // onFatal with a generic "exited on SIGTERM" (bootstrap already rejects).
         if (!this.lastFatal) this.lastFatal = message;
-        // A host that never reaches ready cannot safely be reused. Terminate it
-        // so a failed bootstrap does not leave an invisible background child.
-        this.proc?.kill();
+        // Reap the never-ready child so it cannot linger as an invisible process.
+        void this.reapOwned(this.proc);
         reject(new Error(message));
       }, timeoutMs);
       const rejectReady = (e: Error) => {
@@ -325,6 +432,38 @@ export class EngineBridge {
         reject: rejectReady,
       });
     });
+  }
+
+  /** Escalate kill without advancing generation (current host is still "current"). */
+  private async reapOwned(proc: ChildProcessWithoutNullStreams | null): Promise<void> {
+    if (!proc) return;
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      if (this.proc === proc) {
+        this.proc = null;
+        this.didReady = false;
+      }
+      return;
+    }
+    const graceMs = this.options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
+    const killWait = this.options.killWaitMs ?? KILL_WAIT_MS;
+    try {
+      proc.kill("SIGTERM");
+    } catch {
+      /* ignore */
+    }
+    await this.waitForExit(proc, graceMs);
+    if (proc.exitCode === null && proc.signalCode === null) {
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        /* ignore */
+      }
+      await this.waitForExit(proc, killWait);
+    }
+    if (this.proc === proc) {
+      this.proc = null;
+      this.didReady = false;
+    }
   }
 
   private failReady(err: Error): void {
@@ -360,7 +499,8 @@ export class EngineBridge {
     const error = new Error(message);
     this.failReady(error);
     this.failAllRpc(error);
-    proc.kill();
+    // Escalate kill; keep ownership until exit so quit can still reap if needed.
+    void this.reapOwned(proc);
   }
 }
 

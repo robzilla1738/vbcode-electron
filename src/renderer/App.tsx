@@ -15,6 +15,7 @@ import { densityLabel, nextDensity } from "../shared/density";
 import { projectLabel } from "../shared/project-index";
 import type { ProjectSummary } from "../shared/protocol";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
+import { commandsExpectBusy } from "../shared/command-busy";
 import { lineToCommands, routePendingPermLine } from "../shared/slash";
 import { hasUnfinishedTasks } from "../shared/task-window";
 import type {
@@ -611,22 +612,30 @@ export function App() {
     [cwd, newSession, refreshProjects, session],
   );
 
+  /** Prevent double resolve-permission / resolve-plan from keyboard + card races. */
+  const resolvingGate = useRef(false);
+
   const answerPerm = useCallback(
     async (decision: "once" | "always" | "always-project" | "deny", feedback?: string) => {
       const perm = session.chrome.perms[0];
-      if (!perm) return false;
-      const sent = await session.send({
-        type: "resolve-permission",
-        id: perm.id,
-        decision,
-        ...(feedback ? { feedback } : {}),
-      });
-      if (!sent) return false;
-      session.dispatchChrome({ type: "drop-perm", id: perm.id });
-      // Do not synthesize an "allowed" transcript notice here. The IPC result
-      // only acknowledges transport; a concurrent permission-settled event may
-      // have already caused the engine to reject this stale id.
-      return true;
+      if (!perm || resolvingGate.current) return false;
+      resolvingGate.current = true;
+      try {
+        const sent = await session.send({
+          type: "resolve-permission",
+          id: perm.id,
+          decision,
+          ...(feedback ? { feedback } : {}),
+        });
+        if (!sent) return false;
+        session.dispatchChrome({ type: "drop-perm", id: perm.id });
+        // Do not synthesize an "allowed" transcript notice here. The IPC result
+        // only acknowledges transport; a concurrent permission-settled event may
+        // have already caused the engine to reject this stale id.
+        return true;
+      } finally {
+        resolvingGate.current = false;
+      }
     },
     [session],
   );
@@ -637,15 +646,21 @@ export function App() {
       edit?: string,
       approvals?: "auto",
     ) => {
-      const sent = await session.send({
-        type: "resolve-plan",
-        decision,
-        ...(edit ? { edit } : {}),
-        ...(approvals ? { approvals } : {}),
-      });
-      if (!sent) return false;
-      session.dispatchChrome({ type: "clear-plan" });
-      return true;
+      if (resolvingGate.current) return false;
+      resolvingGate.current = true;
+      try {
+        const sent = await session.send({
+          type: "resolve-plan",
+          decision,
+          ...(edit ? { edit } : {}),
+          ...(approvals ? { approvals } : {}),
+        });
+        if (!sent) return false;
+        session.dispatchChrome({ type: "clear-plan" });
+        return true;
+      } finally {
+        resolvingGate.current = false;
+      }
     },
     [session],
   );
@@ -879,9 +894,13 @@ export function App() {
         setPicker(null);
       }
 
-      session.setBusy(true);
-      const sent = await session.sendMany(lineToCommands(trimmed));
-      if (!sent) session.setBusy(false);
+      const commands = lineToCommands(trimmed);
+      // Only optimistically mark busy for commands that start real engine work.
+      // Pure run-slash (theme/help/model) often never emits engine-idle.
+      const expectBusy = commandsExpectBusy(commands);
+      if (expectBusy) session.setBusy(true);
+      const sent = await session.sendMany(commands);
+      if (!sent && expectBusy) session.setBusy(false);
       return sent;
     },
     [session, cwd, answerPerm, answerPlan, openModelsPicker, presentCatalog, openSettings, openGit],

@@ -8,6 +8,7 @@
 
 import { spawn } from "node:child_process";
 import type { Readable } from "node:stream";
+import { assertGitRef, assertGitRemote } from "./git-ref";
 import type {
   GitBranch,
   GitCommitInfo,
@@ -18,6 +19,8 @@ import type {
 } from "./git-types";
 
 const GIT_TIMEOUT_MS = 30_000;
+/** Cap captured stdout/stderr so a huge porcelain dump cannot pin the main process. */
+const GIT_MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
 
 interface SpawnedChild {
   stdout: Readable;
@@ -57,19 +60,47 @@ export async function runGit(cwd: string, args: string[]): Promise<GitRunResult>
     }) as unknown as SpawnedChild;
     let stdout = "";
     let stderr = "";
+    let truncated = false;
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
       setTimeout(() => child.kill("SIGKILL"), 2000);
     }, GIT_TIMEOUT_MS);
 
-    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    const append = (target: "out" | "err", chunk: Buffer) => {
+      const text = chunk.toString();
+      if (target === "out") {
+        if (stdout.length + text.length > GIT_MAX_CAPTURE_BYTES) {
+          stdout = stdout.slice(0, GIT_MAX_CAPTURE_BYTES);
+          truncated = true;
+          return;
+        }
+        stdout += text;
+      } else {
+        if (stderr.length + text.length > GIT_MAX_CAPTURE_BYTES) {
+          stderr = stderr.slice(0, GIT_MAX_CAPTURE_BYTES);
+          truncated = true;
+          return;
+        }
+        stderr += text;
+      }
+    };
+
+    child.stdout.on("data", (chunk: Buffer) => append("out", chunk));
+    child.stderr.on("data", (chunk: Buffer) => append("err", chunk));
     child.on("error", (err: Error) => {
       clearTimeout(timer);
       resolve({ ok: false, stdout, stderr: err.message });
     });
     child.on("close", (code: number | null) => {
       clearTimeout(timer);
+      if (truncated) {
+        resolve({
+          ok: false,
+          stdout,
+          stderr: stderr || `git output exceeded ${GIT_MAX_CAPTURE_BYTES} bytes`,
+        });
+        return;
+      }
       resolve({ ok: code === 0, stdout, stderr });
     });
   });
@@ -165,16 +196,20 @@ export async function listBranches(cwd: string): Promise<GitBranch[]> {
     }
   }
 
-  // Enrich local branches with ahead/behind
-  for (const branch of branches) {
-    if (branch.remote || !branch.upstream) continue;
+  // Enrich only the *current* local branch with ahead/behind — O(branches)
+  // rev-list fan-out made status open lag on large repos.
+  const current = branches.find((b) => b.current && !b.remote && b.upstream);
+  if (current?.upstream) {
     const counts = await runGit(cwd, [
-      "rev-list", "--left-right", "--count", `${branch.upstream}...${branch.name}`,
+      "rev-list",
+      "--left-right",
+      "--count",
+      `${current.upstream}...${current.name}`,
     ]);
     if (counts.ok) {
       const [behind, ahead] = counts.stdout.trim().split(/\s+/).map(Number);
-      branch.behind = behind || 0;
-      branch.ahead = ahead || 0;
+      current.behind = behind || 0;
+      current.ahead = ahead || 0;
     }
   }
 
@@ -202,14 +237,58 @@ export async function recentCommits(cwd: string, count = 20): Promise<GitCommitI
   return commits;
 }
 
-function parsePorcelain(stdout: string): GitStatusEntry[] {
+/**
+ * Parse `git status --porcelain=v1 -z` output.
+ * Entries are NUL-separated; renames/copies emit two path fields.
+ * Exported for pure unit tests.
+ */
+export function parsePorcelainZ(stdout: string): GitStatusEntry[] {
+  const entries: GitStatusEntry[] = [];
+  // Split on NUL but keep empty trailing segments out
+  const parts = stdout.split("\0");
+  let i = 0;
+  while (i < parts.length) {
+    const record = parts[i] ?? "";
+    if (!record) {
+      i += 1;
+      continue;
+    }
+    // XY<path> — first two chars are status, then space, then path
+    if (record.length < 3) {
+      i += 1;
+      continue;
+    }
+    const index = record[0] ?? " ";
+    const working = record[1] ?? " ";
+    // Format is "XY PATH" (space at index 2)
+    const path = record[2] === " " ? record.slice(3) : record.slice(2);
+    const isRenameOrCopy = index === "R" || index === "C" || working === "R" || working === "C";
+    if (isRenameOrCopy) {
+      // Next field is the other path (source for rename)
+      const other = parts[i + 1] ?? "";
+      i += 2;
+      entries.push({
+        index,
+        working,
+        path: path || other,
+        oldPath: other || undefined,
+      });
+    } else {
+      i += 1;
+      entries.push({ index, working, path });
+    }
+  }
+  return entries;
+}
+
+/** @deprecated Use parsePorcelainZ with -z status. Kept for tests of line-oriented input. */
+export function parsePorcelain(stdout: string): GitStatusEntry[] {
   const entries: GitStatusEntry[] = [];
   for (const line of stdout.split("\n")) {
     if (!line) continue;
     const index = line[0] ?? " ";
     const working = line[1] ?? " ";
     const rest = line.slice(3);
-    // Handle renames: "old -> new"
     if (rest.includes(" -> ")) {
       const [oldPath, newPath] = rest.split(" -> ");
       entries.push({ index, working, path: newPath ?? rest, oldPath: oldPath });
@@ -223,7 +302,7 @@ function parsePorcelain(stdout: string): GitStatusEntry[] {
 export async function getFullStatus(cwd: string): Promise<GitFullStatus | null> {
   const [branchRes, statusRes, countsRes, remotes, branches, commits] = await Promise.all([
     runGit(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]),
-    runGit(cwd, ["status", "--porcelain"]),
+    runGit(cwd, ["status", "--porcelain=v1", "-z"]),
     runGit(cwd, ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"]),
     listRemotes(cwd),
     listBranches(cwd),
@@ -233,7 +312,7 @@ export async function getFullStatus(cwd: string): Promise<GitFullStatus | null> 
   if (!branchRes.ok) return null;
 
   const branch = branchRes.stdout.trim() || "HEAD";
-  const entries = parsePorcelain(statusRes.stdout);
+  const entries = parsePorcelainZ(statusRes.stdout);
   const [behind, ahead] = countsRes.ok
     ? countsRes.stdout.trim().split(/\s+/).map(Number)
     : [0, 0];
@@ -264,28 +343,43 @@ export async function getFullStatus(cwd: string): Promise<GitFullStatus | null> 
 
 // ── Mutating operations ──────────────────────────────────────────────────
 
+function refError(err: unknown): GitResult {
+  return {
+    ok: false,
+    stdout: "",
+    stderr: err instanceof Error ? err.message : String(err),
+  };
+}
+
 export async function createBranch(
   cwd: string,
   name: string,
   from?: string,
   checkout?: boolean,
 ): Promise<GitResult> {
-  const base = from ?? "HEAD";
+  let safeName: string;
+  let base: string;
+  try {
+    safeName = assertGitRef(name, "branch");
+    base = from ? assertGitRef(from, "base") : "HEAD";
+  } catch (err) {
+    return refError(err);
+  }
   if (checkout) {
-    const res = await runGit(cwd, ["checkout", "-b", name, base]);
+    const res = await runGit(cwd, ["checkout", "-b", "--", safeName, base]);
     return {
       ok: res.ok,
       stdout: res.stdout,
       stderr: res.stderr,
-      message: res.ok ? `Created and switched to ${name}` : undefined,
+      message: res.ok ? `Created and switched to ${safeName}` : undefined,
     };
   }
-  const res = await runGit(cwd, ["branch", name, base]);
+  const res = await runGit(cwd, ["branch", "--", safeName, base]);
   return {
     ok: res.ok,
     stdout: res.stdout,
     stderr: res.stderr,
-    message: res.ok ? `Created branch ${name}` : undefined,
+    message: res.ok ? `Created branch ${safeName}` : undefined,
   };
 }
 
@@ -294,13 +388,21 @@ export async function checkoutBranch(
   name: string,
   track?: boolean,
 ): Promise<GitResult> {
-  const args = track ? ["checkout", "-t", name] : ["checkout", name];
+  let safeName: string;
+  try {
+    safeName = assertGitRef(name, "branch");
+  } catch (err) {
+    return refError(err);
+  }
+  const args = track
+    ? ["checkout", "-t", "--", safeName]
+    : ["checkout", "--", safeName];
   const res = await runGit(cwd, args);
   return {
     ok: res.ok,
     stdout: res.stdout,
     stderr: res.stderr,
-    message: res.ok ? `Switched to ${name}` : undefined,
+    message: res.ok ? `Switched to ${safeName}` : undefined,
   };
 }
 
@@ -309,13 +411,19 @@ export async function deleteBranch(
   name: string,
   force?: boolean,
 ): Promise<GitResult> {
-  const args = ["branch", force ? "-D" : "-d", name];
+  let safeName: string;
+  try {
+    safeName = assertGitRef(name, "branch");
+  } catch (err) {
+    return refError(err);
+  }
+  const args = ["branch", force ? "-D" : "-d", "--", safeName];
   const res = await runGit(cwd, args);
   return {
     ok: res.ok,
     stdout: res.stdout,
     stderr: res.stderr,
-    message: res.ok ? `Deleted branch ${name}` : undefined,
+    message: res.ok ? `Deleted branch ${safeName}` : undefined,
   };
 }
 
@@ -391,9 +499,12 @@ export async function commit(
   if (opts.amend) {
     args.push("--amend");
     // When a new message is given, replace the old one; otherwise keep it.
-    if (message) args.push("-m", message);
+    if (message.trim()) args.push("-m", message);
     else args.push("--no-edit");
   } else {
+    if (!message.trim()) {
+      return { ok: false, stdout: "", stderr: "Commit message is required" };
+    }
     args.push("-m", message);
   }
   const res = await runGit(cwd, args);
@@ -410,27 +521,50 @@ export async function mergeBranch(
   branch: string,
   noFastForward?: boolean,
 ): Promise<GitResult> {
-  const args = ["merge", branch];
-  if (noFastForward) args.push("--no-ff");
+  let safeBranch: string;
+  try {
+    safeBranch = assertGitRef(branch, "branch");
+  } catch (err) {
+    return refError(err);
+  }
+  const args = ["merge", "--", safeBranch];
+  if (noFastForward) args.splice(1, 0, "--no-ff");
   const res = await runGit(cwd, args);
   return {
     ok: res.ok,
     stdout: res.stdout,
     stderr: res.stderr,
-    message: res.ok ? `Merged ${branch}` : undefined,
+    message: res.ok ? `Merged ${safeBranch}` : undefined,
   };
 }
 
 export async function pushBranch(
   cwd: string,
-  opts: { remote?: string; branch?: string; setUpstream?: boolean; force?: boolean },
+  opts: {
+    remote?: string;
+    branch?: string;
+    setUpstream?: boolean;
+    /** Prefer --force-with-lease (default when force). Set forceUnsafe for true --force. */
+    force?: boolean;
+    forceUnsafe?: boolean;
+  },
 ): Promise<GitResult> {
-  const remote = opts.remote ?? "origin";
+  let remote: string;
+  let branch: string | undefined;
+  try {
+    remote = assertGitRemote(opts.remote ?? "origin");
+    branch = opts.branch ? assertGitRef(opts.branch, "branch") : undefined;
+  } catch (err) {
+    return refError(err);
+  }
   const args = ["push"];
   if (opts.setUpstream) args.push("-u");
-  if (opts.force) args.push("--force");
+  if (opts.force || opts.forceUnsafe) {
+    // Industry default: force-with-lease. True --force only when forceUnsafe.
+    args.push(opts.forceUnsafe ? "--force" : "--force-with-lease");
+  }
   args.push(remote);
-  if (opts.branch) args.push(opts.branch);
+  if (branch) args.push(branch);
   const res = await runGit(cwd, args);
   return {
     ok: res.ok,
@@ -445,8 +579,12 @@ export async function pullBranch(
   opts: { remote?: string; branch?: string },
 ): Promise<GitResult> {
   const args = ["pull"];
-  if (opts.remote) args.push(opts.remote);
-  if (opts.branch) args.push(opts.branch);
+  try {
+    if (opts.remote) args.push(assertGitRemote(opts.remote));
+    if (opts.branch) args.push(assertGitRef(opts.branch, "branch"));
+  } catch (err) {
+    return refError(err);
+  }
   const res = await runGit(cwd, args);
   return {
     ok: res.ok,
@@ -458,7 +596,13 @@ export async function pullBranch(
 
 export async function fetchRemotes(cwd: string, remote?: string): Promise<GitResult> {
   const args = ["fetch", "--prune"];
-  if (remote) args.push(remote);
+  if (remote) {
+    try {
+      args.push(assertGitRemote(remote));
+    } catch (err) {
+      return refError(err);
+    }
+  }
   const res = await runGit(cwd, args);
   return {
     ok: res.ok,

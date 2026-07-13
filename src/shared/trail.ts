@@ -31,13 +31,22 @@ export class Trail {
     if (this.#lines.length > this.#max) this.#lines.splice(0, this.#lines.length - this.#max);
   }
 
+  /** Hard cap on the still-streaming open line (newline-free floods). */
+  static readonly MAX_OPEN_CHARS = 16_384;
+
   /** Append raw reasoning bytes — splits ONLY this chunk. */
   append(chunk: string): void {
     const segs = chunk.split("\n");
     this.#open += segs[0] ?? "";
+    if (this.#open.length > Trail.MAX_OPEN_CHARS) {
+      this.#open = this.#open.slice(-Trail.MAX_OPEN_CHARS);
+    }
     for (let i = 1; i < segs.length; i++) {
       this.#closeOpen();
       this.#open = segs[i] ?? "";
+      if (this.#open.length > Trail.MAX_OPEN_CHARS) {
+        this.#open = this.#open.slice(-Trail.MAX_OPEN_CHARS);
+      }
     }
     this.#cap();
   }

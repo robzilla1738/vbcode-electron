@@ -273,7 +273,17 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
           out = String(a.output);
         }
       }
-      const lines = out.split("\n").filter((l, i, arr) => l.length || i < arr.length - 1);
+      // Cap retained tool bodies in the reducer (windowing only bounds DOM).
+      // Very large bash dumps otherwise pin RAM for the whole session.
+      const TOOL_OUTPUT_MAX_LINES = 4_000;
+      let lines = out.split("\n").filter((l, i, arr) => l.length || i < arr.length - 1);
+      if (lines.length > TOOL_OUTPUT_MAX_LINES) {
+        const omitted = lines.length - TOOL_OUTPUT_MAX_LINES;
+        lines = [
+          `… ${omitted} earlier lines omitted …`,
+          ...lines.slice(-TOOL_OUTPUT_MAX_LINES),
+        ];
+      }
       if (idx == null) return { ...s, toolByCallId };
       const b = s.blocks[idx];
       if (b?.kind !== "tool") return { ...s, toolByCallId };

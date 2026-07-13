@@ -15,6 +15,7 @@ import { composeInEditor } from "../shared/editor-compose";
 import { assertTrustedIpc, assertTrustedSender, setMainWindow } from "./ipc-security";
 import { registerConfigIpc } from "./config-ipc";
 import { registerGitIpc } from "./git-ipc";
+import { enrichedEnv } from "./host-resolver";
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new EngineBridge();
@@ -394,6 +395,13 @@ function registerIpc(): void {
         const img = clipboard.readImage();
         if (!img.isEmpty()) {
           const png = img.toPNG();
+          const CLIPBOARD_MAX_BYTES = 12 * 1024 * 1024; // 12 MiB
+          if (png.byteLength > CLIPBOARD_MAX_BYTES) {
+            return {
+              kind: "error" as const,
+              error: `Clipboard image exceeds ${CLIPBOARD_MAX_BYTES} bytes`,
+            };
+          }
           const dir = opts?.cwd
             ? join(opts.cwd, ".vibe", "clipboard")
             : join(tmpdir(), `vibe-clips-${process.pid}`);
@@ -418,14 +426,34 @@ function registerIpc(): void {
   ipcMain.handle("editor:compose", async (event, draft: string) => {
     assertTrustedIpc(event);
     if (typeof draft !== "string") return { ok: false, reason: "failed" as const, error: "Invalid editor draft" };
+    const EDITOR_TIMEOUT_MS = 30 * 60 * 1000; // long but finite — hung editors must not pin IPC forever
     const result = await composeInEditor({
       editor: process.env.VISUAL || process.env.EDITOR,
       draft,
-      spawn: (command, args) => new Promise<number>((resolve, reject) => {
-        const child = spawn(command, args, { stdio: "inherit", env: process.env });
-        child.once("error", reject);
-        child.once("exit", (code) => resolve(code ?? 1));
-      }),
+      spawn: (command, args) =>
+        new Promise<number>((resolve, reject) => {
+          const child = spawn(command, args, {
+            stdio: "inherit",
+            env: enrichedEnv(),
+          });
+          const timer = setTimeout(() => {
+            try {
+              child.kill("SIGTERM");
+              setTimeout(() => child.kill("SIGKILL"), 2000);
+            } catch {
+              /* ignore */
+            }
+            reject(new Error("External editor timed out"));
+          }, EDITOR_TIMEOUT_MS);
+          child.once("error", (err) => {
+            clearTimeout(timer);
+            reject(err);
+          });
+          child.once("exit", (code) => {
+            clearTimeout(timer);
+            resolve(code ?? 1);
+          });
+        }),
     });
     if (result.kind === "replaced") return { ok: true, text: result.draft };
     if (result.kind === "failed") return { ok: false, reason: "failed", error: result.reason };
@@ -525,51 +553,96 @@ function registerIpc(): void {
   registerGitIpc(assertTrustedIpc);
 }
 
-app.whenReady().then(() => {
-  configureDevCsp();
-  buildApplicationMenu();
-  applyDevDockIcon();
-  wireBridge();
-  registerIpc();
-  createWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+// Single-instance: a second launch focuses the existing window instead of
+// spawning another engine host and racing config/session state.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
   });
-});
+
+  app.whenReady().then(() => {
+    configureDevCsp();
+    // Defense-in-depth: deny Chromium permission prompts (media, geolocation, …)
+    // this shell never needs — a compromised dependency cannot elevate them.
+    session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => {
+      callback(false);
+    });
+    session.defaultSession.setPermissionCheckHandler(() => false);
+    buildApplicationMenu();
+    applyDevDockIcon();
+    wireBridge();
+    registerIpc();
+    createWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+}
 
 let quitting = false;
 
+/**
+ * Quit budget: disposeForQuit uses a short finalize window then always reaps
+ * with SIGTERM→SIGKILL. The outer ceiling is a last-resort so a wedged OS
+ * wait cannot pin the app forever.
+ */
+const QUIT_HARD_CEILING_MS = 8_000;
+
 app.on("before-quit", async (e) => {
-  if (!bridge.isRunning) return;
   // Guard against re-entrant before-quit (e.g. Cmd+Q while already quitting,
   // or app.exit firing a second before-quit after cleanup completes).
   if (quitting) return;
   quitting = true;
+
+  // Always try to reap when we still own a child (isRunning tracks exit codes,
+  // not proc.killed — soft-kill alone must not skip cleanup).
+  if (!bridge.isRunning) {
+    try {
+      await rm(join(tmpdir(), `vibe-clips-${process.pid}`), { recursive: true, force: true });
+    } catch {
+      /* swallow */
+    }
+    return;
+  }
+
   e.preventDefault();
-  // Don't let a stuck host block quit — race the finalize + stop against a
-  // hard 5-second budget so the app always exits promptly.
   await Promise.race([
     (async () => {
       try {
-        await bridge.rpc("finalize");
+        await bridge.disposeForQuit();
       } catch {
-        /* ignore */
+        /* stop must still have been attempted inside disposeForQuit */
+        try {
+          await bridge.stop();
+        } catch {
+          /* ignore */
+        }
       }
-      await bridge.stop();
       // Clean up per-session clipboard temp PNGs (TUI parity: cleanupClipboardTempDir).
-      // Best-effort — a cleanup failure must not trap the exit path.
       try {
         await rm(join(tmpdir(), `vibe-clips-${process.pid}`), { recursive: true, force: true });
       } catch {
         /* swallow */
       }
     })(),
-    new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+    new Promise<void>((resolve) => setTimeout(resolve, QUIT_HARD_CEILING_MS)),
   ]);
   app.exit(0);
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  // On macOS, closing the last window traditionally keeps the app alive — but
+  // an orphaned engine host with no UI sink burns CPU/API. Stop the host; the
+  // next activate/createWindow path bootstraps a fresh session.
+  if (process.platform === "darwin") {
+    void bridge.stop().catch(() => undefined);
+    return;
+  }
+  app.quit();
 });

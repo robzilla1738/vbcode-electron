@@ -2,9 +2,39 @@ import type { Message } from "./types";
 import { initialTranscript, reduceTranscript, type TranscriptState } from "./reducer";
 import { stripVisionRelayContext } from "./vision-display";
 
+const FILE_EDIT_TOOLS = new Set([
+  "edit",
+  "write",
+  "apply_patch",
+  "str_replace",
+  "search_replace",
+  "create_file",
+  "Edit",
+  "Write",
+]);
+
+function pathFromToolInput(input: unknown): string | null {
+  if (!input || typeof input !== "object") return null;
+  const rec = input as Record<string, unknown>;
+  for (const key of ["path", "file_path", "filePath", "filename", "target"]) {
+    const v = rec[key];
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  return null;
+}
+
+function actionFromTool(toolName: string): "write" | "edit" {
+  const n = toolName.toLowerCase();
+  if (n.includes("write") || n.includes("create")) return "write";
+  return "edit";
+}
+
 /** Hydrate transcript blocks from snapshot history (resume UX). */
 export function hydrateFromHistory(history: Message[]): TranscriptState {
   let s = initialTranscript();
+  /** toolCallId → { toolName, input } for reconstructing changed-files on resume. */
+  const pendingTools = new Map<string, { toolName: string; input: unknown }>();
+
   for (const msg of history) {
     if (msg.role === "user") {
       const text = msg.parts
@@ -20,6 +50,7 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
         } else if (msg.role === "assistant" && part.type === "reasoning" && part.text) {
           s = reduceTranscript(s, { type: "thinking", text: part.text });
         } else if (msg.role === "assistant" && part.type === "tool-call") {
+          pendingTools.set(part.toolCallId, { toolName: part.toolName, input: part.input });
           s = reduceTranscript(s, {
             type: "tool-start",
             toolCallId: part.toolCallId,
@@ -27,12 +58,42 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
             input: part.input,
           });
         } else if (part.type === "tool-result") {
+          const meta = pendingTools.get(part.toolCallId);
+          pendingTools.delete(part.toolCallId);
           s = reduceTranscript(s, {
             type: "tool-finish",
             toolCallId: part.toolCallId,
             output: part.output,
             isError: !!part.isError,
           });
+          // Rebuild session changed-files map from edit/write tools so Changes
+          // dock / Inspector are not empty after resume (shell-only; no diff body
+          // unless the result string looks like a unified diff).
+          if (!part.isError && meta && FILE_EDIT_TOOLS.has(meta.toolName)) {
+            const path = pathFromToolInput(meta.input);
+            if (path) {
+              const out =
+                typeof part.output === "string"
+                  ? part.output
+                  : part.output != null
+                    ? JSON.stringify(part.output)
+                    : "";
+              const looksLikeDiff = /^(diff --git|@@ )/m.test(out);
+              // Reducer treats empty ±0 as no-op; use a 1-line placeholder when
+              // history has no unified diff so the Changes map still lists the path.
+              const added = looksLikeDiff ? (out.match(/^\+[^+]/gm) ?? []).length : 1;
+              const removed = looksLikeDiff ? (out.match(/^-[^-]/gm) ?? []).length : 0;
+              s = reduceTranscript(s, {
+                type: "file-changed",
+                toolCallId: part.toolCallId,
+                path,
+                action: actionFromTool(meta.toolName),
+                added,
+                removed,
+                diff: looksLikeDiff ? out : undefined,
+              });
+            }
+          }
         }
       }
     }

@@ -91,6 +91,8 @@ function stripSecurityNotices<T extends Record<string, unknown>>(value: T): T {
   return copy;
 }
 
+const DANGEROUS_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+
 /** Deep-merge for writes: `null` deletes, `undefined` is a no-op. */
 function mergeForWrite(
   base: Record<string, unknown>,
@@ -98,6 +100,7 @@ function mergeForWrite(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(patch)) {
+    if (DANGEROUS_KEYS.has(key)) continue;
     if (value === undefined) continue;
     if (value === null) { delete out[key]; continue; }
     const existing = out[key];
@@ -108,6 +111,14 @@ function mergeForWrite(
     }
   }
   return out;
+}
+
+/** Exported for pure tests of the merge key denylist. */
+export function mergeConfigForWrite(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  return mergeForWrite(base, patch);
 }
 
 export function globalConfigPath(): string {
@@ -136,14 +147,27 @@ export async function readConfigFile(path: string): Promise<{ config: VibeConfig
 /** Atomic temp+rename JSON write — a crash mid-write cannot truncate the
  * live config into unparseable garbage (BUG-092 parity with @vibe/config).
  * The temp file is PID+timestamp-named and cleaned up on failure. */
+/** Secret-bearing global config should not be world-readable. */
+const SECRET_FILE_MODE = 0o600;
+
 async function atomicWriteJson(path: string, value: Record<string, unknown>): Promise<void> {
   const dir = dirname(path);
   await mkdir(dir, { recursive: true });
   const stripped = stripSecurityNotices(value);
   const tmp = join(dir, `.config.${process.pid}.${Date.now()}.tmp`);
   try {
-    await writeFile(tmp, `${JSON.stringify(stripped, null, 2)}\n`, "utf8");
+    await writeFile(tmp, `${JSON.stringify(stripped, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: SECRET_FILE_MODE,
+    });
     await rename(tmp, path);
+    // rename may not preserve mode on all platforms; enforce on the final path.
+    try {
+      const { chmod } = await import("node:fs/promises");
+      await chmod(path, SECRET_FILE_MODE);
+    } catch {
+      /* best-effort on platforms without chmod */
+    }
   } catch (err) {
     await rm(tmp, { force: true }).catch(() => {});
     throw err;
@@ -198,6 +222,44 @@ export async function writeConfigFile(
   });
 }
 
+/**
+ * Read → merge → validate → write under a single per-path lock so concurrent
+ * Settings saves cannot persist an unvalidated merge.
+ * Returns `{ ok: true, config }` or `{ ok: false, error }`.
+ */
+export async function writeConfigFileValidated(
+  path: string,
+  patch: Record<string, unknown>,
+  validate: (merged: Record<string, unknown>) => string[],
+): Promise<{ ok: true; config: VibeConfig } | { ok: false; error: string }> {
+  if (!isPlainObject(patch)) {
+    return { ok: false, error: "Config patch must be a plain object" };
+  }
+  try {
+    const result = await scheduleWrite(path, async () => {
+      let existing: Record<string, unknown> = {};
+      if (existsSync(path)) {
+        const read = await readConfigFile(path);
+        if (!read) throw new Error(`Config at ${path} could not be read`);
+        if (!isPlainObject(read.config)) {
+          throw new Error(`Config at ${path} is not a JSON object — fix or remove it before saving`);
+        }
+        existing = read.config as Record<string, unknown>;
+      }
+      const merged = mergeForWrite(existing, patch);
+      const errors = validate(merged);
+      if (errors.length) {
+        return { ok: false as const, error: `Invalid configuration: ${errors.join("; ")}` };
+      }
+      await atomicWriteJson(path, merged);
+      return { ok: true as const, config: merged as VibeConfig };
+    });
+    return result;
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // ── Memory file paths ────────────────────────────────────────────────────
 
 export function globalMemoryPath(): string {
@@ -221,17 +283,31 @@ export async function readMemoryFile(path: string): Promise<{ content: string; e
   return { content, exists: true };
 }
 
+/** Custom instructions (VIBE.md) — hard cap so a paste cannot blow disk/memory. */
+export const MEMORY_MAX_BYTES = 1_500_000;
+
 export async function writeMemoryFile(path: string, content: string): Promise<void> {
-  const dir = dirname(path);
-  await mkdir(dir, { recursive: true });
-  const tmp = join(dir, `.VIBE.${process.pid}.${Date.now()}.tmp`);
-  try {
-    await writeFile(tmp, content, "utf8");
-    await rename(tmp, path);
-  } catch (err) {
-    await rm(tmp, { force: true }).catch(() => {});
-    throw err;
+  if (Buffer.byteLength(content, "utf8") > MEMORY_MAX_BYTES) {
+    throw new Error(`Memory file exceeds ${MEMORY_MAX_BYTES} bytes`);
   }
+  return scheduleWrite(path, async () => {
+    const dir = dirname(path);
+    await mkdir(dir, { recursive: true });
+    const tmp = join(dir, `.VIBE.${process.pid}.${Date.now()}.tmp`);
+    try {
+      await writeFile(tmp, content, { encoding: "utf8", mode: SECRET_FILE_MODE });
+      await rename(tmp, path);
+      try {
+        const { chmod } = await import("node:fs/promises");
+        await chmod(path, SECRET_FILE_MODE);
+      } catch {
+        /* best-effort */
+      }
+    } catch (err) {
+      await rm(tmp, { force: true }).catch(() => {});
+      throw err;
+    }
+  });
 }
 
 /**

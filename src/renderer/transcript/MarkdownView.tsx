@@ -97,10 +97,29 @@ export function MarkdownView({
   const themeName = theme ?? document.documentElement.dataset.theme;
   const shikiTheme = shikiThemeFor(themeName) as [ThemeInput, ThemeInput];
 
+  // While streaming, skip Shiki line-number highlighting — re-parsing growing
+  // markdown every 24ms was a main-thread hotspot on long agent turns. Static
+  // mode after finalize still gets full highlighting.
+  if (streaming) {
+    return (
+      <Streamdown
+        mode="streaming"
+        isAnimating
+        parseIncompleteMarkdown
+        controls={false}
+        lineNumbers={false}
+        animated={false}
+        components={components}
+      >
+        {children}
+      </Streamdown>
+    );
+  }
+
   return (
     <Streamdown
-      mode={streaming ? "streaming" : "static"}
-      isAnimating={streaming}
+      mode="static"
+      isAnimating={false}
       parseIncompleteMarkdown
       controls={{ code: false, table: { copy: true, download: false }, mermaid: false }}
       lineNumbers
