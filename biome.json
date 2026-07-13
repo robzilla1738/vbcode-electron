@@ -9,6 +9,7 @@
       "tools/**/*.ts",
       "scripts/**/*.mjs",
       "*.ts",
+      "!vibe-codr",
       "!out",
       "!release",
       "!resources"
