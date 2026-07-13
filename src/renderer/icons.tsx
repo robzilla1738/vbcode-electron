@@ -15,6 +15,7 @@ import {
   GitBranch,
   LayoutDashboard,
   Link,
+  MessageSquare,
   MoreVertical,
   Paperclip,
   PanelLeft,
@@ -25,6 +26,7 @@ import {
   Search,
   Settings,
   Square,
+  SquareTerminal,
   Trash2,
   X,
 } from "lucide-react";
@@ -47,6 +49,10 @@ function lucide(props: IconProps): LucideProps {
 
 export function IconPlus(props: IconProps) {
   return <Plus {...lucide(props)} />;
+}
+
+export function IconChat(props: IconProps) {
+  return <MessageSquare {...lucide(props)} />;
 }
 
 export function IconFolder(props: IconProps) {
@@ -96,6 +102,14 @@ export function IconStop(props: IconProps) {
 
 export function IconJobs(props: IconProps) {
   return <LayoutDashboard {...lucide(props)} />;
+}
+
+export function IconTerminal(props: IconProps) {
+  return <SquareTerminal {...lucide(props)} />;
+}
+
+export function IconDiff(props: IconProps) {
+  return <FileText {...lucide(props)} />;
 }
 
 export function IconSidebar(props: IconProps) {

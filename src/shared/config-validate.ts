@@ -87,13 +87,28 @@ export function validateConfig(config: Record<string, unknown>): string[] {
     }
   }
 
-  // MCP server URLs
+  // MCP servers: remote URL shape + stdio command required when enabled
   if (isPlainObject(config.mcp) && isPlainObject(config.mcp.servers)) {
     for (const [name, server] of Object.entries(config.mcp.servers as Record<string, unknown>)) {
       if (!isPlainObject(server)) continue;
       if ("url" in server) {
-        const urlCheck = expandableHttpUrl(server.url);
-        if (urlCheck !== true) errors.push(`mcp.servers.${name}.url: ${urlCheck}`);
+        if (server.enabled !== false) {
+          const url = typeof server.url === "string" ? server.url.trim() : "";
+          if (!url) {
+            errors.push(`mcp.servers.${name}.url: required for enabled remote servers`);
+          } else {
+            const urlCheck = expandableHttpUrl(url);
+            if (urlCheck !== true) errors.push(`mcp.servers.${name}.url: ${urlCheck}`);
+          }
+        } else {
+          const urlCheck = expandableHttpUrl(server.url);
+          if (urlCheck !== true) errors.push(`mcp.servers.${name}.url: ${urlCheck}`);
+        }
+      } else if (server.enabled !== false) {
+        const cmd = typeof server.command === "string" ? server.command.trim() : "";
+        if (!cmd) {
+          errors.push(`mcp.servers.${name}.command: required for enabled stdio servers`);
+        }
       }
     }
   }

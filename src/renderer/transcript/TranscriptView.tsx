@@ -13,7 +13,7 @@ import { SourceList } from "./SourceList";
 import { MarkdownView } from "./MarkdownView";
 import { isSubagentTool, stripToolGlyph, ToolGlyph } from "../tool-glyph";
 import { StatusDot } from "../primitives";
-import { IconBrain, IconChevron, IconRename } from "../icons";
+import { IconChevron, IconRename } from "../icons";
 import { CopyButton } from "../CopyButton";
 
 /** JS smooth-scroll must honor the OS reduced-motion setting (I19/P04); CSS
@@ -264,28 +264,32 @@ function BlockView({
         block.seconds != null && block.seconds >= 1
           ? `Thought for ${block.seconds}s`
           : "Thinking";
+      const text = block.text?.replace(/^\s+/, "") ?? "";
       return (
         <div className={`thinking-row${!collapsed ? " is-open" : ""}`}>
-          <button
-            type="button"
-            className="thinking-head"
-            onClick={() => onToggle(block.id)}
-            aria-expanded={!collapsed}
-            aria-controls={`thinking-body-${block.id}`}
-            aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
-          >
-            <span className="thinking-label">
-              <IconChevron open={!collapsed} size={13} />
-              <IconBrain className="thinking-glyph" size={13} />
-              <span>{label}</span>
-            </span>
-          </button>
-          {!collapsed && (
-            <div className="thinking-body has-copy" id={`thinking-body-${block.id}`}>
-              {block.text ? <CopyButton text={block.text} label="Copy thinking" /> : null}
-              {block.text}
+          <div className="thinking-head-row">
+            <button
+              type="button"
+              className="thinking-head"
+              onClick={() => onToggle(block.id)}
+              aria-expanded={!collapsed}
+              aria-controls={`thinking-body-${block.id}`}
+              aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
+            >
+              <span className="thinking-label">
+                <IconChevron open={!collapsed} size={13} />
+                <span>{label}</span>
+              </span>
+            </button>
+            {!collapsed && text ? (
+              <CopyButton text={text} label="Copy thinking" className="thinking-copy" />
+            ) : null}
+          </div>
+          {!collapsed && text ? (
+            <div className="thinking-body" id={`thinking-body-${block.id}`}>
+              {text}
             </div>
-          )}
+          ) : null}
         </div>
       );
     }
@@ -473,24 +477,24 @@ export function TranscriptView({
                             <span className="folded-hint">{turn.items.length} hidden</span>
                           ) : null}
                         </div>
-                      </div>
-                      <div className="assistant-actions user-message-actions" role="toolbar" aria-label="User message actions">
-                        <CopyButton text={turn.user.text} label="Copy message" />
-                        <button
-                          type="button"
-                          className="assistant-action"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onEdit(turn.user!.text);
-                          }}
-                          aria-label="Edit message"
-                          title="Edit message"
-                        >
-                          <IconRename size={13} />
-                        </button>
-                        <time className="message-time" dateTime={new Date(turn.user.timestamp).toISOString()}>
-                          {formatMessageTime(turn.user.timestamp)}
-                        </time>
+                        <div className="assistant-actions user-message-actions" role="toolbar" aria-label="User message actions">
+                          <CopyButton text={turn.user.text} label="Copy message" />
+                          <button
+                            type="button"
+                            className="assistant-action"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onEdit(turn.user!.text);
+                            }}
+                            aria-label="Edit message"
+                            title="Edit message"
+                          >
+                            <IconRename size={13} />
+                          </button>
+                          <time className="message-time" dateTime={new Date(turn.user.timestamp).toISOString()}>
+                            {formatMessageTime(turn.user.timestamp)}
+                          </time>
+                        </div>
                       </div>
                     </div>
                   )}

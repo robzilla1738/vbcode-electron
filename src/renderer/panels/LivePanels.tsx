@@ -47,7 +47,12 @@ export function PermissionCard({
   }, [denyOpen]);
 
   const preview = permissionPreview(perm.toolName, perm.input);
-  const payload = JSON.stringify(perm.input, null, 2).slice(0, 800);
+  let payload = "";
+  try {
+    payload = (JSON.stringify(perm.input, null, 2) ?? "").slice(0, 800);
+  } catch {
+    payload = String(perm.input);
+  }
   const allPreviewLines = preview?.lines ?? [];
   const previewLines = previewExpanded
     ? allPreviewLines

@@ -46,7 +46,6 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
   { name: "mouse", description: "Mouse capture (TUI only — no-op in Electron)", values: ["on", "off"] },
   { name: "keys", description: "Essential keyboard shortcuts" },
   { name: "settings", description: "Open the settings panel (models, providers, MCP, permissions)" },
-  { name: "config", description: "Alias for /settings" },
   { name: "git", description: "Open the git panel (branches, changes, history, PRs)" },
   { name: "branches", description: "Alias for /git" },
   // Values derive from the palette registry so a new theme/accent shows up here

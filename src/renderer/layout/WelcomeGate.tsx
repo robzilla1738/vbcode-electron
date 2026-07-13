@@ -213,10 +213,13 @@ export function SessionBoot({ cwd }: { cwd: string }) {
 export function SessionBootError({
   error,
   onRetry,
+  onNewSession,
   onOpenProject,
 }: {
   error: string;
   onRetry: () => void;
+  /** Start a fresh host session in the current project (primary recovery). */
+  onNewSession?: () => void;
   onOpenProject: () => void;
 }) {
   return (
@@ -234,16 +237,21 @@ export function SessionBootError({
           {error}
         </pre>
         <div className="gate-actions">
+          {onNewSession ? (
+            <button
+              type="button"
+              className="button primary"
+              onClick={onNewSession}
+              // biome-ignore lint/a11y/noAutofocus: primary recovery for host fatals
+              autoFocus
+            >
+              New session
+            </button>
+          ) : null}
           <button type="button" className="button" onClick={onRetry}>
             Retry
           </button>
-          <button
-            type="button"
-            className="button primary"
-            onClick={onOpenProject}
-            // biome-ignore lint/a11y/noAutofocus: single autofocus owner on in-column boot error
-            autoFocus
-          >
+          <button type="button" className="button" onClick={onOpenProject}>
             Choose another project
           </button>
         </div>

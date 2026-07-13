@@ -22,6 +22,8 @@ import {
   pushBranch,
   stageAll,
   stageFiles,
+  unstageAll,
+  unstageFiles,
 } from "../shared/git-ops";
 import type {
   GhPrCreateRequest,
@@ -35,6 +37,7 @@ import type {
   GitPullRequest,
   GitPushRequest,
 } from "../shared/git-types";
+import { enrichedEnv } from "./host-resolver";
 import type { AssertTrustedIpc } from "./ipc-security";
 
 interface SpawnedChild {
@@ -49,6 +52,7 @@ function spawnGh(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: st
   return new Promise((resolve) => {
     const child = spawn("gh", args, {
       cwd,
+      env: enrichedEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     }) as unknown as SpawnedChild;
     let stdout = "";
@@ -123,9 +127,21 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     } else if (opts.paths && opts.paths.length > 0) {
       result = await stageFiles(opts.cwd, opts.paths);
     } else {
-      // Unstage all
-      result = await stageFiles(opts.cwd, []);
+      // Do not treat empty stage as "unstage all" — that is git:unstage.
+      return { ok: false as const, error: "paths, all, or allIncludingUntracked required" };
     }
+    return { ok: result.ok, message: result.message, error: result.ok ? undefined : result.stderr || "Failed" };
+  });
+
+  ipcMain.handle("git:unstage", async (event, opts: { cwd: string; paths?: string[] }) => {
+    assertTrusted(event);
+    if (!opts || typeof opts.cwd !== "string") {
+      return { ok: false as const, error: "Invalid request" };
+    }
+    const result =
+      opts.paths && opts.paths.length > 0
+        ? await unstageFiles(opts.cwd, opts.paths)
+        : await unstageAll(opts.cwd);
     return { ok: result.ok, message: result.message, error: result.ok ? undefined : result.stderr || "Failed" };
   });
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { McpServerConfig } from "../../../shared/config-schema";
+import { mcpServerTypeTemplate } from "../../../shared/mcp-server-edit";
 import type { SectionProps } from "./types";
 import { SettingBadge, SettingField, SettingSection, TextArea, TextInput, ToggleSwitch } from "../FormControls";
 
@@ -24,7 +25,8 @@ export function McpSection({ config, updateConfig }: SectionProps) {
   const confirmAdd = () => {
     const name = newName.trim();
     if (!name || servers[name]) return;
-    updateServer(name, { command: "", args: [] });
+    // Disabled until the user fills command/url — empty enabled stdio blocks all settings saves.
+    updateServer(name, { command: "", args: [], enabled: false });
     setExpanded(name);
     setNewName("");
     setShowAdd(false);
@@ -60,7 +62,7 @@ export function McpSection({ config, updateConfig }: SectionProps) {
                             type="radio"
                             name={`mcp-type-${name}`}
                             checked={isStdio}
-                            onChange={() => updateServer(name, { command: "", args: [] })}
+                            onChange={() => updateServer(name, mcpServerTypeTemplate("stdio", server))}
                           />
                           Stdio (local process)
                         </label>
@@ -69,7 +71,7 @@ export function McpSection({ config, updateConfig }: SectionProps) {
                             type="radio"
                             name={`mcp-type-${name}`}
                             checked={!isStdio}
-                            onChange={() => updateServer(name, { url: "" })}
+                            onChange={() => updateServer(name, mcpServerTypeTemplate("remote", server))}
                           />
                           Remote (HTTP/SSE)
                         </label>

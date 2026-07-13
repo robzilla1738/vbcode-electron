@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  chatSessions,
+  filterChatSessions,
   filterProjects,
+  isChatsCwd,
+  partitionProjects,
   projectLabel,
   relativeSessionTime,
 } from "../../shared/project-index";
@@ -9,7 +13,6 @@ import type { ProjectSessionSummary, ProjectSummary } from "../../shared/protoco
 import {
   IconArchive,
   IconChevron,
-  IconContinue,
   IconDelete,
   IconFolder,
   IconFolderOpen,
@@ -43,6 +46,7 @@ type RailMenu = SessionMenu | ProjectMenu;
 
 export function ProjectRail({
   projects,
+  chatsCwd,
   activeCwd,
   activeSessionId,
   open,
@@ -52,8 +56,7 @@ export function ProjectRail({
   onClose,
   onRetry,
   onOpenProject,
-  onNewSession,
-  onContinueLatest,
+  onNewChat,
   onResume,
   onRenameProject,
   onArchiveProject,
@@ -67,6 +70,8 @@ export function ProjectRail({
   gitActive,
 }: {
   projects: ProjectSummary[];
+  /** Absolute path of the one-off chats workspace (`~/.vibe/chats`). */
+  chatsCwd: string | null;
   activeCwd: string | null;
   activeSessionId: string;
   open: boolean;
@@ -76,8 +81,8 @@ export function ProjectRail({
   onClose: () => void;
   onRetry: () => void;
   onOpenProject: () => void;
-  onNewSession: () => void;
-  onContinueLatest: () => void;
+  /** Start a new one-off chat (not a code project). */
+  onNewChat: () => void;
   onResume: (cwd: string, id: string) => void;
   onRenameProject: (cwd: string, name: string) => Promise<boolean>;
   onArchiveProject: (cwd: string) => Promise<boolean>;
@@ -92,6 +97,9 @@ export function ProjectRail({
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  /** Section-level collapse (Projects list / Chats list). Search forces open. */
+  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [chatsOpen, setChatsOpen] = useState(true);
   const [menu, setMenu] = useState<RailMenu | null>(null);
   const [menuClosing, setMenuClosing] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -106,8 +114,25 @@ export function ProjectRail({
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const menuCloseTimerRef = useRef<number | null>(null);
   const searchTriggerRef = useRef<HTMLButtonElement>(null);
-  const visibleProjects = useMemo(() => filterProjects(projects, query), [projects, query]);
+
+  const partitioned = useMemo(
+    () => (chatsCwd ? partitionProjects(projects, chatsCwd) : { chats: null, projects }),
+    [projects, chatsCwd],
+  );
+  const visibleProjects = useMemo(
+    () => filterProjects(partitioned.projects, query),
+    [partitioned.projects, query],
+  );
+  const visibleChats = useMemo(
+    () => filterChatSessions(chatSessions(partitioned.chats), query),
+    [partitioned.chats, query],
+  );
+  const chatsRoot = partitioned.chats?.cwd ?? chatsCwd;
+  const inChats = Boolean(activeCwd && chatsCwd && isChatsCwd(activeCwd, chatsCwd));
   const searchIsOpen = searchOpen || query.length > 0;
+  // While filtering, keep both sections open so matches stay visible.
+  const showProjectsBody = projectsOpen || query.length > 0;
+  const showChatsBody = chatsOpen || query.length > 0;
 
   const closeMenu = useCallback((restoreFocus = false) => {
     if (!menu && !menuClosing) return;
@@ -351,44 +376,8 @@ export function ProjectRail({
         </button>
       </div>
 
-      <nav className="rail-actions" aria-label="Session actions">
-        <button
-          type="button"
-          className="rail-action"
-          onClick={onNewSession}
-          disabled={!activeCwd || busy}
-          title={busy ? busyTitle : undefined}
-          aria-label={busyActionLabel("New session")}
-        >
-          <IconPlus size={14} />
-          <span>New session</span>
-        </button>
-        <button
-          type="button"
-          className="rail-action"
-          onClick={onOpenProject}
-          disabled={busy}
-          title={busy ? busyProjectTitle : undefined}
-          aria-label={busyActionLabel("Open project", busyProjectTitle)}
-        >
-          <IconFolderOpen size={14} />
-          <span>Open project</span>
-        </button>
-        <button
-          type="button"
-          className="rail-action"
-          onClick={onContinueLatest}
-          disabled={!activeCwd || busy}
-          title={busy ? busyTitle : undefined}
-          aria-label={busyActionLabel("Continue latest")}
-        >
-          <IconContinue size={14} />
-          <span>Continue latest</span>
-        </button>
-      </nav>
-
       <label id="project-filter" className={`rail-filter${searchIsOpen ? " is-open" : ""}`}>
-        <span className="sr-only">Filter projects and sessions</span>
+        <span className="sr-only">Filter chats and projects</span>
         <IconSearch size={14} />
         <input
           ref={filterRef}
@@ -405,14 +394,13 @@ export function ProjectRail({
               }
             }
           }}
-          placeholder="Search projects"
+          placeholder="Search chats & projects"
           type="search"
         />
       </label>
 
-      <h2 className="rail-section-label" id="rail-projects-heading">Projects</h2>
-      <div className="project-list" aria-busy={loading} aria-labelledby="rail-projects-heading">
-        {loading && projects.length === 0 && <div className="rail-state">Loading projects…</div>}
+      <div className="project-list" aria-busy={loading}>
+        {loading && projects.length === 0 && <div className="rail-state">Loading…</div>}
         {loading && projects.length > 0 && <div className="rail-refresh" role="status">Refreshing…</div>}
         {error && (
           <div className="rail-state error" role="status">
@@ -420,8 +408,40 @@ export function ProjectRail({
             <button type="button" className="rail-retry" onClick={onRetry}>Retry</button>
           </div>
         )}
+
+        {/* ── Projects ─────────────────────────────────────────────────── */}
+        <div className="rail-section-head">
+          <button
+            type="button"
+            className="rail-section-toggle"
+            id="rail-projects-heading"
+            aria-expanded={showProjectsBody}
+            aria-controls="rail-projects-body"
+            onClick={() => setProjectsOpen((v) => !v)}
+          >
+            <IconChevron open={showProjectsBody} size={12} />
+            <span className="rail-section-label">Projects</span>
+          </button>
+          <button
+            type="button"
+            className="rail-section-add"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenProject();
+            }}
+            disabled={busy}
+            title={busy ? busyProjectTitle : "Add project"}
+            aria-label={busyActionLabel("Add project", busyProjectTitle)}
+          >
+            <IconPlus size={14} />
+          </button>
+        </div>
+        {showProjectsBody && (
+        <div className="rail-section-body" id="rail-projects-body" aria-labelledby="rail-projects-heading">
         {!loading && !error && visibleProjects.length === 0 && (
-          <div className="rail-state">{query ? "No matching sessions." : "Open a project to start a session."}</div>
+          <div className="rail-state rail-state-quiet">
+            {query ? "No matching projects." : "Add a folder to start."}
+          </div>
         )}
         {visibleProjects.map((project) => {
           const isExpanded = query.length > 0 || expanded.has(project.cwd);
@@ -441,7 +461,7 @@ export function ProjectRail({
                     className="project-rename-input"
                     value={renamingProject.name}
                     onChange={(event) => setRenamingProject({ ...renamingProject, name: event.target.value })}
-                    onBlur={() => setRenamingProject(null)}
+                    onBlur={() => { void commitProjectRename(); }}
                     onKeyDown={(event) => {
                       if (event.key === "Escape") {
                         event.preventDefault();
@@ -516,7 +536,7 @@ export function ProjectRail({
                               onChange={(event) =>
                                 setRenaming({ ...renaming, title: event.target.value })
                               }
-                              onBlur={() => setRenaming(null)}
+                              onBlur={() => { void commitRename(); }}
                               onKeyDown={(event) => {
                                 if (event.key === "Escape") {
                                   event.preventDefault();
@@ -586,6 +606,130 @@ export function ProjectRail({
             </section>
           );
         })}
+        </div>
+        )}
+
+        {/* ── Chats (one-off, under projects) ──────────────────────────── */}
+        <div className="rail-section-head">
+          <button
+            type="button"
+            className="rail-section-toggle"
+            id="rail-chats-heading"
+            aria-expanded={showChatsBody}
+            aria-controls="rail-chats-body"
+            onClick={() => setChatsOpen((v) => !v)}
+          >
+            <IconChevron open={showChatsBody} size={12} />
+            <span className="rail-section-label">Chats</span>
+          </button>
+          <button
+            type="button"
+            className="rail-section-add"
+            onClick={(event) => {
+              event.stopPropagation();
+              onNewChat();
+            }}
+            disabled={busy}
+            title={busy ? busyTitle : "New chat"}
+            aria-label={busyActionLabel("New chat")}
+          >
+            <IconPlus size={14} />
+          </button>
+        </div>
+        {showChatsBody && (
+        <div className="rail-section-body" id="rail-chats-body" aria-labelledby="rail-chats-heading">
+          {!loading && !error && visibleChats.length === 0 && (
+            <div className="rail-state rail-state-quiet">
+              {query ? "No matching chats." : "No chats yet."}
+            </div>
+          )}
+          {visibleChats.length > 0 && chatsRoot && (
+            <div className="session-list is-flat" role="group" aria-label="Chats">
+              {visibleChats.map((session) => {
+                const isRenaming = renaming?.cwd === chatsRoot && renaming.id === session.id;
+                const isActive = inChats && session.id === activeSessionId;
+                return (
+                  <div
+                    key={session.id}
+                    className={`session-row-wrap${isActive ? " active" : ""}`}
+                  >
+                    {isRenaming ? (
+                      <form
+                        className="session-rename"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void commitRename();
+                        }}
+                      >
+                        <input
+                          ref={renameRef}
+                          className="session-rename-input"
+                          value={renaming.title}
+                          onChange={(event) =>
+                            setRenaming({ ...renaming, title: event.target.value })
+                          }
+                          onBlur={() => { void commitRename(); }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              event.preventDefault();
+                              setRenaming(null);
+                            }
+                          }}
+                          aria-label="Rename chat"
+                        />
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        className="session-row session-row-flat"
+                        disabled={busy}
+                        onClick={() => onResume(chatsRoot, session.id)}
+                        aria-current={isActive ? "true" : undefined}
+                        aria-label={
+                          busy
+                            ? `${session.title}. ${busyTitle}`
+                            : session.title
+                        }
+                        title={busy ? busyTitle : `${session.title}\n${session.model}`}
+                      >
+                        <span className="session-title">{session.title}</span>
+                        <time className="session-time" dateTime={new Date(session.updatedAt).toISOString()}>
+                          {relativeSessionTime(session.updatedAt)}
+                        </time>
+                        {isActive && busy ? (
+                          <span className="session-status-indicator is-busy" aria-hidden="true" />
+                        ) : null}
+                      </button>
+                    )}
+                    {!isRenaming && (
+                      <button
+                        type="button"
+                        className="session-more"
+                        aria-label={
+                          busy
+                            ? `Chat actions for ${session.title}. ${busyTitle}`
+                            : `Chat actions for ${session.title}`
+                        }
+                        aria-haspopup="menu"
+                        aria-expanded={
+                          menu?.kind === "session" &&
+                          menu.session.id === session.id &&
+                          !menuClosing
+                        }
+                        disabled={busy}
+                        title={busy ? busyTitle : undefined}
+                        onClick={(event) => openMenu(event, chatsRoot, session)}
+                      >
+                        <IconMore size={14} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        )}
       </div>
 
       <div className="rail-footer" aria-label="App panels">
@@ -593,9 +737,15 @@ export function ProjectRail({
           type="button"
           className={`rail-footer-btn${gitActive ? " active" : ""}`}
           onClick={onOpenGit}
-          disabled={!activeCwd}
+          disabled={!activeCwd || inChats}
           aria-pressed={gitActive}
-          title={activeCwd ? "Git branches and remotes" : "Open a project first"}
+          title={
+            inChats
+              ? "Git is available in project folders"
+              : activeCwd
+                ? "Git branches and remotes"
+                : "Open a project first"
+          }
         >
           <IconGitBranch size={15} />
           <span>Git</span>

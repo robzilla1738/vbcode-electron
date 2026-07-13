@@ -14,6 +14,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 4. **`/clear` / `/new`:** abort if busy → `clearSessionLocal()` (transcript + overlays + `suppressAfterClear`) → forward slash to engine.
 5. Prefer porting pure modules from `vibe-codr/packages/tui` (`reducer`, `slash`, `modes`, `density`, `file-fuzzy`, `commands-catalog`) over rewriting behavior.
 6. Development host resolution must reject a compiled `vibecodr-engine-host` when runtime source under the sibling checkout is newer, then fall back to Bun source execution. This prevents stale host behavior from being reported as a generic renderer failure.
+7. **Workspace dock stays on the chat surface** (`var(--bg)` inside `content-inset` / `main-column`). Do not reintroduce a separate rail tint or topbar duplicates of Session/Changes/Git/Jobs/Files.
 
 ## Key paths
 
@@ -26,12 +27,19 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | Session / event wiring | `src/renderer/hooks/useSession.ts` |
 | Keyboard + submit routing | `src/renderer/App.tsx` |
 | Composer attachments | `src/renderer/composer/Composer.tsx` |
-| Resizable rails | `src/renderer/layout/SidebarResizeHandle.tsx`, `ProjectRail.tsx` |
+| Project rail (Projects + Chats) | `src/renderer/layout/ProjectRail.tsx`, `src/shared/project-index.ts` |
+| Workspace dock | `src/renderer/layout/WorkspaceDock.tsx` |
+| Turn changes card | `src/renderer/panels/TurnChangesCard.tsx` |
+| Changed files / diff view | `src/shared/changed-files.ts`, `diff-view.ts` |
+| Resizable rails | `src/renderer/layout/SidebarResizeHandle.tsx` |
 | Session review | `src/renderer/panels/Inspector.tsx` |
+| Boot / fatal New session | `src/renderer/layout/WelcomeGate.tsx` |
 | Icons (Lucide wrappers) | `src/renderer/icons.tsx`, `tool-glyph.tsx` |
 | Contracts | `src/shared/commands.ts`, `events.ts`, `protocol.ts` |
 | Breakpoints | `src/shared/breakpoints.ts` (`wide` JS-only; laptop→narrow sync CSS `@media`) |
 | Settings panel | `src/renderer/settings/SettingsPanel.tsx`, sections in `src/renderer/settings/sections/` |
+| Instructions dirty mount | `InstructionsSection.tsx` + keep-mounted in `SettingsPanel.tsx`; `settings-instructions-mount.test.ts` |
+| Settings load guard | `src/shared/settings-load-guard.ts` |
 | Git panel | `src/renderer/git/GitPanel.tsx` |
 | Config I/O (JSONC read/write) | `src/shared/config-io.ts`, `config-schema.ts` |
 | Config diff patch builder | `src/shared/config-diff.ts` |
@@ -49,8 +57,10 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 
 ```bash
 npm run dev            # launch Electron
-npm test               # unit parity tests
+npm test               # unit tests (Vitest)
 npm run typecheck
+npm run verify         # lint + unit + source-parity + typecheck + build + bundle
+npm run test:e2e       # Playwright Electron harness (10 scenarios)
 npm run ui:preview     # renderer in a browser, mocked window.vibe (no engine)
 npm run ui:shots       # headless screenshots of every preview scenario
 npm run smoke:bridge   # host NDJSON smoke (needs vibe-codr dist host)
@@ -67,8 +77,16 @@ cd ~/Code/vibe-codr && bun run build:macos-bridge
 
 - Mirror TUI `packages/tui/src/app.tsx` semantics first; then macOS `PARITY.md` for GUI-adapted cases.
 - Update `PARITY.md` checkboxes when you close a gap.
-- Add a Vitest case in `src/shared/parity.test.ts` for pure logic (slash, reducer, fuzzy, chrome-seed).
-- Keep interaction contracts current: the Session inspector is explicitly toggled, project menus support rename/archive/delete, subagent rows are static status summaries, user turns fold from the message itself, user Copy/Edit actions sit beside the user bubble while assistant Copy stays below assistant output, Finder drops resolve native paths with URI/plain-text fallback, changed files support Diff/File review and Reveal, and desktop rails support pointer/keyboard resizing with persisted widths.
+- Add a Vitest case in `src/shared/parity.test.ts` (or adjacent `*.test.ts`) for pure logic.
+- Keep interaction contracts current:
+  - Session inspector is explicitly toggled (dock / ⇧⌘I / Review); not auto-opened on send.
+  - Project menus: rename/archive/delete; subagent rows are static status summaries.
+  - User turns fold from the message itself; **user Copy/Edit/time sit under the bubble**; assistant Copy stays below assistant output.
+  - Finder drops resolve native paths with URI/plain-text fallback.
+  - Changed files: turn card + Diff/File review + Reveal.
+  - Desktop rails resize with pointer/keyboard and persisted widths.
+  - Workspace dock: Session / Changes / Git / Jobs / Files on the chat surface.
+  - Custom Instructions stay mounted (hidden) across settings section switches.
 
 ## When changing UI presentation (design system)
 
@@ -99,7 +117,7 @@ All renderer styling lives in `src/renderer/styles.css`, token-first. Rules:
    glyphs. (TUI still uses mono machine-voice labels in the CLI.)
 6. **Verify visually with the preview harness** (no engine needed):
    `npm run ui:preview`, then `?scenario=welcome|splash|chat|table|docs|sources|busy|permission|plan|gate|mode|queue|onboarding|slash|catalog|catalog-draft|mention|attachments|jobs|inspector|toast|density-quiet|density-verbose|ctx-hot`
-   plus `settings` and `git` for the new panels; plus `&theme=<name>`; `npm run ui:shots` captures the matrix headlessly
+   plus `settings` and `git`; plus `&theme=<name>`; `npm run ui:shots` captures the matrix headlessly
    (`npx playwright install chromium` once). Screenshot before/after when
    touching shared primitives.
 

@@ -17,6 +17,7 @@ const ALLOW_EXTRAS = new Set([
   "tool-icons",  // permissionKind/permissionDetail/permissionPreview for the GUI card
   "themes",      // Electron-specific palette values (Graphite default differs)
   "protocol",    // encodeInbound helper not in the macos-bridge host
+  "file-fuzzy",  // formatAtPath + quoted/space-safe applyAtMention for Electron @ pick / paste
 ]);
 
 const pairs = [

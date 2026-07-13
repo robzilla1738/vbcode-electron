@@ -18,14 +18,15 @@ const FAV_KEY = "vibe.models.favorites";
 const RECENT_KEY = "vibe.models.recent";
 const MAX_RECENTS = 8;
 
-function safeReadJson<T>(key: string, fallback: T): T {
+function safeReadJsonStringArray(key: string): string[] {
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
+    if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
-    return (parsed ?? fallback) as T;
+    if (!Array.isArray(parsed) || !parsed.every((x) => typeof x === "string")) return [];
+    return parsed;
   } catch {
-    return fallback;
+    return [];
   }
 }
 
@@ -39,12 +40,12 @@ function safeWriteJson(key: string, value: unknown): void {
 
 export function getModelFavorites(): string[] {
   if (typeof localStorage === "undefined") return [];
-  return safeReadJson<string[]>(FAV_KEY, []);
+  return safeReadJsonStringArray(FAV_KEY);
 }
 
 export function getModelRecents(): string[] {
   if (typeof localStorage === "undefined") return [];
-  return safeReadJson<string[]>(RECENT_KEY, []);
+  return safeReadJsonStringArray(RECENT_KEY);
 }
 
 export function toggleModelFavorite(fullId: string): boolean {
@@ -179,6 +180,13 @@ export function mcpSecondary(server: McpServerInfo): string {
   return bits.join(" · ");
 }
 
+function finiteCount(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (Array.isArray(value)) return value.length;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function normalizeMcpServer(raw: Record<string, unknown>): McpServerInfo {
   const connected = Boolean(raw.connected);
   const configured = raw.configured != null ? Boolean(raw.configured) : true;
@@ -186,9 +194,9 @@ export function normalizeMcpServer(raw: Record<string, unknown>): McpServerInfo 
     name: String(raw.name ?? ""),
     connected,
     configured,
-    toolCount: Number(raw.toolCount ?? raw.tools ?? 0),
-    resourceCount: Number(raw.resourceCount ?? 0),
-    promptCount: Number(raw.promptCount ?? 0),
+    toolCount: finiteCount(raw.toolCount ?? raw.tools ?? 0),
+    resourceCount: finiteCount(raw.resourceCount),
+    promptCount: finiteCount(raw.promptCount),
     error: typeof raw.error === "string" ? raw.error : undefined,
   };
 }

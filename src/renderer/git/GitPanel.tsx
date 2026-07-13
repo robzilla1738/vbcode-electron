@@ -362,17 +362,49 @@ function ChangesContent({ status, cwd, busy, runOp }: { status: GitFullStatus; c
     <div className="settings-section">
       <div className="git-changes-actions">
         <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitStage({ cwd, all: true, allIncludingUntracked: stageAllUntracked }))}>Stage all</button>
-        <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitStage({ cwd }))}>Unstage all</button>
+        <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitUnstage({ cwd }))}>Unstage all</button>
         <label className="git-checkbox"><input type="checkbox" checked={stageAllUntracked} onChange={(e) => setStageAllUntracked(e.target.checked)} />Include untracked</label>
       </div>
-      {staged.length > 0 && (<><h4 className="git-changes-heading">Staged ({staged.length})</h4><div className="git-file-list">{staged.map((entry, i) => (<div key={i} className="git-file-row"><span className="git-file-status git-status-staged">{statusIcon(entry.index, " ")}</span><span className="git-file-path" title={entry.path}>{entry.path}</span><button type="button" className="git-file-action" disabled={busy} onClick={() => void runOp(() => window.vibe.gitStage({ cwd, paths: [entry.path] }))} title="Unstage">−</button></div>))}</div></>)}
+      {staged.length > 0 && (<><h4 className="git-changes-heading">Staged ({staged.length})</h4><div className="git-file-list">{staged.map((entry, i) => (<div key={i} className="git-file-row"><span className="git-file-status git-status-staged">{statusIcon(entry.index, " ")}</span><span className="git-file-path" title={entry.path}>{entry.path}</span><button type="button" className="git-file-action" disabled={busy} onClick={() => void runOp(() => window.vibe.gitUnstage({ cwd, paths: [entry.path] }))} title="Unstage">−</button></div>))}</div></>)}
       {unstaged.length > 0 && (<><h4 className="git-changes-heading">Unstaged ({unstaged.length})</h4><div className="git-file-list">{unstaged.map((entry, i) => (<div key={i} className="git-file-row"><span className="git-file-status git-status-unstaged">{statusIcon(" ", entry.working)}</span><span className="git-file-path" title={entry.path}>{entry.path}</span><button type="button" className="git-file-action" disabled={busy} onClick={() => void runOp(() => window.vibe.gitStage({ cwd, paths: [entry.path] }))} title="Stage">+</button></div>))}</div></>)}
       {untracked.length > 0 && (<><h4 className="git-changes-heading">Untracked ({untracked.length})</h4><div className="git-file-list">{untracked.map((entry, i) => (<div key={i} className="git-file-row"><span className="git-file-status git-status-untracked">?</span><span className="git-file-path" title={entry.path}>{entry.path}</span><button type="button" className="git-file-action" disabled={busy} onClick={() => void runOp(() => window.vibe.gitStage({ cwd, paths: [entry.path] }))} title="Stage">+</button></div>))}</div></>)}
       <div className="git-commit-area">
         <textarea className="setting-textarea" value={commitMsg} onChange={(e) => setCommitMsg(e.target.value)} placeholder="Commit message…" rows={3} />
         <div className="git-commit-actions">
-          <button type="button" className="button primary" disabled={!commitMsg.trim() || busy} onClick={() => { void runOp(() => window.vibe.gitCommit({ cwd, message: commitMsg.trim(), stageAllIncludingUntracked: stageAllUntracked }), "Committed"); setCommitMsg(""); }}>Commit</button>
-          <button type="button" className="button" disabled={!commitMsg.trim() || busy} onClick={() => { void runOp(() => window.vibe.gitCommit({ cwd, message: commitMsg.trim(), amend: true }), "Amended"); setCommitMsg(""); }}>Amend</button>
+          <button
+            type="button"
+            className="button primary"
+            disabled={!commitMsg.trim() || busy}
+            onClick={() => {
+              const message = commitMsg.trim();
+              void runOp(async () => {
+                const res = await window.vibe.gitCommit({
+                  cwd,
+                  message,
+                  stageAllIncludingUntracked: stageAllUntracked,
+                });
+                if (res.ok) setCommitMsg("");
+                return res;
+              }, "Committed");
+            }}
+          >
+            Commit
+          </button>
+          <button
+            type="button"
+            className="button"
+            disabled={!commitMsg.trim() || busy}
+            onClick={() => {
+              const message = commitMsg.trim();
+              void runOp(async () => {
+                const res = await window.vibe.gitCommit({ cwd, message, amend: true });
+                if (res.ok) setCommitMsg("");
+                return res;
+              }, "Amended");
+            }}
+          >
+            Amend
+          </button>
         </div>
       </div>
     </div>

@@ -34,10 +34,25 @@ export interface GitRunResult {
 }
 
 /** Spawn a git command in `cwd` and return trimmed streams + success. */
+/** PATH enrichment so GUI-launched spawns find Homebrew git (Dock/Finder PATH is thin). */
+function gitEnv(): NodeJS.ProcessEnv {
+  const home = process.env.HOME ?? "";
+  const extras = [
+    home ? `${home}/.bun/bin` : "",
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+  ].filter(Boolean).join(":");
+  const path = process.env.PATH ? `${extras}:${process.env.PATH}` : extras;
+  return { ...process.env, PATH: path };
+}
+
 export async function runGit(cwd: string, args: string[]): Promise<GitRunResult> {
   return new Promise((resolve) => {
     const child = spawn("git", args, {
       cwd,
+      env: gitEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     }) as unknown as SpawnedChild;
     let stdout = "";
@@ -305,12 +320,52 @@ export async function deleteBranch(
 }
 
 export async function stageFiles(cwd: string, paths: string[]): Promise<GitResult> {
+  // Empty paths must NOT unstage the index — that is unstageAll / unstageFiles([]).
   if (paths.length === 0) {
-    const res = await runGit(cwd, ["reset", "--mixed", "HEAD"]);
-    return { ok: res.ok, stdout: res.stdout, stderr: res.stderr, message: res.ok ? "Unstaged all" : undefined };
+    return {
+      ok: false,
+      stdout: "",
+      stderr: "No paths to stage",
+      message: undefined,
+    };
   }
   const res = await runGit(cwd, ["add", "--", ...paths]);
   return { ok: res.ok, stdout: res.stdout, stderr: res.stderr, message: res.ok ? `Staged ${paths.length} file(s)` : undefined };
+}
+
+/** Unstage specific paths (`git restore --staged -- …`). */
+export async function unstageFiles(cwd: string, paths: string[]): Promise<GitResult> {
+  if (paths.length === 0) {
+    return unstageAll(cwd);
+  }
+  // Prefer restore --staged (Git 2.23+); fall back to reset HEAD for older git.
+  const restore = await runGit(cwd, ["restore", "--staged", "--", ...paths]);
+  if (restore.ok) {
+    return {
+      ok: true,
+      stdout: restore.stdout,
+      stderr: restore.stderr,
+      message: `Unstaged ${paths.length} file(s)`,
+    };
+  }
+  const res = await runGit(cwd, ["reset", "HEAD", "--", ...paths]);
+  return {
+    ok: res.ok,
+    stdout: res.stdout,
+    stderr: res.stderr || restore.stderr,
+    message: res.ok ? `Unstaged ${paths.length} file(s)` : undefined,
+  };
+}
+
+/** Unstage everything in the index (`git reset --mixed HEAD`). */
+export async function unstageAll(cwd: string): Promise<GitResult> {
+  const res = await runGit(cwd, ["reset", "--mixed", "HEAD"]);
+  return {
+    ok: res.ok,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    message: res.ok ? "Unstaged all" : undefined,
+  };
 }
 
 export async function stageAll(cwd: string, includeUntracked: boolean): Promise<GitResult> {

@@ -304,14 +304,14 @@ export class EngineBridge {
         if (idx >= 0) this.readyWaiters.splice(idx, 1);
         const errTail = this.consumeStderr();
         if (errTail) this.lastStderr = errTail;
+        const message = `Engine host timed out waiting for ready${errTail ? `\n${errTail}` : ""}`;
+        // Mark lastFatal before kill so the exit handler does not emit a second
+        // onFatal with a generic "exited on SIGTERM" (bootstrap already rejects).
+        if (!this.lastFatal) this.lastFatal = message;
         // A host that never reaches ready cannot safely be reused. Terminate it
         // so a failed bootstrap does not leave an invisible background child.
         this.proc?.kill();
-        reject(
-          new Error(
-            `Engine host timed out waiting for ready${errTail ? `\n${errTail}` : ""}`,
-          ),
-        );
+        reject(new Error(message));
       }, timeoutMs);
       const rejectReady = (e: Error) => {
         clearTimeout(timer);

@@ -16,8 +16,8 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (currently 140 tests), Playwright Electron E2E green (10
-scenarios), all 19 upstream source pairs aligned, Biome and `tsc` clean,
+Expect: Vitest green (currently **171** tests), Playwright Electron E2E green
+(**10** scenarios), all 19 upstream source pairs aligned, Biome and `tsc` clean,
 electron-vite build and renderer bundle budget OK, and smoke prints `ready` +
 `snapshot ok`. `npm run verify` runs the non-E2E subset as one gate.
 
@@ -51,7 +51,9 @@ reaches its workspace edges, and the composer’s continuous frost fully blurs
 text that scrolls underneath, including at the top edge. Confirm the
 attachments scenario accepts images/files, the Session panel opens changed
 files in Diff/File mode, metadata uses the primary sans font, and rail resize
-handles respond to pointer and keyboard input.
+handles respond to pointer and keyboard input. Confirm the right workspace dock
+matches the chat background (no divider/project header), Projects/Chats
+headers collapse, and user-message actions appear under the bubble on hover.
 
 ## Packaged app
 
@@ -84,12 +86,14 @@ npm run dev
    - `/mcp` — status shows connected/disconnected · N tools (not blank).
    - `/skills` → choose prefills `/skill name ` (add args before Enter).
 9. `@` file pick; ⌘V image paste → `@.vibe/clipboard/…`.
-10. `/theme tokyonight`; `/keys`; explicitly toggle Session; narrow the window for drawer behavior.
-11. Click a user message to fold/unfold its turn; confirm no persistent arrow is rendered.
+10. `/theme tokyonight`; `/keys`; open Session from the workspace dock (or ⇧⌘I);
+    narrow the window for drawer behavior (dock hides below ~960px; `/jobs` still works).
+11. Click a user message to fold/unfold its turn; confirm no persistent arrow is rendered;
+    hover the bubble — Copy/Edit/time appear **under** it (not beside).
 12. Confirm approval panels and output align to the composer width; inspect source
     cards, the collapsed `Memory · N notes` row, and its expanded note list.
-13. Expand a Thinking group — confirm tool/thought rows use a uniform icon/font
-    scale, compact spacing, and preserve individual output expansion.
+13. Expand a Thinking group — compact steps, no brain icon, one surface per open
+    thought; tool rows stay expandable for output.
 14. Approve a permission request for a background `npm run dev`; confirm the job starts, the host remains healthy, and the session does not show a generic host-exited failure.
 15. Hover an assistant response — confirm clean white Copy/Edit icons appear below it; inspect a subagent row — confirm spinner/check status and no detail expansion.
 16. `/clear` mid-turn — abort + empty transcript.
@@ -99,8 +103,12 @@ npm run dev
     submit references the project-aware paths.
 19. Drop the same Finder file twice; confirm only one chip is retained and the
     duplicate toast appears only for the second drop.
-20. Open Session, select a changed file, switch Diff/File, use Reveal, and drag
-    both the project and Session rail handles; verify keyboard Arrow/Home/End
-    resizing and width persistence after reopening.
+20. Open Session from the dock, select a changed file, switch Diff/File, use Reveal,
+    and drag the project rail and Session inspector handles; verify keyboard
+    Arrow/Home/End resizing and width persistence after reopening.
+21. After an agent edit turn, confirm the turn-changes card and dock Changes meta;
+    open Review and land on Diff mode.
+22. Kill/fatal the host (or `fixture:fatal` in e2e) — **New session** recovers;
+    Settings → Instructions: switch sections without losing unsaved VIBE.md text.
 
 Full matrix: [PARITY.md](./PARITY.md).

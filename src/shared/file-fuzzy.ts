@@ -68,10 +68,21 @@ export function atMentionState(draft: string): { query: string; atIndex: number 
   return { query: m[1] ?? "", atIndex };
 }
 
+/**
+ * Format a path as an engine `@` mention token.
+ * Quotes paths with whitespace; escapes embedded quotes. Safe for use as a
+ * String.replace replacement (does not embed `$n` backrefs as plain text).
+ */
+export function formatAtPath(path: string): string {
+  const p = path.replace(/\\/g, "/");
+  const escaped = p.replace(/"/g, '\\"');
+  return /\s/.test(p) ? `@"${escaped}"` : `@${escaped}`;
+}
+
 /** Replace the trailing `@query` with `@path` (space-terminated when run completes). */
 export function applyAtMention(draft: string, atIndex: number, path: string, done: boolean): string {
   const prefix = draft.slice(0, atIndex);
-  const mention = `@${path}${done ? " " : ""}`;
+  const mention = `${formatAtPath(path)}${done ? " " : ""}`;
   return prefix + mention;
 }
 

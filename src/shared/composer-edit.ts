@@ -1,3 +1,5 @@
+import { formatAtPath } from "./file-fuzzy";
+
 export interface ComposerEdit {
   value: string;
   caret: number;
@@ -24,7 +26,7 @@ export function applyComposerPaste(
   const leading = before && !/\s$/.test(before) ? " " : "";
   // Match the TUI: leave the caret after a separating space so typing can resume.
   const trailing = after && /^\s/.test(after) ? "" : " ";
-  const inserted = `${leading}@${paste.path}${trailing}`;
+  const inserted = `${leading}${formatAtPath(paste.path)}${trailing}`;
   return {
     value: `${before}${inserted}${after}`,
     caret: before.length + inserted.length,

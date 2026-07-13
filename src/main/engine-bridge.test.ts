@@ -21,6 +21,22 @@ function bridgeFor(source: string): EngineBridge {
   });
 }
 
+/** Poll until `predicate` is true or `timeoutMs` elapses (avoids fixed sleeps under suite load). */
+async function pollUntil(
+  predicate: () => boolean,
+  timeoutMs = 2_000,
+  intervalMs = 10,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  if (!predicate()) {
+    throw new Error(`pollUntil timed out after ${timeoutMs}ms`);
+  }
+}
+
 const snapshot = {
   sessionId: "fixture-session",
   model: "fixture",
@@ -82,9 +98,13 @@ describe("EngineBridge lifecycle", () => {
       readyTimeoutMs: 40,
       stopTimeoutMs: 100,
     });
+    const fatals: string[] = [];
+    bridge.onFatal = (message) => fatals.push(message);
     await expect(bridge.start({ cwd: process.cwd() })).rejects.toThrow("timed out waiting for ready");
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(bridge.isRunning).toBe(false);
+    // Bootstrap reject is the user-facing error; exit must not emit a second fatal.
+    expect(fatals).toEqual([]);
   });
 
   it("reports an unexpected clean exit after ready as fatal", async () => {
@@ -103,7 +123,8 @@ describe("EngineBridge lifecycle", () => {
     bridge.onFatal = (message) => fatals.push(message);
 
     await bridge.start({ cwd: process.cwd() });
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    // Under full-suite load, exit can land after a fixed 40ms sleep — poll instead.
+    await pollUntil(() => fatals.length > 0 || !bridge.isRunning);
     expect(fatals).toEqual(["Engine host exited"]);
     expect(bridge.isRunning).toBe(false);
   });
@@ -127,7 +148,7 @@ describe("EngineBridge lifecycle", () => {
     bridge.onFatal = (message) => fatals.push(message);
 
     await bridge.start({ cwd: process.cwd() });
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await pollUntil(() => fatals.length > 0 || !bridge.isRunning);
     expect(fatals).toEqual(["Engine host emitted an invalid nested event payload"]);
     expect(bridge.isRunning).toBe(false);
   });

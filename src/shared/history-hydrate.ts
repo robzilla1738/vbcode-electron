@@ -36,5 +36,16 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
       }
     }
   }
+  // History is complete — orphan tool-starts (no matching result) must not look
+  // like live/running rows after resume.
+  if (Object.keys(s.toolByCallId).length > 0) {
+    s = {
+      ...s,
+      blocks: s.blocks.map((b) =>
+        b.kind === "tool" && !b.done ? { ...b, done: true } : b,
+      ),
+      toolByCallId: {},
+    };
+  }
   return s;
 }

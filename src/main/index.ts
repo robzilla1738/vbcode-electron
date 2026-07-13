@@ -3,7 +3,8 @@ import { join, resolve, relative, isAbsolute } from "node:path";
 import { writeFile, mkdir, readFile, rm } from "node:fs/promises";
 import { existsSync, statSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
+import { chatsCwdFromHome } from "../shared/project-index";
 import { spawn } from "node:child_process";
 import liquidGlass from "electron-liquid-glass";
 import type { EngineCommand } from "../shared/commands";
@@ -158,10 +159,16 @@ function buildApplicationMenu(): void {
     {
       label: "View",
       submenu: [
-        { role: "reload" as const },
-        { role: "forceReload" as const },
-        { role: "toggleDevTools" as const },
-        { type: "separator" as const },
+        // Dev-only: reload/devtools desync engine vs renderer in packaged builds,
+        // and Ctrl+Shift+I collides with Toggle Inspector on Windows/Linux.
+        ...(!app.isPackaged
+          ? [
+              { role: "reload" as const },
+              { role: "forceReload" as const },
+              { role: "toggleDevTools" as const },
+              { type: "separator" as const },
+            ]
+          : []),
         { role: "resetZoom" as const },
         { role: "zoomIn" as const },
         { role: "zoomOut" as const },
@@ -286,7 +293,20 @@ function registerIpc(): void {
       },
     ) => {
       assertTrustedIpc(event);
-      const message = inbound({ op: "bootstrap", ...opts });
+      // Map renderer `continueLatest` → host protocol field `continue`.
+      // Spreading opts leaves `continueLatest` on the object; decodeInbound only
+      // understands `continue`, so the flag was previously always dropped.
+      if (!opts || typeof opts.cwd !== "string") {
+        return { ok: false as const, error: "Invalid bootstrap request" };
+      }
+      const message = inbound({
+        op: "bootstrap",
+        cwd: opts.cwd,
+        resume: opts.resume,
+        continue: opts.continueLatest,
+        model: opts.model,
+        mode: opts.mode,
+      });
       if (message?.op !== "bootstrap") {
         return { ok: false as const, error: "Invalid bootstrap request" };
       }
@@ -418,6 +438,15 @@ function registerIpc(): void {
     if (name !== "home" && name !== "userData") throw new Error("Unsupported app path");
     return app.getPath(name);
   });
+
+  /** One-off chats workspace (`~/.vibe/chats`) — not a code project. */
+  ipcMain.handle("app:ensureChatsDir", async (event) => {
+    assertTrustedIpc(event);
+    const dir = chatsCwdFromHome(homedir());
+    await mkdir(dir, { recursive: true });
+    return dir;
+  });
+
   ipcMain.on("app:quit", (event) => {
     assertTrustedSender(event.sender);
     app.quit();

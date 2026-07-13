@@ -106,11 +106,13 @@ function relativePath(path: string, cwd: string | null): string {
   return normalized;
 }
 
-/** Use a quoted @ mention only when Finder gave us a path containing spaces. */
+/** Project-relative @ mention for dropped files (quotes paths with spaces). */
 function attachmentToken(path: string, cwd: string | null): string {
-  const displayPath = relativePath(path, cwd).replace(/\\/g, "/");
-  const escaped = displayPath.replace(/"/g, '\\"');
-  return /\s/.test(displayPath) ? `@"${escaped}"` : `@${escaped}`;
+  const displayPath = relativePath(path, cwd);
+  // Lazy import avoided — formatAtPath lives in shared/file-fuzzy.
+  const p = displayPath.replace(/\\/g, "/");
+  const escaped = p.replace(/"/g, '\\"');
+  return /\s/.test(p) ? `@"${escaped}"` : `@${escaped}`;
 }
 
 function pathExtension(path: string): string {
@@ -348,16 +350,21 @@ export function Composer({
     if (submitPending.current) return;
     submitPending.current = true;
     try {
-      const prompt = line.startsWith("/")
-        ? line
-        : [line, ...attachments.map((attachment) => attachment.token)].filter(Boolean).join(" ");
+      // Slash / local UI commands never carry attachment tokens — keep chips so
+      // a mistaken `/jobs` does not silently discard Finder drops.
+      const includeAttachments = !line.startsWith("/");
+      const prompt = includeAttachments
+        ? [line, ...attachments.map((attachment) => attachment.token)].filter(Boolean).join(" ")
+        : line;
       const accepted = await onSubmit(prompt);
       if (accepted) {
         setDraft((current) => current === originalDraft ? "" : current);
-        for (const attachment of attachments) {
-          if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+        if (includeAttachments) {
+          for (const attachment of attachments) {
+            if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+          }
+          setAttachments([]);
         }
-        setAttachments([]);
       }
     } finally {
       submitPending.current = false;

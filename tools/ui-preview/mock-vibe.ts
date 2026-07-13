@@ -712,6 +712,9 @@ const mock = {
     return { ok: true as const, value: handler() };
   },
   listProjects: async () => ({ ok: true as const, value: PROJECTS }),
+  renameProject: async () => ({ ok: true as const }),
+  archiveProject: async () => ({ ok: true as const }),
+  deleteProject: async () => ({ ok: true as const }),
   renameSession: async () => ({ ok: true as const }),
   deleteSession: async () => ({ ok: true as const }),
   archiveSession: async () => ({ ok: true as const }),
@@ -723,7 +726,9 @@ const mock = {
   },
   onReady: () => () => undefined,
   onFatal: () => () => undefined,
+  onMenuAction: () => () => undefined,
   openProject: async () => CWD,
+  ensureChatsDir: async () => "/Users/rob/.vibe/chats",
   openExternal: async () => undefined,
   showItem: async () => undefined,
   readTextFile: async ({ path }: { cwd: string; path: string }) => ({
@@ -836,6 +841,7 @@ const mock = {
   gitCheckout: async () => ({ ok: true, message: "Switched" }),
   gitDeleteBranch: async () => ({ ok: true, message: "Deleted" }),
   gitStage: async () => ({ ok: true, message: "Staged" }),
+  gitUnstage: async () => ({ ok: true, message: "Unstaged" }),
   gitCommit: async () => ({ ok: true, message: "Committed" }),
   gitMerge: async () => ({ ok: true, message: "Merged" }),
   gitPush: async () => ({ ok: true, message: "Pushed" }),

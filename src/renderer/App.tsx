@@ -10,6 +10,7 @@ import {
   providersPickerQuery,
   skillsPickerFilter,
 } from "../shared/catalog-draft";
+import { sortChangedFilesForDisplay } from "../shared/changed-files";
 import { densityLabel, nextDensity } from "../shared/density";
 import { projectLabel } from "../shared/project-index";
 import type { ProjectSummary } from "../shared/protocol";
@@ -26,11 +27,13 @@ import type {
 import { Composer, type ComposerMetric } from "./composer/Composer";
 import { RequestGate } from "./hooks/request-gate";
 import { useSession } from "./hooks/useSession";
-import { IconJobs, IconPanel, IconSidebar } from "./icons";
+import { IconSidebar } from "./icons";
 import { ProjectRail } from "./layout/ProjectRail";
+import { WorkspaceDock, type WorkspaceDockTarget } from "./layout/WorkspaceDock";
 import { Splash } from "./layout/Splash";
 import { SessionBoot, SessionBootError, WelcomeGate } from "./layout/WelcomeGate";
 import { Inspector } from "./panels/Inspector";
+import { TurnChangesCard } from "./panels/TurnChangesCard";
 import { SettingsView } from "./settings/SettingsPanel";
 import { GitView } from "./git/GitPanel";
 import { JobsView } from "./panels/JobsView";
@@ -102,6 +105,7 @@ export function App() {
   const catalogGeneration = useRef(0);
   const pickerRetryRef = useRef<(() => void) | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [chatsCwd, setChatsCwd] = useState<string | null>(null);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -113,7 +117,11 @@ export function App() {
   const [gitOpen, setGitOpen] = useState(false);
   const [projectRailOpen, setProjectRailOpen] = useState(true);
   const [followSignal, setFollowSignal] = useState(0);
+  /** When opening the Session panel from the turn card / dock, focus this path. */
+  const [inspectorFocusPath, setInspectorFocusPath] = useState<string | null>(null);
   const didRestoreProject = useRef(false);
+  /** Bound by SettingsView while mounted — true when config form has unsaved edits. */
+  const settingsDirtyRef = useRef<() => boolean>(() => false);
   const projectRefreshGate = useRef(new RequestGate());
   const composerStackRef = useRef<HTMLDivElement>(null);
   const session = useSession(cwd);
@@ -151,38 +159,145 @@ export function App() {
     return () => window.removeEventListener("vibe-preview-toast", onPreviewToast);
   }, []);
 
+  const bindSettingsDirty = useCallback((isDirty: () => boolean) => {
+    settingsDirtyRef.current = isDirty;
+  }, []);
+
+  /** Confirm discard when leaving settings while the form is dirty. */
+  const confirmLeaveSettings = useCallback((): boolean => {
+    if (!settingsDirtyRef.current()) return true;
+    return window.confirm("Discard unsaved settings changes?");
+  }, []);
+
+  const openSettings = useCallback(() => {
+    setSettingsOpen(true);
+    setGitOpen(false);
+    session.setInspectorOpen(false);
+  }, [session]);
+
+  const toggleSettings = useCallback(() => {
+    setSettingsOpen((prev) => {
+      if (prev) {
+        if (settingsDirtyRef.current() && !window.confirm("Discard unsaved settings changes?")) {
+          return prev;
+        }
+        return false;
+      }
+      setGitOpen(false);
+      session.setInspectorOpen(false);
+      return true;
+    });
+  }, [session]);
+
+  const openGit = useCallback(() => {
+    if (!cwd) return;
+    if (!confirmLeaveSettings()) return;
+    setGitOpen(true);
+    setSettingsOpen(false);
+    session.setInspectorOpen(false);
+  }, [cwd, confirmLeaveSettings, session]);
+
+  const toggleGit = useCallback(() => {
+    if (!cwd) return;
+    setGitOpen((prev) => {
+      if (prev) return false;
+      if (settingsDirtyRef.current() && !window.confirm("Discard unsaved settings changes?")) {
+        return prev;
+      }
+      setSettingsOpen(false);
+      session.setInspectorOpen(false);
+      return true;
+    });
+  }, [cwd, session]);
+
+  const toggleInspector = useCallback(() => {
+    if (settingsOpen) {
+      if (!confirmLeaveSettings()) return;
+      setSettingsOpen(false);
+      setGitOpen(false);
+      setInspectorFocusPath(null);
+      session.setInspectorOpen(true);
+      return;
+    }
+    setGitOpen(false);
+    session.setInspectorOpen((v) => {
+      if (v) setInspectorFocusPath(null);
+      return !v;
+    });
+  }, [settingsOpen, confirmLeaveSettings, session]);
+
+  const openSessionReview = useCallback(
+    (path?: string) => {
+      if (settingsOpen && !confirmLeaveSettings()) return;
+      setSettingsOpen(false);
+      setGitOpen(false);
+      session.setJobsView(false);
+      setInspectorFocusPath(path ?? null);
+      session.setInspectorOpen(true);
+    },
+    [settingsOpen, confirmLeaveSettings, session],
+  );
+
+  const openWorkspaceDock = useCallback(
+    (target: WorkspaceDockTarget) => {
+      if (target === "files") {
+        if (!cwd) return;
+        void window.vibe.showItem(cwd);
+        return;
+      }
+      if (target === "git") {
+        openGit();
+        return;
+      }
+      if (target === "jobs") {
+        if (settingsOpen && !confirmLeaveSettings()) return;
+        setSettingsOpen(false);
+        setGitOpen(false);
+        session.setInspectorOpen(false);
+        setInspectorFocusPath(null);
+        // Toggle so the dock control matches keyboard / e2e "Toggle background jobs".
+        session.setJobsView((open) => !open);
+        return;
+      }
+      if (target === "changes") {
+        // Open highest-churn file first (same order as the turn card / inspector list).
+        const ordered = sortChangedFilesForDisplay(session.transcript.changedFiles);
+        openSessionReview(ordered[0]?.path);
+        return;
+      }
+      // session overview
+      openSessionReview();
+    },
+    [cwd, openGit, settingsOpen, confirmLeaveSettings, session, openSessionReview],
+  );
+
   // Preview harness: auto-open a panel when a `vibe-preview-open-panel` event
   // is dispatched (used by `npm run ui:preview ?scenario=settings|git`).
   useEffect(() => {
     const onOpenPanel = (event: Event) => {
       const detail = (event as CustomEvent<string>).detail;
-      if (detail === "settings") { setSettingsOpen(true); setGitOpen(false); session.setInspectorOpen(false); }
-      if (detail === "git") { setGitOpen(true); setSettingsOpen(false); session.setInspectorOpen(false); }
+      if (detail === "settings") openSettings();
+      if (detail === "git") openGit();
     };
     window.addEventListener("vibe-preview-open-panel", onOpenPanel);
     return () => window.removeEventListener("vibe-preview-open-panel", onOpenPanel);
-  }, [session]);
+  }, [openSettings, openGit]);
 
   // Global keyboard shortcuts for settings (⌘,) and git (⌘ShiftB) panels.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === ",") {
         event.preventDefault();
-        setSettingsOpen((prev) => !prev);
-        setGitOpen(false);
-        session.setInspectorOpen(false);
+        toggleSettings();
       }
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && (event.key === "b" || event.key === "B")) {
         event.preventDefault();
-        if (!cwd) return;
-        setGitOpen((prev) => !prev);
-        setSettingsOpen(false);
-        session.setInspectorOpen(false);
+        toggleGit();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cwd, session]);
+  }, [toggleSettings, toggleGit]);
 
   const chromeRef = useRef(session.chrome);
   chromeRef.current = session.chrome;
@@ -221,6 +336,11 @@ export function App() {
 
   const openProjectAt = useCallback(
     async (path: string) => {
+      // Project switch reloads settings (even Global scope uses cwd in load deps).
+      // Never wipe dirty config/instructions without an explicit discard.
+      const wasDirty = settingsDirtyRef.current();
+      if (!confirmLeaveSettings()) return;
+      if (wasDirty) setSettingsOpen(false);
       invalidateCatalogs();
       setCwd(path);
       const ok = await session.bootstrap({ cwd: path });
@@ -241,7 +361,7 @@ export function App() {
         }
       }
     },
-    [session, refreshProjects, invalidateCatalogs],
+    [session, refreshProjects, invalidateCatalogs, confirmLeaveSettings],
   );
 
   const saveOnboarding = useCallback(
@@ -283,33 +403,26 @@ export function App() {
   }, [openProjectAt, session]);
 
   // Application menu actions (File → Open Project, Tools → Settings/Git, etc.)
+  // continueLatest is wired after the shared busy-safe callback is defined below.
   useEffect(() => {
     const off = window.vibe.onMenuAction((action) => {
       switch (action) {
         case "openProject":
           void openProject();
           break;
-        case "continueLatest":
-          if (cwd) void session.bootstrap({ cwd, continueLatest: true });
-          break;
         case "toggleSettings":
-          setSettingsOpen((prev) => !prev);
-          setGitOpen(false);
-          session.setInspectorOpen(false);
+          toggleSettings();
           break;
         case "toggleGit":
-          if (!cwd) return;
-          setGitOpen((prev) => !prev);
-          setSettingsOpen(false);
-          session.setInspectorOpen(false);
+          toggleGit();
           break;
         case "toggleInspector":
-          session.setInspectorOpen(!session.inspectorOpen);
+          toggleInspector();
           break;
       }
     });
     return off;
-  }, [cwd, session, openProject]);
+  }, [openProject, toggleSettings, toggleGit, toggleInspector]);
 
   // Restore last project on launch; otherwise load recent projects for the welcome gate.
   useEffect(() => {
@@ -341,12 +454,15 @@ export function App() {
         session.showToast("Stop the current turn before switching sessions.", "warn");
         return;
       }
+      const wasDirty = settingsDirtyRef.current();
+      if (!confirmLeaveSettings()) return;
+      if (wasDirty) setSettingsOpen(false);
       invalidateCatalogs();
       setCwd(projectCwd);
       const ok = await session.bootstrap({ cwd: projectCwd, resume: id });
       if (ok) await refreshProjects();
     },
-    [session, refreshProjects, invalidateCatalogs],
+    [session, refreshProjects, invalidateCatalogs, confirmLeaveSettings],
   );
 
   const continueLatest = useCallback(async () => {
@@ -360,6 +476,14 @@ export function App() {
     if (ok) await refreshProjects();
   }, [cwd, session, refreshProjects, invalidateCatalogs]);
 
+  // Menu File → Continue Latest must use the same busy-safe path as the rail.
+  useEffect(() => {
+    const off = window.vibe.onMenuAction((action) => {
+      if (action === "continueLatest") void continueLatest();
+    });
+    return off;
+  }, [continueLatest]);
+
   const newSession = useCallback(async () => {
     if (!cwd) return false;
     if (session.chrome.busy) await session.send({ type: "abort" });
@@ -372,6 +496,42 @@ export function App() {
     }
     return ok;
   }, [cwd, session, refreshProjects, invalidateCatalogs]);
+
+  /** One-off conversation in `~/.vibe/chats` — not a code project. */
+  const startNewChat = useCallback(async () => {
+    if (session.chrome.busy) {
+      session.showToast("Stop the current turn before starting a new chat.", "warn");
+      return;
+    }
+    const wasDirty = settingsDirtyRef.current();
+    if (!confirmLeaveSettings()) return;
+    if (wasDirty) setSettingsOpen(false);
+    try {
+      const path = await window.vibe.ensureChatsDir();
+      setChatsCwd(path);
+      invalidateCatalogs();
+      setCwd(path);
+      setGitOpen(false);
+      const ok = await session.bootstrap({ cwd: path });
+      if (ok) {
+        setDraft("");
+        setFollowSignal((value) => value + 1);
+        await refreshProjects();
+      }
+    } catch (err) {
+      session.showToast(
+        err instanceof Error ? err.message : "Couldn’t create chats folder",
+        "error",
+      );
+    }
+  }, [session, confirmLeaveSettings, invalidateCatalogs, refreshProjects]);
+
+  // Resolve chats path early so the rail can partition before first chat.
+  useEffect(() => {
+    void window.vibe.ensureChatsDir().then(setChatsCwd).catch(() => {
+      /* path optional until first chat */
+    });
+  }, []);
 
   const renameSession = useCallback(
     async (projectCwd: string, id: string, title: string) => {
@@ -620,17 +780,13 @@ export function App() {
       }
 
       if (trimmed === "/settings" || trimmed === "/config") {
-        setSettingsOpen(true);
-        setGitOpen(false);
-        session.setInspectorOpen(false);
+        openSettings();
         return true;
       }
 
       if (trimmed === "/git" || trimmed === "/branches") {
         if (!cwd) return false;
-        setGitOpen(true);
-        setSettingsOpen(false);
-        session.setInspectorOpen(false);
+        openGit();
         return true;
       }
 
@@ -730,7 +886,7 @@ export function App() {
       if (!sent) session.setBusy(false);
       return sent;
     },
-    [session, answerPerm, answerPlan, openModelsPicker, presentCatalog],
+    [session, cwd, answerPerm, answerPlan, openModelsPicker, presentCatalog, openSettings, openGit],
   );
 
   // Live draft catalogs — open/update pickers while typing (TUI parity).
@@ -936,7 +1092,7 @@ export function App() {
       // Inspector toggle
       if (e.key === "i" && (e.ctrlKey || e.metaKey) && e.shiftKey) {
         e.preventDefault();
-        session.setInspectorOpen((v) => !v);
+        toggleInspector();
         return;
       }
 
@@ -1046,7 +1202,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [session, draft, continueLatest, answerPerm, answerPlan, composeInEditor, picker, keysOpen, cwd, projectRailOpen]);
+  }, [session, draft, continueLatest, answerPerm, answerPlan, composeInEditor, picker, keysOpen, cwd, projectRailOpen, toggleInspector]);
 
   const chrome = session.chrome;
   const ctxPct =
@@ -1068,7 +1224,6 @@ export function App() {
   const activeProject = projects.find((project) => project.cwd === cwd);
   const activeTask = chrome.tasks.find((t) => t.status === "in_progress");
   const taskDone = chrome.tasks.filter((t) => t.status === "completed").length;
-  const runningJobs = chrome.jobs.filter((job) => job.status === "running").length;
   const runningSubagents = chrome.subagents.filter((s) => s.status === "running").length;
   const doneSubagents = chrome.subagents.filter((s) => s.status === "done").length;
   const activeSessionTitle =
@@ -1137,6 +1292,7 @@ export function App() {
             cwd={cwd}
             onClose={() => setSettingsOpen(false)}
             showToast={session.showToast}
+            onBindDirty={bindSettingsDirty}
           />
         ) : gitOpen && cwd ? (
           <GitView
@@ -1148,6 +1304,7 @@ export function App() {
           <>
           <ProjectRail
           projects={projects}
+          chatsCwd={chatsCwd}
           activeCwd={cwd}
           activeSessionId={chrome.sessionId}
           open={projectRailOpen}
@@ -1155,19 +1312,15 @@ export function App() {
           error={projectsError}
           busy={chrome.busy || session.booting}
           onClose={() => setProjectRailOpen(false)}
-          onOpenSettings={() => { setSettingsOpen(true); setGitOpen(false); }}
-          onOpenGit={() => { if (cwd) { setGitOpen(true); setSettingsOpen(false); } }}
+          onOpenSettings={openSettings}
+          onOpenGit={openGit}
           settingsActive={settingsOpen}
           gitActive={gitOpen}
           onRetry={() => void refreshProjects()}
           onOpenProject={() => void openProject()}
-          onNewSession={() => {
+          onNewChat={() => {
             if (belowBreakpoint("tablet")) setProjectRailOpen(false);
-            void newSession();
-          }}
-          onContinueLatest={() => {
-            if (belowBreakpoint("tablet")) setProjectRailOpen(false);
-            void continueLatest();
+            void startNewChat();
           }}
           onResume={(projectCwd, id) => {
             if (belowBreakpoint("tablet")) setProjectRailOpen(false);
@@ -1243,41 +1396,7 @@ export function App() {
                 </div>
               )}
             </div>
-            <div className="topbar-actions no-drag">
-              <button
-                type="button"
-                className={`icon-button${session.jobsView ? " active" : ""}`}
-                onClick={() => session.setJobsView((value) => !value)}
-                title={
-                  runningJobs
-                    ? `Background jobs · ${runningJobs} running`
-                    : "Background jobs"
-                }
-                aria-pressed={session.jobsView}
-                aria-label={
-                  runningJobs
-                    ? `Toggle background jobs, ${runningJobs} running`
-                    : "Toggle background jobs"
-                }
-              >
-                <IconJobs size={14} />
-                <span className="topbar-action-label">Jobs</span>
-                {runningJobs > 0 ? (
-                  <span className="topbar-action-count">{runningJobs}</span>
-                ) : null}
-              </button>
-              <button
-                type="button"
-                className={`icon-button${session.inspectorOpen ? " active" : ""}`}
-                onClick={() => session.setInspectorOpen((value) => !value)}
-                title="Session details"
-                aria-pressed={session.inspectorOpen}
-                aria-label={session.inspectorOpen ? "Hide session panel" : "Show session panel"}
-              >
-                <IconPanel size={14} />
-                <span className="topbar-action-label">Session</span>
-              </button>
-            </div>
+
           </header>
           <div className="main-column" id="main-content">
             <main
@@ -1303,6 +1422,7 @@ export function App() {
               <SessionBootError
                 error={session.bootError}
                 onRetry={() => void openProjectAt(cwd)}
+                onNewSession={() => void newSession()}
                 onOpenProject={() => void openProject()}
               />
             ) : session.transcript.blocks.length === 0 && !chrome.busy ? (
@@ -1401,29 +1521,30 @@ export function App() {
                   onKeep={() => void answerPlan("keep-planning")}
                 />
               )}
+              {/* Files changed card — Cursor-like summary when the agent edited files */}
+              {!chrome.busy && session.transcript.changedFiles.length > 0 && (
+                <TurnChangesCard
+                  files={session.transcript.changedFiles}
+                  onReview={(path) => {
+                    if (path) {
+                      openSessionReview(path);
+                      return;
+                    }
+                    const top = sortChangedFilesForDisplay(session.transcript.changedFiles)[0];
+                    openSessionReview(top?.path);
+                  }}
+                  onOpenFile={(path) => openSessionReview(path)}
+                />
+              )}
+
               {!session.inspectorOpen &&
-                (hasUnfinishedTasks(chrome.tasks) ||
-                  chrome.subagents.length > 0 ||
-                  session.transcript.changedFiles.length > 0) && (
+                (hasUnfinishedTasks(chrome.tasks) || chrome.subagents.length > 0) && (
                 <div className="panel-strip-compact" role="group" aria-label="Live activity">
-                  {session.transcript.changedFiles.length > 0 && (
-                    <button
-                      type="button"
-                      className="panel-strip-chip"
-                      onClick={() => session.setInspectorOpen(true)}
-                      title="Open the review panel for changed files"
-                    >
-                      <StatusDot status="done" />
-                      <span>
-                        Changed files · {session.transcript.changedFiles.length} · Review
-                      </span>
-                    </button>
-                  )}
                   {hasUnfinishedTasks(chrome.tasks) && (
                     <button
                       type="button"
                       className="panel-strip-chip"
-                      onClick={() => session.setInspectorOpen(true)}
+                      onClick={() => openSessionReview()}
                       title="Open session panel for full task list"
                     >
                       <StatusDot status={activeTask ? "active" : "pending"} />
@@ -1437,7 +1558,7 @@ export function App() {
                     <button
                       type="button"
                       className="panel-strip-chip"
-                      onClick={() => session.setInspectorOpen(true)}
+                      onClick={() => openSessionReview()}
                       title="Open session panel for subagents"
                     >
                       <StatusDot status={runningSubagents > 0 ? "active" : "done"} />
@@ -1521,7 +1642,7 @@ export function App() {
                 }}
                 onPasteError={session.showToast}
                 onOpenModel={() => void openModelsPicker("main")}
-                onOpenInspector={() => session.setInspectorOpen(true)}
+                onOpenInspector={() => openSessionReview()}
                 onEditInEditor={() => void composeInEditor()}
                 planPending={planPending}
                 emptyHome={
@@ -1543,7 +1664,11 @@ export function App() {
               chrome={chrome}
               changedFiles={session.transcript.changedFiles}
               cwd={cwd}
-              onClose={() => session.setInspectorOpen(false)}
+              focusPath={inspectorFocusPath}
+              onClose={() => {
+                setInspectorFocusPath(null);
+                session.setInspectorOpen(false);
+              }}
               onUndo={() => void session.send({ type: "run-slash", name: "undo", args: "" })}
               onRedo={() => void session.send({ type: "run-slash", name: "redo", args: "" })}
               onRevealFile={(path) => {
@@ -1555,6 +1680,16 @@ export function App() {
               }}
             />
           )}
+
+          {/* Same surface as chat (inside content-inset / main-column), not a workspace rail */}
+          <WorkspaceDock
+            changedFiles={session.transcript.changedFiles}
+            cwd={cwd}
+            sessionOpen={session.inspectorOpen && !gitOpen}
+            gitOpen={gitOpen}
+            jobsOpen={session.jobsView}
+            onOpen={openWorkspaceDock}
+          />
 
           </div>
         </div>

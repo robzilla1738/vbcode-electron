@@ -175,13 +175,22 @@ export async function writeConfigFile(
   path: string,
   patch: Record<string, unknown>,
 ): Promise<VibeConfig> {
+  if (!isPlainObject(patch)) {
+    throw new Error("Config patch must be a plain object");
+  }
   return scheduleWrite(path, async () => {
     let existing: Record<string, unknown> = {};
-    try {
+    if (existsSync(path)) {
+      // Refuse to overwrite a corrupt on-disk config — a parse failure used to
+      // fall through to `{}` and wipe models/keys/MCP with the patch alone.
       const read = await readConfigFile(path);
-      if (read) existing = read.config as Record<string, unknown>;
-    } catch {
-      /* file is corrupt or missing — start fresh */
+      if (!read) {
+        throw new Error(`Config at ${path} could not be read`);
+      }
+      if (!isPlainObject(read.config)) {
+        throw new Error(`Config at ${path} is not a JSON object — fix or remove it before saving`);
+      }
+      existing = read.config as Record<string, unknown>;
     }
     const merged = mergeForWrite(existing, patch);
     await atomicWriteJson(path, merged);
@@ -235,12 +244,19 @@ export async function previewMergedConfig(
   path: string,
   patch: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  if (!isPlainObject(patch)) {
+    throw new Error("Config patch must be a plain object");
+  }
   let existing: Record<string, unknown> = {};
-  try {
+  if (existsSync(path)) {
     const read = await readConfigFile(path);
-    if (read) existing = read.config as Record<string, unknown>;
-  } catch {
-    /* file is corrupt or missing — start fresh */
+    if (!read) {
+      throw new Error(`Config at ${path} could not be read`);
+    }
+    if (!isPlainObject(read.config)) {
+      throw new Error(`Config at ${path} is not a JSON object — fix or remove it before saving`);
+    }
+    existing = read.config as Record<string, unknown>;
   }
   return mergeForWrite(existing, patch);
 }

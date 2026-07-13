@@ -74,7 +74,7 @@ export function BuildSection({ config, updateNested }: SectionProps) {
         <SettingField label="Branch prefix" description="Prefix for work branches.">
           <TextInput
             value={build.commit?.branchPrefix ?? ""}
-            onChange={(v) => updateNested("build", { commit: { branchPrefix: v } })}
+            onChange={(v) => updateNested("build", { commit: { branchPrefix: v || undefined } })}
             placeholder="vibe/"
             monospace
           />

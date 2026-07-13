@@ -109,11 +109,11 @@ function PricingEditor({ config, updateConfig }: Pick<SectionProps, "config" | "
     setNewKey("");
   };
 
-  if (modelKeys.length === 0 && !newKey) {
-    return <p className="setting-empty">No pricing overrides. Add a model to pin its cost.</p>;
-  }
   return (
     <>
+      {modelKeys.length === 0 && (
+        <p className="setting-empty">No pricing overrides. Add a model to pin its cost.</p>
+      )}
       {modelKeys.length > 0 && (
         <div className="setting-list">
           {modelKeys.map((model) => {
@@ -179,11 +179,11 @@ function ContextWindowEditor({ config, updateConfig }: Pick<SectionProps, "confi
     setNewKey("");
   };
 
-  if (modelKeys.length === 0 && !newKey) {
-    return <p className="setting-empty">No context-window overrides. Add a model to pin its window.</p>;
-  }
   return (
     <>
+      {modelKeys.length === 0 && (
+        <p className="setting-empty">No context-window overrides. Add a model to pin its window.</p>
+      )}
       {modelKeys.length > 0 && (
         <div className="setting-list">
           {modelKeys.map((model) => (

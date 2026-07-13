@@ -81,8 +81,11 @@ to weaken the parity guard.
 - [x] Live draft catalogs: typing `/model …`, `/providers`, `/agents`, `/skills`, `/mcp` opens/filters pickers
 - [x] Native catalog dialog: focus trap (Tab cycle + focusin guard; draft-linked allows composer), arrows, Enter, Esc, focus return, aria-modal
 - [x] Catalog filtering, no-results state, current-model marker, and RPC failure feedback
-- [x] Multi-project sessions rail with titles + new/resume/continue/filter
+- [x] Multi-project + Chats rail with collapsible sections, section +, titles, resume/filter; Continue Latest via ⇧⌘N / menu
 - [x] Project/session rename, archive, and delete menus with in-app confirmation; project menus escape rail clipping
+- [x] Workspace dock (Session / Changes / Git / Jobs / Files) on chat surface; no topbar duplicates
+- [x] Turn-changes card after file edits; dock Changes opens inspector review
+- [x] Host fatal / boot error: primary New session recovery
 - [x] `/jobs` drawer: live auto-follow terminal (full outputTail, stick-to-bottom, jump-to-latest); Close without Esc chip; quiet status/link chips
 - [x] `@` fuzzy file attach (TUI `file-fuzzy` ranking)
 - [x] Finder drag/drop for images and files: removable chips, mixed batches,
@@ -94,11 +97,12 @@ to weaken the parity guard.
 - [x] Theme palette also drives native control/dialog color scheme
 - [x] Goal header ★ + phase/round; git dirty count / ahead / behind
 - [x] Composer status: model · changed +/− · ctx% (hot ≥80%) · tokens · cost · queue · working
-- [x] Inspector (⇧⌘I): dynamic session/file title, shared activity sections,
+- [x] Inspector (⇧⌘I / dock Session): dynamic session/file title, shared activity sections,
   changed-file Diff/File review with line gutters, in-panel file preview +
   Reveal, checkpoints undo/redo; subagent rows remain static and non-expandable
-- [x] Project and Session rails: pointer and Arrow/Home/End keyboard resizing,
+- [x] Project rail + Session inspector: pointer and Arrow/Home/End keyboard resizing,
   persisted widths, and hidden handles in narrow drawer layouts
+- [x] Settings Custom Instructions stay mounted across section switches (dirty drafts preserved)
 - [x] `/keys` local help surface
 - [x] Onboarding points at shared `~/.config/vibe-codr/config.json`
 - [x] Plugins / custom commands via `snapshot.commandNames` (no install UI — same as TUI)

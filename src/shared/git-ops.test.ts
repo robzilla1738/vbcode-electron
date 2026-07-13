@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { runGit, isGitRepo, listBranches, getFullStatus } from "./git-ops";
+import {
+  runGit,
+  isGitRepo,
+  listBranches,
+  getFullStatus,
+  stageFiles,
+  unstageFiles,
+} from "./git-ops";
 
 // These tests use a real git repo in a temp directory to verify the spawn
 // and parsing logic. They are integration-style but fast (git is quick on
@@ -134,6 +141,43 @@ describe("git-ops", () => {
         expect(localBranches.some((b) => b.name === "feature/test")).toBe(true);
         const mainBranch = localBranches.find((b) => b.name === "main");
         expect(mainBranch?.current).toBe(true);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("stageFiles / unstageFiles", () => {
+    itGit("stages and unstages a single path", async () => {
+      const dir = await makeRepo();
+      try {
+        const { writeFile } = await import("node:fs/promises");
+        await writeFile(join(dir, "README.md"), "# staged-path\n");
+        const staged = await stageFiles(dir, ["README.md"]);
+        expect(staged.ok).toBe(true);
+        let status = await getFullStatus(dir);
+        expect(status!.stagedCount).toBe(1);
+        const unstaged = await unstageFiles(dir, ["README.md"]);
+        expect(unstaged.ok).toBe(true);
+        status = await getFullStatus(dir);
+        expect(status!.stagedCount).toBe(0);
+        expect(status!.unstagedCount).toBe(1);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    itGit("empty stageFiles does not wipe the index (not unstage-all)", async () => {
+      const dir = await makeRepo();
+      try {
+        const { writeFile } = await import("node:fs/promises");
+        await writeFile(join(dir, "README.md"), "# keep-staged\n");
+        expect((await stageFiles(dir, ["README.md"])).ok).toBe(true);
+        const empty = await stageFiles(dir, []);
+        expect(empty.ok).toBe(false);
+        expect(empty.stderr).toMatch(/No paths to stage/i);
+        const status = await getFullStatus(dir);
+        expect(status!.stagedCount).toBe(1);
       } finally {
         await rm(dir, { recursive: true, force: true });
       }

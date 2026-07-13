@@ -192,5 +192,21 @@ describe("config-io", () => {
       expect(parsed.model).toBe("a");
       expect(parsed.mode).toBe("plan");
     });
+
+    it("refuses to write over a corrupt on-disk config (no wipe)", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(path, "{ not valid json !!!");
+      await expect(writeConfigFile(path, { model: "should-not-land" })).rejects.toThrow();
+      const raw = await readFile(path, "utf8");
+      expect(raw).toContain("not valid json");
+      expect(raw).not.toContain("should-not-land");
+    });
+
+    it("rejects a non-object patch", async () => {
+      const path = join(tmpDir, "config.json");
+      await expect(
+        writeConfigFile(path, null as unknown as Record<string, unknown>),
+      ).rejects.toThrow(/plain object/);
+    });
   });
 });

@@ -168,7 +168,8 @@ test("steers/removes queued work and suppresses stale output after clear", async
 
   await submit("fixture:slow");
   await submit("/clear");
-  await page.waitForTimeout(300);
+  // Fixture emits STALE OUTPUT at 600ms; wait past that while suppression holds.
+  await page.waitForTimeout(900);
   await expect(page.getByText("STALE OUTPUT")).toHaveCount(0);
 });
 
@@ -187,7 +188,8 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await expect(page.locator("#session-panel .inspector-stream")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("complementary", { name: "Session details" })).toBeHidden();
-  await page.getByRole("button", { name: "Toggle background jobs" }).click();
+  // Opening Session closes Jobs; leave Jobs closed so the transcript is interactive.
+  await expect(page.getByRole("button", { name: "Dismiss jobs" })).toHaveCount(0);
   await page.locator("details.thinking-group > summary").first().click();
   await page.getByRole("button", { name: /Expand.*search.*fixture/ }).click();
   await expect(page.getByRole("link", { name: "Fixture search" })).toBeVisible();

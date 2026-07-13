@@ -26,9 +26,18 @@ let snapshotOk = false;
 let projectsOk = false;
 let finishing = false;
 
+// Overall wall-clock so a hung RPC after ready cannot leave the smoke script stuck forever.
+const overallTimer = setTimeout(() => {
+  finish(1, ready
+    ? "smoke-bridge timed out waiting for snapshot/listProjects after ready"
+    : "smoke-bridge timed out waiting for ready");
+}, 60_000);
+overallTimer.unref();
+
 function finish(code, error) {
   if (finishing) return;
   finishing = true;
+  clearTimeout(overallTimer);
   if (error) console.error(error);
 
   const forceTimer = setTimeout(() => {

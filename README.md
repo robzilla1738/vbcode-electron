@@ -6,7 +6,7 @@ macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/v
 
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
-**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project rail, quiet empty home, terminal themes/accents, resizable sidebars, a toggleable Diff/File review panel, and an explicitly toggled Session panel.
+**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project + chats rail, seamless right workspace dock (Session / Changes / Git / Jobs / Files), quiet empty home, terminal themes/accents, resizable sidebars, turn-changes card + Diff/File review, and an explicitly toggled Session inspector.
 
 Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmacos) (SwiftUI). This repo is the Electron equivalent.
 
@@ -108,17 +108,20 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 ## Layout
 
 ```
-┌────────────┬──────────────────────────────────────────┬─────────────┐
-│ Projects  │  Project / session top bar               │ Live /      │
-│ + sessions│  Transcript / splash / jobs              │ Inspector   │
-│ + filter  │  Plan · permissions · queue · spinner    │ Diff / File │
-│           │  Anchored composer + status + pickers    │ (⇧⌘I)       │
-└────────────┴──────────────────────────────────────────┴─────────────┘
+┌────────────┬──────────────────────────────────────────┬────────────┐
+│ Projects   │  Project / session top bar               │ Session    │
+│ + Chats    │  Transcript / splash                     │ Changes    │
+│ + filter   │  Plan · permissions · queue · spinner    │ Git / Jobs │
+│ Git·Settings│ Anchored composer + status + pickers    │ Files      │
+│            │  Turn-changes card (when files edited)   │ (dock)     │
+└────────────┴──────────────────────────────────────────┴────────────┘
 ```
 
 - Content max ~130ch; transcript prose, tool output, approval panels, and the composer share the `--composer-max: 40rem` reading measure
-- Project and Session rails have desktop drag handles plus Arrow/Home/End keyboard resizing; widths persist locally and drawer layouts disable resizing on narrow screens
-- Projects and meaningful session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
+- **Left rail:** collapsible Projects + Chats sections; section **+** only (add project / new chat); Git & Settings in the footer
+- **Right workspace dock:** full-label Session / Changes / Git / Jobs / Files on the same `var(--bg)` as chat (no divider/project header); hidden below ~960px
+- Project rail and Session inspector resize via pointer + Arrow/Home/End; widths persist; drawers on narrow layouts
+- Projects and session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 16 palettes as OpenTUI); accents via `/accent`
 - Modes: **Plan / Agent / Yolo** dropdown in the composer (Shift+Tab still cycles)
 
@@ -143,15 +146,16 @@ quiet card above the composer with a flat “N Queued” list and hover
 steer/dequeue. Slash, mention, and catalog menus are floating and
 keyboard-contained; the Session panel opens only from its explicit topbar
 control. Project/session ⋯ menus are portal-mounted, trigger-anchored, and
-toggle cleanly. User-message Copy/Edit/time actions sit beside the bubble;
-assistant actions remain below the response. Tool/thinking rows stay compact
-and group consecutive activity under a click-to-expand Thinking disclosure;
-subagent rows show status and elapsed activity without an expandable detail
-view, user turns fold by clicking the message, and source/article results use
+toggle cleanly. User-message Copy/Edit/time actions sit **under** the bubble
+(trailing-aligned); assistant actions remain below the response. Tool/thinking
+rows stay compact under a `Thinking · N steps` group; open thoughts are one
+quiet surface (no brain icon). Subagent rows show status without expandable
+detail. User turns fold by clicking the message. Source/article results use
 structured cards. Dropped images and files render as removable attachment chips
 and submit as project-aware `@` references. Finder drops use native path
-resolution with `file://` URI fallbacks. The Session panel offers changed-file
-review with Diff/File modes and Reveal. Light scheme keeps edge-lit elevation
+resolution with `file://` URI fallbacks. The Session inspector offers
+changed-file review with Diff/File modes and Reveal; a turn-changes card above
+the composer links into the same review. Light scheme keeps edge-lit elevation
 and soft frost on floating chrome; `/accent` remaps selection and focus tokens
 together.
 
@@ -222,22 +226,24 @@ Shell-owned surfaces:
 - Streaming transcript (Streamdown markdown with Shiki + line numbers while generating, diffs, tools, thinking, notices)
 - Permission + plan approval cards (human titles, soft chrome, deny-reason on demand)
 - Slash palette (builtins + custom `commandNames`), catalog pickers (model context window shown)
-- Multi-project sessions rail (new / resume / continue latest / filter)
+- Multi-project + Chats rail (collapsible sections, + add project / new chat, resume, filter; Continue Latest via ⇧⌘N)
+- Workspace dock: Session / Changes / Git / Jobs / Files on the chat surface
+- Turn-changes card after file edits; Session inspector Diff/File review + Reveal
 - `/jobs` drawer with live auto-follow output, localhost links, and copy
 - Anchored streaming with intentional scroll disengagement and Jump to latest
 - `@` fuzzy attach, clipboard image paste, external editor
 - Finder drag/drop for images and files, including removable previews, mixed
   batches, duplicate detection, native path resolution, and URI fallback
 - Stop control with elapsed time until `engine-idle` (Esc still interrupts); green-gate RED notice
-- Inspector Session panel: sole session side view; closed by default and opened/closed from the topbar toggle; changed files open in Diff/File review mode
-- Project and Session sidebars are pointer- and keyboard-resizable with persisted widths
+- Session inspector closed by default; open from dock, Review, ⇧⌘I, or live chips
+- Project rail and Session inspector pointer- and keyboard-resizable with persisted widths
 - Theme-faithful selection colors, headings, and user-message accent (white band on Graphite; `/accent` remaps)
 - Empty-home splash: quiet ASCII wordmark, centered composer, and no automatic prompt suggestions
-- Project rail: project rename/archive/delete actions on hover, titled sessions,
-  a working-only spinner for the active busy session, and full-width hover states
+- Project rail: rename/archive/delete on hover, titled sessions, working-only spinner for the active busy session
+- Host fatal recovery: **New session** on the boot-error card
 - Memory notice: quiet `Memory · N notes` disclosure with click-to-expand note details
 - Sources/articles: numbered reading cards with title, domain, and snippet hierarchy
-- User turns: click or keyboard-activate the message to collapse/expand its activity; no persistent collapse arrow
+- User turns: click or keyboard-activate the message to collapse/expand; actions under the bubble
 - Lucide icons across chrome, composer, and tool-row glyphs
 - Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, narrow busy/idle live status (transcript is not live), hover/focus copy and edit icons with keyboard focus (touch keeps them visible), busy-disabled rail labels, skip links to conversation/composer/projects/session panel, catalog focus trap
 - App icon: `assets/icon.png` → `npm run build:icon` → `assets/icon.icns` for packaged builds; the master includes macOS-style optical safe-area padding, and the unpackaged macOS dock uses the PNG via `app.dock.setIcon`
@@ -252,12 +258,12 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AG
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **140 unit tests**, **10 Electron E2E scenarios**, 19 source
+Current baseline: **171 unit tests**, **10 Electron E2E scenarios**, 19 source
 parity pairs, Biome, typecheck, production build, bridge smoke, and renderer
-bundle budget all pass. The deterministic preview matrix covers attachments,
-settings, Git, Session review, light mode, and alternate themes. See
-[VERIFICATION.md](./VERIFICATION.md) and [ACCEPTANCE.md](./ACCEPTANCE.md) for
-the current acceptance contract and release gates.
+bundle budget all pass (`npm run verify && npm run smoke:bridge && npm run test:e2e`).
+The deterministic preview matrix covers attachments, settings, Git, Session
+review, light mode, and alternate themes. See [VERIFICATION.md](./VERIFICATION.md)
+and [ACCEPTANCE.md](./ACCEPTANCE.md) for the acceptance contract and release gates.
 
 ## Project layout
 

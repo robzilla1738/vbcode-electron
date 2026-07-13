@@ -16,6 +16,14 @@ describe("composer clipboard edits", () => {
     });
   });
 
+  it("quotes image paste paths that contain spaces", () => {
+    const result = applyComposerPaste("", 0, 0, {
+      kind: "image",
+      path: ".vibe/clipboard/my clip.png",
+    });
+    expect(result.value).toBe('@".vibe/clipboard/my clip.png" ');
+  });
+
   it("clamps stale selections without losing draft text", () => {
     expect(applyComposerPaste("draft", 99, 120, { kind: "text", text: "!" })).toEqual({
       value: "draft!",

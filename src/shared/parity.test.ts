@@ -6,11 +6,20 @@ import { cycleModeAction, deriveUiMode, selectModeAction } from "./modes";
 import { getTheme, THEME_NAMES } from "./themes";
 import { toolCollapsed, nextDensity } from "./density";
 import { seedChromeFromSessionStart } from "./chrome-seed";
-import { fuzzyPathScore, rankPaths, atMentionState } from "./file-fuzzy";
+import { fuzzyPathScore, rankPaths, atMentionState, applyAtMention, formatAtPath } from "./file-fuzzy";
 import { formatKeysHelp, ESSENTIAL_KEYS } from "./keys-help";
 import { paletteState } from "./commands-catalog";
 import { hydrateFromHistory } from "./history-hydrate";
-import { filterProjects, projectLabel, relativeSessionTime } from "./project-index";
+import {
+  chatSessions,
+  chatsCwdFromHome,
+  filterChatSessions,
+  filterProjects,
+  isChatsCwd,
+  partitionProjects,
+  projectLabel,
+  relativeSessionTime,
+} from "./project-index";
 import { isScrollAnchored } from "./scroll-anchor";
 import { externalHref, parseSearchResults, parseSources } from "./sources";
 import { hasUnfinishedTasks, windowTasks } from "./task-window";
@@ -239,6 +248,15 @@ describe("file-fuzzy", () => {
     expect(atMentionState("see @src/a")).toEqual({ query: "src/a", atIndex: 4 });
     expect(atMentionState("/model")).toBeNull();
   });
+
+  it("formatAtPath quotes spaces and preserves $ without replace backrefs", () => {
+    expect(formatAtPath("src/a.ts")).toBe("@src/a.ts");
+    expect(formatAtPath("docs/My Spec.md")).toBe('@"docs/My Spec.md"');
+    expect(formatAtPath("price$100.md")).toBe("@price$100.md");
+    // Shared applyAtMention inserts at atIndex without interpreting $ as $1/$&
+    expect(applyAtMention("see @p", 4, "price$100.md", true)).toBe("see @price$100.md ");
+    expect(applyAtMention("see @q", 4, "docs/My Spec.md", true)).toBe('see @"docs/My Spec.md" ');
+  });
 });
 
 describe("keys-help", () => {
@@ -301,6 +319,22 @@ describe("history hydrate", () => {
       output: ["hello"],
     }));
   });
+
+  it("marks orphan tool-starts done after history hydrate", () => {
+    const s = hydrateFromHistory([
+      {
+        id: "a1",
+        role: "assistant",
+        createdAt: 2,
+        parts: [
+          { type: "tool-call", toolCallId: "orphan", toolName: "bash", input: { cmd: "sleep" } },
+        ],
+      },
+    ]);
+    const tool = s.blocks.find((b) => b.kind === "tool");
+    expect(tool?.kind === "tool" && tool.done).toBe(true);
+    expect(Object.keys(s.toolByCallId)).toHaveLength(0);
+  });
 });
 
 describe("project rail", () => {
@@ -341,6 +375,40 @@ describe("project rail", () => {
   it("disambiguates duplicate project names and formats recency", () => {
     expect(projectLabel(projects[0]!, projects)).toBe("app — alpha");
     expect(relativeSessionTime(1_000, 121_000)).toBe("2m");
+  });
+
+  it("resolves chats cwd under home and partitions chats from projects", () => {
+    expect(chatsCwdFromHome("/Users/rob")).toBe("/Users/rob/.vibe/chats");
+    expect(chatsCwdFromHome("C:\\Users\\rob")).toBe("C:\\Users\\rob\\.vibe\\chats");
+    expect(isChatsCwd("/Users/rob/.vibe/chats/", "/Users/rob/.vibe/chats")).toBe(true);
+
+    const chatsRoot = "/Users/rob/.vibe/chats";
+    const withChats = [
+      ...projects,
+      {
+        cwd: chatsRoot,
+        name: "chats",
+        updatedAt: 200,
+        sessions: [
+          {
+            id: "c1",
+            title: "Quick idea",
+            model: "x",
+            mode: "execute" as const,
+            goal: null,
+            createdAt: 1,
+            updatedAt: 200,
+          },
+        ],
+      },
+    ];
+    const { chats, projects: repos } = partitionProjects(withChats, chatsRoot);
+    expect(chats?.cwd).toBe(chatsRoot);
+    expect(chatSessions(chats)).toHaveLength(1);
+    expect(repos.map((p) => p.cwd)).toEqual(["/work/alpha/app", "/work/beta/app"]);
+    expect(filterChatSessions(chatSessions(chats), "quick")).toHaveLength(1);
+    expect(filterChatSessions(chatSessions(chats), "nope")).toHaveLength(0);
+    expect(partitionProjects(projects, chatsRoot).chats).toBeNull();
   });
 });
 
@@ -393,6 +461,55 @@ describe("catalog-draft", () => {
     expect(mcpSecondary(normalizeMcpServer({ name: "x", connected: false, configured: true, toolCount: 0, resourceCount: 0, promptCount: 0 }))).toContain(
       "disconnected",
     );
+  });
+
+  it("normalizeMcpServer coerces array tools and non-finite counts", () => {
+    expect(
+      normalizeMcpServer({
+        name: "svc",
+        connected: true,
+        tools: [{ name: "a" }, { name: "b" }],
+        resourceCount: "nope",
+        promptCount: undefined,
+      }),
+    ).toMatchObject({ toolCount: 2, resourceCount: 0, promptCount: 0 });
+  });
+
+  it("tool-finish tolerates undefined/null/non-JSON output without throwing", () => {
+    let s = initialTranscript();
+    s = reduceTranscript(s, {
+      type: "tool-start",
+      toolCallId: "c1",
+      toolName: "bash",
+      input: { cmd: "echo" },
+    });
+    expect(() => {
+      s = reduceTranscript(s, {
+        type: "tool-finish",
+        toolCallId: "c1",
+        output: undefined,
+        isError: false,
+      });
+    }).not.toThrow();
+    const tool = s.blocks.find((b) => b.kind === "tool");
+    expect(tool?.kind === "tool" && tool.done).toBe(true);
+
+    s = reduceTranscript(s, {
+      type: "tool-start",
+      toolCallId: "c2",
+      toolName: "bash",
+      input: { cmd: "x" },
+    });
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(() => {
+      s = reduceTranscript(s, {
+        type: "tool-finish",
+        toolCallId: "c2",
+        output: circular,
+        isError: true,
+      });
+    }).not.toThrow();
   });
 
   it("builds provider / agent / skill prefill options", () => {

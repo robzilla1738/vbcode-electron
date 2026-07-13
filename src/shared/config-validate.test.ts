@@ -78,4 +78,26 @@ describe("validateConfig", () => {
   it("accepts valid build gate checks", () => {
     expect(validateConfig({ build: { gate: { checks: ["typecheck", "test", "build"] } } })).toEqual([]);
   });
+
+  it("rejects enabled stdio MCP servers without a command", () => {
+    const errs = validateConfig({
+      mcp: { servers: { fs: { command: "", args: [] } } },
+    });
+    expect(errs.some((e) => e.includes("mcp.servers.fs.command"))).toBe(true);
+  });
+
+  it("allows disabled stdio MCP servers with empty command", () => {
+    expect(
+      validateConfig({
+        mcp: { servers: { fs: { command: "", args: [], enabled: false } } },
+      }),
+    ).toEqual([]);
+  });
+
+  it("rejects enabled remote MCP servers without a url", () => {
+    const errs = validateConfig({
+      mcp: { servers: { remote: { url: "" } } },
+    });
+    expect(errs.some((e) => e.includes("mcp.servers.remote.url"))).toBe(true);
+  });
 });

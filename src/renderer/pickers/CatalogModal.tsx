@@ -179,7 +179,16 @@ export function CatalogModal({
     return filtered;
   }, [allOptions, query]);
 
-  const actionable = options.flatMap((option, index) => (isActionable(option) ? [index] : []));
+  // Memoize so selection-reset effect does not re-fire every render (new array
+  // identity would snap keyboard/hover selection back to the first item).
+  const actionable = useMemo(
+    () => options.flatMap((option, index) => (isActionable(option) ? [index] : [])),
+    [options],
+  );
+  const optionsIdentity = useMemo(() => options.map((o) => o.key).join("\0"), [options]);
+  const actionableKey = useMemo(() => actionable.join(","), [actionable]);
+  const modelTargetKey = picker.kind === "models" ? String(picker.target) : "";
+  const modelCurrentKey = picker.kind === "models" ? (picker.current ?? "") : "";
 
   const canToggleTarget =
     picker.kind === "models" && typeof picker.target === "string" && Boolean(onToggleModelTarget);
@@ -267,32 +276,11 @@ export function CatalogModal({
       picker.kind === "models"
         ? options.findIndex((o) => o.key === picker.current && o.key !== "__clear__")
         : -1;
-    setSelected(cur >= 0 ? cur : (actionable[0] ?? 0));
-  }, [
-    query,
-    picker.kind,
-    picker.kind === "models" ? picker.target : "",
-    picker.kind === "models" ? picker.current : "",
-    options,
-    actionable,
-  ]);
-
-  useEffect(() => {
-    const onNav = (event: Event) => {
-      const direction = (event as CustomEvent<1 | -1>).detail;
-      if (direction === 1 || direction === -1) move(direction);
-    };
-    const onConfirm = () => {
-      const option = options[selected];
-      if (option && isActionable(option)) choose(option);
-    };
-    window.addEventListener("vibe-catalog-nav", onNav);
-    window.addEventListener("vibe-catalog-confirm", onConfirm);
-    return () => {
-      window.removeEventListener("vibe-catalog-nav", onNav);
-      window.removeEventListener("vibe-catalog-confirm", onConfirm);
-    };
-  });
+    const first = actionableKey ? Number(actionableKey.split(",")[0]) : 0;
+    setSelected(cur >= 0 ? cur : first);
+    // Only reset when the list / filter / target / current model identity changes —
+    // not on unrelated re-renders (floating box, hover, etc.).
+  }, [query, picker.kind, modelTargetKey, modelCurrentKey, optionsIdentity, actionableKey, options, picker]);
 
   const move = (direction: 1 | -1) => {
     if (!actionable.length) return;
@@ -306,6 +294,31 @@ export function CatalogModal({
     });
   };
 
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+  const chooseRef = useRef<(option: CatalogOption) => void>(() => {});
+  const moveRef = useRef(move);
+  moveRef.current = move;
+
+  useEffect(() => {
+    const onNav = (event: Event) => {
+      const direction = (event as CustomEvent<1 | -1>).detail;
+      if (direction === 1 || direction === -1) moveRef.current(direction);
+    };
+    const onConfirm = () => {
+      const option = optionsRef.current[selectedRef.current];
+      if (option && isActionable(option)) chooseRef.current(option);
+    };
+    window.addEventListener("vibe-catalog-nav", onNav);
+    window.addEventListener("vibe-catalog-confirm", onConfirm);
+    return () => {
+      window.removeEventListener("vibe-catalog-nav", onNav);
+      window.removeEventListener("vibe-catalog-confirm", onConfirm);
+    };
+  }, []);
+
   const choose = (option: CatalogOption) => {
     // Track recent for main model picker (opencode-style)
     if (picker.kind === "models" && option.key && !option.key.startsWith("__")) {
@@ -314,6 +327,7 @@ export function CatalogModal({
     const choice = toChoice(option);
     if (choice) onChoose(choice);
   };
+  chooseRef.current = choose;
 
   const title =
     picker.kind === "models"
@@ -501,9 +515,9 @@ export function CatalogModal({
         <span>
           <kbd className="action-kbd">Esc</kbd> close
         </span>
-        {picker.kind === "models" && typeof picker.target === "string" ? (
+        {picker.kind === "models" && typeof picker.target === "string" && canToggleTarget ? (
           <span>
-            <kbd className="action-kbd">Tab</kbd> {picker.target === "main" ? "subagents" : "main"}
+            Main/Subagents toggle in header
           </span>
         ) : null}
       </div>

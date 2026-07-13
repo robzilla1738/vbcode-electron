@@ -260,7 +260,19 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       const idx = s.toolByCallId[a.toolCallId];
       const toolByCallId = { ...s.toolByCallId };
       delete toolByCallId[a.toolCallId]; // call ids are single-use
-      const out = typeof a.output === "string" ? a.output : JSON.stringify(a.output, null, 2);
+      let out: string;
+      if (typeof a.output === "string") {
+        out = a.output;
+      } else if (a.output === undefined || a.output === null) {
+        out = "";
+      } else {
+        try {
+          // JSON.stringify(undefined) is undefined (not a string) — never call .split on it.
+          out = JSON.stringify(a.output, null, 2) ?? "";
+        } catch {
+          out = String(a.output);
+        }
+      }
       const lines = out.split("\n").filter((l, i, arr) => l.length || i < arr.length - 1);
       if (idx == null) return { ...s, toolByCallId };
       const b = s.blocks[idx];

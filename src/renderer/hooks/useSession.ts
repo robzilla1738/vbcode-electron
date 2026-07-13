@@ -75,6 +75,7 @@ const CLEAR_SCOPED_TYPES = new Set<string>([
   "compacted",
   "loop-stopped",
   "loop-tick",
+  "checkpoint-created",
   "checkpoint-restored",
   "verify-started",
   "verify-finished",
@@ -192,15 +193,17 @@ export function useSession(cwd: string | null) {
       // Stale events from the pre-clear turn are suppressed (streaming deltas,
       // tool activity, notices, subagent events, etc.) until the next
       // user-message arrives — mirroring the TUI's clearScopedEventTypes gate.
-      // turn-finished / session-idle are suppressed AND clear the gate so a
-      // late idle from the old turn doesn't bleed into the new session.
+      // Keep the gate open through turn-finished / session-idle / engine-idle so
+      // late deltas from the aborted turn cannot reappear after the idle flush.
       if (suppressAfterClear.current) {
         if (event.type === "user-message") {
           suppressAfterClear.current = false;
-        } else if (event.type === "turn-finished" || event.type === "session-idle") {
-          suppressAfterClear.current = false;
-          return;
-        } else if (CLEAR_SCOPED_TYPES.has(event.type)) {
+        } else if (
+          CLEAR_SCOPED_TYPES.has(event.type) ||
+          event.type === "turn-finished" ||
+          event.type === "session-idle" ||
+          event.type === "engine-idle"
+        ) {
           return;
         }
       }

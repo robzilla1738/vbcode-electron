@@ -61,6 +61,8 @@ export interface VibeApi {
   onFatal(cb: (message: string) => void): () => void;
   onMenuAction(cb: (action: string) => void): () => void;
   openProject(): Promise<string | null>;
+  /** Ensure `~/.vibe/chats` exists and return its absolute path (one-off conversations). */
+  ensureChatsDir(): Promise<string>;
   openExternal(url: string): Promise<void>;
   showItem(path: string): Promise<void>;
   readTextFile(opts: {
@@ -96,6 +98,7 @@ export interface VibeApi {
   gitCheckout(req: GitCheckoutRequest): Promise<GitOperationResult>;
   gitDeleteBranch(req: GitDeleteBranchRequest): Promise<GitOperationResult>;
   gitStage(opts: { cwd: string; paths?: string[]; all?: boolean; allIncludingUntracked?: boolean }): Promise<GitOperationResult>;
+  gitUnstage(opts: { cwd: string; paths?: string[] }): Promise<GitOperationResult>;
   gitCommit(req: GitCommitRequest): Promise<GitOperationResult>;
   gitMerge(req: GitMergeRequest): Promise<GitOperationResult>;
   gitPush(req: GitPushRequest): Promise<GitOperationResult>;
@@ -140,6 +143,7 @@ const api: VibeApi = {
     return () => ipcRenderer.removeListener("menu:action", handler);
   },
   openProject: () => ipcRenderer.invoke("dialog:openProject"),
+  ensureChatsDir: () => ipcRenderer.invoke("app:ensureChatsDir"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   showItem: (path) => ipcRenderer.invoke("shell:showItem", path),
   readTextFile: (opts) => ipcRenderer.invoke("fs:readTextFile", opts),
@@ -163,6 +167,7 @@ const api: VibeApi = {
   gitCheckout: (req) => ipcRenderer.invoke("git:checkout", req),
   gitDeleteBranch: (req) => ipcRenderer.invoke("git:deleteBranch", req),
   gitStage: (opts) => ipcRenderer.invoke("git:stage", opts),
+  gitUnstage: (opts) => ipcRenderer.invoke("git:unstage", opts),
   gitCommit: (req) => ipcRenderer.invoke("git:commit", req),
   gitMerge: (req) => ipcRenderer.invoke("git:merge", req),
   gitPush: (req) => ipcRenderer.invoke("git:push", req),

@@ -49,7 +49,13 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
 
   ipcMain.handle("config:write", async (event, req: ConfigWriteRequest) => {
     assertTrusted(event);
-    if (!req || (req.scope !== "global" && req.scope !== "project") || typeof req.patch !== "object") {
+    if (
+      !req ||
+      (req.scope !== "global" && req.scope !== "project") ||
+      !req.patch ||
+      typeof req.patch !== "object" ||
+      Array.isArray(req.patch)
+    ) {
       return { ok: false as const, error: "Invalid write request" };
     }
     try {

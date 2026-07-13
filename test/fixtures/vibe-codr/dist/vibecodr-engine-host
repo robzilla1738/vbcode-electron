@@ -127,8 +127,8 @@ function submit(text) {
     return;
   }
   if (text === "fixture:slow") {
-    setTimeout(() => sessionEvent({ type: "assistant-text-delta", delta: "STALE OUTPUT" }), 180);
-    setTimeout(() => finish(), 220);
+    setTimeout(() => sessionEvent({ type: "assistant-text-delta", delta: "STALE OUTPUT" }), 600);
+    setTimeout(() => finish(), 700);
     return;
   }
   if (text === "fixture:fatal") {
@@ -219,6 +219,23 @@ for await (const line of rl) {
       write({ type: "resp", id: message.id, ok: true, value: { id } });
       continue;
     }
+    if (["renameProject", "archiveProject", "deleteProject"].includes(message.method)) {
+      const cwd = message.params?.cwd;
+      if (typeof cwd !== "string" || !cwd) {
+        write({ type: "resp", id: message.id, ok: false, error: "cwd required" });
+        continue;
+      }
+      if (message.method === "renameProject") {
+        if (typeof message.params?.name !== "string" || !message.params.name.trim()) {
+          write({ type: "resp", id: message.id, ok: false, error: "name required" });
+          continue;
+        }
+        write({ type: "resp", id: message.id, ok: true, value: { cwd, name: message.params.name.trim() } });
+      } else {
+        write({ type: "resp", id: message.id, ok: true, value: { cwd } });
+      }
+      continue;
+    }
     const values = {
       snapshot: snapshot(),
       listModels: [{ id: "model", providerId: "fixture", name: "Fixture Model", contextWindow: 1000 }],
@@ -230,6 +247,10 @@ for await (const line of rl) {
       listProjects: [{ cwd: currentCwd, name: "project", updatedAt: 3, sessions: savedSessions }],
       finalize: null,
     };
+    if (!Object.prototype.hasOwnProperty.call(values, message.method)) {
+      write({ type: "resp", id: message.id, ok: false, error: `unknown method: ${message.method}` });
+      continue;
+    }
     write({ type: "resp", id: message.id, ok: true, value: values[message.method] });
   } else if (message.op === "shutdown") {
     process.exit(0);

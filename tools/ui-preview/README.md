@@ -24,7 +24,9 @@ Scenarios: `welcome`, `splash` (quiet empty home + composer), `chat`, `table`,
 `light`, and `theme-opencode`. `attachments` previews the dropped-image and
 file-reference composer state, including Finder-style URI path fallback. The
 `inspector` scenario exercises the Session panel and changed-file review flow;
-`settings` and `git` cover full-workspace sidebars.
+`settings` and `git` cover full-workspace sidebars. Live app chrome (not fully
+mirrored in every mock scenario) also includes the right workspace dock and
+turn-changes card — prefer `npm run dev` or E2E for those.
 
 Dev tooling only: nothing in this folder ships in the app bundle, and the mock
 event timelines live entirely in `mock-vibe.ts`.

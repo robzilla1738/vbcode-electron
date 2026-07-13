@@ -221,7 +221,15 @@ export function decodeInbound(line: string): HostInbound | null {
     if (!Number.isSafeInteger(msg.id) || (msg.id as number) < 1 || typeof msg.method !== "string" || !RPC_METHODS.has(msg.method as RpcMethod)) return null;
     const params = msg.params === undefined ? null : record(msg.params);
     if (msg.params !== undefined && !params) return null;
-    if (params && (!optionalString(params.cwd) || !optionalString(params.id) || !optionalString(params.title))) return null;
+    if (
+      params &&
+      (!optionalString(params.cwd) ||
+        !optionalString(params.id) ||
+        !optionalString(params.title) ||
+        !optionalString(params.name))
+    ) {
+      return null;
+    }
     return value as HostInbound;
   }
   return null;

@@ -11,9 +11,10 @@
  *   project <cwd>/.vibe/config.json
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CONFIG_SECTIONS, type ConfigScope, type VibeConfig } from "../../shared/config-schema";
 import { buildConfigPatch } from "../../shared/config-diff";
+import { mayReloadSettingsContext } from "../../shared/settings-load-guard";
 import { IconClose, IconSidebar } from "../icons";
 import { ModelsSection } from "./sections/ModelsSection";
 import { ProvidersSection } from "./sections/ProvidersSection";
@@ -110,30 +111,94 @@ function SettingsFormArea({
   cwd,
   onClose,
   showToast,
+  onBindClose,
+  onBindDirty,
 }: {
   activeSection: SectionId;
   scope: ConfigScope;
   cwd: string | null;
   onClose: () => void;
   showToast: (message: string, severity?: "info" | "warn" | "error") => void;
+  /** Lets the shell (sidebar / topbar) run the same dirty-aware close path. */
+  onBindClose?: (requestClose: () => void) => void;
+  /** Lets the shell guard Global↔Project scope switches while dirty. */
+  onBindDirty?: (isDirty: () => boolean) => void;
 }) {
   const [state, setState] = useState<SettingsState>({
     config: EMPTY_CONFIG, original: EMPTY_CONFIG, dirty: false, loading: true, error: null, saving: false, saveError: null,
   });
+  const loadSeq = useRef(0);
+  const dirtyRef = useRef(false);
+  dirtyRef.current = state.dirty;
+  /** Instructions section dirty (only mounted when that section is active). */
+  const instructionsDirtyRef = useRef<() => boolean>(() => false);
+  const prevCwdRef = useRef(cwd);
+  const prevScopeRef = useRef(scope);
+  /** After an explicit discard confirm, the next load may proceed without re-prompting. */
+  const discardAcceptedRef = useRef(false);
+
+  const shellIsDirty = useCallback(
+    () => dirtyRef.current || instructionsDirtyRef.current(),
+    [],
+  );
 
   const loadConfig = useCallback(async (selectedScope: ConfigScope) => {
+    const seq = ++loadSeq.current;
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const res = await window.vibe.readConfig({ scope: selectedScope, cwd: selectedScope === "project" ? cwd ?? undefined : undefined });
+      if (seq !== loadSeq.current) return;
       if (!res.ok) { setState((prev) => ({ ...prev, loading: false, error: res.error })); return; }
       const cfg = res.config ?? {};
       setState({ config: cfg, original: cfg, dirty: false, loading: false, error: null, saving: false, saveError: null });
+      discardAcceptedRef.current = false;
     } catch (err) {
+      if (seq !== loadSeq.current) return;
       setState((prev) => ({ ...prev, loading: false, error: err instanceof Error ? err.message : "Failed to load config" }));
     }
   }, [cwd]);
 
-  useEffect(() => { void loadConfig(scope); }, [scope, loadConfig]);
+  useEffect(() => {
+    const cwdChanged = prevCwdRef.current !== cwd;
+    prevCwdRef.current = cwd;
+    prevScopeRef.current = scope;
+
+    // Scope flips are confirmed in SettingsView.trySetScope before `scope` updates.
+    // cwd flips (project switch) must not wipe dirty config — including global —
+    // without a discard. App also gates open/resume when shellIsDirty().
+    if (cwdChanged && dirtyRef.current && !discardAcceptedRef.current) {
+      const ok = mayReloadSettingsContext({
+        dirty: true,
+        confirmDiscard: () => window.confirm("Discard unsaved settings changes?"),
+      });
+      if (!ok) {
+        // Keep in-memory dirty edits; do not replace them with a fresh read.
+        return;
+      }
+    }
+    void loadConfig(scope);
+  }, [scope, loadConfig, cwd]);
+
+  const requestClose = useCallback(() => {
+    if (shellIsDirty()) {
+      const ok = window.confirm("Discard unsaved settings changes?");
+      if (!ok) return;
+      discardAcceptedRef.current = true;
+    }
+    onClose();
+  }, [onClose, shellIsDirty]);
+
+  useEffect(() => {
+    onBindClose?.(requestClose);
+  }, [onBindClose, requestClose]);
+
+  useEffect(() => {
+    onBindDirty?.(shellIsDirty);
+  }, [onBindDirty, shellIsDirty]);
+
+  const bindInstructionsDirty = useCallback((isDirty: () => boolean) => {
+    instructionsDirtyRef.current = isDirty;
+  }, []);
 
   const updateConfig = useCallback((patch: Partial<VibeConfig>) => {
     setState((prev) => {
@@ -145,7 +210,33 @@ function SettingsFormArea({
   const updateNested = useCallback(<K extends keyof VibeConfig>(key: K, patch: Partial<VibeConfig[K]>) => {
     setState((prev) => {
       const current = (prev.config[key] ?? {}) as Record<string, unknown>;
-      const merged = { ...current, ...(patch as Record<string, unknown>) };
+      // Deep-merge plain objects so one-field nested patches (e.g. gate.enabled)
+      // do not wipe sibling keys (maxRounds, checks, recon, …) before save.
+      const deepMerge = (
+        base: Record<string, unknown>,
+        delta: Record<string, unknown>,
+      ): Record<string, unknown> => {
+        const out: Record<string, unknown> = { ...base };
+        for (const [k, v] of Object.entries(delta)) {
+          if (
+            v !== null &&
+            typeof v === "object" &&
+            !Array.isArray(v) &&
+            out[k] !== null &&
+            typeof out[k] === "object" &&
+            !Array.isArray(out[k])
+          ) {
+            out[k] = deepMerge(
+              out[k] as Record<string, unknown>,
+              v as Record<string, unknown>,
+            );
+          } else {
+            out[k] = v;
+          }
+        }
+        return out;
+      };
+      const merged = deepMerge(current, patch as Record<string, unknown>);
       const next = { ...prev.config, [key]: merged };
       return { ...prev, config: next, dirty: !configEqual(next, prev.original) };
     });
@@ -165,7 +256,7 @@ function SettingsFormArea({
     } catch (err) {
       setState((prev) => ({ ...prev, saving: false, saveError: err instanceof Error ? err.message : "Failed to save" }));
     }
-  }, [scope, cwd, state.config, showToast]);
+  }, [scope, cwd, state.config, state.original, showToast]);
 
   const resetConfig = useCallback(() => {
     setState((prev) => ({ ...prev, config: prev.original, dirty: false, saveError: null }));
@@ -173,15 +264,19 @@ function SettingsFormArea({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        requestClose();
+      }
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [onClose]);
+  }, [requestClose]);
 
   const sectionProps = useMemo(() => ({ config: state.config, scope, updateConfig, updateNested, cwd }), [state.config, scope, updateConfig, updateNested, cwd]);
 
-  const renderSection = () => {
+  const renderConfigSection = () => {
     switch (activeSection) {
       case "models": return <ModelsSection {...sectionProps} />;
       case "providers": return <ProvidersSection {...sectionProps} />;
@@ -196,8 +291,10 @@ function SettingsFormArea({
       case "compaction": return <CompactionSection {...sectionProps} />;
       case "budget": return <BudgetSection {...sectionProps} />;
       case "hooks": return <HooksSection {...sectionProps} />;
-      case "instructions": return <InstructionsSection {...sectionProps} />;
       case "advanced": return <AdvancedSection {...sectionProps} />;
+      case "instructions":
+        // Instructions stays mounted below so drafts survive nav switches.
+        return null;
       default: return null;
     }
   };
@@ -223,13 +320,20 @@ function SettingsFormArea({
           </div>
         ) : (
           <>
-            {renderSection()}
+            {/* Keep instructions mounted (hidden) so VIBE.md drafts + dirty bind survive section switches. */}
+            <div
+              hidden={activeSection !== "instructions"}
+              aria-hidden={activeSection !== "instructions"}
+            >
+              <InstructionsSection {...sectionProps} onBindDirty={bindInstructionsDirty} />
+            </div>
+            {activeSection !== "instructions" ? renderConfigSection() : null}
             {state.saveError && <div className="settings-save-error" role="alert">Save failed: {state.saveError}</div>}
           </>
         )}
       </div>
 
-      {!state.loading && !state.error && (
+      {!state.loading && !state.error && activeSection !== "instructions" && (
         <div className="settings-save-bar">
           <div className="settings-save-status">
             {state.dirty
@@ -254,13 +358,49 @@ export function SettingsView({
   cwd,
   onClose,
   showToast,
+  onBindDirty,
 }: {
   cwd: string | null;
   onClose: () => void;
   showToast: (message: string, severity?: "info" | "warn" | "error") => void;
+  /** Lets the shell confirm before unmounting settings (⌘,, git, inspector, slash). */
+  onBindDirty?: (isDirty: () => boolean) => void;
 }) {
   const [activeSection, setActiveSection] = useState<SectionId>("models");
   const [scope, setScope] = useState<ConfigScope>("global");
+  const requestCloseRef = useRef(onClose);
+  const isDirtyRef = useRef<() => boolean>(() => false);
+
+  const bindClose = useCallback((fn: () => void) => {
+    requestCloseRef.current = fn;
+  }, []);
+  const bindDirty = useCallback((fn: () => boolean) => {
+    isDirtyRef.current = fn;
+    onBindDirty?.(fn);
+  }, [onBindDirty]);
+
+  useEffect(() => {
+    return () => {
+      // Clear shell guard so a closed panel never looks dirty after unmount.
+      onBindDirty?.(() => false);
+    };
+  }, [onBindDirty]);
+
+  const tryClose = useCallback(() => {
+    requestCloseRef.current();
+  }, []);
+
+  const trySetScope = useCallback((next: ConfigScope) => {
+    if (next === scope) return;
+    if (isDirtyRef.current()) {
+      const ok = window.confirm("Discard unsaved settings changes?");
+      if (!ok) return;
+    }
+    setScope(next);
+  }, [scope]);
+
+  // Note: project/cwd switches are gated in App via onBindDirty so resume/open
+  // never unmounts dirty settings silently.
 
   return (
     <>
@@ -268,9 +408,9 @@ export function SettingsView({
         activeSection={activeSection}
         onSelectSection={setActiveSection}
         scope={scope}
-        onScopeChange={setScope}
+        onScopeChange={trySetScope}
         cwd={cwd}
-        onClose={onClose}
+        onClose={tryClose}
       />
       <div className="content-inset">
         <header className="topbar">
@@ -282,12 +422,20 @@ export function SettingsView({
             </h1>
           </div>
           <div className="topbar-actions no-drag">
-            <button type="button" className="icon-button" onClick={onClose} aria-label="Close settings" title="Close settings (Esc)">
+            <button type="button" className="icon-button" onClick={tryClose} aria-label="Close settings" title="Close settings (Esc)">
               <IconClose size={16} />
             </button>
           </div>
         </header>
-        <SettingsFormArea activeSection={activeSection} scope={scope} cwd={cwd} onClose={onClose} showToast={showToast} />
+        <SettingsFormArea
+          activeSection={activeSection}
+          scope={scope}
+          cwd={cwd}
+          onClose={onClose}
+          showToast={showToast}
+          onBindClose={bindClose}
+          onBindDirty={bindDirty}
+        />
       </div>
     </>
   );
