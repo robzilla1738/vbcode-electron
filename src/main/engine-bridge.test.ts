@@ -149,7 +149,9 @@ describe("EngineBridge lifecycle", () => {
 
     await bridge.start({ cwd: process.cwd() });
     await pollUntil(() => fatals.length > 0);
-    expect(fatals).toEqual(["Engine host emitted an invalid nested event payload"]);
+    // Deep nested validation is folded into isUIEvent/decodeOutbound, so the
+    // bridge reports invalid protocol (not a separate nested-event path).
+    expect(fatals[0]).toMatch(/invalid (nested event|protocol output)/i);
     await pollUntil(() => !bridge.isRunning);
     expect(bridge.isRunning).toBe(false);
   });

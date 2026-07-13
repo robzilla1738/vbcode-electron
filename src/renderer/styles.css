@@ -461,6 +461,24 @@ html[data-scheme="light"].electron-transparent .app-shell { background: var(--bg
   background: var(--bg);
 }
 
+/* Settings stays mounted: when closed, layer is display:none (React state kept).
+   When open, display:contents lets the settings sidebar + main join the flex row
+   exactly as the previous exclusive SettingsView mount did. Chat stays in the
+   tree under .chat-workspace so transcript scroll position is preserved. */
+.settings-layer:not(.is-open) {
+  display: none;
+}
+.settings-layer.is-open {
+  display: contents;
+}
+.chat-workspace {
+  display: contents;
+}
+.chat-workspace.is-obscured {
+  /* Keep mounted + retain layout state; hide from view and input while settings open. */
+  display: none;
+}
+
 html.glass .workspace,
 html.electron-transparent .workspace { background: transparent; }
 

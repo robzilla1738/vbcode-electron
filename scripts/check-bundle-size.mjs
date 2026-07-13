@@ -25,3 +25,22 @@ if (total > totalBudget || largest > chunkBudget) {
 }
 
 console.log(`Renderer bundle budget OK: ${total} total bytes, ${largest} largest chunk`);
+
+// Host binary budget when present (pack / copy-host). Not required for verify
+// after a renderer-only build, but fail loud if an oversized host is staged.
+const hostCandidates = [
+  resolve("resources/vibecodr-engine-host"),
+  resolve("release/mac-arm64/Vibe Codr.app/Contents/Resources/vibecodr-engine-host"),
+  resolve("release/mac/Vibe Codr.app/Contents/Resources/vibecodr-engine-host"),
+];
+const hostBudget = 120 * 1024 * 1024; // 120 MiB — fail if a huge accidental binary is shipped
+for (const host of hostCandidates) {
+  if (!existsSync(host)) continue;
+  const bytes = (await stat(host)).size;
+  if (bytes > hostBudget) {
+    console.error(`Host binary budget exceeded: ${host} is ${bytes} bytes (max ${hostBudget})`);
+    process.exit(1);
+  }
+  console.log(`Host binary budget OK: ${host} (${bytes} bytes)`);
+  break;
+}

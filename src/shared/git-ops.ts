@@ -365,8 +365,10 @@ export async function createBranch(
   } catch (err) {
     return refError(err);
   }
+  // After assertGitRef (no leading `-`), pass the branch as a normal ref arg.
+  // Do NOT put `--` between `-b` and the name — git would treat `--` as the branch.
   if (checkout) {
-    const res = await runGit(cwd, ["checkout", "-b", "--", safeName, base]);
+    const res = await runGit(cwd, ["checkout", "-b", safeName, base]);
     return {
       ok: res.ok,
       stdout: res.stdout,
@@ -374,7 +376,7 @@ export async function createBranch(
       message: res.ok ? `Created and switched to ${safeName}` : undefined,
     };
   }
-  const res = await runGit(cwd, ["branch", "--", safeName, base]);
+  const res = await runGit(cwd, ["branch", safeName, base]);
   return {
     ok: res.ok,
     stdout: res.stdout,
@@ -394,9 +396,8 @@ export async function checkoutBranch(
   } catch (err) {
     return refError(err);
   }
-  const args = track
-    ? ["checkout", "-t", "--", safeName]
-    : ["checkout", "--", safeName];
+  // Branch is a ref, not a pathspec — never place it after bare `--`.
+  const args = track ? ["checkout", "-t", safeName] : ["checkout", safeName];
   const res = await runGit(cwd, args);
   return {
     ok: res.ok,
@@ -417,7 +418,8 @@ export async function deleteBranch(
   } catch (err) {
     return refError(err);
   }
-  const args = ["branch", force ? "-D" : "-d", "--", safeName];
+  // `-d`/`-D` already consume the next arg as the branch name; `--` is optional.
+  const args = ["branch", force ? "-D" : "-d", safeName];
   const res = await runGit(cwd, args);
   return {
     ok: res.ok,
@@ -527,8 +529,10 @@ export async function mergeBranch(
   } catch (err) {
     return refError(err);
   }
-  const args = ["merge", "--", safeBranch];
-  if (noFastForward) args.splice(1, 0, "--no-ff");
+  // Validated ref as the merge tip — not a pathspec after bare `--`.
+  const args = noFastForward
+    ? ["merge", "--no-ff", safeBranch]
+    : ["merge", safeBranch];
   const res = await runGit(cwd, args);
   return {
     ok: res.ok,

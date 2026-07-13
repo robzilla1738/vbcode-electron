@@ -21,16 +21,20 @@ export function PermissionCard({
   perm,
   count,
   onDecide,
+  /** Incremented by App when the user presses N — first kick opens deny reason, second confirms. */
+  denyKick = 0,
 }: {
   perm: PendingPerm;
   count: number;
   onDecide: (decision: "once" | "always" | "always-project" | "deny", feedback?: string) => void;
+  denyKick?: number;
 }) {
   const onceRef = useRef<HTMLButtonElement>(null);
   const denyInputRef = useRef<HTMLInputElement>(null);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [denyReason, setDenyReason] = useState("");
   const [denyOpen, setDenyOpen] = useState(false);
+  const lastDenyKick = useRef(0);
   // Move focus to the primary action when a new permission card appears so the
   // decision is obvious instead of letting typed prose route into the composer
   // (I35). preventScroll avoids yanking the viewport.
@@ -39,12 +43,28 @@ export function PermissionCard({
     setDenyReason("");
     setDenyOpen(false);
     setPreviewExpanded(false);
-  }, [perm.id]);
+    // Baseline: ignore kicks that happened before this card.
+    lastDenyKick.current = denyKick;
+  }, [perm.id]); // eslint-disable-line react-hooks/exhaustive-deps -- only reset on new perm
 
   useEffect(() => {
     if (!denyOpen) return;
     denyInputRef.current?.focus({ preventScroll: true });
   }, [denyOpen]);
+
+  // Global N (App keyboard) mirrors the card's two-step Deny affordance.
+  useEffect(() => {
+    if (denyKick <= lastDenyKick.current) return;
+    lastDenyKick.current = denyKick;
+    setDenyOpen((open) => {
+      if (!open) return true;
+      // Second N while deny is open: confirm (reason read from ref-updated state below).
+      queueMicrotask(() => {
+        onDecide("deny", denyInputRef.current?.value.trim() || undefined);
+      });
+      return open;
+    });
+  }, [denyKick, onDecide]);
 
   const preview = permissionPreview(perm.toolName, perm.input);
   let payload = "";
@@ -310,24 +330,35 @@ export function PlanCard({
 }
 
 export function QueuePanel({
+  active = null,
   pending,
   onSteer,
   onDequeue,
 }: {
+  active?: QueuedItem | null;
   pending: QueuedItem[];
   onSteer: (id: string) => void;
   onDequeue: (id: string) => void;
 }) {
-  if (pending.length === 0) return null;
+  if (!active && pending.length === 0) return null;
 
   return (
     <div className="composer-queue-tray" role="region" aria-label="Queued prompts">
       <div className="queue-tray-bar">
         <span className="queue-tray-count">
-          {pending.length} Queued
+          {active ? "Running" : null}
+          {active && pending.length > 0 ? " · " : null}
+          {pending.length > 0 ? `${pending.length} queued` : null}
         </span>
       </div>
       <ul id="composer-queue-items" className="queue-items">
+        {active ? (
+          <li className="queue-row queue-row-active" aria-current="true">
+            <span className="queue-row-mark is-active" aria-hidden />
+            <span className="queue-label">{active.label}</span>
+            <span className="queue-active-badge">Running</span>
+          </li>
+        ) : null}
         {pending.map((q) => (
           <li key={q.id} className="queue-row">
             <span className="queue-row-mark" aria-hidden />

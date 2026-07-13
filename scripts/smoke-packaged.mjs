@@ -35,5 +35,20 @@ try {
   process.stdout.write("packaged smoke ok: bundled host booted, project restored, command applied\n");
 } finally {
   await app?.close();
+  // Best-effort orphan check: after close, no child host should remain for this userData run.
+  // Other developer sessions may still hold a host — only fail if our executable left a
+  // process that still references this smoke userData path (best-effort; ignore errors).
+  try {
+    const { execSync } = await import("node:child_process");
+    const out = execSync("pgrep -fl vibecodr-engine-host || true", { encoding: "utf8" });
+    if (out.includes(userData)) {
+      console.error("Orphan engine host still references smoke userData after app close:\n", out);
+      process.exitCode = 1;
+    } else {
+      process.stdout.write("packaged smoke ok: no host orphan tied to smoke userData\n");
+    }
+  } catch {
+    /* pgrep may be unavailable — non-fatal */
+  }
   await rm(userData, { recursive: true, force: true });
 }

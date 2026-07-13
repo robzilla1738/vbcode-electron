@@ -191,6 +191,60 @@ function stringArray(value: unknown): boolean {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+/** Deep nested UI payload checks (folded into isUIEvent so decodeOutbound is strict). */
+function uiGitInfo(value: unknown): boolean {
+  const git = record(value);
+  return !!git
+    && typeof git.branch === "string"
+    && Number.isFinite(git.dirty)
+    && Number.isFinite(git.ahead)
+    && Number.isFinite(git.behind)
+    && typeof git.worktree === "boolean";
+}
+
+function uiGoalRun(value: unknown): boolean {
+  const run = record(value);
+  return !!run
+    && typeof run.active === "boolean"
+    && (run.phase === null || run.phase === "plan" || run.phase === "execute")
+    && Number.isFinite(run.round)
+    && Number.isFinite(run.max)
+    && (run.pausedReason === null || typeof run.pausedReason === "string")
+    && typeof run.met === "boolean";
+}
+
+function uiJob(value: unknown): boolean {
+  const item = record(value);
+  return !!item
+    && typeof item.id === "string"
+    && typeof item.command === "string"
+    && (item.status === "running" || item.status === "exited" || item.status === "killed")
+    && (item.exitCode === null || Number.isFinite(item.exitCode))
+    && (item.pid === undefined || Number.isFinite(item.pid))
+    && stringArray(item.servers)
+    && typeof item.outputTail === "string";
+}
+
+function uiTask(value: unknown): boolean {
+  const item = record(value);
+  return !!item
+    && typeof item.id === "string"
+    && typeof item.title === "string"
+    && (item.status === "pending" || item.status === "in_progress" || item.status === "completed");
+}
+
+function uiQueuedItem(value: unknown): boolean {
+  const item = record(value);
+  return !!item && typeof item.id === "string" && typeof item.label === "string";
+}
+
+function uiPlanSource(value: unknown): boolean {
+  const source = record(value);
+  return !!source
+    && typeof source.url === "string"
+    && (source.title === undefined || typeof source.title === "string");
+}
+
 function sessionUsage(value: unknown): boolean {
   const usage = record(value);
   return !!usage && Number.isFinite(usage.inputTokens) && Number.isFinite(usage.outputTokens)
@@ -236,20 +290,27 @@ export function isUIEvent(value: unknown): value is UIEvent {
     case "mode-changed": return event.mode === "plan" || event.mode === "execute";
     case "model-changed": return typeof event.model === "string";
     case "goal-changed": return event.goal === null || typeof event.goal === "string";
-    case "goal-run": return record(event.run) !== null;
+    case "goal-run": return uiGoalRun(event.run);
     case "theme-changed": return typeof event.theme === "string";
     case "accent-changed": return typeof event.accent === "string";
     case "details-changed": return event.details === "quiet" || event.details === "normal" || event.details === "verbose";
     case "mouse-changed": return typeof event.mouse === "boolean";
-    case "git-updated": return record(event.git) !== null;
-    case "jobs-changed": return Array.isArray(event.jobs);
+    case "git-updated": return uiGitInfo(event.git);
+    case "jobs-changed": return Array.isArray(event.jobs) && event.jobs.every(uiJob);
     case "approvals-changed": return event.mode === "ask" || event.mode === "auto";
-    case "plan-presented": return typeof event.plan === "string" && (event.sources === undefined || Array.isArray(event.sources)) && (event.assumptions === undefined || stringArray(event.assumptions)) && optionalBoolean(event.ungrounded);
+    case "plan-presented":
+      return typeof event.plan === "string"
+        && (event.sources === undefined || (Array.isArray(event.sources) && event.sources.every(uiPlanSource)))
+        && (event.assumptions === undefined || stringArray(event.assumptions))
+        && optionalBoolean(event.ungrounded);
     case "permission-request": return typeof event.id === "string" && typeof event.toolName === "string";
     case "permission-settled": return stringArray(event.ids) && (event.reason === "aborted" || event.reason === "shutdown");
-    case "tasks-updated": return Array.isArray(event.tasks);
+    case "tasks-updated": return Array.isArray(event.tasks) && event.tasks.every(uiTask);
     case "orchestration-task": return typeof event.taskId === "string" && typeof event.objective === "string" && ["running", "completed", "failed", "skipped"].includes(String(event.status)) && optionalNumber(event.attempts) && optionalNumber(event.durationMs);
-    case "queue-changed": return (event.active === null || record(event.active) !== null) && Array.isArray(event.pending);
+    case "queue-changed":
+      return (event.active === null || uiQueuedItem(event.active))
+        && Array.isArray(event.pending)
+        && event.pending.every(uiQueuedItem);
     case "notice": return (event.level === "info" || event.level === "warn" || event.level === "error") && typeof event.message === "string";
     case "engine-error": return typeof event.message === "string" && optionalString(event.sessionId);
     case "file-changed": return typeof event.toolCallId === "string" && typeof event.path === "string" && (event.action === "edit" || event.action === "write") && typeof event.diff === "string" && Number.isFinite(event.added) && Number.isFinite(event.removed);

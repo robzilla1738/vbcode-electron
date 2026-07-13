@@ -108,6 +108,8 @@ export function App() {
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Bumped on N so PermissionCard can open deny-reason then confirm (card parity). */
+  const [permDenyKick, setPermDenyKick] = useState(0);
   const [gitOpen, setGitOpen] = useState(false);
   const [projectRailOpen, setProjectRailOpen] = useState(true);
   const [followSignal, setFollowSignal] = useState(0);
@@ -1134,7 +1136,8 @@ export function App() {
         }
         if (e.key === "n" || e.key === "N") {
           e.preventDefault();
-          void answerPerm("deny");
+          // Two-step deny: first N opens reason field; second confirms (PermissionCard).
+          setPermDenyKick((n) => n + 1);
           return;
         }
       }
@@ -1302,16 +1305,24 @@ export function App() {
           <a className="skip-link" href="#session-panel">Skip to session panel</a>
         ) : null}
       </nav>
-      <div className={`workspace${(settingsOpen || projectRailOpen) ? " rail-open" : ""}${session.inspectorOpen ? " inspector-open" : ""}`}>
-        {settingsOpen && cwd ? (
-          <SettingsView
-            cwd={cwd}
-            onClose={() => setSettingsOpen(false)}
-            showToast={session.showToast}
-            onBindDirty={bindSettingsDirty}
-          />
-        ) : (
-          <>
+      <div className={`workspace${(settingsOpen || projectRailOpen) ? " rail-open" : ""}${session.inspectorOpen ? " inspector-open" : ""}${settingsOpen ? " settings-mode" : ""}`}>
+        {/* Keep Settings mounted (hidden) so form draft + Instructions dirty state
+            survive section switches and chat remains in the tree for scroll restore. */}
+        {cwd ? (
+          <div
+            className={`settings-layer${settingsOpen ? " is-open" : ""}`}
+            hidden={!settingsOpen}
+            aria-hidden={!settingsOpen}
+          >
+            <SettingsView
+              cwd={cwd}
+              onClose={() => setSettingsOpen(false)}
+              showToast={session.showToast}
+              onBindDirty={bindSettingsDirty}
+            />
+          </div>
+        ) : null}
+        <div className={`chat-workspace${settingsOpen ? " is-obscured" : ""}`} aria-hidden={settingsOpen || undefined}>
           <ProjectRail
           projects={projects}
           chatsCwd={chatsCwd}
@@ -1534,6 +1545,7 @@ export function App() {
                 <PermissionCard
                   perm={chrome.perms[0]}
                   count={chrome.perms.length}
+                  denyKick={permDenyKick}
                   onDecide={(decision, feedback) => void answerPerm(decision, feedback)}
                 />
               )}
@@ -1593,6 +1605,7 @@ export function App() {
                 />
               )}
               <QueuePanel
+                active={chrome.queueActive}
                 pending={chrome.queuePending}
                 onSteer={(id) => void session.send({ type: "steer", id })}
                 onDequeue={(id) => void session.send({ type: "dequeue", id })}
@@ -1744,8 +1757,7 @@ export function App() {
 
           </div>
         </div>
-        </>
-        )}
+        </div>
       </div>
 
       {keysOpen && <KeysOverlay onClose={() => setKeysOpen(false)} />}

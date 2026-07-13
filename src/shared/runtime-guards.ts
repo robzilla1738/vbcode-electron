@@ -1,6 +1,6 @@
 import type { EngineSnapshot } from "./types";
 import type { UIEvent } from "./events";
-import type { ProjectSummary, RpcMethod } from "./protocol";
+import { isUIEvent, type ProjectSummary, type RpcMethod } from "./protocol";
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -184,22 +184,11 @@ function planSource(value: unknown): boolean {
     && (source.title === undefined || typeof source.title === "string");
 }
 
-/** Deep validation for event payloads that renderer components dereference. */
+/**
+ * Deep validation for event payloads that renderer components dereference.
+ * Nested shape checks now live inside `isUIEvent` so decodeOutbound cannot
+ * accept junk that only fails the second gate — keep this export for callers.
+ */
 export function isRenderableUIEvent(value: UIEvent): boolean {
-  switch (value.type) {
-    case "git-updated":
-      return gitInfo(value.git);
-    case "goal-run":
-      return goalRun(value.run);
-    case "jobs-changed":
-      return value.jobs.every(job);
-    case "tasks-updated":
-      return value.tasks.every(task);
-    case "queue-changed":
-      return (value.active === null || queuedItem(value.active)) && value.pending.every(queuedItem);
-    case "plan-presented":
-      return value.sources === undefined || value.sources.every(planSource);
-    default:
-      return true;
-  }
+  return isUIEvent(value);
 }

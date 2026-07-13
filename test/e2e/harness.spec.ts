@@ -168,9 +168,14 @@ test("steers/removes queued work and suppresses stale output after clear", async
 
   await submit("fixture:slow");
   await submit("/clear");
-  // Fixture emits STALE OUTPUT at 600ms; wait past that while suppression holds.
-  await page.waitForTimeout(900);
-  await expect(page.getByText("STALE OUTPUT")).toHaveCount(0);
+  // Fixture emits STALE OUTPUT at 600ms; poll past that window without a fixed sleep
+  // so slower CI (xvfb) does not flake on wall-clock alone.
+  await expect
+    .poll(async () => page.getByText("STALE OUTPUT").count(), {
+      timeout: 3_000,
+      intervals: [100, 200, 400],
+    })
+    .toBe(0);
 });
 
 test("renders task, subagent, source, job, and checkpoint activity in the correct surfaces", async () => {

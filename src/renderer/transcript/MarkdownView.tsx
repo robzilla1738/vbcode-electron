@@ -41,8 +41,8 @@ function fenceLang(className?: string): string {
 type CodeProps = ComponentPropsWithoutRef<"code"> & ExtraProps;
 
 /**
- * Rich fences (chart / sources / …) stay custom; normal fences use Streamdown’s
- * Shiki CodeBlock so we get highlighting + line numbers + our CopyButton.
+ * Static (finalized) fences: Shiki CodeBlock + line numbers + copy.
+ * Streaming path must NEVER use this — see `streamingCodeComponents`.
  */
 function Code({ className, children, ...props }: CodeProps) {
   const isBlock = "data-block" in props;
@@ -79,9 +79,41 @@ function Code({ className, children, ...props }: CodeProps) {
   );
 }
 
-const components: Components = {
+/** Streaming fences: plain pre/code only — no Shiki, no line numbers, no copy chrome. */
+function StreamingCode({ className, children, ...props }: CodeProps) {
+  const isBlock = "data-block" in props;
+  if (!isBlock) {
+    return (
+      <code className={className} data-streamdown="inline-code">
+        {children}
+      </code>
+    );
+  }
+  const lang = fenceLang(className);
+  const body = fenceBody(children);
+  const kind = richKind(lang);
+  // Rich fences still render (cheap pure views); never CodeBlock/Shiki.
+  if (kind === "sources") {
+    return <SourceList sources={parseSources(body)} />;
+  }
+  if (kind) {
+    return <RichBlockView lang={lang} body={body} palette={currentPalette()} />;
+  }
+  return (
+    <pre className="md-code-block md-code-block-streaming" data-lang={lang || "text"}>
+      <code>{body}</code>
+    </pre>
+  );
+}
+
+const staticComponents: Components = {
   a: ({ href, children }) => <ExternalLink href={href}>{children}</ExternalLink>,
   code: Code,
+};
+
+const streamingComponents: Components = {
+  a: ({ href, children }) => <ExternalLink href={href}>{children}</ExternalLink>,
+  code: StreamingCode,
 };
 
 export function MarkdownView({
@@ -97,9 +129,8 @@ export function MarkdownView({
   const themeName = theme ?? document.documentElement.dataset.theme;
   const shikiTheme = shikiThemeFor(themeName) as [ThemeInput, ThemeInput];
 
-  // While streaming, skip Shiki line-number highlighting — re-parsing growing
-  // markdown every 24ms was a main-thread hotspot on long agent turns. Static
-  // mode after finalize still gets full highlighting.
+  // While streaming: no Shiki theme, no lineNumbers, no CodeBlock component.
+  // Re-highlighting growing markdown every flush was a main-thread hotspot.
   if (streaming) {
     return (
       <Streamdown
@@ -109,7 +140,7 @@ export function MarkdownView({
         controls={false}
         lineNumbers={false}
         animated={false}
-        components={components}
+        components={streamingComponents}
       >
         {children}
       </Streamdown>
@@ -125,7 +156,7 @@ export function MarkdownView({
       lineNumbers
       shikiTheme={shikiTheme}
       animated={false}
-      components={components}
+      components={staticComponents}
     >
       {children}
     </Streamdown>

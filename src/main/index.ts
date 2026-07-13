@@ -381,7 +381,17 @@ function registerIpc(): void {
   ipcMain.handle("shell:showItem", async (event, path: string) => {
     assertTrustedIpc(event);
     if (typeof path !== "string" || !path) throw new Error("Invalid item path");
-    shell.showItemInFolder(path);
+    // Defense-in-depth: only reveal paths under the user's home, temp, or an
+    // absolute path that resolves inside home (opened projects live under home
+    // in normal use; absolute paths outside home are rejected).
+    const abs = resolve(path);
+    const home = resolve(homedir());
+    const tmp = resolve(tmpdir());
+    const under = (root: string) => abs === root || abs.startsWith(root + "/") || abs.startsWith(root + "\\");
+    if (!under(home) && !under(tmp)) {
+      throw new Error("Reveal is limited to paths under your home or temp directory");
+    }
+    shell.showItemInFolder(abs);
   });
 
   ipcMain.handle(
