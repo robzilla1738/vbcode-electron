@@ -5,7 +5,6 @@ import { open as fsOpen, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { app, BrowserWindow, clipboard, crashReporter, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell } from "electron";
-import liquidGlass from "electron-liquid-glass";
 import { readTextFileCapped } from "../shared/capped-read";
 import type { EngineCommand } from "../shared/commands";
 import { isAllowedCwd, projectCwdAllowlist } from "../shared/cwd-allowlist";
@@ -88,21 +87,24 @@ function applyMacChrome(win: BrowserWindow): void {
     void win.webContents.executeJavaScript(
       `document.documentElement.dataset.platform = "darwin"`,
     );
-    try {
-      if (!liquidGlass.isGlassSupported()) return;
-      const tintColor = nativeTheme.shouldUseDarkColors ? "#0a0a0a33" : "#f5f5f528";
-      const glassId = liquidGlass.addView(win.getNativeWindowHandle(), {
-        cornerRadius: 12,
-        tintColor,
-      });
-      if (glassId < 0) return;
-      liquidGlass.unstable_setVariant(glassId, liquidGlass.GlassMaterialVariant.sidebar);
-      void win.webContents.executeJavaScript(
-        `document.documentElement.classList.add("glass","electron-transparent")`,
-      );
-    } catch (err) {
-      console.warn("liquid glass unavailable:", err);
-    }
+    void (async () => {
+      try {
+        const { default: liquidGlass } = await import("electron-liquid-glass");
+        if (!liquidGlass.isGlassSupported()) return;
+        const tintColor = nativeTheme.shouldUseDarkColors ? "#0a0a0a33" : "#f5f5f528";
+        const glassId = liquidGlass.addView(win.getNativeWindowHandle(), {
+          cornerRadius: 12,
+          tintColor,
+        });
+        if (glassId < 0) return;
+        liquidGlass.unstable_setVariant(glassId, liquidGlass.GlassMaterialVariant.sidebar);
+        void win.webContents.executeJavaScript(
+          `document.documentElement.classList.add("glass","electron-transparent")`,
+        );
+      } catch (err) {
+        console.warn("liquid glass unavailable:", err);
+      }
+    })();
   });
 }
 

@@ -40,6 +40,9 @@ whitespace to avoid false formatting drift.
 CI checks the engine source out at `./vibe-codr`. That directory is excluded
 from this repository's Biome scope so both checkouts retain independent root
 configurations while the parity and bridge gates can still read it directly.
+The macOS-only `electron-liquid-glass` package is optional, externally bundled,
+and loaded only after a Darwin platform check; Linux CI must typecheck, build,
+and run the Electron harness without installing that native module.
 
 GitHub CI (`.github/workflows/ci.yml`) runs `verify`, coverage floors,
 `smoke:bridge`, and Electron E2E on Linux, plus an unsigned bundled-host smoke

@@ -7,6 +7,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
+        external: ["electron-liquid-glass"],
         input: {
           index: resolve("src/main/index.ts"),
         },
