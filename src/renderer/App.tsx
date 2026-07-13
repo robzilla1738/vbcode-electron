@@ -1756,7 +1756,8 @@ export function App() {
               project={activeProject ? projectLabel(activeProject, projects) : projectName(cwd)}
               branch={chrome.git?.branch ?? null}
               sessionOpen={false}
-              gitOpen={gitOpen}
+              changesOpen={false}
+              gitOpen={false}
               jobsOpen={false}
               onOpen={openWorkspaceDock}
             />

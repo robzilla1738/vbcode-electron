@@ -669,8 +669,8 @@ html.electron-transparent .topbar {
   border-radius: var(--radius-pill);
   color: var(--bg);
   background: var(--assistant);
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -3477,21 +3477,11 @@ html.electron-transparent .workspace-dock {
   flex: 0 1 auto;
   min-height: 0;
   flex-direction: column;
-  gap: var(--space-2xs);
-  padding: 0 var(--space-xs) var(--space-xs);
-  /* This is a short control cluster, not a second document surface. The
-     transcript owns scrolling and keeps its scrollbar at the window edge. */
+  gap: 2px;
+  padding: 0 var(--space-xs) var(--space-sm);
+  /* Flat Session → Changes → Git → Jobs → Files list — no section labels or
+     decorative rules (UI.md: spacing and selected fills only). */
   overflow: visible;
-}
-
-.workspace-dock-section-label {
-  margin: var(--space-xs) var(--space-xs) var(--space-2xs);
-}
-
-.workspace-dock-divider {
-  height: 1px;
-  margin: var(--space-xs) var(--space-xs) var(--space-2xs);
-  background: color-mix(in oklab, var(--border) 26%, transparent);
 }
 
 .workspace-dock-row {
@@ -3501,7 +3491,7 @@ html.electron-transparent .workspace-dock {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: var(--space-lg);
+  min-height: 32px;
   padding: 0 var(--space-sm);
   border: 0;
   border-radius: var(--radius-md);
@@ -3523,9 +3513,8 @@ html.electron-transparent .workspace-dock {
 
 .workspace-dock-row:focus-visible {
   outline: none;
-  /* Section controls use a quiet state change instead of a bright focus
-     outline that reads like a border around the card. */
-  box-shadow: none;
+  /* Quiet keyboard focus: two-layer ring without a hard white outline segment. */
+  box-shadow: var(--focus-ring);
   background: color-mix(in oklab, var(--surface) 58%, transparent);
 }
 
@@ -4087,8 +4076,11 @@ html.electron-transparent .workspace-dock {
 
 .queue-action {
   display: inline-flex;
-  width: var(--hover-action-size, 26px);
-  height: var(--hover-action-size, 26px);
+  /* Primary queue actions need a usable hit target (design-system: hit targets). */
+  width: var(--hover-action-size, 28px);
+  height: var(--hover-action-size, 28px);
+  min-width: 28px;
+  min-height: 28px;
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -4098,6 +4090,22 @@ html.electron-transparent .workspace-dock {
     color var(--dur-fast) var(--ease-standard),
     background-color var(--dur-fast) var(--ease-standard),
     transform var(--dur-press);
+}
+
+.queue-row-active {
+  background: color-mix(in oklab, var(--surface) 42%, transparent);
+}
+
+.queue-row-mark.is-active {
+  background: var(--tool);
+}
+
+.queue-active-badge {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.01em;
 }
 
 .queue-action:hover {
@@ -7132,7 +7140,9 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .rich-weather-temp { font-size: var(--text-display-sm); font-weight: 700; }
 .rich-weather-chips { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: var(--space-xs); }
 .rich-weather-chips .chip {
-  min-height: 22px;
+  /* Display-only status chips inside rich weather blocks — keep compact but
+     readable; not a primary action target. */
+  min-height: 24px;
   padding: 0 var(--space-xs);
   border: 0;
   border-radius: var(--radius-xs);

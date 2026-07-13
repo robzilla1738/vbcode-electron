@@ -18,13 +18,14 @@ The shell has these primary surfaces:
 2. **Main stage** — topbar (project/session title), transcript (user bubbles,
    assistant prose, tools, thinking, notices, sources), floating composer,
    plan/permission/queue overlays.
-3. **Workspace dock** (right strip on the chat surface) — full-label Session,
-   Changes, Git, Jobs, Files. Same `--bg` as the chat stage (no rail tint, no
-   decorative divider). Hidden below ~960px; Jobs also via `/jobs`.
+3. **Workspace dock** (right strip on the chat surface) — flat full-label list:
+   Session, Changes, Git, Jobs, Files. Same `--bg` as the chat stage (no rail
+   tint, no decorative section dividers or Local/Commit/Compare noise). Hidden
+   below ~960px; Jobs also via `/jobs`.
 4. **End panel** — one shared right-side section for Session, Changes, Git, and
    Jobs. The active view replaces the previous view in the same geometry and
-   the main stage reserves the panel lane. Files and Local remain Finder
-   actions rather than in-app panels.
+   the main stage reserves the panel lane. Files remains a Finder reveal rather
+   than an in-app panel.
 5. **Turn changes card** — after the agent edits files, a quiet card above the
    composer lists paths with +/− and Review (opens the inspector).
 
@@ -90,9 +91,11 @@ active chat or scroll position.
 
 - Lives **inside** the main column / content stage so it shares `var(--bg)` with
   chat (not a workspace-level sibling with a different fill).
-- Rows: Session (`Show session panel`), Changes, Git, Jobs
-  (`Toggle background jobs` — toggles), Files (Finder reveal).
-- No project “On …” header, no left border, no glass tint.
+- Rows only: Session (`Show session panel`), Changes, Git, Jobs
+  (`Toggle background jobs` — toggles), Files (Finder reveal). Git may show the
+  short branch name in the label; +/− meta appears on Changes when files exist.
+- No Local row (Files is the single Finder action), no Commit/Compare rows, no
+  section labels or decorative divider rules inside the dock nav.
 - Hidden at `max-width: 960px` (Jobs still via `/jobs`).
 - Session, Changes, Git, and Jobs are mutually exclusive views in one shared
   right-side activity lane. Opening one closes the previous active view instead

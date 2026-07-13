@@ -35,12 +35,13 @@ The shell has four primary layout regions:
 2. **Main stage:** project/session topbar, transcript, approvals, queue,
    changed-files card, and composer.
 3. **Workspace dock:** compact navigation that stays on the chat surface and
-   exposes Session, Changes, Git, Jobs, and Files.
+   exposes a flat list of **Session**, **Changes**, **Git**, **Jobs**, and
+   **Files** only — no Local/Files double Finder entry and no commit/compare
+   shortcuts (those live inside the Git end panel).
 4. **End panel:** one shared right-side lane for in-app Session, Changes, Git,
    and Jobs views. Opening one replaces the other in the same geometry; the main
    stage reserves the lane so user messages, output, and composer never sit
-   underneath it. Files and Local remain Finder actions rather than in-app
-   panels.
+   underneath it. **Files** is a Finder reveal action, not an in-app panel.
 
 The end panel is not a full-screen route change and does not replace the chat
 surface. It opens and closes with the standard panel motion, preserves the
