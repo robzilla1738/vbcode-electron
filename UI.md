@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff  
-> **Updated:** 2026-07-12 (unified end panels, chats rail, turn changes, production polish)
+> **Updated:** 2026-07-13 (edge-attached activity sidebar and project terminal)
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
@@ -19,12 +19,13 @@ The shell has these primary surfaces:
    assistant prose, tools, thinking, notices, sources), floating composer,
    plan/permission/queue overlays.
 3. **Workspace dock** (right strip on the chat surface) — flat full-label list:
-   Session, Changes, Git, Jobs, Files. Same `--bg` as the chat stage (no rail
-   tint, no decorative section dividers or Local/Commit/Compare noise). Hidden
-   below ~960px; Jobs also via `/jobs`.
-4. **End panel** — one shared right-side section for Session, Changes, Git, and
-   Jobs. The active view replaces the previous view in the same geometry and
-   the main stage reserves the panel lane. Files remains a Finder reveal rather
+   Session, Changes, Git, Terminal, Jobs, Files. Same `--bg` as the chat stage (no rail
+   tint, no decorative section dividers or Local/Commit/Compare noise). It
+   switches to compact icon navigation below ~960px; Jobs is also available via
+   `/jobs`.
+4. **Activity sidebar** — one full-height, edge-attached right pane for Session,
+   Changes, Git, Terminal, and Jobs. The active view replaces the previous view
+   in the same structural grid column. Files remains a Finder reveal rather
    than an in-app panel.
 5. **Turn changes card** — after the agent edits files, a quiet card above the
    composer lists paths with +/− and Review (opens the inspector).
@@ -34,10 +35,9 @@ Transcript output, approval cards, and the composer use the same centered
 edge-to-edge. Output may scroll behind the floating composer; continuous
 full-surface frost blurs that overlap. Approval cards stay opaque.
 
-The project rail and activity panels are responsive. The project rail and
-desktop-resizable end panel use pointer and keyboard handles where present;
-widths persist, and narrow layouts become edge drawers without changing the
-active chat or scroll position.
+The project rail and activity sidebar are responsive and desktop-resizable by
+pointer or keyboard. Widths persist, and narrow layouts become edge drawers
+without changing the active chat or scroll position.
 
 ## Visual language
 
@@ -46,8 +46,8 @@ active chat or scroll position.
 - All renderer styling is token-first in `src/renderer/styles.css`; colors must
   come from palette tokens or `color-mix()` derivations.
 - Use the shared sans font for interface copy, tool labels, metadata, notices,
-  and prose. Reserve mono for code, diffs, job output, fenced blocks, and rich
-  chart glyphs.
+  and prose. Reserve mono for code, terminal grids, diffs, job output, fenced
+  blocks, the ASCII wordmark, and rich chart glyphs.
 - Section headers (rail, popovers, slash menu “Commands”) use the same UI sans
   voice — no micro-caps / tracked mono treatment for chrome labels.
 - Use modest radii, hairline borders, and restrained shadows. Avoid gradients,
@@ -91,21 +91,25 @@ active chat or scroll position.
 
 - Lives **inside** the main column / content stage so it shares `var(--bg)` with
   chat (not a workspace-level sibling with a different fill).
-- Rows only: Session (`Show session panel`), Changes, Git, Jobs
+- Rows only: Session (`Show session panel`), Changes, Git, Terminal, Jobs
   (`Toggle background jobs` — toggles), Files (Finder reveal). Git may show the
   short branch name in the label; +/− meta appears on Changes when files exist.
 - No Local row (Files is the single Finder action), no Commit/Compare rows, no
   section labels or decorative divider rules inside the dock nav.
-- Hidden at `max-width: 960px` (Jobs still via `/jobs`).
-- Session, Changes, Git, and Jobs are mutually exclusive views in one shared
+- Switches to icon-only navigation at `max-width: 960px` (Jobs still via
+  `/jobs`).
+- Session, Changes, Git, Terminal, and Jobs are mutually exclusive views in one shared
   right-side activity lane. Opening one closes the previous active view instead
   of replacing the whole workspace or jumping the conversation.
-- The main stage adds the activity rail width to its right inset while open.
-  User bubbles, output, approval cards, turn-changes, and the composer remain
-  fully visible beside it.
-- The activity header, width, shadow, close behavior, Escape handling, and open
-  motion are shared across all four views. Do not create a bespoke drawer for a
-  new dock item.
+- The activity sidebar is a full-height grid sibling of the topbar/chat stage,
+  separated by one quiet hairline. It is never an inset floating card and never
+  overlays desktop chat content.
+- A persistent top switcher keeps Session, Changes, Git, Terminal, and Jobs
+  visible whenever the sidebar is open. Switching views replaces only the
+  sidebar body; it does not close the lane or remount chat.
+- The activity header, width, divider, close behavior, Escape handling, resize
+  handle, and open motion are shared across all five views. Do not create a
+  bespoke drawer for a new dock item.
 
 ### Transcript
 
@@ -133,6 +137,9 @@ snippet. External links go through `ExternalLink` / host bridge.
 - Floating frosted composer; continuous full-surface frost.
 - Soft bottom veil on non-empty chat; empty home has no veil.
 - Queue: one quiet card above the composer; steer/remove on row hover.
+- Active work is communicated by the composer status and project-row spinner;
+  do not render a redundant floating “Running” card. Density-change
+  acknowledgements are silent, and warning output stays quiet/collapsible.
 - Finder drag/drop: native path first, then `file://` / plain-text fallbacks.
 - Slash, mention, mode, and catalog menus: floating, keyboard-contained.
 - Empty home has no automatic prompt suggestions.
@@ -143,15 +150,26 @@ snippet. External links go through `ExternalLink` / host bridge.
 - Permission: human title, preview, once/session/project/deny (+ optional deny reason).
 - Plan: markdown, sources, assumptions, ungrounded warnings; Enter / Esc / ⌘Y.
 
-### Session, Changes, Git, and Jobs panels
+### Session, Changes, Git, Terminal, and Jobs panels
 
-- End panels are closed by default. Session opens from dock Session/Changes,
+- The wide Environment dock is a compact hairline navigation surface on
+  `--bg`, without a rail tint or floating shadow. At the compact breakpoint it
+  becomes a small enclosed icon strip rather than disappearing.
+- Activity views are closed by default. Session opens from dock Session/Changes,
   turn-changes Review, panel-strip chips, or ⇧⌘I. Git opens from the dock or
   Git shortcut; Jobs opens from the dock or `/jobs`. Sending a message must not
-  reopen an end panel.
-- Opening Session, Changes, Git, or Jobs closes the previous end-panel view in
-  place. Backdrop dismiss, Escape, the close control, or the active dock toggle
-  returns to the unchanged chat surface.
+  reopen the activity sidebar.
+- Opening Session, Changes, Git, Terminal, or Jobs closes the previous view in
+  place. Escape, the close control, or the active dock toggle returns to the
+  unchanged chat surface; a dismiss scrim is added only in compact drawer mode.
+- Terminal view close/switch detaches only xterm rendering. The project PTY
+  continues in the main process, keeps bounded replay output, and reconnects
+  when Terminal is selected again; app shutdown remains the lifecycle boundary.
+- All activity tabs, headers, labels, and supporting paths use the shared app
+  sans stack and tokenized type scale. The xterm grid intentionally uses
+  `--font-mono` at 12.5px with neutral letter spacing and a 1.35 line height so
+  terminal cells and the thin bar cursor remain correct. Hierarchy comes from
+  weight, color, and spacing rather than inconsistent font sizes.
 - Git’s branches/changes/history/remotes/pull-request content stays inside the
   activity rail. It must not replace the project rail or main chat workspace.
 - Changed files: Diff/File modes, line gutters, Reveal in Finder.
@@ -182,9 +200,11 @@ snippet. External links go through `ExternalLink` / host bridge.
 | Source/article cards | `src/renderer/transcript/SourceList.tsx` |
 | Permission / plan / queue | `src/renderer/panels/LivePanels.tsx` |
 | Jobs | `src/renderer/panels/JobsView.tsx` |
-| Session / Changes end panel | `src/renderer/panels/Inspector.tsx` |
-| Git end panel | `src/renderer/git/GitPanel.tsx` |
-| Jobs end panel | `src/renderer/panels/JobsView.tsx` |
+| Shared activity sidebar | `src/renderer/layout/ActivitySidebar.tsx` |
+| Session / Changes views | `src/renderer/panels/Inspector.tsx` |
+| Git view | `src/renderer/git/GitPanel.tsx` |
+| Jobs view | `src/renderer/panels/JobsView.tsx` |
+| Terminal renderer + PTY owner | `src/renderer/panels/TerminalPanel.tsx`, `src/main/terminal-manager.ts` |
 | Boot / fatal recovery | `src/renderer/layout/WelcomeGate.tsx` |
 | Catalogs | `src/renderer/pickers/CatalogModal.tsx` |
 | Settings + instructions mount | `src/renderer/settings/SettingsPanel.tsx` |

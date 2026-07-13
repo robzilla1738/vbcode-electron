@@ -14,6 +14,12 @@ export function isTranscriptDensity(v: string): v is TranscriptDensity {
   return (DENSITY_LEVELS as readonly string[]).includes(v);
 }
 
+/** Engine acknowledgement for /details. The density control already reflects
+ * this state, so these messages are redundant transcript noise. */
+export function isDensityChangeNotice(text: string): boolean {
+  return /^details:\s*(quiet|normal|verbose)\.?$/i.test(text.trim());
+}
+
 /** Cycle quiet → normal → verbose → quiet (Ctrl+D / /details with no arg). */
 export function nextDensity(cur: TranscriptDensity): TranscriptDensity {
   const i = DENSITY_LEVELS.indexOf(cur);
@@ -30,6 +36,11 @@ export function densityLabel(d: TranscriptDensity): string {
     case "verbose":
       return "verbose (diffs, errors, thinking open)";
   }
+}
+
+/** One-word density name for status chrome where the full menu label is too long. */
+export function densityShort(d: TranscriptDensity): string {
+  return d;
 }
 
 /**

@@ -1,25 +1,25 @@
-import { app, BrowserWindow, clipboard, crashReporter, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell } from "electron";
-import { join, resolve, relative, isAbsolute } from "node:path";
-import { writeFile, mkdir, readFile, rm, open as fsOpen } from "node:fs/promises";
-import { existsSync, statSync, readdirSync, realpathSync } from "node:fs";
-import { randomUUID } from "node:crypto";
-import { homedir, tmpdir } from "node:os";
-import { chatsCwdFromHome } from "../shared/project-index";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { open as fsOpen, mkdir, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { app, BrowserWindow, clipboard, crashReporter, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell } from "electron";
 import liquidGlass from "electron-liquid-glass";
+import { readTextFileCapped } from "../shared/capped-read";
 import type { EngineCommand } from "../shared/commands";
-import { decodeInbound, type HostInbound, type RpcMethod } from "../shared/protocol";
-import { EngineBridge } from "./engine-bridge";
-import { listProjectFiles, rankPaths } from "../shared/file-fuzzy";
+import { isAllowedCwd, projectCwdAllowlist } from "../shared/cwd-allowlist";
 import { composeInEditor } from "../shared/editor-compose";
-import { assertTrustedIpc, assertTrustedSender, setMainWindow } from "./ipc-security";
+import { listProjectFiles, rankPaths } from "../shared/file-fuzzy";
+import { resolvePathInsideRoot } from "../shared/path-safe";
+import { chatsCwdFromHome } from "../shared/project-index";
+import { decodeInbound, type HostInbound, type RpcMethod } from "../shared/protocol";
 import { registerConfigIpc } from "./config-ipc";
+import { EngineBridge } from "./engine-bridge";
 import { registerGitIpc } from "./git-ipc";
 import { enrichedEnv } from "./host-resolver";
-import { resolvePathInsideRoot } from "../shared/path-safe";
-import { readTextFileCapped } from "../shared/capped-read";
-import { isAllowedCwd, projectCwdAllowlist } from "../shared/cwd-allowlist";
-import { getMainWindow } from "./ipc-security";
+import { assertTrustedIpc, assertTrustedSender, getMainWindow, setMainWindow } from "./ipc-security";
+import { TerminalManager } from "./terminal-manager";
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new EngineBridge();
@@ -304,6 +304,8 @@ function sendToRenderer(channel: string, ...args: unknown[]): void {
   mainWindow?.webContents.send(channel, ...args);
 }
 
+const terminalManager = new TerminalManager((event) => sendToRenderer("terminal:event", event));
+
 function wireBridge(): void {
   bridge.onEvent = (event) => sendToRenderer("engine:event", event);
   bridge.onFatal = (message) => sendToRenderer("engine:fatal", message);
@@ -426,7 +428,8 @@ function registerIpc(): void {
     const abs = resolve(path);
     const home = resolve(homedir());
     const tmp = resolve(tmpdir());
-    const under = (root: string) => abs === root || abs.startsWith(root + "/") || abs.startsWith(root + "\\");
+    const under = (root: string) =>
+      abs === root || abs.startsWith(`${root}/`) || abs.startsWith(`${root}\\`);
     if (!under(home) && !under(tmp)) {
       throw new Error("Reveal is limited to paths under your home or temp directory");
     }
@@ -535,6 +538,52 @@ function registerIpc(): void {
       version: app.getVersion(),
       lastLaunch: bridge.lastLaunchDescription || undefined,
     };
+  });
+
+  ipcMain.handle("terminal:open", (event, request) => {
+    assertTrustedIpc(event);
+    if (
+      !request ||
+      typeof request !== "object" ||
+      typeof request.cwd !== "string" ||
+      !Number.isFinite(request.cols) ||
+      !Number.isFinite(request.rows)
+    ) {
+      return { ok: false as const, error: "Invalid terminal request" };
+    }
+    return terminalManager.open({
+      cwd: request.cwd,
+      cols: request.cols,
+      rows: request.rows,
+    });
+  });
+
+  ipcMain.handle("terminal:write", (event, request) => {
+    assertTrustedIpc(event);
+    if (!request || typeof request !== "object" || typeof request.id !== "string" || typeof request.data !== "string") {
+      return { ok: false as const, error: "Invalid terminal input" };
+    }
+    return terminalManager.write(request.id, request.data);
+  });
+
+  ipcMain.handle("terminal:resize", (event, request) => {
+    assertTrustedIpc(event);
+    if (
+      !request ||
+      typeof request !== "object" ||
+      typeof request.id !== "string" ||
+      !Number.isFinite(request.cols) ||
+      !Number.isFinite(request.rows)
+    ) {
+      return { ok: false as const, error: "Invalid terminal size" };
+    }
+    return terminalManager.resize(request.id, request.cols, request.rows);
+  });
+
+  ipcMain.handle("terminal:close", (event, id: string) => {
+    assertTrustedIpc(event);
+    if (typeof id !== "string") return { ok: false as const, error: "Invalid terminal session" };
+    return terminalManager.close(id);
   });
 
   ipcMain.handle("app:getPath", (event, name: "home" | "userData") => {
@@ -690,6 +739,7 @@ app.on("before-quit", async (e) => {
   // or app.exit firing a second before-quit after cleanup completes).
   if (quitting) return;
   quitting = true;
+  terminalManager.dispose();
 
   // Always try to reap when we still own a child (isRunning tracks exit codes,
   // not proc.killed — soft-kill alone must not skip cleanup).
@@ -732,6 +782,7 @@ app.on("window-all-closed", () => {
   // an orphaned engine host with no UI sink burns CPU/API. Stop the host; the
   // next activate/createWindow path bootstraps a fresh session.
   if (process.platform === "darwin") {
+    terminalManager.dispose();
     void bridge.stop().catch(() => undefined);
     return;
   }

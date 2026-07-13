@@ -856,6 +856,19 @@ const mock = {
   }),
   ghPrCreate: async () => ({ ok: true as const, url: "https://github.com/robzilla1738/vbcode-electron/pull/43", message: "PR created" }),
   getShellInfo: async () => ({ version: "0.1.0-preview", lastLaunch: "mock host" }),
+  terminalOpen: async ({ cwd }: { cwd: string; cols: number; rows: number }) => ({
+    ok: true as const,
+    id: "preview-terminal",
+    cwd,
+    shell: "/bin/zsh",
+    reused: false,
+    replay: "",
+    sequence: 0,
+  }),
+  terminalWrite: async () => ({ ok: true as const }),
+  terminalResize: async () => ({ ok: true as const }),
+  terminalClose: async () => ({ ok: true as const }),
+  onTerminalEvent: () => () => undefined,
 };
 
 // Structural contract: mock must implement every preload VibeApi method name.
@@ -870,7 +883,8 @@ const REQUIRED_VIBE_KEYS = [
   "readConfig", "writeConfig", "projectConfigPath", "readMemory", "writeMemory",
   "gitStatus", "gitCreateBranch", "gitCheckout", "gitDeleteBranch", "gitStage",
   "gitUnstage", "gitCommit", "gitMerge", "gitPush", "gitPull", "gitFetch",
-  "ghCheckAvailable", "ghPrList", "ghPrCreate", "getShellInfo",
+  "ghCheckAvailable", "ghPrList", "ghPrCreate", "getShellInfo", "terminalOpen",
+  "terminalWrite", "terminalResize", "terminalClose", "onTerminalEvent",
 ] as const;
 for (const key of REQUIRED_VIBE_KEYS) {
   if (!(key in mock)) {

@@ -1,7 +1,7 @@
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { type ElectronApplication, _electron as electron, expect, type Page, test } from "@playwright/test";
 
 const root = resolve(import.meta.dirname, "../..");
 const fixtureRoot = join(root, "test", "fixtures", "vibe-codr");
@@ -184,7 +184,7 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await page.getByRole("button", { name: "Toggle background jobs" }).click();
   await expect(page.getByText("npm run dev")).toBeVisible();
   await expect(page.getByRole("link", { name: "http://localhost:4310" })).toBeVisible();
-  await page.getByRole("button", { name: "Show session panel" }).click();
+  await page.getByRole("button", { name: "Session", exact: true }).click();
   await expect(page.locator(".sidebar-line").filter({ hasText: "Before fixture change" })).toBeVisible();
   await expect(page.getByText(/Run fixture child/)).toBeVisible();
   const subagents = page.locator("#session-panel .sidebar-section").filter({ hasText: "Subagents" }).last();
@@ -192,7 +192,7 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await expect(subagents.locator("button")).toHaveCount(0);
   await expect(page.locator("#session-panel .inspector-stream")).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("complementary", { name: "Session details" })).toBeHidden();
+  await expect(page.getByRole("region", { name: "Session", exact: true })).toBeHidden();
   // Opening Session closes Jobs; leave Jobs closed so the transcript is interactive.
   await expect(page.getByRole("button", { name: "Dismiss jobs" })).toHaveCount(0);
   await page.locator("details.thinking-group > summary").first().click();
@@ -254,27 +254,93 @@ test("recovers from a fatal host by starting a fresh session", async () => {
   await expect(page.getByText("Echo: recovered")).toBeVisible();
 });
 
-test("workspace dock keeps Session/Changes/Git/Jobs mutually exclusive", async () => {
-  // Open Jobs via dock, then Session — Jobs must not remain stacked.
-  const jobsToggle = page.getByRole("button", { name: /jobs|background jobs/i }).first();
-  if (await jobsToggle.isVisible().catch(() => false)) {
-    await jobsToggle.click();
-    await expect(page.getByText(/Long-running commands|background/i).first()).toBeVisible({
-      timeout: 5_000,
-    });
+test("workspace dock keeps Session/Changes/Git/Terminal/Jobs mutually exclusive", async () => {
+  const jobsToggle = page.getByRole("button", { name: "Toggle background jobs" });
+  await jobsToggle.click();
+  const sidebar = page.getByRole("complementary", { name: "Workspace tools" });
+  await expect(sidebar).toBeVisible();
+  await expect(page.getByRole("region", { name: "Background jobs" })).toBeVisible();
+  for (const tab of ["Session", "Changes", "Git", "Terminal", "Jobs"]) {
+    await expect(sidebar.getByRole("button", { name: tab, exact: true })).toBeVisible();
   }
-  const sessionToggle = page.getByRole("button", { name: /session|review/i }).first();
-  if (await sessionToggle.isVisible().catch(() => false)) {
-    await sessionToggle.click();
-  }
-  // Git toggle should replace the prior end-panel view
-  const gitToggle = page.getByRole("button", { name: /^git$/i }).first();
-  if (await gitToggle.isVisible().catch(() => false)) {
-    await gitToggle.click();
-    await expect(page.getByRole("heading", { name: /git/i }).first()).toBeVisible({
-      timeout: 5_000,
-    });
-  }
-  // Composer remains usable (chat workspace not replaced)
+
+  await sidebar.getByRole("button", { name: "Session", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Session", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Background jobs" })).toHaveCount(0);
+
+  await sidebar.getByRole("button", { name: "Git", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Git", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Session", exact: true })).toHaveCount(0);
+
+  await sidebar.getByRole("button", { name: "Terminal", exact: true }).click();
+  await expect(page.locator(".terminal-activity-rail")).toBeVisible();
+  await sidebar.getByRole("button", { name: "Session", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Session", exact: true })).toBeVisible();
+  await expect(page.locator(".terminal-activity-rail")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
   await expect(page.getByRole("textbox", { name: "Task message" })).toBeVisible();
+});
+
+test("opens an interactive project terminal in the shared end-panel lane", async () => {
+  const inheritedPanel = page.locator(".activity-rail");
+  if (await inheritedPanel.count()) {
+    await inheritedPanel.getByRole("button", { name: /^Close/ }).click();
+  }
+  const terminalToggle = page.getByRole("button", { name: "Open project terminal" });
+  await expect(terminalToggle).toBeVisible();
+  await terminalToggle.click();
+
+  const terminalPanel = page.locator(".terminal-activity-rail");
+  await expect(terminalPanel).toBeVisible();
+  const geometry = await page.locator(".chat-workspace > .content-inset").evaluate((content) => {
+    const pane = content.querySelector<HTMLElement>(".activity-sidebar")!;
+    const chat = content.querySelector<HTMLElement>(".main-column")!;
+    const contentBox = content.getBoundingClientRect();
+    const paneBox = pane.getBoundingClientRect();
+    const chatBox = chat.getBoundingClientRect();
+    const style = getComputedStyle(pane);
+    return {
+      topGap: paneBox.top - contentBox.top,
+      rightGap: contentBox.right - paneBox.right,
+      bottomGap: contentBox.bottom - paneBox.bottom,
+      overlap: chatBox.right - paneBox.left,
+      position: style.position,
+      radius: style.borderRadius,
+      shadow: style.boxShadow,
+    };
+  });
+  expect(Math.abs(geometry.topGap)).toBeLessThanOrEqual(1);
+  expect(Math.abs(geometry.rightGap)).toBeLessThanOrEqual(5);
+  expect(Math.abs(geometry.bottomGap)).toBeLessThanOrEqual(1);
+  expect(geometry.overlap).toBeLessThanOrEqual(1);
+  expect(geometry).toMatchObject({
+    position: "relative",
+    radius: "0px",
+    shadow: "none",
+  });
+  const surface = page.locator(".terminal-surface");
+  await expect(surface).toBeVisible();
+  const sidebar = page.getByRole("complementary", { name: "Workspace tools" });
+  const widthBefore = (await sidebar.boundingBox())!.width;
+  const resizeHandle = page.getByRole("separator", { name: "Resize activity sidebar" });
+  await resizeHandle.focus();
+  await resizeHandle.press("ArrowLeft");
+  await expect.poll(async () => (await sidebar.boundingBox())!.width).toBeGreaterThan(widthBefore);
+
+  await surface.click();
+  await page.keyboard.type("sleep 0.3; printf terminal-persisted");
+  await page.keyboard.press("Enter");
+
+  // Switching views detaches the renderer terminal, but the PTY keeps running.
+  await sidebar.getByRole("button", { name: "Session", exact: true }).click();
+  await page.waitForTimeout(500);
+  await sidebar.getByRole("button", { name: "Terminal", exact: true }).click();
+  await expect(page.locator(".xterm-rows")).toContainText("terminal-persisted", { timeout: 5_000 });
+
+  await page.getByRole("button", { name: "Close terminal" }).click();
+  await expect(terminalPanel).toBeHidden();
+  await expect(terminalToggle).toBeVisible();
+  await terminalToggle.click();
+  await expect(page.locator(".xterm-rows")).toContainText("terminal-persisted", { timeout: 5_000 });
 });

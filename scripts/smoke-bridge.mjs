@@ -90,11 +90,15 @@ rl.on("line", (line) => {
       finish(1, `project index failed: ${msg.error || "invalid response"}`);
       return;
     }
-    const active = msg.value.find((project) => project?.cwd === cwd);
-    if (!active || !Array.isArray(active.sessions)) {
-      finish(1, `project index missing active cwd: ${cwd}`);
+    const invalidProject = msg.value.find(
+      (project) => typeof project?.cwd !== "string" || !Array.isArray(project.sessions),
+    );
+    if (invalidProject) {
+      finish(1, "project index contained an invalid project entry");
       return;
     }
+    // The active cwd may be intentionally archived, so listProjects can
+    // correctly omit it. This smoke validates the RPC contract, not user state.
     console.log("project index ok projects=", msg.value.length);
     projectsOk = true;
     finishIfReady();

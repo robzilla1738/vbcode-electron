@@ -1,4 +1,4 @@
-# AGENTS.md — vbcode-electron
+# CLAUDE.md — vbcode-electron
 
 Notes for coding agents working in this repo: [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 

@@ -1,8 +1,8 @@
 /** Compact environment card for the chat surface. Keep workspace tools grouped
  * here so the project rail can stay focused on navigation and sessions.
  *
- * Contract (UI.md / design-system): Session · Changes · Git · Jobs · Files
- * on the chat surface — no topbar duplicates, no Local/Files double Finder
+ * Contract (UI.md / design-system): Session · Changes · Git · Terminal · Jobs ·
+ * Files on the chat surface — no topbar duplicates, no Local/Files double Finder
  * entry, no commit/compare noise that belongs inside the Git end panel.
  */
 
@@ -13,6 +13,7 @@ import {
   IconFile,
   IconFolderOpen,
   IconGitBranch,
+  IconJobs,
   IconPanel,
   IconTerminal,
 } from "../icons";
@@ -21,6 +22,7 @@ export type WorkspaceDockTarget =
   | "session"
   | "changes"
   | "git"
+  | "terminal"
   | "jobs"
   | "files";
 
@@ -32,6 +34,7 @@ export function WorkspaceDock({
   sessionOpen,
   changesOpen,
   gitOpen,
+  terminalOpen,
   jobsOpen,
   onOpen,
 }: {
@@ -43,6 +46,7 @@ export function WorkspaceDock({
   /** True when Session end panel is open focused on file review. */
   changesOpen?: boolean;
   gitOpen: boolean;
+  terminalOpen: boolean;
   jobsOpen: boolean;
   onOpen: (target: WorkspaceDockTarget) => void;
 }) {
@@ -96,12 +100,21 @@ export function WorkspaceDock({
           icon={<IconGitBranch size={15} />}
         />
         <DockRow
+          label="Terminal"
+          ariaLabel="Open project terminal"
+          title="Open an interactive shell in this project"
+          active={terminalOpen}
+          disabled={!cwd}
+          onClick={() => onOpen("terminal")}
+          icon={<IconTerminal size={15} />}
+        />
+        <DockRow
           label="Jobs"
           ariaLabel="Toggle background jobs"
           title="Background jobs and local servers"
           active={jobsOpen}
           onClick={() => onOpen("jobs")}
-          icon={<IconTerminal size={15} />}
+          icon={<IconJobs size={15} />}
         />
         <DockRow
           label="Files"

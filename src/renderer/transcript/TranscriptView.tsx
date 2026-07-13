@@ -1,20 +1,20 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import type { Block, Turn } from "../../shared/reducer";
-import { collapsedHint, toolDurationLabel } from "../../shared/reducer";
+import { memo, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   showThinkingRows,
+  type TranscriptDensity,
   thinkingCollapsed,
   toolCollapsed,
-  type TranscriptDensity,
 } from "../../shared/density";
+import type { Block, Turn } from "../../shared/reducer";
+import { collapsedHint, toolDurationLabel } from "../../shared/reducer";
 import { isScrollAnchored } from "../../shared/scroll-anchor";
 import { parseSearchResults } from "../../shared/sources";
-import { SourceList } from "./SourceList";
-import { MarkdownView } from "./MarkdownView";
-import { isSubagentTool, stripToolGlyph, ToolGlyph } from "../tool-glyph";
-import { StatusDot } from "../primitives";
-import { IconChevron, IconRename } from "../icons";
 import { CopyButton } from "../CopyButton";
+import { IconChevron, IconRename } from "../icons";
+import { StatusDot } from "../primitives";
+import { isSubagentTool, stripToolGlyph, ToolGlyph } from "../tool-glyph";
+import { MarkdownView } from "./MarkdownView";
+import { SourceList } from "./SourceList";
 
 /** JS smooth-scroll must honor the OS reduced-motion setting (I19/P04); CSS
  *  `scroll-behavior: smooth` is already disabled by the media query, but
@@ -46,6 +46,12 @@ function memoryNotice(text: string): { count: string; details: string[] } | null
       .map((detail) => detail.replace(/\s+/g, " ").trim())
       .filter(Boolean),
   };
+}
+
+function multilineNotice(text: string): { summary: string; detail: string } | null {
+  const [summary = "", ...rest] = text.split("\n");
+  const detail = rest.join("\n").trim();
+  return summary.trim() && detail ? { summary: summary.trim(), detail } : null;
 }
 
 function DiffBody({ lines }: { lines: string[] }) {
@@ -168,7 +174,7 @@ const BlockView = memo(function BlockView({
             </MarkdownView>
           </div>
           {!block.streaming && block.text ? (
-            <div className="assistant-actions" role="toolbar" aria-label="Assistant message actions">
+            <div className="assistant-actions hover-reveal" role="toolbar" aria-label="Assistant message actions">
               <CopyButton text={block.text} label="Copy answer" />
               <time className="message-time" dateTime={new Date(block.timestamp).toISOString()}>
                 {formatMessageTime(block.timestamp)}
@@ -297,6 +303,20 @@ const BlockView = memo(function BlockView({
       {
         const memory = memoryNotice(block.text);
         if (!memory) {
+          const warning = block.level === "warn" ? multilineNotice(block.text) : null;
+          if (warning) {
+            return (
+              <details className="notice warn warning-notice" role="status">
+                <summary className="warning-notice-toggle">
+                  <span className="warning-notice-chevron" aria-hidden="true">
+                    <IconChevron size={12} />
+                  </span>
+                  <span>{warning.summary}</span>
+                </summary>
+                <div className="warning-notice-detail">{warning.detail}</div>
+              </details>
+            );
+          }
           return (
             <div className={`notice ${block.level}`} role={block.level === "error" ? "alert" : "status"}>
               {block.text}
@@ -477,7 +497,7 @@ export function TranscriptView({
                             <span className="folded-hint">{turn.items.length} hidden</span>
                           ) : null}
                         </div>
-                        <div className="assistant-actions user-message-actions" role="toolbar" aria-label="User message actions">
+                        <div className="assistant-actions user-message-actions hover-reveal" role="toolbar" aria-label="User message actions">
                           <CopyButton text={turn.user.text} label="Copy message" />
                           <button
                             type="button"

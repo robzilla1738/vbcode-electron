@@ -52,6 +52,10 @@
   --text-subtle: color-mix(in oklab, var(--muted) 88%, var(--assistant) 12%);
   --focus: var(--ring);
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px color-mix(in oklab, var(--focus) 62%, transparent);
+  --focus-soft: 0 0 0 3px color-mix(in oklab, var(--focus) 12%, transparent);
+  --scrim-modal: color-mix(in oklab, var(--bg) 55%, transparent);
+  --scrim-drawer: color-mix(in oklab, var(--shadow-ink) 40%, transparent);
+  --nav-active-bg: color-mix(in oklab, var(--surface) 64%, transparent);
   --edge-lit: #ffffff;
   --edge-highlight: inset 0 1px 0 color-mix(in oklab, var(--edge-lit) 5%, transparent);
   --elev-rest: 0 0 0 1px color-mix(in oklab, var(--border) 6%, transparent), var(--edge-highlight);
@@ -64,6 +68,12 @@
   --blur-surface: 16px;
   --blur-overlay: 18px;
   --blur-saturation: 1.06;
+  /* Glass tiers: shell stays opaque by component contract, floating chrome
+     gets surface frost, and true overlays get the strongest frost. */
+  --glass-float-bg: color-mix(in oklab, var(--elevated) 92%, transparent);
+  --glass-overlay-bg: color-mix(in oklab, var(--elevated) 88%, transparent);
+  --glass-float-filter: blur(var(--blur-surface)) saturate(var(--blur-saturation));
+  --glass-overlay-filter: blur(var(--blur-overlay));
   --card-bg: color-mix(in oklab, var(--surface-subtle) 58%, var(--bg));
   --drawer-bg: var(--elevated);
   --bubble-user-bg: color-mix(in oklab, var(--elevated) 98%, var(--panel));
@@ -90,6 +100,8 @@
   --weight-ui: 450;
   --weight-medium: 500;
   --weight-semibold: 600;
+  --tracking-ui: -0.01em;
+  --tracking-tight: -0.02em;
   --leading-tight: 1.2;
   --leading-ui: 1.4;
   --leading-prose: 1.65;
@@ -116,8 +128,13 @@
   --rail-title-h: 48px;
   --project-rail-w: clamp(260px, 24vw, 320px);
   --rail-icon-size: 16px;
-  --workspace-dock-w: 288px;
-  --activity-rail-w: clamp(280px, 26vw, 340px);
+  /* Dock and end panels share one reserved lane so switching views never
+     reflows the conversation column. */
+  --workspace-lane-w: clamp(280px, 26vw, 340px);
+  /* The launcher is a compact navigation cluster, not an unopened panel. Its
+     own measure keeps labels visually attached to the upper-right edge. */
+  --workspace-dock-w: clamp(208px, 18vw, 232px);
+  --activity-rail-w: var(--workspace-lane-w);
   --content-max: 100%;
   /* Conversation column — transcript + panels + jobs. Composer uses --composer-max. */
   --column-max: 52rem;
@@ -128,12 +145,19 @@
   /* The transcript can breathe wider than the composer. Keep prose readable,
      but let sources, tables, charts, and code use the full output measure. */
   --reading-max: 130ch;
+  --prose-max: 68ch;
   --composer-clearance: 184px;
   /* Composer is intentionally tighter/taller than the transcript column */
   --composer-max: 40rem;
   --composer-input-min: 44px;
   --composer-input-max: 320px;
   --composer-chip-h: 26px;
+  --composer-surface-radius: calc(var(--radius-xl) + var(--space-xs));
+  --composer-surface-bg: color-mix(in oklab, var(--elevated) 96%, transparent);
+  --composer-surface-border: color-mix(in oklab, var(--border) 40%, transparent);
+  --opacity-disabled: 0.45;
+  --popover-header-pad: var(--space-xs) var(--space-md);
+  --popover-footer-pad: var(--space-xs) var(--space-md);
   --hover-action-size: 26px;
   --ease-enter: cubic-bezier(0, 0, 0.2, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
@@ -155,12 +179,9 @@
   --z-popover: 60;
   --z-menu: 80;
   --z-modal: 100;
-  --ease-out: cubic-bezier(0.19, 1, 0.22, 1);
-  --ease-default: var(--ease-standard);
   --shadow-float: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 30%, transparent), 0 8px 24px color-mix(in oklab, var(--shadow-ink) 36%, transparent);
   --shadow-menu: 0 1px 3px color-mix(in oklab, var(--shadow-ink) 28%, transparent), 0 12px 32px color-mix(in oklab, var(--shadow-ink) 34%, transparent);
   --shadow-modal: 0 4px 14px color-mix(in oklab, var(--shadow-ink) 34%, transparent), 0 28px 68px color-mix(in oklab, var(--shadow-ink) 46%, transparent);
-  --shadow-dock: 0 2px 4px color-mix(in oklab, var(--shadow-ink) 22%, transparent), 0 16px 36px color-mix(in oklab, var(--shadow-ink) 34%, transparent);
   --shadow-drawer: 16px 0 40px color-mix(in oklab, var(--shadow-ink) 34%, transparent);
   --shadow-drawer-end: -16px 0 40px color-mix(in oklab, var(--shadow-ink) 34%, transparent);
   --shadow-composer: 0 8px 28px color-mix(in oklab, var(--shadow-ink) 16%, transparent);
@@ -190,6 +211,8 @@ html[data-scheme="light"] {
   --blur-surface: 14px;
   --blur-overlay: 18px;
   --blur-saturation: 1.04;
+  --glass-float-bg: color-mix(in oklab, var(--elevated) 95%, transparent);
+  --glass-overlay-bg: color-mix(in oklab, var(--elevated) 92%, transparent);
   --card-bg: var(--elevated);
   --drawer-bg: var(--elevated);
   --bubble-user-bg: var(--elevated);
@@ -205,7 +228,6 @@ html[data-scheme="light"] {
   --shadow-float: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 6%, transparent), 0 10px 28px color-mix(in oklab, var(--shadow-ink) 10%, transparent);
   --shadow-menu: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 6%, transparent), 0 12px 32px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
   --shadow-modal: 0 4px 14px color-mix(in oklab, var(--shadow-ink) 10%, transparent), 0 24px 64px color-mix(in oklab, var(--shadow-ink) 16%, transparent);
-  --shadow-dock: 0 2px 4px color-mix(in oklab, var(--shadow-ink) 7%, transparent), 0 16px 36px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
   --shadow-drawer: 16px 0 40px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
   --shadow-drawer-end: -16px 0 40px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
   --shadow-composer: 0 2px 4px color-mix(in oklab, var(--shadow-ink) 5%, transparent), 0 10px 28px color-mix(in oklab, var(--shadow-ink) 9%, transparent);
@@ -243,7 +265,7 @@ body {
   font-size: var(--text-ui);
   font-weight: var(--weight-ui);
   line-height: var(--leading-ui);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -281,12 +303,12 @@ button {
 
 button:disabled, input:disabled, textarea:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  opacity: var(--opacity-disabled);
 }
 
-/* Press feedback for primary/chip actions only — tiny icon controls opt out
-   so dense toolbars don't twitch (I60). */
-button:active:not(:disabled):not(.icon-button):not(.composer-ghost):not(.copy-btn):not(.assistant-action):not(.keys-close):not(.catalog-close):not(.catalog-search-clear):not(.project-more):not(.session-more):not(.turn-fold):not(.queue-action) {
+/* Press feedback is opt-in by semantic action class. Dense icon/row controls
+   stay still; new custom actions can opt in with .pressable. */
+button:is(.button, .chip, .composer-chip, .composer-submit, .pressable):active:not(:disabled) {
   transform: translateY(var(--press-offset));
   transition-duration: var(--dur-press);
 }
@@ -295,6 +317,7 @@ button:active:not(:disabled):not(.icon-button):not(.composer-ghost):not(.copy-bt
 :focus-visible { outline: none; }
 
 button:focus-visible,
+[tabindex]:focus-visible,
 [role="button"]:focus-visible,
 [role="option"]:focus-visible,
 [role="menuitem"]:focus-visible,
@@ -408,8 +431,8 @@ pre { overflow-wrap: anywhere; }
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  padding: 12px 16px;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-base);
 }
 
 .skip-links:not(:focus-within) .skip-link {
@@ -430,7 +453,7 @@ pre { overflow-wrap: anywhere; }
   border-radius: var(--radius-sm);
   color: var(--bg);
   background: var(--primary);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   text-decoration: none;
 }
 
@@ -554,23 +577,17 @@ html.electron-transparent .topbar {
 .topbar-leading { flex: 1 1 auto; min-width: 0; gap: var(--space-sm); }
 
 .topbar-brand {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.topbar-brand {
   flex: 0 0 auto;
   color: color-mix(in oklab, var(--assistant) 88%, var(--muted));
   font-size: var(--text-ui);
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.02em;
   line-height: var(--leading-tight);
   white-space: nowrap;
-}
-
-.topbar-brand::after {
-  content: "";
-  display: inline-block;
-  width: 1px;
-  height: 14px;
-  margin-left: var(--space-sm);
-  vertical-align: -2px;
-  background: color-mix(in oklab, var(--border) 70%, transparent);
 }
 
 .topbar-title {
@@ -581,7 +598,7 @@ html.electron-transparent .topbar {
   font-size: var(--text-ui);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
 }
 
 .topbar-project, .topbar-session {
@@ -595,14 +612,14 @@ html.electron-transparent .topbar {
   max-width: 46%;
   color: var(--assistant);
   font-size: var(--text-ui);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
 }
 
 .topbar-separator {
   color: color-mix(in oklab, var(--muted) 42%, transparent);
   font-size: var(--text-caption);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
 }
 
 .topbar-session {
@@ -610,15 +627,15 @@ html.electron-transparent .topbar {
   min-width: 0;
   color: var(--muted);
   font-size: var(--text-caption);
-  font-weight: 450;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-ui);
+  letter-spacing: var(--tracking-ui);
 }
 
 .topbar-meta {
   display: none;
   flex: 0 1 auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-xs);
   min-width: 0;
   max-width: 42%;
 }
@@ -636,9 +653,9 @@ html.electron-transparent .topbar {
   color: var(--muted);
   background: color-mix(in oklab, var(--surface) 58%, transparent);
   font-size: var(--text-caption);
-  font-weight: 550;
+  font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -679,7 +696,7 @@ html.electron-transparent .topbar {
   display: inline-flex;
   min-width: 28px; min-height: 30px;
   align-items: center; justify-content: center;
-  gap: 5px;
+  gap: var(--space-2xs);
   padding: 0 var(--space-sm);
   border: 0;
   border-radius: var(--radius-sm);
@@ -719,12 +736,10 @@ html.electron-transparent .topbar {
   opacity: 0;
   pointer-events: none;
   transform: translateX(-8px);
+  /* Layout width changes are discrete; only visual properties animate. */
   transition:
-    width var(--dur-moderate) var(--ease-out),
-    flex-basis var(--dur-moderate) var(--ease-out),
     opacity var(--dur-fast) var(--ease-exit),
     transform var(--dur-moderate) var(--ease-exit),
-    visibility 0s linear var(--dur-moderate),
     background-color var(--dur-standard) var(--ease-standard);
 }
 
@@ -748,11 +763,8 @@ html[data-scheme="light"].electron-transparent .project-rail {
   pointer-events: auto;
   transform: translateX(0);
   transition:
-    width var(--dur-moderate) var(--ease-out),
-    flex-basis var(--dur-moderate) var(--ease-out),
     opacity var(--dur-standard) var(--ease-enter),
     transform var(--dur-moderate) var(--ease-enter),
-    visibility 0s linear,
     background-color var(--dur-standard) var(--ease-standard);
   flex-direction: column;
 }
@@ -778,9 +790,11 @@ html[data-scheme="light"].electron-transparent .project-rail {
   height: 48px;
   border-radius: var(--radius-pill);
   background: transparent;
+  transform: scaleY(1);
+  transform-origin: center;
   content: "";
   transition:
-    height var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard),
     background-color var(--dur-fast) var(--ease-standard),
     opacity var(--dur-fast) var(--ease-standard);
 }
@@ -788,7 +802,7 @@ html[data-scheme="light"].electron-transparent .project-rail {
 .sidebar-resize-handle:hover::after,
 .sidebar-resize-handle:focus-visible::after,
 .is-resizing-sidebar .sidebar-resize-handle::after {
-  height: 72px;
+  transform: scaleY(1.5);
   background: var(--code);
   opacity: 0.65;
 }
@@ -808,7 +822,7 @@ html[data-scheme="light"].electron-transparent .project-rail {
 }
 
 .is-resizing-sidebar .project-rail,
-.is-resizing-sidebar .activity-rail {
+.is-resizing-sidebar .activity-sidebar {
   transition: none !important;
 }
 
@@ -844,7 +858,7 @@ html[data-platform="darwin"] .rail-chrome {
   font-size: var(--text-title);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tight);
 }
 
 .rail-search-toggle {
@@ -852,51 +866,6 @@ html[data-platform="darwin"] .rail-chrome {
   min-width: 30px;
   padding: 0;
 }
-
-.rail-actions {
-  display: grid;
-  gap: var(--space-2xs);
-  padding: var(--space-xs) var(--space-base) var(--space-md);
-}
-
-.rail-primary-actions {
-  padding-top: var(--space-xs);
-  padding-bottom: var(--space-sm);
-}
-
-.rail-action {
-  display: grid;
-  grid-template-columns: var(--rail-icon-size) minmax(0, 1fr);
-  min-height: 34px;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: 0;
-  border-radius: var(--radius-md);
-  color: var(--muted);
-  font-size: var(--text-ui);
-  font-weight: var(--weight-medium);
-  line-height: var(--leading-ui);
-  text-align: left;
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform var(--dur-press);
-}
-
-.rail-action svg { color: var(--muted); }
-
-.rail-action:hover, .rail-action:focus-visible {
-  color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 44%, transparent);
-}
-
-.rail-action:hover svg, .rail-action:focus-visible svg { color: var(--assistant); }
-
-.rail-action:disabled,
-.rail-action:disabled:hover {
-  color: color-mix(in oklab, var(--muted) 55%, transparent);
-  background: transparent;
-  cursor: not-allowed;
-}
-
-.rail-action:disabled svg { color: inherit; }
 
 .rail-filter {
   display: none;
@@ -909,7 +878,7 @@ html[data-platform="darwin"] .rail-chrome {
   border-radius: var(--radius-sm);
   color: var(--text-subtle);
   background: color-mix(in oklab, var(--elevated) 78%, var(--rail));
-  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
 .rail-filter.is-open { display: flex; }
@@ -917,7 +886,7 @@ html[data-platform="darwin"] .rail-chrome {
 .rail-filter:focus-within {
   border-color: var(--border-active);
   background: var(--surface-subtle);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 12%, transparent);
+  box-shadow: var(--focus-soft);
 }
 
 .rail-filter input {
@@ -979,7 +948,7 @@ html[data-platform="darwin"] .rail-chrome {
   background: transparent;
   cursor: pointer;
   text-align: left;
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
 .rail-section-toggle:hover,
@@ -1011,7 +980,7 @@ html[data-platform="darwin"] .rail-chrome {
   color: var(--muted);
   background: transparent;
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
 .rail-section-add:hover,
@@ -1021,7 +990,7 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .rail-section-add:disabled {
-  opacity: 0.45;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
   background: transparent;
 }
@@ -1040,9 +1009,9 @@ html[data-platform="darwin"] .rail-chrome {
 .rail-inline-action {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-xs);
   min-height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--space-xs);
   border: 0;
   border-radius: var(--radius-pill);
   color: var(--muted);
@@ -1050,7 +1019,7 @@ html[data-platform="darwin"] .rail-chrome {
   font-size: var(--text-label);
   font-weight: var(--weight-medium);
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
 .rail-inline-action:hover,
@@ -1060,7 +1029,7 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .rail-inline-action:disabled {
-  opacity: 0.45;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
@@ -1090,15 +1059,25 @@ html[data-platform="darwin"] .rail-chrome {
 
 .project-heading-row {
   position: relative;
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.project-heading-row:hover,
+.project-heading-row:focus-within,
+.project-heading-row:has(.project-more[aria-expanded="true"]) {
+  background: color-mix(in oklab, var(--surface) 58%, transparent);
 }
 
 .project-heading {
   display: grid;
+  grid-column: 1 / -1;
+  grid-row: 1;
   width: 100%;
-  min-height: 30px;
+  min-height: 32px;
   grid-template-columns: var(--rail-icon-size) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-xs);
@@ -1106,19 +1085,15 @@ html[data-platform="darwin"] .rail-chrome {
   border-radius: var(--radius-md);
   color: color-mix(in oklab, var(--assistant) 86%, var(--muted));
   text-align: left;
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform var(--dur-press);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), transform var(--dur-press);
 }
 
 .project-heading:hover {
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 36%, transparent);
+  background: transparent;
 }
 
 .project-heading.active { color: var(--assistant); background: transparent; }
-
-.project-heading.active {
-  background: color-mix(in oklab, var(--surface) 28%, transparent);
-}
 
 .project-folder {
   display: inline-flex;
@@ -1141,7 +1116,7 @@ html[data-platform="darwin"] .rail-chrome {
 .icon-chevron {
   color: var(--text-subtle);
   opacity: 0.65;
-  transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+  transition: transform var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard);
 }
 
 .icon-chevron-left { transform: rotate(180deg); }
@@ -1149,40 +1124,59 @@ html[data-platform="darwin"] .rail-chrome {
 .icon-chevron.is-open { transform: rotate(90deg); }
 
 .project-heading-row:hover .project-heading-meta,
-.project-heading-row:focus-within .project-heading-meta { opacity: 0; }
+.project-heading-row:focus-within .project-heading-meta,
+.project-heading-row:has(.project-more[aria-expanded="true"]) .project-heading-meta { opacity: 0; }
 
-.project-more {
-  position: absolute;
+.project-row-actions {
   z-index: var(--z-raised);
-  top: 50%;
-  right: 4px;
-  display: inline-flex;
-  width: 32px; height: 32px;
-  align-items: center; justify-content: center;
-  border-radius: var(--radius-xs);
-  color: var(--text-subtle);
+  display: flex;
+  grid-column: 2;
+  grid-row: 1;
+  align-items: center;
+  align-self: center;
+  gap: 0;
+  margin-right: var(--space-2xs);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-50%);
-  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard);
+  transition: opacity var(--dur-fast) var(--ease-standard);
 }
 
-.project-heading-row:hover .project-more,
-.project-heading-row:focus-within .project-more {
+.project-more,
+.project-new-chat {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  color: var(--text-subtle);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.project-more svg { transform: rotate(90deg); }
+
+.project-heading-row:hover .project-row-actions,
+.project-heading-row:focus-within .project-row-actions,
+.project-heading-row:has(.project-more[aria-expanded="true"]) .project-row-actions {
   opacity: 1;
   pointer-events: auto;
 }
 
-.project-more:hover {
+.project-more:hover,
+.project-new-chat:hover {
   color: var(--assistant);
   background: color-mix(in oklab, var(--surface) 66%, transparent);
 }
 
-.project-more:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
-  outline: var(--focus-ring);
-  outline-offset: 1px;
+.project-more:focus-visible,
+.project-new-chat:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.project-new-chat:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
 }
 
 .project-rename { display: flex; min-width: 0; padding: 2px 4px; }
@@ -1197,7 +1191,7 @@ html[data-platform="darwin"] .rail-chrome {
   background: var(--elevated);
   font-size: var(--text-ui);
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 10%, transparent);
+  box-shadow: var(--focus-soft);
 }
 
 .project-name, .session-title {
@@ -1226,7 +1220,7 @@ html[data-platform="darwin"] .rail-chrome {
 .session-row {
   display: flex;
   width: 100%; min-width: 0;
-  min-height: 34px;
+  min-height: 32px;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
@@ -1234,12 +1228,12 @@ html[data-platform="darwin"] .rail-chrome {
   border-radius: var(--radius-md);
   color: color-mix(in oklab, var(--assistant) 72%, var(--muted));
   text-align: left;
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform var(--dur-press);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), transform var(--dur-press);
 }
 
 .session-row:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: var(--opacity-disabled);
 }
 
 .session-more {
@@ -1274,7 +1268,7 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .session-status-indicator.is-busy {
-  animation: spin 0.9s linear infinite;
+  animation: engine-pulse 1.8s ease-in-out infinite;
 }
 
 .session-row-wrap:hover .session-time,
@@ -1295,15 +1289,15 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .session-more:disabled {
-  opacity: 0.3;
+  opacity: var(--opacity-disabled);
   pointer-events: none;
 }
 
 .session-more:focus-visible {
   opacity: 1;
   pointer-events: auto;
-  outline: var(--focus-ring);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .session-rename {
@@ -1323,7 +1317,7 @@ html[data-platform="darwin"] .rail-chrome {
   background: var(--elevated);
   font-size: var(--text-ui);
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 10%, transparent);
+  box-shadow: var(--focus-soft);
 }
 
 .session-menu {
@@ -1368,7 +1362,7 @@ html[data-platform="darwin"] .rail-chrome {
 
 .session-menu > button.danger {
   position: relative;
-  margin-top: 6px;
+  margin-top: var(--space-2xs);
   color: var(--del);
 }
 
@@ -1405,7 +1399,7 @@ html[data-platform="darwin"] .rail-chrome {
 .session-menu-confirm-title {
   color: var(--heading);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   overflow-wrap: anywhere;
 }
 
@@ -1439,8 +1433,8 @@ html[data-platform="darwin"] .rail-chrome {
   border-radius: var(--radius-pill);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   line-height: 1;
   text-align: center;
   cursor: pointer;
@@ -1503,13 +1497,18 @@ html[data-platform="darwin"] .rail-chrome {
 .session-row.active {
   color: var(--assistant);
   background: transparent;
-  font-weight: 550;
+  font-weight: var(--weight-medium);
 }
 
-html[data-platform="darwin"] .project-heading:hover:not(.active),
 html[data-platform="darwin"] .session-row-wrap:hover:not(.active),
 html[data-platform="darwin"] .rail-action:hover:not(:focus-visible) {
   background: color-mix(in oklab, var(--surface) 26%, transparent);
+}
+
+html[data-platform="darwin"] .project-heading-row:hover,
+html[data-platform="darwin"] .project-heading-row:focus-within,
+html[data-platform="darwin"] .project-heading-row:has(.project-more[aria-expanded="true"]) {
+  background: color-mix(in oklab, var(--surface) 52%, transparent);
 }
 
 html[data-platform="darwin"] .project-heading:hover:not(.active),
@@ -1529,6 +1528,8 @@ html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible
 .session-row-wrap.active .session-time,
 .session-row-wrap:hover .session-time { color: color-mix(in oklab, var(--muted) 86%, var(--assistant)); }
 
+.session-row-wrap.active:has(.session-status-indicator) .session-time { display: none; }
+
 .session-empty, .rail-state { color: var(--text-subtle); font-size: var(--text-caption); }
 .session-empty { padding: var(--space-xs) var(--space-base) var(--space-xs) calc(var(--rail-icon-size) + var(--space-sm)); }
 /* Full-panel states only (loading / error at list root). */
@@ -1539,7 +1540,7 @@ html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible
   padding: 2px var(--space-sm) var(--space-2xs) calc(var(--space-xs) + 16px);
   line-height: 1.35;
   font-size: var(--text-label);
-  color: color-mix(in oklab, var(--muted) 82%, transparent);
+  color: var(--text-secondary);
 }
 .rail-state.error { color: var(--del); }
 .rail-state.error span { display: block; }
@@ -1550,7 +1551,7 @@ html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible
   border: 1px solid color-mix(in oklab, var(--del) 44%, var(--border));
   border-radius: var(--radius-sm);
   color: var(--del);
-  transition: border-color var(--dur-fast) var(--ease-out);
+  transition: border-color var(--dur-fast) var(--ease-standard);
 }
 .rail-retry:hover { border-color: color-mix(in oklab, var(--del) 60%, var(--border)); }
 
@@ -1568,19 +1569,41 @@ html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible
   background: transparent;
 }
 
-/* The Environment launcher is visually floating but still owns a real lane.
-   Reserve that lane in the chat surface so right-aligned user turns and the
-   composer never render underneath the card. The dock is hidden below 960px,
-   so the responsive rule naturally restores the full-width chat surface. */
+/* The Environment launcher owns a real lane on wide stages. Below 960px it
+   becomes a compact icon strip, so the chat surface can reclaim the lane
+   without removing workspace navigation. */
 .content-inset:has(.workspace-dock) .main-column {
   padding-right: calc(var(--workspace-dock-w) + var(--space-lg));
 }
 
-/* Every right-side workspace view owns the same lane. Keeping the lane in the
-   layout, instead of floating over the transcript, prevents user turns and
-   the composer from being hidden underneath a panel. */
+/* Open workspace tools are real flex siblings of chat. The pane owns its width
+   directly; no compensating inset or overlay geometry is needed. */
 .content-inset.end-panel-open .main-column {
-  padding-right: calc(var(--activity-rail-w) + var(--space-lg));
+  padding-right: 0;
+}
+
+.content-inset.end-panel-open {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(var(--activity-rail-w), 48%);
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr);
+}
+
+.content-inset.end-panel-open > .topbar {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.content-inset.end-panel-open > .main-column {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.content-inset.end-panel-open > .activity-sidebar {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  width: 100%;
+  height: 100%;
+  max-width: none;
 }
 
 html.glass .main-column,
@@ -1619,14 +1642,14 @@ html.electron-transparent .main-column { background: transparent; }
     to top,
     black 0%,
     black 22%,
-    rgb(0 0 0 / 0.6) 55%,
+    color-mix(in oklab, black 60%, transparent) 55%,
     transparent 100%
   );
   mask-image: linear-gradient(
     to top,
     black 0%,
     black 22%,
-    rgb(0 0 0 / 0.6) 55%,
+    color-mix(in oklab, black 60%, transparent) 55%,
     transparent 100%
   );
 }
@@ -1662,8 +1685,10 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   margin: 0 auto;
   padding: var(--space-base) 0 0;
   overflow: hidden;
-  color: var(--text-subtle);
+  color: var(--text-secondary);
   font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1730,7 +1755,7 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   display: flex;
   flex: 0 1 auto;
   min-width: 0;
-  max-width: min(84%, 36rem);
+  max-width: min(84%, var(--composer-max));
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
@@ -1753,9 +1778,9 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   box-shadow: var(--bubble-user-shadow);
   font-family: var(--font-sans);
   font-size: var(--text-prose);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   line-height: 1.6;
-  letter-spacing: -0.011em;
+  letter-spacing: var(--tracking-ui);
   text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1781,7 +1806,7 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   margin-left: var(--space-xs);
   color: var(--text-subtle);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   white-space: nowrap;
 }
 
@@ -1791,7 +1816,7 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-micro);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   line-height: 1;
   white-space: nowrap;
 }
@@ -1807,7 +1832,7 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
 
 .block-assistant {
   position: relative;
-  width: min(100%, 68ch);
+  width: min(100%, var(--prose-max));
   max-width: 100%;
   margin: 0 auto;
   padding: 2px 0 0;
@@ -1816,7 +1841,7 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   font-size: var(--text-prose);
   font-weight: var(--weight-regular);
   line-height: 1.58;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   text-rendering: optimizeLegibility;
@@ -1925,7 +1950,7 @@ html[data-scheme="light"] .block-assistant { color: var(--assistant); }
 .md [data-streamdown="strong"] {
   color: var(--heading);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
 }
 
 .md h1, .md h2, .md h3,
@@ -1939,7 +1964,7 @@ html[data-scheme="light"] .block-assistant { color: var(--assistant); }
   color: var(--heading);
   font-family: var(--font-sans);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   line-height: var(--leading-tight);
   text-wrap: pretty;
 }
@@ -2001,7 +2026,7 @@ html[data-scheme="light"] .md pre {
   background: color-mix(in oklab, var(--code) 10%, transparent);
   font-family: var(--font-mono);
   font-size: var(--text-code);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -2022,7 +2047,7 @@ html[data-scheme="light"] .md pre {
 
 [data-streamdown="code-block"] {
   position: relative;
-  margin: 14px 0;
+  margin: var(--space-sm) 0;
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
   border-radius: var(--radius-md);
@@ -2042,10 +2067,9 @@ html[data-scheme="light"] .md pre {
   color: var(--text-subtle);
   background: color-mix(in oklab, var(--surface) 42%, transparent);
   font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
 }
 
 /* Sit the Streamdown copy control in the code header — no floating pill */
@@ -2059,7 +2083,7 @@ html[data-scheme="light"] .md pre {
   margin: 0;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 6px;
+  padding: 0 var(--space-2xs);
   pointer-events: none;
   border: 0;
   background: transparent;
@@ -2120,6 +2144,12 @@ html[data-scheme="light"] .md pre {
 /* ── Hover utility icons (copy / edit / table / plan) ──────────────────────
    Keep actions visually quiet: the icon carries the affordance, not a filled
    chip or toolbar background. */
+.hover-reveal {
+  transition:
+    opacity var(--dur-fast) var(--ease-enter),
+    transform var(--dur-fast) var(--ease-enter);
+}
+
 .copy-btn,
 .assistant-action,
 [data-streamdown="table-wrapper"] button {
@@ -2136,10 +2166,7 @@ html[data-scheme="light"] .md pre {
   background: transparent;
   cursor: pointer;
   opacity: 0.78;
-  transition:
-    color var(--dur-fast) var(--ease-standard),
-    opacity var(--dur-fast) var(--ease-enter),
-    transform var(--dur-fast) var(--ease-enter);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
 .copy-btn:hover,
@@ -2216,7 +2243,7 @@ html[data-scheme="light"] .md pre {
 
 .tool-body.has-copy {
   position: relative;
-  padding-right: calc(var(--hover-action-size) + 10px);
+  padding-right: calc(var(--hover-action-size) + var(--space-xs));
 }
 
 .plan-text.has-copy {
@@ -2224,10 +2251,17 @@ html[data-scheme="light"] .md pre {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .assistant-actions {
+  .hover-reveal {
     opacity: 0;
     transform: translateY(3px);
     pointer-events: none;
+  }
+
+  .hover-reveal:hover,
+  .hover-reveal:focus-within {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
   }
 
   .tool-body.has-copy > .copy-btn,
@@ -2331,8 +2365,8 @@ html[data-scheme="light"] .md pre {
 .md th {
   color: var(--heading);
   font-size: var(--text-caption);
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
 }
 /* Label column stays compact only when there are 3+ columns */
 .md th:first-child:nth-last-child(n + 3),
@@ -2483,7 +2517,7 @@ html[data-scheme="light"] .md pre {
   border-bottom: 1.5px solid currentColor;
   opacity: 0.55;
   transform: rotate(-45deg);
-  transition: transform var(--dur-fast) var(--ease-out);
+  transition: transform var(--dur-fast) var(--ease-standard);
 }
 .decision-details[open] summary::before { transform: rotate(45deg); }
 
@@ -2505,7 +2539,7 @@ html[data-scheme="light"] .md pre {
 
 .tool-label, .thinking-label {
   overflow: hidden;
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2538,7 +2572,7 @@ html[data-scheme="light"] .md pre {
   font-family: var(--font-sans);
   font-size: inherit;
   font-weight: inherit;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
 }
 
 .tool-head.live .tool-label { color: inherit; }
@@ -2575,7 +2609,7 @@ html[data-scheme="light"] .md pre {
   min-width: 0;
   box-sizing: border-box;
   max-height: 340px;
-  margin: 2px 0 6px;
+  margin: 2px 0 var(--space-2xs);
   padding: 8px var(--space-sm);
   overflow: auto;
   overscroll-behavior: contain;
@@ -2589,7 +2623,7 @@ html[data-scheme="light"] .md pre {
 /* Expanded tool body keeps its own quiet surface (no parent card chrome) */
 .tool-row:has(> .tool-head[aria-expanded="true"]) > .tool-body,
 .tool-row:has(> .tool-head[aria-expanded="true"]) .tool-body {
-  margin: 2px 0 6px;
+  margin: 2px 0 var(--space-2xs);
   border-radius: var(--radius-sm);
   background: color-mix(in oklab, var(--surface-subtle) 28%, transparent);
 }
@@ -2602,12 +2636,12 @@ html[data-scheme="light"] .md pre {
 
 .thinking-row {
   display: flex;
-  width: 100%;
+  width: min(100%, var(--prose-max));
   max-width: 100%;
   min-width: 0;
   flex-direction: column;
   gap: 0;
-  margin: 0;
+  margin: 0 auto;
   border: 0;
   border-radius: var(--radius-sm);
   overflow: visible;
@@ -2617,7 +2651,7 @@ html[data-scheme="light"] .md pre {
 /* One surface for label + body — no stacked empty cards */
 .thinking-row.is-open {
   background: color-mix(in oklab, var(--surface-subtle) 20%, transparent);
-  padding: 0 0 6px;
+  padding: 0 0 var(--space-2xs);
 }
 
 .thinking-head-row {
@@ -2659,10 +2693,10 @@ html[data-scheme="light"] .md pre {
 }
 
 .thinking-group {
-  width: 100%;
+  width: min(100%, var(--prose-max));
   max-width: 100%;
   min-width: 0;
-  margin: 0;
+  margin: 0 auto;
   border: 0;
 }
 
@@ -2767,16 +2801,16 @@ html[data-scheme="light"] .md pre {
   font-family: var(--font-sans);
   font-size: var(--text-ui);
   font-style: normal;
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   line-height: 1.45;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   white-space: pre-wrap;
   opacity: var(--thinking-opacity);
 }
 
 .notice {
   margin: var(--space-xs) 0;
-  padding: 10px var(--space-base);
+  padding: var(--space-xs) var(--space-base);
   border: 1px solid color-mix(in oklab, var(--border) 26%, transparent);
   border-radius: var(--radius-md);
   color: var(--muted);
@@ -2848,9 +2882,9 @@ html[data-scheme="light"] .md pre {
   padding-top: 2px;
   color: var(--text-subtle);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  letter-spacing: var(--tracking-ui);
   line-height: 1.35;
   text-align: right;
   user-select: none;
@@ -2878,11 +2912,18 @@ html[data-scheme="light"] .md pre {
   color: var(--heading);
   font-size: var(--text-ui);
   font-weight: var(--weight-medium);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   line-height: 1.35;
   text-decoration: none;
   text-overflow: ellipsis;
   text-wrap: pretty;
+}
+
+.source-title:focus-visible,
+.md a.source-title:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
 }
 
 .source-title:hover,
@@ -2941,14 +2982,72 @@ html[data-scheme="light"] .md pre {
   color: color-mix(in oklab, var(--ctx) 72%, var(--muted));
   font-size: var(--text-micro);
   font-family: var(--font-sans);
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
 }
 
 .notice.warn {
-  color: var(--notice);
-  border-color: color-mix(in oklab, var(--notice) 32%, var(--border));
-  background: color-mix(in oklab, var(--notice) 6%, var(--surface-subtle));
+  margin: var(--space-2xs) 0;
+  padding: var(--space-2xs) 0 var(--space-2xs) var(--space-sm);
+  border: 0;
+  border-left: 2px solid color-mix(in oklab, var(--notice) 28%, var(--border));
+  border-radius: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: var(--text-caption);
+  line-height: 1.55;
+}
+
+.warning-notice {
+  display: block;
+  padding: 0;
+  border-left: 0;
+  white-space: normal;
+}
+
+.warning-notice-toggle {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) 0 var(--space-2xs) var(--space-xs);
+  border-left: 2px solid color-mix(in oklab, var(--notice) 28%, var(--border));
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.warning-notice-toggle::-webkit-details-marker { display: none; }
+
+.warning-notice-toggle:hover {
+  color: var(--assistant);
+}
+
+.warning-notice-toggle:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.warning-notice-chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.warning-notice[open] .warning-notice-chevron {
+  transform: rotate(90deg);
+}
+
+.warning-notice-detail {
+  margin: var(--space-2xs) 0 0 var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 1px solid color-mix(in oklab, var(--border) 34%, transparent);
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .notice.error {
@@ -3026,7 +3125,7 @@ html[data-scheme="light"] .md pre {
   padding: var(--space-2xs) 0 var(--space-xs) calc(13px + var(--space-2xs));
   overflow-wrap: anywhere;
   font-size: var(--text-caption);
-  line-height: var(--leading-copy);
+  line-height: var(--leading-prose);
 }
 
 .memory-notice-detail li {
@@ -3037,8 +3136,8 @@ html[data-scheme="light"] .md pre {
 .gate-banner {
   flex: 0 0 auto;
   margin: 0;
-  font-weight: 550;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -3057,11 +3156,11 @@ html[data-scheme="light"] .md pre {
   background: color-mix(in oklab, var(--surface) 60%, transparent);
   box-shadow: var(--edge-highlight);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
 }
 .earlier-label { color: inherit; }
-.earlier-meta { color: var(--text-subtle); font-weight: 400; }
+.earlier-meta { color: var(--text-subtle); font-weight: var(--weight-regular); }
 
 .earlier:hover {
   color: var(--assistant);
@@ -3085,8 +3184,8 @@ html[data-scheme="light"] .md pre {
   background: color-mix(in oklab, var(--elevated) 96%, var(--panel));
   box-shadow: var(--shadow-jump), var(--edge-highlight);
   font-size: var(--text-caption);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   transform: translateX(50%);
   transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
   animation: jump-in var(--dur-standard) var(--ease-enter);
@@ -3133,7 +3232,7 @@ html[data-scheme="light"] .md pre {
 .panels:empty, .panels:not(:has(*)) { display: none; padding: 0; margin: 0; }
 
 .card {
-  padding: 14px 16px;
+  padding: var(--space-sm) var(--space-base);
   border: 1px solid color-mix(in oklab, var(--border) 34%, transparent);
   border-radius: var(--radius-lg);
   color: var(--assistant);
@@ -3153,10 +3252,8 @@ html[data-scheme="light"] .md pre {
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-micro);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-weight: var(--weight-semibold);
   line-height: 1.2;
-  text-transform: uppercase;
 }
 
 .card.panel-strip {
@@ -3171,7 +3268,7 @@ html[data-scheme="light"] .md pre {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-xs);
   padding: 0 2px;
 }
 
@@ -3181,16 +3278,31 @@ html[data-scheme="light"] .md pre {
   max-width: 100%;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: var(--space-2xs) var(--space-xs);
   border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
   border-radius: var(--radius-md);
   color: var(--muted);
   background: color-mix(in oklab, var(--surface-subtle) 72%, transparent);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   line-height: 1.3;
   text-align: left;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
+}
+
+html.glass .panel-strip-chip,
+html.electron-transparent .panel-strip-chip {
+  border-color: color-mix(in oklab, var(--border) 32%, transparent);
+  background: var(--glass-float-bg);
+  box-shadow: var(--edge-highlight);
+  backdrop-filter: var(--glass-float-filter);
+  -webkit-backdrop-filter: var(--glass-float-filter);
+}
+
+html[data-scheme="light"].glass .panel-strip-chip,
+html[data-scheme="light"].electron-transparent .panel-strip-chip {
+  border-color: color-mix(in oklab, var(--border) 42%, transparent);
+  background: var(--glass-float-bg);
 }
 
 .panel-strip-chip:hover {
@@ -3214,16 +3326,18 @@ html[data-scheme="light"] .md pre {
 /* Compact post-turn review affordance. It sits above the composer so changed
    files remain discoverable without turning the input area into a second card. */
 .changed-files-pill {
+  position: relative;
+  z-index: var(--z-raised);
   display: inline-flex;
   align-self: center;
   align-items: center;
   gap: var(--space-xs);
   max-width: min(100%, 360px);
   min-height: 30px;
-  padding: 0 9px 0 8px;
+  padding: 0 var(--space-xs);
   border: 1px solid color-mix(in oklab, var(--border) 34%, transparent);
   border-radius: var(--radius-pill);
-  color: var(--muted);
+  color: var(--text-secondary);
   background: color-mix(in oklab, var(--elevated) 92%, var(--bg));
   box-shadow: var(--elev-rest);
   font-family: var(--font-sans);
@@ -3251,7 +3365,7 @@ html[data-scheme="light"] .md pre {
 
 .changed-files-pill-icon {
   display: inline-flex;
-  color: var(--text-subtle);
+  color: var(--text-secondary);
 }
 
 .changed-files-pill:hover .changed-files-pill-icon,
@@ -3267,7 +3381,7 @@ html[data-scheme="light"] .md pre {
 .changed-files-pill-stats {
   display: inline-flex;
   flex: 0 0 auto;
-  gap: 6px;
+  gap: var(--space-xs);
   font-family: var(--font-mono);
   font-size: var(--text-micro);
   font-variant-numeric: tabular-nums;
@@ -3284,9 +3398,9 @@ html[data-scheme="light"] .md pre {
   width: min(100%, var(--composer-max));
   margin: 0 auto;
   padding: var(--space-sm) var(--space-base) var(--space-xs);
-  border: 1px solid color-mix(in oklab, var(--border) 32%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
   border-radius: var(--radius-lg);
-  background: color-mix(in oklab, var(--elevated) 88%, var(--bg));
+  background: color-mix(in oklab, var(--elevated) 92%, var(--bg));
   box-shadow: var(--elev-strip);
 }
 
@@ -3320,6 +3434,14 @@ html[data-scheme="light"] .md pre {
   padding: 0 12px;
   font-size: var(--text-label);
   font-weight: var(--weight-semibold);
+  border-color: color-mix(in oklab, var(--border) 48%, transparent);
+  color: var(--assistant);
+  background: color-mix(in oklab, var(--surface) 64%, transparent);
+}
+
+.turn-changes-review:hover {
+  border-color: color-mix(in oklab, var(--border) 68%, transparent);
+  background: color-mix(in oklab, var(--surface) 82%, transparent);
 }
 
 .turn-changes-list {
@@ -3344,7 +3466,7 @@ html[data-scheme="light"] .md pre {
   background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease-out);
+  transition: background-color var(--dur-fast) var(--ease-standard);
 }
 
 .turn-changes-row:hover,
@@ -3400,7 +3522,7 @@ html[data-scheme="light"] .md pre {
   display: block;
   width: 100%;
   margin-top: 4px;
-  padding: 6px 8px;
+  padding: var(--space-2xs) var(--space-xs);
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--muted);
@@ -3417,24 +3539,22 @@ html[data-scheme="light"] .md pre {
   background: color-mix(in oklab, var(--surface) 40%, transparent);
 }
 
-/* ── Workspace dock (floating environment card on the chat surface) ──────── */
+/* ── Workspace dock (chat-surface navigation) ───────────────────────────── */
 
 .workspace-dock {
   position: absolute;
   z-index: var(--z-drawer);
-  /* .main-column already begins below the topbar; adding --topbar-h here
-     double-offsets the card and leaves an awkward dead zone above it. */
-  top: var(--space-sm);
-  right: var(--space-md);
+  top: var(--space-xs);
+  right: var(--space-base);
   display: flex;
   flex-direction: column;
   width: min(var(--workspace-dock-w), calc(100% - 2 * var(--space-md)));
-  max-height: calc(100% - 2 * var(--space-sm));
+  max-height: calc(100% - 2 * var(--space-xs));
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--border) 34%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
   border-radius: var(--radius-xl);
-  background: var(--drawer-bg);
-  box-shadow: var(--shadow-dock);
+  background: var(--bg);
+  box-shadow: none;
   animation: workspace-dock-enter var(--dur-standard) var(--ease-enter);
 }
 
@@ -3443,19 +3563,11 @@ html[data-scheme="light"] .md pre {
   to { opacity: 1; transform: translateY(0); }
 }
 
-html.glass .workspace-dock,
-html.electron-transparent .workspace-dock {
-  border-color: color-mix(in oklab, var(--border) 28%, transparent);
-  background: color-mix(in oklab, var(--elevated) 92%, transparent);
-  backdrop-filter: blur(var(--blur-overlay));
-  -webkit-backdrop-filter: blur(var(--blur-overlay));
-}
-
 .workspace-dock-header {
   display: flex;
   align-items: flex-start;
   gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md) var(--space-xs);
+  padding: var(--space-sm) var(--space-sm) var(--space-xs);
 }
 
 .workspace-dock-header-copy {
@@ -3474,7 +3586,7 @@ html.electron-transparent .workspace-dock {
 }
 
 .workspace-dock-eyebrow {
-  letter-spacing: 0.01em;
+  letter-spacing: var(--tracking-ui);
 }
 
 .workspace-dock-project {
@@ -3483,7 +3595,7 @@ html.electron-transparent .workspace-dock {
   color: var(--assistant);
   font-size: var(--text-ui);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3493,7 +3605,7 @@ html.electron-transparent .workspace-dock {
   flex: 0 1 auto;
   min-height: 0;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2xs);
   padding: 0 var(--space-xs) var(--space-sm);
   /* Flat Session → Changes → Git → Jobs → Files list — no section labels or
      decorative rules (UI.md: spacing and selected fills only). */
@@ -3503,12 +3615,12 @@ html.electron-transparent .workspace-dock {
 .workspace-dock-row {
   position: relative;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  grid-template-columns: var(--rail-icon-size) minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-xs);
   width: 100%;
   min-height: 32px;
-  padding: 0 var(--space-sm);
+  padding: 0 var(--space-xs);
   border: 0;
   border-radius: var(--radius-md);
   color: color-mix(in oklab, var(--muted) 88%, var(--assistant));
@@ -3518,7 +3630,7 @@ html.electron-transparent .workspace-dock {
   font-weight: var(--weight-medium);
   text-align: left;
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
 .workspace-dock-row:hover,
@@ -3536,11 +3648,11 @@ html.electron-transparent .workspace-dock {
 
 .workspace-dock-row.is-active {
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 48%, transparent);
+  background: var(--nav-active-bg);
 }
 
 .workspace-dock-row:disabled {
-  opacity: 0.38;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
   background: transparent;
 }
@@ -3571,7 +3683,7 @@ html.electron-transparent .workspace-dock {
 
 .workspace-dock-meta {
   display: inline-flex;
-  gap: 6px;
+  gap: var(--space-xs);
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
@@ -3581,7 +3693,43 @@ html.electron-transparent .workspace-dock {
 
 @media (max-width: 960px) {
   .workspace-dock {
+    top: var(--space-2xs);
+    right: var(--space-xs);
+    width: auto;
+    max-width: calc(100% - 2 * var(--space-sm));
+    border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
+    border-radius: var(--radius-lg);
+    background: var(--bg);
+  }
+
+  .workspace-dock-header {
     display: none;
+  }
+
+  .workspace-dock-nav {
+    flex-direction: row;
+    gap: var(--space-2xs);
+    padding: var(--space-2xs);
+  }
+
+  .workspace-dock-row {
+    grid-template-columns: 16px;
+    width: 32px;
+    min-height: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .workspace-dock-row-label,
+  .workspace-dock-row-meta {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .content-inset:has(.workspace-dock) .main-column {
@@ -3602,26 +3750,26 @@ html.electron-transparent .workspace-dock {
 
 .card.perm .card-eyebrow {
   color: var(--text-subtle);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-ui);
 }
 
 .card.perm h3 {
   margin: 0;
   color: var(--assistant);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
   line-height: 1.3;
 }
 
 .perm-detail {
-  margin: 6px 0 0;
+  margin: var(--space-2xs) 0 0;
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   line-height: 1.45;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
 }
 
 .perm-detail.is-command {
@@ -3641,31 +3789,45 @@ html.electron-transparent .workspace-dock {
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   line-height: 1.45;
 }
 
 .card.plan {
-  border-color: color-mix(in oklab, var(--border) 34%, transparent);
-  background: color-mix(in oklab, var(--surface-subtle) 92%, transparent);
-  padding: 16px 18px;
+  padding: var(--space-base);
+  border-color: color-mix(in oklab, var(--border) 44%, transparent);
+  background: color-mix(in oklab, var(--elevated) 98%, var(--bg));
+  box-shadow: var(--shadow-composer), var(--edge-highlight);
+  backdrop-filter: var(--glass-overlay-filter);
+  -webkit-backdrop-filter: var(--glass-overlay-filter);
+}
+
+html.glass .card.plan,
+html.electron-transparent .card.plan {
+  border-color: color-mix(in oklab, var(--border) 42%, transparent);
+  background: color-mix(in oklab, var(--elevated) 97%, transparent);
+}
+
+html[data-scheme="light"].glass .card.plan,
+html[data-scheme="light"].electron-transparent .card.plan {
+  background: color-mix(in oklab, var(--elevated) 98%, transparent);
 }
 
 .card.plan .card-eyebrow {
   color: var(--text-subtle);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-ui);
 }
 .card.plan h3 {
   margin: 0;
   color: var(--assistant);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
 }
 
 .card.plan .notice.warn {
   margin: 0 0 var(--space-sm);
-  padding: 8px 10px;
+  padding: var(--space-xs) var(--space-xs);
   font-size: var(--text-caption);
 }
 
@@ -3673,15 +3835,15 @@ html.electron-transparent .workspace-dock {
   margin: 0 0 var(--space-xs);
   color: var(--muted);
   font-size: var(--text-ui);
-  font-weight: 600;
-  letter-spacing: -0.015em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
   line-height: 1.25;
 }
 
 .card.perm h3,
 .card.plan h3 {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-prose);
+  font-weight: var(--weight-semibold);
 }
 
 .card.panel-strip h3 {
@@ -3690,9 +3852,8 @@ html.electron-transparent .workspace-dock {
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-micro);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
 }
 
 .card-copy { margin: 0 0 var(--space-xs); color: var(--muted); font-size: var(--text-label); line-height: 1.5; }
@@ -3709,8 +3870,8 @@ html.electron-transparent .workspace-dock {
 }
 .permission-preview-more {
   display: inline-flex;
-  margin-top: 6px;
-  padding: 2px 6px;
+  margin-top: var(--space-2xs);
+  padding: 2px var(--space-2xs);
   border: 0;
   border-radius: var(--radius-xs);
   color: var(--text-subtle);
@@ -3718,13 +3879,13 @@ html.electron-transparent .workspace-dock {
   font: inherit;
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 .permission-preview-more:hover { color: var(--assistant); background: color-mix(in oklab, var(--surface) 60%, transparent); }
 .permission-preview-more:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.decision-details { margin-top: 10px; }
+.decision-details { margin-top: var(--space-xs); }
 
 .card.perm .decision-details {
   margin-top: 8px;
@@ -3733,7 +3894,7 @@ html.electron-transparent .workspace-dock {
 
 .card.perm .decision-details summary {
   color: color-mix(in oklab, var(--text-subtle) 88%, transparent);
-  font-size: 11px;
+  font-size: var(--text-caption);
 }
 
 .card.perm .card-actions {
@@ -3777,8 +3938,8 @@ html.electron-transparent .workspace-dock {
   border-radius: 3px;
   color: color-mix(in oklab, var(--text-subtle) 90%, transparent);
   background: color-mix(in oklab, var(--surface) 55%, transparent);
-  font-size: 10px;
-  font-weight: 500;
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
   opacity: 0.85;
 }
 
@@ -3806,7 +3967,7 @@ html.electron-transparent .workspace-dock {
 }
 
 .card.plan .card-actions {
-  margin-top: 14px;
+  margin-top: var(--space-sm);
   padding-top: 12px;
   border-top-color: color-mix(in oklab, var(--border) 14%, transparent);
 }
@@ -3820,7 +3981,7 @@ html.electron-transparent .workspace-dock {
   border: 1px solid color-mix(in oklab, var(--border) 24%, transparent);
   background: color-mix(in oklab, var(--surface) 48%, transparent);
   border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  padding: var(--space-xs) var(--space-sm);
 }
 
 /* Plan body reads as chat content — open prose, not a nested code box */
@@ -3851,7 +4012,7 @@ html.electron-transparent .workspace-dock {
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   list-style: none;
 }
 
@@ -3868,23 +4029,23 @@ html.electron-transparent .workspace-dock {
   min-width: 0;
   color: var(--text-subtle);
   font-size: var(--text-caption);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   text-align: right;
 }
 .action-hint-inline { margin-left: var(--space-2xs); color: var(--muted); font-size: var(--text-micro); }
 
 .action-kbd {
-  margin-left: 6px;
-  padding: 1px 5px;
+  margin-left: var(--space-2xs);
+  padding: 1px var(--space-2xs);
   border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
   border-radius: var(--radius-xs);
   color: var(--text-subtle);
   background: color-mix(in oklab, var(--elevated) 55%, transparent);
   font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 500;
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
   line-height: 1.3;
-  letter-spacing: 0.01em;
+  letter-spacing: var(--tracking-ui);
 }
 
 .chip.primary .action-kbd {
@@ -3908,13 +4069,12 @@ html.electron-transparent .workspace-dock {
 
 .plan-evidence { color: var(--muted); font-size: var(--text-caption); }
 .plan-evidence h4 {
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-2xs);
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-micro);
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
 }
 .plan-evidence ol, .plan-evidence ul { margin: 0; padding-left: 18px; }
 .plan-evidence li + li { margin-top: 3px; }
@@ -3925,7 +4085,7 @@ html.electron-transparent .workspace-dock {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-xs);
   margin-top: var(--space-md);
   padding-top: var(--space-sm);
   border-top: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
@@ -3942,7 +4102,7 @@ html.electron-transparent .workspace-dock {
   height: var(--composer-chip-h, 26px);
   min-height: var(--composer-chip-h, 26px);
   align-items: center; justify-content: center;
-  padding: 0 10px;
+  padding: 0 var(--space-xs);
   border: 1px solid color-mix(in oklab, var(--border) 26%, transparent);
   border-radius: var(--radius-sm);
   color: var(--muted);
@@ -3950,8 +4110,8 @@ html.electron-transparent .workspace-dock {
   box-shadow: none;
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   line-height: 1;
   white-space: nowrap;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), transform var(--dur-press);
@@ -4008,8 +4168,8 @@ html.electron-transparent .workspace-dock {
   gap: var(--space-xs);
   color: var(--text-subtle);
   font-size: var(--text-caption);
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
 }
 
 .queue-items {
@@ -4030,7 +4190,7 @@ html.electron-transparent .workspace-dock {
   align-items: center;
   gap: var(--space-sm);
   min-height: 34px;
-  padding: 5px var(--space-2xs) 5px var(--space-xs);
+  padding: var(--space-2xs) var(--space-2xs) var(--space-2xs) var(--space-xs);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -4070,23 +4230,23 @@ html.electron-transparent .workspace-dock {
   flex: 0 0 auto;
   align-items: center;
   gap: 2px;
-  opacity: 0;
-  transform: translateY(1px);
-  transition:
-    opacity var(--dur-fast) var(--ease-enter),
-    transform var(--dur-fast) var(--ease-enter);
+  /* Keep the transparent hover affordance hit-testable so entering directly
+     over an action reveals the row instead of letting the row intercept it. */
+  pointer-events: auto;
 }
 
 .queue-row:hover .queue-actions,
 .queue-row:focus-within .queue-actions {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
 @media (hover: none) {
-  .queue-actions {
+  .hover-reveal {
     opacity: 1;
     transform: none;
+    pointer-events: auto;
   }
 }
 
@@ -4106,22 +4266,6 @@ html.electron-transparent .workspace-dock {
     color var(--dur-fast) var(--ease-standard),
     background-color var(--dur-fast) var(--ease-standard),
     transform var(--dur-press);
-}
-
-.queue-row-active {
-  background: color-mix(in oklab, var(--surface) 42%, transparent);
-}
-
-.queue-row-mark.is-active {
-  background: var(--tool);
-}
-
-.queue-active-badge {
-  flex: 0 0 auto;
-  color: var(--text-subtle);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.01em;
 }
 
 .queue-action:hover {
@@ -4157,28 +4301,28 @@ html.electron-transparent .workspace-dock {
   gap: var(--space-2xs);
   padding: var(--space-xs) var(--space-sm) var(--space-xs);
   overflow: clip;
-  border: 1px solid color-mix(in oklab, var(--border) 36%, transparent);
-  border-radius: calc(var(--radius-xl) + var(--space-xs));
-  background: var(--elevated);
+  border: 1px solid var(--composer-surface-border);
+  border-radius: var(--composer-surface-radius);
+  background: var(--composer-surface-bg);
   box-shadow: var(--elev-rest);
 }
 
 html.glass .composer-queue-tray,
 html.electron-transparent .composer-queue-tray {
   border-color: color-mix(in oklab, var(--border) 28%, transparent);
-  background: color-mix(in oklab, var(--elevated) 64%, transparent);
+  background: var(--glass-float-bg);
   box-shadow: var(--elev-rest), inset 0 1px 0 color-mix(in oklab, var(--edge-lit) 7%, transparent);
-  backdrop-filter: blur(var(--blur-surface));
-  -webkit-backdrop-filter: blur(var(--blur-surface));
+  backdrop-filter: var(--glass-float-filter);
+  -webkit-backdrop-filter: var(--glass-float-filter);
 }
 
 html[data-scheme="light"].glass .composer-queue-tray,
 html[data-scheme="light"].electron-transparent .composer-queue-tray {
   border-color: color-mix(in oklab, var(--border) 40%, transparent);
-  background: color-mix(in oklab, var(--elevated) 88%, transparent);
+  background: var(--glass-float-bg);
   box-shadow: var(--elev-rest);
-  backdrop-filter: blur(var(--blur-surface));
-  -webkit-backdrop-filter: blur(var(--blur-surface));
+  backdrop-filter: var(--glass-float-filter);
+  -webkit-backdrop-filter: var(--glass-float-filter);
 }
 
 .spinner {
@@ -4201,11 +4345,11 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   flex: 0 0 auto;
   margin: 0;
   overflow: clip;
-  border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
-  border-radius: calc(var(--radius-xl) + var(--space-xs));
+  border: 1px solid var(--composer-surface-border);
+  border-radius: var(--composer-surface-radius);
   /* Dense frosted fill keeps transcript content from ghosting through the
      input while the pseudo-element supplies the soft depth treatment. */
-  background: color-mix(in oklab, var(--elevated) 96%, transparent);
+  background: var(--composer-surface-bg);
   box-shadow: var(--shadow-composer), var(--edge-highlight);
   transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
@@ -4214,7 +4358,7 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   border-color: color-mix(in oklab, var(--ring) 72%, var(--border));
   box-shadow:
     var(--shadow-composer),
-    0 0 0 3px color-mix(in oklab, var(--ring) 16%, transparent),
+    var(--focus-soft),
     var(--edge-highlight);
 }
 
@@ -4291,7 +4435,7 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
 .composer-attachment-name {
   color: var(--assistant);
   font-size: var(--text-caption);
-  font-weight: 550;
+  font-weight: var(--weight-medium);
 }
 
 .composer-attachment-kind {
@@ -4335,8 +4479,8 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   border-radius: var(--radius-lg);
   color: var(--assistant);
   background: color-mix(in oklab, var(--elevated) 92%, transparent);
-  backdrop-filter: blur(var(--blur-veil));
-  -webkit-backdrop-filter: blur(var(--blur-veil));
+  backdrop-filter: var(--glass-float-filter);
+  -webkit-backdrop-filter: var(--glass-float-filter);
 }
 
 .composer-drop-overlay > span:last-child {
@@ -4347,7 +4491,7 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
 
 .composer-drop-overlay strong {
   font-size: var(--text-ui);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .composer-drop-overlay small {
@@ -4377,14 +4521,14 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   /* Continuous coverage is intentional: the transcript must not remain
      readable through the top edge of the floating input. */
   background: color-mix(in oklab, var(--elevated) 68%, transparent);
-  backdrop-filter: blur(var(--blur-surface)) saturate(var(--blur-saturation));
-  -webkit-backdrop-filter: blur(var(--blur-surface)) saturate(var(--blur-saturation));
+  backdrop-filter: var(--glass-float-filter);
+  -webkit-backdrop-filter: var(--glass-float-filter);
 }
 
 html.glass .composer-wrap,
 html.electron-transparent .composer-wrap {
   border-color: color-mix(in oklab, var(--border) 32%, transparent);
-  background: color-mix(in oklab, var(--elevated) 92%, transparent);
+  background: var(--glass-float-bg);
   box-shadow: var(--shadow-composer), inset 0 1px 0 color-mix(in oklab, var(--edge-lit) 7%, transparent);
 }
 
@@ -4394,21 +4538,21 @@ html[data-scheme="light"] .composer-wrap {
 
 html[data-scheme="light"] .composer-wrap::before {
   background: color-mix(in oklab, var(--elevated) 78%, transparent);
-  backdrop-filter: blur(var(--blur-surface)) saturate(var(--blur-saturation));
-  -webkit-backdrop-filter: blur(var(--blur-surface)) saturate(var(--blur-saturation));
+  backdrop-filter: var(--glass-float-filter);
+  -webkit-backdrop-filter: var(--glass-float-filter);
 }
 
 html[data-scheme="light"].glass .composer-wrap,
 html[data-scheme="light"].electron-transparent .composer-wrap {
   border-color: color-mix(in oklab, var(--border) 40%, transparent);
-  background: color-mix(in oklab, var(--elevated) 95%, transparent);
+  background: var(--glass-float-bg);
   box-shadow: var(--shadow-composer), var(--edge-highlight);
 }
 
 .composer-wrap:focus-within {
   border-color: color-mix(in oklab, var(--ring) 32%, var(--border));
   background: color-mix(in oklab, var(--elevated) 98%, transparent);
-  box-shadow: var(--shadow-composer), 0 0 0 3px color-mix(in oklab, var(--ring) 12%, transparent), var(--edge-highlight);
+  box-shadow: var(--shadow-composer), var(--focus-soft), var(--edge-highlight);
 }
 
 html.glass .composer-wrap:focus-within,
@@ -4445,7 +4589,7 @@ html.electron-transparent .composer-wrap:focus-within {
   font-size: var(--text-prose);
   font-weight: var(--weight-regular);
   line-height: 1.6;
-  letter-spacing: -0.011em;
+  letter-spacing: var(--tracking-ui);
   caret-color: var(--assistant);
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -4486,8 +4630,8 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .composer-input::placeholder {
   color: color-mix(in oklab, var(--muted) 52%, transparent);
-  font-weight: 400;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-ui);
 }
 
 .composer-input:focus::placeholder {
@@ -4496,7 +4640,7 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .composer-input.exact-cmd {
   color: var(--assistant);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .composer-status {
@@ -4508,7 +4652,7 @@ html.electron-transparent .composer-wrap:focus-within {
   justify-content: space-between;
   gap: var(--space-sm);
   margin: 0;
-  padding: 2px 8px 8px 10px;
+  padding: 2px var(--space-xs) var(--space-xs) var(--space-xs);
   border: 0;
   border-radius: 0 0 calc(var(--radius-xl) + var(--space-xs)) calc(var(--radius-xl) + var(--space-xs));
   background: transparent;
@@ -4521,7 +4665,7 @@ html.electron-transparent .composer-wrap:focus-within {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-xs);
   min-width: 0;
   padding-left: var(--space-2xs);
 }
@@ -4530,7 +4674,7 @@ html.electron-transparent .composer-wrap:focus-within {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-xs);
   min-width: 0;
 }
 
@@ -4539,7 +4683,7 @@ html.electron-transparent .composer-wrap:focus-within {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-xs);
   min-width: 0;
   min-height: var(--composer-chip-h);
 }
@@ -4567,15 +4711,15 @@ html.electron-transparent .composer-wrap:focus-within {
   box-sizing: border-box;
   margin: 0;
   padding: 0 8px;
-  gap: 5px;
+  gap: var(--space-2xs);
   border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
   border-radius: var(--radius-pill);
   background: color-mix(in oklab, var(--surface) 42%, transparent);
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   line-height: 1;
   white-space: nowrap;
   transition:
@@ -4597,6 +4741,7 @@ html.electron-transparent .composer-wrap:focus-within {
   max-width: 28ch;
   min-width: 0;
   overflow: hidden;
+  cursor: default;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
 }
@@ -4645,7 +4790,7 @@ html.electron-transparent .composer-wrap:focus-within {
   display: grid;
   min-width: 196px;
   width: max-content;
-  padding: 5px;
+  padding: var(--space-2xs);
   transform-origin: bottom left;
 }
 
@@ -4664,7 +4809,7 @@ html.electron-transparent .composer-wrap:focus-within {
   display: grid;
   gap: 1px;
   min-width: 0;
-  padding: 7px 10px;
+  padding: var(--space-2xs) var(--space-xs);
   padding-right: 64px;
   border-radius: var(--radius-sm);
   color: var(--muted);
@@ -4701,16 +4846,15 @@ html.electron-transparent .composer-wrap:focus-within {
 }
 
 .mode-option-label {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
 }
 
 .mode-option-hint {
   color: color-mix(in oklab, var(--text-subtle) 92%, transparent);
   font-size: var(--text-caption);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -4725,10 +4869,9 @@ html.electron-transparent .composer-wrap:focus-within {
   right: 10px;
   transform: translateY(-50%);
   color: color-mix(in oklab, var(--text-subtle) 88%, transparent);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
 }
 
 .mode-option.selected .mode-option-badge {
@@ -4744,7 +4887,7 @@ html.electron-transparent .composer-wrap:focus-within {
   display: grid;
   min-width: 220px;
   width: max-content;
-  padding: 5px;
+  padding: var(--space-2xs);
   transform-origin: bottom left;
 }
 
@@ -4761,7 +4904,7 @@ html.electron-transparent .composer-wrap:focus-within {
   justify-content: space-between;
   gap: var(--space-sm);
   min-width: 0;
-  padding: 7px 10px;
+  padding: var(--space-2xs) var(--space-xs);
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-align: left;
@@ -4795,7 +4938,7 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .insert-option-label {
   font-size: var(--text-ui);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .insert-option-hint {
@@ -4803,7 +4946,7 @@ html.electron-transparent .composer-wrap:focus-within {
   color: color-mix(in oklab, var(--text-subtle) 92%, transparent);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .insert-option.selected .insert-option-hint {
@@ -4823,7 +4966,7 @@ html.electron-transparent .composer-wrap:focus-within {
   color: color-mix(in oklab, var(--muted) 72%, transparent);
   background: transparent;
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   line-height: 1;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
 }
@@ -4835,7 +4978,7 @@ html.electron-transparent .composer-wrap:focus-within {
   background: color-mix(in oklab, var(--surface) 42%, transparent);
 }
 
-.composer-ghost:disabled { opacity: 0.32; }
+.composer-ghost:disabled { opacity: var(--opacity-disabled); }
 
 .composer-ghost svg { flex: 0 0 auto; }
 .composer-ghost:active:not(:disabled) {
@@ -4846,7 +4989,7 @@ html.electron-transparent .composer-wrap:focus-within {
 
 /* Context gauge */
 .ctx-ring {
-  padding: 0 8px 0 6px;
+  padding: 0 var(--space-xs) 0 var(--space-2xs);
   cursor: pointer;
   font-variant-numeric: tabular-nums;
 }
@@ -4916,7 +5059,7 @@ html.electron-transparent .composer-wrap:focus-within {
   background: var(--assistant);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   line-height: 1;
   transition:
     opacity var(--dur-fast) var(--ease-standard),
@@ -4945,14 +5088,14 @@ html.electron-transparent .composer-wrap:focus-within {
   height: var(--composer-chip-h);
   min-height: var(--composer-chip-h);
   padding: 0 8px;
-  gap: 5px;
+  gap: var(--space-2xs);
   border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
   border-radius: var(--radius-pill);
   color: var(--assistant);
   background: color-mix(in oklab, var(--surface) 42%, transparent);
   font-size: var(--text-caption);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   box-shadow: none;
 }
 
@@ -4992,6 +5135,13 @@ html.electron-transparent .composer-wrap:focus-within {
   animation: surface-enter var(--dur-standard) var(--ease-enter);
 }
 
+html.glass :is(.session-menu, .popover-surface, .keys-overlay, .onboarding-modal),
+html.electron-transparent :is(.session-menu, .popover-surface, .keys-overlay, .onboarding-modal) {
+  background: var(--glass-overlay-bg);
+  backdrop-filter: var(--glass-overlay-filter);
+  -webkit-backdrop-filter: var(--glass-overlay-filter);
+}
+
 /* Shared quiet enter — opacity + 4px Y only (no scale) so concurrent overlays stay calm */
 @keyframes surface-enter {
   from { opacity: 0; transform: translateY(4px); }
@@ -5009,7 +5159,7 @@ html.electron-transparent .composer-wrap:focus-within {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-xs);
-  padding: 10px var(--space-base) 8px;
+  padding: var(--popover-header-pad);
   border-bottom: 1px solid color-mix(in oklab, var(--border) 20%, transparent);
   /* Same UI voice as rail section labels — never mono / micro-caps. */
   color: var(--muted);
@@ -5027,7 +5177,7 @@ html.electron-transparent .composer-wrap:focus-within {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-sm);
-  padding: 8px var(--space-md);
+  padding: var(--popover-footer-pad);
   border-top: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
   background: color-mix(in oklab, var(--surface) 18%, transparent);
   color: var(--text-subtle);
@@ -5077,7 +5227,7 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .slash-menu-header {
   justify-content: space-between;
-  padding: 8px var(--space-md) 6px;
+  padding: var(--popover-header-pad);
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
@@ -5091,13 +5241,13 @@ html.electron-transparent .composer-wrap:focus-within {
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   text-transform: none;
   letter-spacing: 0;
 }
 
 .slash-menu-body {
-  padding: 6px 8px;
+  padding: var(--space-2xs) var(--space-xs);
 }
 
 /* The slash trigger already tells the user what surface they opened. Keep
@@ -5109,7 +5259,7 @@ html.electron-transparent .composer-wrap:focus-within {
   flex-wrap: wrap;
   justify-content: flex-start;
   gap: var(--space-sm);
-  padding: 7px var(--space-md);
+  padding: var(--popover-footer-pad);
 }
 
 .slash-menu-footer .action-kbd { margin-left: 0; }
@@ -5120,8 +5270,8 @@ html.electron-transparent .composer-wrap:focus-within {
   width: 100%;
   min-height: 34px;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
+  gap: var(--space-xs);
+  padding: var(--space-2xs) var(--space-xs);
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-align: left;
@@ -5144,7 +5294,7 @@ html.electron-transparent .composer-wrap:focus-within {
   min-width: 0;
   flex: 1 1 auto;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--space-xs);
 }
 
 .slash-item .name {
@@ -5155,8 +5305,8 @@ html.electron-transparent .composer-wrap:focus-within {
   color: inherit;
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 550;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5168,7 +5318,7 @@ html.electron-transparent .composer-wrap:focus-within {
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   line-height: var(--leading-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5184,8 +5334,8 @@ html.electron-transparent .composer-wrap:focus-within {
   background: color-mix(in oklab, var(--task-active) 12%, transparent);
   font-family: var(--font-sans);
   font-size: var(--text-micro);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
 }
 
 .slash-item.selected .slash-badge {
@@ -5199,7 +5349,7 @@ html.electron-transparent .composer-wrap:focus-within {
 /* Highlight for fuzzy match in mention / slash — must stay readable on --sel-bg */
 .slash-item .hl {
   color: var(--assistant);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   background: transparent;
 }
 
@@ -5209,60 +5359,141 @@ html.electron-transparent .composer-wrap:focus-within {
 
 /* ── Activity rail ──────────────────────────────────────────────────────── */
 
-.activity-rail {
-  position: absolute;
-  z-index: var(--z-drawer);
-  /* Side sections own the same edge as the environment launcher. The
-     launcher is handed off when one opens, so these surfaces never stack. */
-  top: var(--space-sm);
-  right: var(--space-md);
-  bottom: var(--space-sm);
+.activity-sidebar {
+  position: relative;
+  z-index: var(--z-raised);
   display: flex;
-  width: min(var(--activity-rail-w), calc(100% - 2 * var(--space-md)));
+  width: min(var(--activity-rail-w), 48%);
+  height: 100%;
   min-width: 0;
   min-height: 0;
-  flex: none;
+  flex: 0 0 min(var(--activity-rail-w), 48%);
   flex-direction: column;
   gap: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
-  border-radius: var(--radius-xl);
+  border: 0;
+  border-left: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
+  border-radius: 0;
   background: var(--drawer-bg);
-  box-shadow: var(--shadow-dock);
-  opacity: 1;
-  transform: translateX(0);
+  box-shadow: none;
+  font-family: var(--font-sans);
+  transition: background-color var(--dur-standard) var(--ease-standard);
+  container-type: inline-size;
+}
+
+.activity-sidebar-tabs {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2xs);
+  padding: var(--space-xs);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
+  background: var(--drawer-bg);
+}
+
+.activity-sidebar-tab {
+  display: flex;
+  min-width: 0;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  padding: 0 var(--space-2xs);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-subtle);
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition:
-    opacity var(--dur-standard) var(--ease-exit),
-    transform var(--dur-standard) var(--ease-exit),
-    box-shadow var(--dur-standard) var(--ease-standard),
-    border-color var(--dur-standard) var(--ease-standard);
-  animation: inspector-enter var(--dur-standard) var(--ease-enter);
+    color var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard);
 }
 
-.activity-rail.is-closing {
-  opacity: 0;
-  transform: translateX(12px);
-  pointer-events: none;
+.activity-sidebar-tab:hover,
+.activity-sidebar-tab:focus-visible {
+  color: var(--assistant);
+  background: color-mix(in oklab, var(--surface-subtle) 52%, transparent);
 }
 
-@keyframes inspector-enter {
-  from { opacity: 0; transform: translateX(8px); }
+.activity-sidebar-tab.is-active {
+  color: var(--assistant);
+  background: var(--nav-active-bg);
+}
+
+.activity-sidebar-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.activity-sidebar-tab-count {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-sidebar-content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.activity-rail {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: activity-panel-enter var(--dur-fast) var(--ease-enter);
+}
+
+@keyframes activity-panel-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes activity-drawer-enter {
+  from { opacity: 0; transform: translateX(var(--space-xs)); }
   to { opacity: 1; transform: translateX(0); }
 }
 
-html.glass .activity-rail,
-html.electron-transparent .activity-rail {
-  background: color-mix(in oklab, var(--elevated) 88%, transparent);
-  border-color: color-mix(in oklab, var(--border) 34%, transparent);
-  backdrop-filter: blur(var(--blur-overlay));
-  -webkit-backdrop-filter: blur(var(--blur-overlay));
+html.glass .activity-sidebar,
+html.electron-transparent .activity-sidebar {
+  background: var(--drawer-bg);
+  border-left-color: color-mix(in oklab, var(--border) 58%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
-html[data-scheme="light"].glass .activity-rail,
-html[data-scheme="light"].electron-transparent .activity-rail {
-  border-color: color-mix(in oklab, var(--border) 42%, transparent);
-  background: color-mix(in oklab, var(--elevated) 92%, transparent);
+html[data-scheme="light"].glass .activity-sidebar,
+html[data-scheme="light"].electron-transparent .activity-sidebar {
+  border-left-color: color-mix(in oklab, var(--border) 64%, transparent);
+  background: var(--drawer-bg);
+}
+
+.content-inset > .sidebar-resize-handle.is-end {
+  right: calc(min(var(--activity-rail-w), 48%) - var(--space-2xs));
+  left: auto;
+}
+
+.content-inset > .sidebar-resize-handle.is-end::after {
+  background: color-mix(in oklab, var(--border) 62%, transparent);
+  opacity: 0.34;
 }
 
 .drawer-scrim {
@@ -5271,7 +5502,7 @@ html[data-scheme="light"].electron-transparent .activity-rail {
   inset: 0;
   z-index: var(--z-scrim);
   border: 0;
-  background: color-mix(in oklab, var(--shadow-ink) 40%, transparent);
+  background: var(--scrim-drawer);
   cursor: pointer;
   animation: scrim-enter var(--dur-standard) var(--ease-enter);
 }
@@ -5304,13 +5535,14 @@ html[data-scheme="light"].electron-transparent .activity-rail {
   justify-content: space-between;
   gap: var(--space-md);
   margin: 0;
-  padding: var(--space-md) var(--space-base) var(--space-sm);
-  border-bottom: 0;
+  padding: var(--space-base);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 36%, transparent);
   background: var(--drawer-bg);
+  font-family: var(--font-sans);
 }
 
 html.glass .sidebar-heading-row,
-html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab, var(--elevated) 84%, transparent); }
+html.electron-transparent .sidebar-heading-row { background: var(--drawer-bg); }
 
 .sidebar-heading-copy { min-width: 0; }
 
@@ -5318,9 +5550,9 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   margin: 0 0 var(--space-2xs);
   color: var(--text-subtle);
   font-family: var(--font-sans);
-  font-size: var(--text-caption);
+  font-size: var(--text-ui);
   font-weight: var(--weight-medium);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   text-transform: none;
 }
 
@@ -5328,9 +5560,9 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .sidebar-heading-row .sidebar-heading-title {
   margin: 0;
   color: var(--assistant);
-  font-size: var(--text-heading);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--text-ui);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
   line-height: 1.25;
 }
 
@@ -5338,7 +5570,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   margin: var(--space-2xs) 0 0;
   color: var(--text-subtle);
   font-size: var(--text-ui);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   line-height: 1.35;
 }
 
@@ -5358,8 +5590,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-family: var(--font-sans);
   font-size: var(--text-ui);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.015em;
-  text-transform: uppercase;
+  letter-spacing: var(--tracking-ui);
 }
 
 .meta-block {
@@ -5390,7 +5621,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-family: var(--font-sans);
   font-size: var(--text-ui);
   font-weight: var(--weight-medium);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   text-transform: none;
 }
 
@@ -5399,7 +5630,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: var(--assistant);
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   line-height: 1.45;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -5454,9 +5685,9 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   border-radius: var(--radius-sm);
   text-align: left;
   transition:
-    color var(--dur-fast) var(--ease-out),
-    background-color var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard),
     transform var(--dur-press);
 }
 
@@ -5468,15 +5699,29 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .file-preview-toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  display: grid;
   gap: var(--space-xs);
   margin-bottom: var(--space-xs);
 }
 
+.file-preview-toolbar-primary,
+.file-preview-toolbar-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.file-preview-toolbar-primary {
+  justify-content: space-between;
+}
+
+.file-preview-toolbar-actions {
+  flex-wrap: wrap;
+}
+
 .file-preview-toolbar .chip {
-  gap: 6px;
+  gap: var(--space-xs);
 }
 
 .file-row-actions {
@@ -5592,7 +5837,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
-  padding: 6px 10px;
+  padding: var(--space-2xs) var(--space-xs);
   border-bottom: 1px solid color-mix(in oklab, var(--border) 30%, transparent);
   background: color-mix(in oklab, var(--elevated) 92%, var(--bg));
   color: var(--muted);
@@ -5604,8 +5849,10 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .diff-line {
   display: grid;
   grid-template-columns: 36px 36px 14px minmax(0, 1fr);
+  align-items: stretch;
   min-width: max-content;
   padding-right: var(--space-sm);
+  line-height: 1.55;
 }
 
 .diff-gutter {
@@ -5619,10 +5866,11 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .diff-marker {
   text-align: center;
   user-select: none;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .diff-line code {
+  display: block;
   padding-left: 2px;
   color: var(--muted);
   font-family: inherit;
@@ -5647,7 +5895,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .diff-line.is-meta {
   display: block;
   min-width: 100%;
-  padding: 2px 10px;
+  padding: 2px var(--space-xs);
 }
 .diff-line.is-header .diff-gutter,
 .diff-line.is-header .diff-marker,
@@ -5685,7 +5933,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: var(--code);
   font-family: var(--font-sans);
   font-size: var(--text-micro);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5702,8 +5950,8 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .diff-add-count { color: var(--add); }
 .diff-del-count { color: var(--del); }
 
-.subagent-activity { color: var(--text-subtle); font-size: var(--text-caption); font-weight: 400; }
-.subagent-result { color: var(--muted); font-size: var(--text-caption); font-weight: 400; }
+.subagent-activity { color: var(--text-subtle); font-size: var(--text-caption); font-weight: var(--weight-regular); }
+.subagent-result { color: var(--muted); font-size: var(--text-caption); font-weight: var(--weight-regular); }
 .subagent-elapsed { flex: 0 0 auto; margin-left: auto; color: var(--text-subtle); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
 .subagent-tone { color: var(--subagent); }
 
@@ -5773,7 +6021,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   border: 1.5px solid color-mix(in oklab, var(--muted) 34%, transparent);
   border-top-color: var(--assistant);
   background: transparent;
-  animation: spin 0.75s linear infinite;
+  animation: engine-pulse 1.8s ease-in-out infinite;
   box-shadow: none;
 }
 .status-dot-pending {
@@ -5793,55 +6041,76 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .task-row.skipped { color: var(--task-skipped); }
 .ctx-hot { color: var(--notice) !important; }
 
-.jobs-drawer-root {
-  position: absolute;
-  z-index: var(--z-drawer);
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: flex-start;
-  pointer-events: none;
-}
-
-.jobs-drawer-backdrop {
-  display: block;
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  /* The desktop drawer shares the Session panel's quiet, non-dimming entry. */
-  background: transparent;
-  cursor: pointer;
-  pointer-events: auto;
-  animation: jobs-backdrop-in var(--dur-fast) var(--ease-enter);
-}
-
-@keyframes jobs-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.jobs-drawer {
-  position: absolute;
-  top: var(--space-sm);
-  right: var(--space-md);
-  bottom: var(--space-sm);
-  z-index: var(--z-raised);
-  display: flex;
-  width: min(var(--activity-rail-w), calc(100% - 2 * var(--space-md)));
-  height: auto;
-  max-height: none;
-  flex-direction: column;
-  margin: 0;
+/* ── Project terminal (interactive PTY) ─────────────────────────────────── */
+.terminal-activity-rail {
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--border) 36%, transparent);
-  border-radius: var(--radius-xl);
-  background: var(--drawer-bg);
-  box-shadow: var(--shadow-dock);
-  pointer-events: auto;
-  animation: inspector-enter var(--dur-standard) var(--ease-enter);
+}
+
+.terminal-panel-header {
+  position: static;
+  flex: 0 0 auto;
+}
+
+.terminal-panel-subtitle {
+  overflow: hidden;
+  font-family: var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-panel-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+.terminal-restart {
+  min-height: 30px;
+  padding-inline: var(--space-xs);
+  font-size: var(--text-caption);
+}
+
+.terminal-close {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+}
+
+.terminal-surface {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  padding: var(--space-sm) var(--space-base);
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+  box-shadow: none;
+}
+
+.terminal-surface .xterm {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
+.terminal-panel-error,
+.terminal-panel-status {
+  flex: 0 0 auto;
+  margin: 0 var(--space-md) var(--space-sm);
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+  line-height: var(--leading-ui);
+}
+
+.terminal-panel-error { color: var(--del); }
+
+.jobs-activity-rail {
+  height: 100%;
 }
 
 .jobs-view {
@@ -5849,52 +6118,12 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  padding: var(--space-base) var(--space-md) var(--space-md);
-}
-
-.jobs-heading {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: flex-start;
-  gap: var(--space-xs);
-  margin: 0 0 var(--space-md);
   padding: 0;
 }
 
-.jobs-heading-copy { flex: 1 1 auto; min-width: 0; }
-.jobs-heading-copy h2, .jobs-heading-copy p { margin: 0; }
-.jobs-eyebrow {
-  margin: 0 0 2px;
-  color: var(--text-subtle);
-  font-family: var(--font-sans);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  letter-spacing: -0.01em;
-  text-transform: none;
-}
-.jobs-heading-copy h2 {
-  color: var(--assistant);
-  font-size: var(--text-heading);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  line-height: 1.25;
-}
-.jobs-heading-copy p {
-  margin-top: 2px;
-  color: var(--text-subtle);
-  font-size: var(--text-caption);
-}
-
-.jobs-heading-icon {
-  display: inline-flex;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  color: var(--text-subtle);
-  background: transparent;
+.jobs-heading {
+  position: static;
+  margin: 0;
 }
 
 .jobs-close {
@@ -5912,8 +6141,8 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   background: transparent;
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
 }
 
@@ -5933,13 +6162,14 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-sm);
+  padding: var(--space-base);
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
 
 .jobs-empty {
-  padding: var(--space-md) 2px;
+  padding: var(--space-base);
   color: var(--muted);
   font-size: var(--text-caption);
   line-height: 1.5;
@@ -5976,14 +6206,14 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   flex: 0 0 auto;
   height: 22px;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-2xs);
   padding: 0 8px;
   border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-ui);
   line-height: 1;
 }
 
@@ -6040,16 +6270,16 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   height: var(--composer-chip-h, 26px);
   min-width: 0;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-2xs);
   overflow: hidden;
-  padding: 0 10px;
+  padding: 0 var(--space-xs);
   border: 1px solid color-mix(in oklab, var(--border) 26%, transparent);
   border-radius: var(--radius-sm);
   color: var(--muted);
   background: color-mix(in oklab, var(--surface) 42%, transparent);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6081,7 +6311,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   justify-content: space-between;
   gap: 8px;
   min-height: 28px;
-  padding: 0 8px 0 10px;
+  padding: 0 var(--space-xs);
   border-bottom: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
   background: color-mix(in oklab, var(--surface) 28%, transparent);
 }
@@ -6094,14 +6324,13 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-micro);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
 }
 
 .job-terminal-follow {
   color: var(--muted);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -6111,7 +6340,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   display: inline-block;
   width: 5px;
   height: 5px;
-  margin-right: 5px;
+  margin-right: var(--space-2xs);
   border-radius: var(--radius-pill);
   background: var(--assistant);
   vertical-align: 0;
@@ -6124,7 +6353,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: var(--assistant);
   background: transparent;
   font: inherit;
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   letter-spacing: 0;
   text-transform: none;
   cursor: pointer;
@@ -6186,12 +6415,6 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   50%, 100% { opacity: 0; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .job-output-cursor { animation: none; opacity: 0.7; }
-  .job-status-running::before,
-  .job-terminal.is-live .job-terminal-follow::before { animation: none; }
-}
-
 /* ── Splash / empty home ────────────────────────────────────────────────── */
 
 .splash {
@@ -6232,28 +6455,14 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   /* Solid fill reads more cleanly than a gradient at tiny ASCII sizes (I04/S07). */
   color: var(--assistant);
   font-family: var(--font-mono);
-  font-size: clamp(5.5px, 0.85vw + 2px, 8.5px);
-  font-weight: 700;
+  /* Scale from the splash container itself so the same identity survives every
+     responsive layout without falling back to ordinary text. */
+  font-size: clamp(4px, 2cqi, 8.5px);
+  font-weight: var(--weight-semibold);
   line-height: 0.92;
   letter-spacing: -0.06em;
   text-align: left;
   white-space: pre;
-}
-
-.splash-brand-compact {
-  display: none;
-  color: color-mix(in oklab, var(--assistant) 92%, var(--muted));
-  font-family: var(--font-sans);
-  font-size: clamp(32px, 5vw, 44px);
-  font-weight: 650;
-  letter-spacing: -0.035em;
-  line-height: 1;
-}
-
-/* ASCII wordmark needs ~80 mono cols — switch to type brand before it becomes noise */
-@container splash (max-width: 42rem) {
-  .splash-wordmark { display: none; }
-  .splash-brand-compact { display: block; }
 }
 
 .splash-tagline {
@@ -6261,15 +6470,15 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   max-width: 28rem;
   color: var(--muted);
   font-size: var(--text-ui);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   line-height: 1.4;
-  letter-spacing: -0.015em;
+  letter-spacing: var(--tracking-tight);
   text-wrap: balance;
 }
 
 .chat-column.is-empty .composer-row {
   min-height: 60px;
-  padding-top: 14px;
+  padding-top: var(--space-sm);
 }
 
 .chat-column.is-empty .composer-input { min-height: var(--composer-input-min); }
@@ -6280,8 +6489,8 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: var(--assistant);
   font-family: var(--font-sans);
   font-size: var(--text-display-sm);
-  font-weight: 650;
-  letter-spacing: -0.03em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
 }
 
 .gate {
@@ -6321,9 +6530,9 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   margin: 0;
   color: var(--assistant);
   font-size: clamp(26px, 3vw, 34px);
-  font-weight: 620;
+  font-weight: var(--weight-semibold);
   line-height: 1.15;
-  letter-spacing: -0.035em;
+  letter-spacing: var(--tracking-tight);
   text-wrap: balance;
 }
 
@@ -6341,7 +6550,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   gap: var(--space-sm);
   color: var(--text-subtle);
   font-size: var(--text-ui);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .gate-spinner {
@@ -6349,10 +6558,8 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   border: 1.5px solid color-mix(in oklab, var(--border) 70%, transparent);
   border-top-color: var(--assistant);
   border-radius: 50%;
-  animation: gate-spin 0.8s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
-
-@keyframes gate-spin { to { transform: rotate(360deg); } }
 
 .gate-actions {
   display: flex;
@@ -6424,7 +6631,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   min-width: 0;
   overflow: hidden;
   font-size: var(--text-ui);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -6487,7 +6694,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: var(--assistant);
   font-size: var(--text-ui);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
 }
 
 .session-boot-copy p { margin: 0; color: var(--text-subtle); font-size: var(--text-caption); line-height: 1.35; }
@@ -6518,7 +6725,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .session-boot-error .session-boot-copy { justify-items: center; gap: var(--space-xs); }
-.session-boot-error .session-boot-copy h1 { font-size: clamp(22px, 2.6vw, 28px); letter-spacing: -0.03em; }
+.session-boot-error .session-boot-copy h1 { font-size: clamp(22px, 2.6vw, 28px); letter-spacing: var(--tracking-tight); }
 .session-boot-error .session-boot-copy p { font-size: var(--text-ui); line-height: 1.5; }
 
 /* ── Catalog popover ────────────────────────────────────────────────────── */
@@ -6529,7 +6736,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   max-height: min(46vh, 440px);
   flex: 0 0 auto;
   flex-direction: column;
-  margin: 0 0 10px;
+  margin: 0 0 var(--space-xs);
   color: var(--assistant);
   font-family: var(--font-sans);
   font-size: var(--text-ui);
@@ -6553,7 +6760,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
-  padding: 10px var(--space-md) 8px;
+  padding: var(--popover-header-pad);
 }
 
 .catalog-header-title {
@@ -6576,7 +6783,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .catalog-draft-hint {
   color: var(--text-subtle);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -6604,7 +6811,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-size: var(--text-ui);
   font-weight: var(--weight-ui);
   line-height: var(--leading-ui);
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
 .catalog-target:hover { color: var(--assistant); background: color-mix(in oklab, var(--surface) 86%, transparent); }
@@ -6613,7 +6820,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   display: flex;
   min-height: 32px;
   align-items: center;
-  margin: 4px var(--space-sm) 6px;
+  margin: var(--space-2xs) var(--space-sm) var(--space-2xs);
   padding: 0 var(--space-sm);
   border: 1px solid color-mix(in oklab, var(--border) 36%, transparent);
   border-radius: var(--radius-sm);
@@ -6632,7 +6839,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .catalog-search:focus-within {
   border-color: var(--border-active);
   background: color-mix(in oklab, var(--surface) 52%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 10%, transparent);
+  box-shadow: var(--focus-soft);
 }
 
 .catalog-search input {
@@ -6657,7 +6864,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .catalog-search-clear:hover { color: var(--assistant); background: color-mix(in oklab, var(--surface) 60%, transparent); }
 
 .catalog-list {
-  padding: 0 6px 6px;
+  padding: 0 var(--space-2xs) var(--space-2xs);
 }
 
 .catalog-section {
@@ -6674,15 +6881,20 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   display: grid;
   width: 100%;
   gap: 2px;
-  padding: 7px 10px;
+  padding: var(--space-2xs) var(--space-xs);
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-align: left;
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
-.catalog-row:hover, .catalog-row.selected {
+.catalog-row:hover {
+  color: var(--assistant);
+  background: color-mix(in oklab, var(--surface) 62%, transparent);
+}
+
+.catalog-row.selected {
   color: var(--sel-fg);
   background: color-mix(in oklab, var(--sel-bg) 90%, var(--assistant) 4%);
 }
@@ -6707,11 +6919,11 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 .catalog-current {
   flex: 0 0 auto;
-  margin-left: 5px;
+  margin-left: var(--space-2xs);
   color: var(--text-subtle);
   font-size: var(--text-micro);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
 }
 
 .catalog-row.selected .catalog-current {
@@ -6731,26 +6943,29 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   white-space: nowrap;
 }
 
-.catalog-row.selected .catalog-row-secondary,
-.catalog-row:hover .catalog-row-secondary { color: color-mix(in oklab, var(--sel-fg) 78%, transparent); }
+.catalog-row.selected .catalog-row-secondary {
+  color: color-mix(in oklab, var(--sel-fg) 78%, transparent);
+}
+
+.catalog-row:hover .catalog-row-secondary { color: var(--text-secondary); }
 
 .catalog-tag {
   display: inline-flex;
   align-items: center;
   min-height: 16px;
-  margin-right: 6px;
-  padding: 0 5px;
+  margin-right: var(--space-2xs);
+  padding: 0 var(--space-2xs);
   border-radius: var(--radius-xs);
   color: var(--muted);
   background: color-mix(in oklab, var(--surface) 72%, transparent);
   font-size: var(--text-micro);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-ui);
   vertical-align: middle;
 }
 
 .catalog-tag.free {
-  margin-right: 5px;
+  margin-right: var(--space-2xs);
   padding: 0;
   color: var(--task-active);
   background: transparent;
@@ -6786,7 +7001,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   background: color-mix(in oklab, var(--del) 8%, transparent);
   font: inherit;
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-standard);
 }
@@ -6814,12 +7029,17 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   box-shadow: var(--elev-overlay);
   font: inherit;
   font-size: var(--text-caption);
-  font-weight: 450;
-  line-height: var(--leading-copy);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-prose);
   text-align: start;
   animation: toast-in var(--dur-fast) var(--ease-enter);
   cursor: pointer;
   user-select: none;
+}
+
+.toast.is-closing {
+  animation: toast-out var(--dur-fast) var(--ease-exit) forwards;
+  pointer-events: none;
 }
 
 /* Severity stays legible through a small marker and quiet border tint — never
@@ -6860,21 +7080,26 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: inherit;
   font: inherit;
   font-size: var(--text-caption);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
   line-height: inherit;
   text-align: start;
   cursor: pointer;
   user-select: none;
 }
 .toast-dismiss:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: -2px;
+  outline: none;
+  box-shadow: var(--focus-ring);
   border-radius: calc(var(--radius-md) - 2px);
 }
 
 @keyframes toast-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-2px); }
 }
 
 /*
@@ -6892,7 +7117,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   .topbar-actions .icon-button {
     width: auto;
     min-width: 30px;
-    padding: 0 6px;
+    padding: 0 var(--space-2xs);
     gap: 4px;
   }
   .topbar-actions .icon-button:not(:has(.topbar-action-count)) {
@@ -6901,6 +7126,14 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   }
   .topbar-project { max-width: 38%; }
   .topbar-session { max-width: none; }
+
+  /* Settings navigation is a power-user index at laptop density; keep the
+     section names scannable and defer explanations to the active form. */
+  .settings-rail .settings-nav-desc { display: none; }
+  .settings-rail .settings-nav-item {
+    gap: 0;
+    padding-block: var(--space-sm);
+  }
 }
 
 @media (max-width: 900px) {
@@ -6916,7 +7149,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     top: 0; bottom: 0; left: 0;
     width: var(--drawer-start-w);
     flex-basis: var(--drawer-start-w);
-    background: var(--bg);
+    background: var(--drawer-bg);
     border-right: 1px solid var(--border-soft);
     box-shadow: var(--shadow-drawer);
   }
@@ -6925,7 +7158,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
   html.glass .project-rail.is-open,
   html.electron-transparent .project-rail.is-open {
-    background: color-mix(in oklab, var(--bg) 98%, transparent);
+    background: var(--drawer-bg);
   }
 
   .drawer-scrim[data-drawer="start"] {
@@ -6942,6 +7175,10 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   .composer-stack {
     position: absolute;
   }
+
+  /* Keep the status strip about controls at laptop widths; detailed usage
+     metrics remain available in Session instead of competing with Stop. */
+  .composer-metric { display: none; }
 }
 
 @media (max-width: 720px) {
@@ -6949,7 +7186,11 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     --drawer-end-w: min(100%, 360px);
   }
 
-  .inspector-rail, .activity-rail, .jobs-drawer {
+  .content-inset.end-panel-open {
+    display: flex;
+  }
+
+  .activity-sidebar {
     position: absolute;
     z-index: var(--z-drawer);
     top: 0; right: 0; bottom: 0;
@@ -6960,30 +7201,26 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     border-radius: 0;
     background: var(--bg);
     box-shadow: var(--shadow-drawer-end);
+    animation: activity-drawer-enter var(--dur-standard) var(--ease-enter);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
 
-  .jobs-drawer {
-    left: auto;
+  .activity-rail {
+    animation: none;
+  }
+
+  .content-inset.end-panel-open > .activity-sidebar {
+    width: var(--drawer-end-w);
     height: auto;
-    margin: 0;
   }
 
   .content-inset.end-panel-open .main-column {
     padding-right: 0;
   }
 
-  .jobs-drawer-backdrop {
-    background: color-mix(in oklab, var(--bg) 52%, transparent);
-  }
-
-  html.glass .inspector-rail,
-  html.glass .activity-rail,
-  html.glass .jobs-drawer,
-  html.electron-transparent .inspector-rail,
-  html.electron-transparent .activity-rail,
-  html.electron-transparent .jobs-drawer {
+  html.glass .activity-sidebar,
+  html.electron-transparent .activity-sidebar {
     background: color-mix(in oklab, var(--bg) 98%, transparent);
   }
 
@@ -7002,6 +7239,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   :root {
     --column-inset: var(--space-sm);
     --transcript-inset: var(--column-inset);
+    --drawer-end-w: min(100%, 100vw);
   }
 
   .topbar { padding-right: 8px; }
@@ -7009,8 +7247,6 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     padding-bottom: calc(var(--composer-clearance) + var(--space-md));
     scroll-padding-bottom: calc(var(--composer-clearance) + var(--space-md));
   }
-  .splash-wordmark { display: none; }
-  .splash-brand-compact { display: block; }
   /* Keep model identity — truncate instead of hiding */
   .composer-model {
     display: inline-flex;
@@ -7018,9 +7254,9 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   }
   .composer-status {
     flex-wrap: wrap;
-    row-gap: 6px;
+    row-gap: var(--space-xs);
   }
-  .activity-rail, .inspector-rail, .jobs-drawer {
+  .activity-sidebar {
     width: min(100%, 100vw);
     flex-basis: min(100%, 100vw);
   }
@@ -7060,13 +7296,15 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   .composer-submit.stop {
     width: auto;
     min-width: 0;
+    height: 44px;
+    min-height: 44px;
   }
-  .project-rail, .activity-rail { padding-bottom: env(safe-area-inset-bottom); }
+  .project-rail, .activity-sidebar { padding-bottom: env(safe-area-inset-bottom); }
 
   /* Status row reflows instead of inflating every chip to 44px */
   .composer-status {
     flex-wrap: wrap;
-    row-gap: 6px;
+    row-gap: var(--space-xs);
     min-height: 0;
   }
   .composer-status-actions,
@@ -7090,6 +7328,16 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
+  .chat-column:not(.is-empty)::after {
+    background: linear-gradient(
+      to top,
+      color-mix(in oklab, var(--bg) 92%, var(--shadow-ink) 8%) 0%,
+      color-mix(in oklab, var(--bg) 78%, transparent) 24%,
+      color-mix(in oklab, var(--bg) 42%, transparent) 48%,
+      color-mix(in oklab, var(--bg) 16%, transparent) 72%,
+      transparent 100%
+    );
+  }
 }
 
 /* ── Rich data views ────────────────────────────────────────────────────── */
@@ -7106,7 +7354,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: var(--assistant);
 }
 
-.rich-title { font-weight: 700; color: var(--assistant); margin-bottom: var(--space-2xs); }
+.rich-title { font-weight: var(--weight-semibold); color: var(--assistant); margin-bottom: var(--space-2xs); }
 
 .rich-bar { margin: var(--space-2xs) 0; }
 .rich-bar-row {
@@ -7150,10 +7398,10 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   border-radius: var(--radius-md);
   background: var(--surface-subtle);
 }
-.rich-weather-location { font-weight: 700; margin-bottom: var(--space-2xs); }
+.rich-weather-location { font-weight: var(--weight-semibold); margin-bottom: var(--space-2xs); }
 .rich-weather-main { display: flex; align-items: baseline; gap: var(--space-xs); margin-bottom: var(--space-xs); }
 .rich-weather-icon { font-size: var(--text-display-sm); }
-.rich-weather-temp { font-size: var(--text-display-sm); font-weight: 700; }
+.rich-weather-temp { font-size: var(--text-display-sm); font-weight: var(--weight-semibold); }
 .rich-weather-chips { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: var(--space-xs); }
 .rich-weather-chips .chip {
   /* Display-only status chips inside rich weather blocks — keep compact but
@@ -7172,14 +7420,19 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .forecast-cond { flex: 1; }
 
 .thinking-panel.trail {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: block;
   overflow-y: auto;
   max-height: 60vh;
   font-style: normal;
 }
-.trail-line { white-space: pre-wrap; word-break: break-word; color: var(--muted); line-height: 1.4; min-height: 1em; }
+.trail-line {
+  display: block;
+  min-height: 1.4em;
+  color: var(--muted);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
 
 /* ── Composer tweaks: empty-home no jump ───────────────────────────────── */
 
@@ -7256,7 +7509,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 /* Optional deny-reason input (I39) — revealed after Deny is pressed. */
 .perm-deny-reason {
   display: block;
-  margin-top: 10px;
+  margin-top: var(--space-xs);
   animation: surface-enter var(--dur-fast) var(--ease-enter);
 }
 .perm-deny-reason input {
@@ -7270,7 +7523,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   background: color-mix(in oklab, var(--surface) 36%, transparent);
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 450;
+  font-weight: var(--weight-ui);
 }
 .perm-deny-reason input::placeholder {
   color: var(--text-subtle);
@@ -7313,7 +7566,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   background: transparent;
   font: inherit;
   font-size: var(--text-micro);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
@@ -7336,7 +7589,6 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .sidebar-section > h4,
 .sidebar-section-title-row > h4,
 .meta-label,
-.jobs-eyebrow,
 .job-terminal-label,
 .catalog-popover-header h2,
 .catalog-section {
@@ -7480,7 +7732,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .settings-nav-item.active {
-  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  background: var(--nav-active-bg);
   color: var(--assistant);
 }
 
@@ -7497,7 +7749,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-family: var(--font-sans);
   font-size: var(--text-ui);
   font-weight: var(--weight-medium);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   line-height: var(--leading-tight);
   display: inline-flex;
   align-items: center;
@@ -7507,7 +7759,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .settings-nav-desc {
   font-family: var(--font-sans);
   font-size: var(--text-micro);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   line-height: 1.3;
   color: var(--text-subtle);
   overflow: hidden;
@@ -7521,32 +7773,6 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-family: var(--font-sans);
   font-size: var(--text-caption);
   line-height: 1.4;
-}
-
-/* Git's quick actions are text-only. Remove the reserved icon column so their
-   labels share the same left edge as the Git title and section navigation. */
-.git-rail-actions {
-  padding-inline: var(--space-base);
-}
-
-.git-rail-actions .rail-action {
-  grid-template-columns: minmax(0, 1fr);
-  padding-inline: 0;
-}
-
-/* Git status display in the rail */
-.git-rail-status {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 var(--space-base) var(--space-xs);
-}
-
-.git-rail-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  flex-wrap: wrap;
 }
 
 /* ── Settings / Git form area (center content) ─────────────────────────── */
@@ -7563,7 +7789,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-base);
-  padding: 28px clamp(24px, 5vw, 56px) 20px;
+  padding: var(--space-md) clamp(var(--space-md), 5vw, var(--space-xl)) var(--space-base);
   border-bottom: 0;
 }
 
@@ -7579,7 +7805,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-family: var(--font-sans);
   font-size: var(--text-display-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tight);
   line-height: var(--leading-tight);
 }
 
@@ -7588,7 +7814,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-ui);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   line-height: 1.35;
 }
 
@@ -7598,7 +7824,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   min-height: 0;
   flex-direction: column;
   gap: 0;
-  padding: 28px clamp(24px, 5vw, 56px) 56px;
+  padding: var(--space-md) clamp(var(--space-md), 5vw, var(--space-xl)) var(--space-xl);
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -7641,9 +7867,9 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .setting-field {
   display: grid;
   grid-template-columns: minmax(220px, 0.82fr) minmax(280px, 1.18fr);
-  gap: clamp(20px, 4vw, 56px);
+  gap: clamp(var(--space-base), 4vw, var(--space-xl));
   align-items: start;
-  padding: 16px 0;
+  padding: var(--space-base) 0;
   margin: 0;
   border-bottom: 0;
 }
@@ -7664,7 +7890,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-family: var(--font-sans);
   font-size: var(--text-ui);
   font-weight: var(--weight-medium);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-ui);
   line-height: var(--leading-ui);
 }
 
@@ -7673,7 +7899,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   line-height: 1.35;
 }
 
@@ -7725,7 +7951,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .setting-input:disabled,
 .setting-select:disabled,
 .setting-textarea:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
 }
 
 .setting-textarea {
@@ -7762,7 +7988,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .setting-toggle:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
@@ -7842,9 +8068,9 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   margin: 0;
   color: var(--assistant);
   font-family: var(--font-sans);
-  font-size: 17px;
+  font-size: var(--text-display-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--tracking-tight);
 }
 
 .setting-section-desc {
@@ -7922,7 +8148,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .setting-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 6px;
+  padding: 2px var(--space-2xs);
   border-radius: var(--radius-xs);
   background: color-mix(in oklab, var(--surface) 60%, transparent);
   color: var(--text-subtle);
@@ -7989,7 +8215,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   justify-content: space-between;
   gap: var(--space-sm);
   min-height: 56px;
-  padding: var(--space-sm) clamp(24px, 5vw, 56px);
+  padding: var(--space-sm) clamp(var(--space-md), 5vw, var(--space-xl));
   border-top: 0;
   background: color-mix(in oklab, var(--bg) 94%, var(--surface));
   box-shadow: 0 -10px 24px color-mix(in oklab, var(--shadow-ink) 10%, transparent);
@@ -8049,7 +8275,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .settings-scope-btn:disabled {
-  opacity: 0.4;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
@@ -8095,7 +8321,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .rail-footer-btn:disabled {
-  opacity: 0.4;
+  opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
 
@@ -8122,20 +8348,8 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-family: var(--font-sans);
   font-size: var(--text-ui);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.015em;
+  letter-spacing: var(--tracking-tight);
   text-transform: none;
-}
-
-.git-branch-name {
-  font-family: var(--font-mono);
-  font-size: var(--text-ui);
-  color: var(--assistant);
-}
-
-.git-upstream {
-  color: var(--text-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
 }
 
 .git-ahead {
@@ -8150,16 +8364,6 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-family: var(--font-mono);
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
-}
-
-.git-clean {
-  color: var(--add);
-  font-size: var(--text-caption);
-}
-
-.git-dirty {
-  color: var(--notice);
-  font-size: var(--text-caption);
 }
 
 .git-clean-msg {
@@ -8224,7 +8428,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 .git-branch-marker {
   flex: 0 0 auto;
-  font-size: 8px;
+  font-size: var(--text-micro);
   color: var(--accent);
 }
 
@@ -8544,7 +8748,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 .git-pr-state {
   flex: 0 0 auto;
-  padding: 1px 6px;
+  padding: 1px var(--space-2xs);
   border-radius: var(--radius-xs);
   font-family: var(--font-sans);
   font-size: var(--text-micro);
@@ -8594,26 +8798,26 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   min-height: 0;
 }
 
-.git-drawer-heading {
+.git-panel-heading {
   position: static;
   flex: 0 0 auto;
 }
 
-.git-drawer-actions {
+.git-panel-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-xs);
   padding: 0 var(--space-base) var(--space-sm);
 }
 
-.git-drawer-actions .button {
+.git-panel-actions .button {
   min-width: 0;
   min-height: 30px;
   padding-inline: var(--space-xs);
   font-size: var(--text-caption);
 }
 
-.git-drawer-tabs {
+.git-panel-tabs {
   display: flex;
   flex: 0 0 auto;
   min-height: 0;
@@ -8622,7 +8826,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   padding: 0 var(--space-sm) var(--space-sm);
 }
 
-.git-drawer-tab {
+.git-panel-tab {
   display: flex;
   min-width: 0;
   min-height: 32px;
@@ -8642,19 +8846,22 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
-.git-drawer-tab:hover,
-.git-drawer-tab:focus-visible,
-.git-drawer-tab.is-active {
+.git-panel-tab:hover {
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 62%, transparent);
+  background: color-mix(in oklab, var(--surface) 44%, transparent);
 }
 
-.git-drawer-tab:focus-visible {
+.git-panel-tab.is-active {
+  color: var(--assistant);
+  background: var(--nav-active-bg);
+}
+
+.git-panel-tab:focus-visible {
   outline: none;
-  box-shadow: none;
+  box-shadow: var(--focus-ring);
 }
 
-.git-drawer-content {
+.git-panel-content {
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -8663,25 +8870,44 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   overflow: hidden;
 }
 
-.git-drawer-content .settings-form-scroll {
+.git-panel-content .settings-form-scroll {
   width: 100%;
   min-width: 0;
   padding: 0 var(--space-base) var(--space-lg);
 }
 
-.git-drawer-content .settings-form-scroll > * {
+.git-panel-content .settings-form-scroll > * {
   width: 100%;
   min-width: 0;
   margin-inline: 0;
 }
 
-.git-drawer-content .settings-section {
+.git-panel-content .settings-section {
   min-width: 0;
 }
 
 /* ── Responsive: settings/git form fields ─────────────────────────────── */
 
 @media (max-width: 900px) {
+  /* Settings is a full-workspace two-column surface. Keep its navigation in
+     flow at tablet widths; the chat rail's edge-drawer behavior must not
+     cover the form column. */
+  .settings-layer.is-open .settings-rail {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    z-index: auto;
+    width: var(--settings-rail-w);
+    flex: 0 0 var(--settings-rail-w);
+    box-shadow: none;
+  }
+
+  .settings-layer.is-open .settings-main {
+    min-width: 0;
+  }
+
   .setting-field {
     grid-template-columns: 1fr;
     gap: var(--space-xs);
@@ -8692,12 +8918,65 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     width: 100%;
   }
 
-  .settings-form-header { padding-inline: 24px; }
-  .settings-form-scroll { padding-inline: 24px; }
+  .settings-form-header,
+  .settings-form-scroll {
+    padding-inline: var(--space-base);
+  }
 
   .setting-perm-rule {
     grid-template-columns: 1fr 1fr;
     gap: var(--space-xs);
+  }
+}
+
+@media (max-width: 720px) {
+  /* On phones, Settings becomes one vertical surface: the section index is
+     a wrapped full-width header and only the active form owns a scrollport. */
+  .workspace:has(.settings-layer.is-open) {
+    flex-direction: column;
+  }
+
+  .settings-layer.is-open .settings-rail {
+    width: 100%;
+    flex: 0 0 auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-soft);
+    overflow: visible;
+  }
+
+  .settings-layer.is-open .settings-nav-list {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--space-2xs);
+    overflow: visible;
+  }
+
+  .settings-layer.is-open .settings-nav-group {
+    display: contents;
+  }
+
+  .settings-layer.is-open .settings-nav-group-label {
+    grid-column: 1 / -1;
+  }
+
+  .settings-layer.is-open .settings-nav-group + .settings-nav-group {
+    margin-top: var(--space-xs);
+  }
+
+  .settings-layer.is-open .settings-nav-desc {
+    display: none;
+  }
+
+  .settings-layer.is-open .settings-nav-item {
+    min-width: 0;
+    min-height: 40px;
+    padding-block: var(--space-xs);
+  }
+
+  .settings-layer.is-open .settings-main {
+    width: 100%;
+    flex: 1 1 auto;
   }
 }
 
@@ -8724,8 +9003,8 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   align-items: center;
   justify-content: center;
   padding: var(--space-lg);
-  background: color-mix(in oklab, var(--bg) 55%, transparent);
-  animation: toast-in var(--dur-fast) var(--ease-enter);
+  background: var(--scrim-modal);
+  animation: scrim-enter var(--dur-fast) var(--ease-enter);
 }
 
 .onboarding-modal {
@@ -8739,6 +9018,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   border-radius: var(--radius-lg);
   background: var(--bg-menu);
   box-shadow: var(--shadow-modal);
+  animation: surface-enter var(--dur-standard) var(--ease-enter);
 }
 
 .onboarding-modal-header {
@@ -8752,7 +9032,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .onboarding-modal-header h2 {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: var(--text-h3);
+  font-size: var(--text-heading);
   font-weight: var(--weight-semibold);
 }
 .onboarding-modal-sub {
@@ -8784,7 +9064,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
-  color: var(--text-primary);
+  color: var(--assistant);
   text-align: left;
   cursor: pointer;
   transition: background var(--dur-micro) var(--ease-standard);
@@ -8806,7 +9086,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   line-height: 1.3;
 }
 .onboarding-provider-check {
-  color: var(--ok);
+  color: var(--add);
   font-size: var(--text-caption);
 }
 
@@ -8868,8 +9148,8 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   margin: var(--space-sm) 0 0;
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--danger) 12%, transparent);
-  color: var(--danger);
+  background: color-mix(in oklab, var(--del) 12%, transparent);
+  color: var(--del);
   font-size: var(--text-caption);
 }
 
@@ -8895,7 +9175,17 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   border-radius: var(--radius-sm);
   cursor: pointer;
   padding: 0;
-  transition: transform var(--dur-micro) var(--ease-standard);
+  transition: transform var(--dur-micro) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.accent-swatch.is-selected {
+  border-color: var(--border-active);
+  box-shadow: var(--focus-ring);
+}
+
+.accent-swatch:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .accent-swatch:hover {
   transform: scale(1.15);

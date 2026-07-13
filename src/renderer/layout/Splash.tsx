@@ -9,7 +9,6 @@ export function Splash() {
         </h1>
         <div className="splash-brand" aria-hidden>
           <pre className="splash-wordmark">{WORDMARK.join("\n")}</pre>
-          <div className="splash-brand-compact">Vibe Codr</div>
         </div>
 
         <p className="splash-tagline">Ask Vibe Codr to plan, build, or review this project.</p>

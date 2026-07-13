@@ -18,3 +18,10 @@ export function workingLabel(elapsedMs: number): string {
   if (elapsedMs < 100) return "Working…";
   return `Working… ${(elapsedMs / 1000).toFixed(1)}s`;
 }
+
+/** Compact elapsed value for tight chrome; sub-second durations stay silent. */
+export function compactElapsed(ms: number): string {
+  if (ms < 1000) return "";
+  if (ms >= 10_000) return `${Math.round(ms / 1000)}s`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}

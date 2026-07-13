@@ -35,19 +35,25 @@ The shell has four primary layout regions:
 2. **Main stage:** project/session topbar, transcript, approvals, queue,
    changed-files card, and composer.
 3. **Workspace dock:** compact navigation that stays on the chat surface and
-   exposes a flat list of **Session**, **Changes**, **Git**, **Jobs**, and
+   exposes a flat list of **Session**, **Changes**, **Git**, **Terminal**, **Jobs**, and
    **Files** only — no Local/Files double Finder entry and no commit/compare
-   shortcuts (those live inside the Git end panel).
-4. **End panel:** one shared right-side lane for in-app Session, Changes, Git,
-   and Jobs views. Opening one replaces the other in the same geometry; the main
-   stage reserves the lane so user messages, output, and composer never sit
-   underneath it. **Files** is a Finder reveal action, not an in-app panel.
+   shortcuts (those live inside the Git activity view).
+4. **Activity sidebar:** one shared full-height right-side lane for Session,
+   Changes, Git, Terminal, and Jobs. It is an edge-attached structural grid
+   column with a hairline divider, not an inset floating card. Opening one view
+   replaces the other in the same geometry. **Files** is a Finder reveal action,
+   not an in-app panel.
 
-The end panel is not a full-screen route change and does not replace the chat
-surface. It opens and closes with the standard panel motion, preserves the
-conversation scroll position, and can be dismissed with Escape, the dock
-trigger, or the panel close control. Settings remains a full-workspace tool
+The activity sidebar is not a route change and does not replace the chat. It
+spans the topbar and chat rows beside the main stage, opens with the standard
+panel motion, preserves conversation scroll position, and closes with Escape,
+the dock trigger, or its close control. Settings remains a full-workspace tool
 because its section navigation and form content require the larger canvas.
+
+Its compact top switcher is persistent while the lane is open. The five views
+use equal-width quiet text tabs with selected fill, optional Changes/Jobs counts,
+and no bright selection line. Terminal's PTY is owned by the main process per
+project; closing or switching its renderer view never terminates the shell.
 
 ### Layout measures
 
@@ -56,8 +62,9 @@ These values are the current production tokens in `src/renderer/styles.css`:
 | Token | Value | Use |
 |---|---:|---|
 | `--project-rail-w` | `clamp(260px, 24vw, 320px)` | Project and chat navigation rail |
-| `--workspace-dock-w` | `288px` | Dock navigation block |
-| `--activity-rail-w` | `clamp(280px, 26vw, 340px)` | Shared Session/Changes/Git/Jobs end panel |
+| `--workspace-lane-w` | `clamp(280px, 26vw, 340px)` | Shared reserved lane for dock and activity sidebar |
+| `--workspace-dock-w` | `clamp(208px, 18vw, 232px)` | Compact upper-right launcher |
+| `--activity-rail-w` | `var(--workspace-lane-w)` | Shared Session/Changes/Git/Terminal/Jobs sidebar |
 | `--column-max` | `52rem` | Transcript, approvals, and composer column |
 | `--composer-max` | `40rem` | Composer and approval measure |
 | `--reading-max` | `130ch` | Wider transcript content measure |
@@ -69,22 +76,25 @@ These values are the current production tokens in `src/renderer/styles.css`:
 
 The stage is edge-to-edge inside the workspace. The transcript uses an even,
 responsive inset; the composer and approval cards align to the same centered
-measure. When an end panel is open, `.content-inset.end-panel-open` reserves
-`calc(var(--activity-rail-w) + var(--space-lg))` on the main column.
+measure. When an activity view is open, `.content-inset.end-panel-open` becomes
+a two-column grid whose second track is `min(var(--activity-rail-w), 48%)`.
+Because opening that structural track already changes layout, its content only
+fades in; the horizontal enter motion is reserved for the compact overlay drawer.
 
 Named JavaScript breakpoints live in `src/shared/breakpoints.ts`:
 
 | Name | Width | Behavior |
 |---|---:|---|
-| `wide` | `1280px` | Comfortable rail, output, and end-panel composition; JS-only |
+| `wide` | `1280px` | Comfortable rail, output, and activity-sidebar composition; JS-only |
 | `laptop` | `1100px` | Compress topbar action labels |
+| `dock` | `960px` | Workspace dock switches to compact icon navigation |
 | `tablet` | `900px` | Project rail becomes a start-edge drawer |
 | `compact` | `720px` | End panel becomes an end-edge drawer |
 | `narrow` | `640px` | Dense phone-narrow chrome |
 
-The CSS workspace dock hides below `960px`; Jobs remains reachable through
-`/jobs`, and the end-panel drawer remains available through the responsive
-layout rules.
+The workspace dock switches to compact icon navigation below `960px`; Jobs
+remains reachable through `/jobs`, and the activity drawer remains available
+through the responsive layout rules.
 
 ## Color system
 
@@ -159,7 +169,7 @@ ui-monospace, "Berkeley Mono", "SF Mono", "SFMono-Regular", "JetBrains Mono",
 
 | Token | Size | Leading | Use |
 |---|---:|---:|---|
-| `--text-display` | `32px` | `--leading-tight` | Empty-home wordmark / display |
+| `--text-display` | `32px` | `--leading-tight` | Large app display titles |
 | `--text-display-sm` | `20px` | `--leading-tight` | Large panel titles |
 | `--text-heading` | `18px` | `--leading-tight` | Section and response headings |
 | `--text-title` | `16px` | `--leading-ui` | Primary labels |
@@ -171,9 +181,16 @@ ui-monospace, "Berkeley Mono", "SF Mono", "SFMono-Regular", "JetBrains Mono",
 | `--text-code` | `12.5px` | `--leading-code` | Code and raw output |
 
 Use `400` for body copy, `450` for the default UI weight, `500` for emphasis,
-and `600` for headings or strong labels. Keep tracking normal and avoid
+and `600` for headings or strong labels. Use `--tracking-ui` for normal UI
+copy and `--tracking-tight` for display hierarchy. Keep tracking normal and avoid
 all-caps, tracked mono labels for ordinary chrome. Bold markdown remains a
 content hierarchy signal, not a replacement for layout.
+
+The empty-home brand is the same fixed-geometry ASCII wordmark at every window
+size; container-relative scaling changes its size without replacing it with a
+plain text fallback. Activity chrome uses sans. The xterm grid is real machine
+output and therefore uses `--font-mono` at 12.5px, neutral letter spacing, and
+1.35 line height so cells and the thin bar cursor remain geometrically correct.
 
 ## Spacing and shape
 
@@ -206,7 +223,6 @@ Elevation is semantic rather than per-component decoration:
 | `--shadow-float` | Small floating controls |
 | `--shadow-menu` | Slash, mention, catalog, and context menus |
 | `--shadow-modal` | Blocking dialogs and onboarding |
-| `--shadow-dock` | Workspace dock and right-side activity panels |
 | `--shadow-drawer` | Start-edge drawers |
 | `--shadow-drawer-end` | End-edge drawers |
 | `--shadow-composer` | Floating composer |
@@ -214,7 +230,11 @@ Elevation is semantic rather than per-component decoration:
 
 Blur tiers are `--blur-veil: 12px`, `--blur-surface: 16px`, and
 `--blur-overlay: 18px` in dark mode. Light mode uses `10px`, `14px`, and
-`18px`; saturation is `1.06` dark and `1.04` light. Use blur only on an
+`18px`. Floating chrome consumes `--glass-float-bg` / `--glass-float-filter`;
+true menus and modals consume `--glass-overlay-bg` /
+`--glass-overlay-filter`. Structural shell and activity-lane surfaces remain
+opaque and never opt into backdrop blur. Saturation is `1.06` dark and `1.04`
+light. Use blur only on an
 elevated floating surface or intentional transcript veil. Never blur the text
 content itself.
 
@@ -241,8 +261,14 @@ Disabled controls reduce contrast and interaction without shifting layout.
 
 Panels must remain predictable:
 
-- The workspace dock and end panel use the same row order and edge alignment.
-- Session, Changes, Git, and Jobs are mutually exclusive in the end-panel lane.
+- The workspace dock and activity sidebar use the same row order and edge alignment.
+- The workspace dock is a compact `--bg` navigation surface with one quiet
+  hairline, no rail tint, and no floating shadow. Its compact icon-strip form
+  keeps the same enclosure so it remains legible over the reclaimed chat area.
+- Session, Changes, Git, Terminal, and Jobs are mutually exclusive in the activity sidebar.
+- Active-turn state stays in the composer/project row; do not add a redundant
+  floating Running card. Density acknowledgements remain silent and verbose
+  warnings collapse into quiet disclosures.
 - Escape dismisses the topmost menu/panel before it aborts a running turn.
 - The composer stays anchored while transcript scroll changes.
 - The user bubble, assistant output, approval cards, and composer align to the
@@ -255,9 +281,10 @@ Panels must remain predictable:
 | Component | Source | Contract |
 |---|---|---|
 | Project rail | `src/renderer/layout/ProjectRail.tsx` | Collapsible Projects/Chats, stable icon/text columns, portal menus, persisted resize |
-| Workspace dock | `src/renderer/layout/WorkspaceDock.tsx` | Chat-surface navigation for Session/Changes/Git/Jobs/Files |
-| End panel | `src/renderer/panels/Inspector.tsx`, `src/renderer/panels/JobsView.tsx`, `src/renderer/git/GitPanel.tsx` | One shared right-side geometry; content never occludes the chat |
-| Transcript | `src/renderer/transcript/TranscriptView.tsx` | Streamdown hierarchy, anchored scrolling, foldable user turns |
+| Workspace dock | `src/renderer/layout/WorkspaceDock.tsx` | Chat-surface navigation for Session/Changes/Git/Terminal/Jobs/Files |
+| Activity sidebar | `src/renderer/layout/ActivitySidebar.tsx`, `src/renderer/panels/Inspector.tsx`, `src/renderer/panels/TerminalPanel.tsx`, `src/renderer/panels/JobsView.tsx`, `src/renderer/git/GitPanel.tsx` | Persistent five-view switcher; full-height edge-attached geometry, shared header/divider/resize behavior; content never occludes chat |
+| Project terminal | `src/main/terminal-manager.ts`, `src/renderer/panels/TerminalPanel.tsx` | Main-owned project PTY, bounded replay, detach/reconnect across sidebar close and view switches |
+| Transcript | `src/renderer/transcript/TranscriptView.tsx` | Plain streaming text, finalized Streamdown hierarchy, anchored scrolling, foldable user turns |
 | Composer | `src/renderer/composer/Composer.tsx` | Floating, continuously frosted, attachment-aware, keyboard-contained menus |
 | Turn changes | `src/renderer/panels/TurnChangesCard.tsx` | Compact file summary above composer; Review opens the same diff surface |
 | Settings | `src/renderer/settings/SettingsPanel.tsx` | Full-workspace section navigation, saved config, mounted Instructions draft |
@@ -272,9 +299,10 @@ focus only while open, restore focus when dismissed, and expose empty/error
 states. The transcript is scrollable and keyboard reachable but is not a live
 region; narrow busy/idle status is the live status.
 
-The project rail becomes a start drawer at tablet widths. The end panel becomes
-an end drawer at compact widths. Dock navigation hides at the CSS `960px`
-threshold, while keyboard and slash-command routes remain available. Nothing in
+The project rail becomes a start drawer at tablet widths. The activity sidebar becomes
+an end drawer at compact widths. Dock navigation switches to icon-only mode at
+the CSS `960px` threshold, while keyboard and slash-command routes remain
+available. Nothing in
 the responsive collapse may place a user bubble, answer, approval, or composer
 behind a panel.
 

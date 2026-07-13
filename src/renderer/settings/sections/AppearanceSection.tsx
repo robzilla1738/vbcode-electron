@@ -29,6 +29,8 @@ const THEMES = THEME_NAMES.map((name) => ({
 }));
 
 export function AppearanceSection({ config, updateConfig }: SectionProps) {
+  const activeAccent = config.accentColor?.trim().toLowerCase();
+
   return (
     <SettingSection title="Appearance" description="Visual theme, accent color, transcript density, and mouse behavior.">
       <SettingField label="Theme" description="Color palette for the UI.">
@@ -50,9 +52,10 @@ export function AppearanceSection({ config, updateConfig }: SectionProps) {
             <button
               key={name}
               type="button"
-              className="accent-swatch"
+              className={`accent-swatch${activeAccent === ACCENT_PRESETS[name]?.toLowerCase() ? " is-selected" : ""}`}
               title={name}
               aria-label={`Accent: ${name}`}
+              aria-pressed={activeAccent === ACCENT_PRESETS[name]?.toLowerCase()}
               style={{ backgroundColor: ACCENT_PRESETS[name] }}
               onClick={() => updateConfig({ accentColor: ACCENT_PRESETS[name] })}
             />

@@ -1,19 +1,19 @@
-import { isValidElement, memo, type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { type ComponentPropsWithoutRef, isValidElement, memo, type ReactNode } from "react";
 import {
   CodeBlock,
-  Streamdown,
   type Components,
   type ExtraProps,
+  Streamdown,
   type ThemeInput,
 } from "streamdown";
-import { parseSources } from "../../shared/sources";
 import { richKind } from "../../shared/rich-blocks";
-import { getTheme } from "../../shared/themes";
 import { shikiThemeFor } from "../../shared/shiki-theme";
+import { parseSources } from "../../shared/sources";
+import { getTheme } from "../../shared/themes";
 import { CopyButton } from "../CopyButton";
 import { ExternalLink } from "../primitives";
-import { SourceList } from "./SourceList";
 import { RichBlockView } from "./RichBlockView";
+import { SourceList } from "./SourceList";
 
 /** Resolve the current palette from `data-theme` (set by applyPalette). */
 function currentPalette() {
@@ -42,7 +42,7 @@ type CodeProps = ComponentPropsWithoutRef<"code"> & ExtraProps;
 
 /**
  * Static (finalized) fences: Shiki CodeBlock + line numbers + copy.
- * Streaming path must NEVER use this — see `streamingCodeComponents`.
+ * The streaming path bypasses Streamdown entirely.
  */
 function Code({ className, children, ...props }: CodeProps) {
   const isBlock = "data-block" in props;
@@ -79,41 +79,9 @@ function Code({ className, children, ...props }: CodeProps) {
   );
 }
 
-/** Streaming fences: plain pre/code only — no Shiki, no line numbers, no copy chrome. */
-function StreamingCode({ className, children, ...props }: CodeProps) {
-  const isBlock = "data-block" in props;
-  if (!isBlock) {
-    return (
-      <code className={className} data-streamdown="inline-code">
-        {children}
-      </code>
-    );
-  }
-  const lang = fenceLang(className);
-  const body = fenceBody(children);
-  const kind = richKind(lang);
-  // Rich fences still render (cheap pure views); never CodeBlock/Shiki.
-  if (kind === "sources") {
-    return <SourceList sources={parseSources(body)} />;
-  }
-  if (kind) {
-    return <RichBlockView lang={lang} body={body} palette={currentPalette()} />;
-  }
-  return (
-    <pre className="md-code-block md-code-block-streaming" data-lang={lang || "text"}>
-      <code>{body}</code>
-    </pre>
-  );
-}
-
 const staticComponents: Components = {
   a: ({ href, children }) => <ExternalLink href={href}>{children}</ExternalLink>,
   code: Code,
-};
-
-const streamingComponents: Components = {
-  a: ({ href, children }) => <ExternalLink href={href}>{children}</ExternalLink>,
-  code: StreamingCode,
 };
 
 /**

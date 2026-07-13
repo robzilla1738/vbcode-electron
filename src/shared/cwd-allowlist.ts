@@ -33,7 +33,7 @@ export class CwdAllowlist {
     if (this.roots.has(abs)) return true;
     // Also allow paths under an allowed root (subdirs of an opened project).
     for (const root of this.roots) {
-      if (abs === root || abs.startsWith(root + "/") || abs.startsWith(root + "\\")) {
+      if (abs === root || abs.startsWith(`${root}/`) || abs.startsWith(`${root}\\`)) {
         return true;
       }
     }
@@ -45,7 +45,7 @@ export class CwdAllowlist {
     if (this.has(cwd)) return true;
     const abs = resolve(cwd);
     for (const root of globalVibeRoots(home)) {
-      if (abs === root || abs.startsWith(root + "/") || abs.startsWith(root + "\\")) {
+      if (abs === root || abs.startsWith(`${root}/`) || abs.startsWith(`${root}\\`)) {
         return true;
       }
     }

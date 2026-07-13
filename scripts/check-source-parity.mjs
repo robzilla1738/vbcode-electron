@@ -16,6 +16,7 @@ const ALLOW_EXTRAS = new Set([
   "density",     // isMarkdown check in toolCollapsed for verbose expansion
   "tool-icons",  // permissionKind/permissionDetail/permissionPreview for the GUI card
   "themes",      // Electron-specific palette values (Graphite default differs)
+  "trail",       // Electron hard-caps newline-free reasoning streams for renderer safety
   "protocol",    // encodeInbound helper not in the macos-bridge host
   "file-fuzzy",  // formatAtPath + quoted/space-safe applyAtMention for Electron @ pick / paste
 ]);

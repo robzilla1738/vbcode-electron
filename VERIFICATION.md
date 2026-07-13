@@ -17,10 +17,13 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (**259** tests as of 2026-07-13), Playwright Electron E2E
-green (**11** scenarios), all 19 upstream source pairs aligned, Biome and `tsc`
+Expect: Vitest green (**269** tests as of 2026-07-13), Playwright Electron E2E
+green (**12** scenarios), all 19 upstream source pairs aligned, Biome and `tsc`
 clean, electron-vite build and renderer/host bundle budget OK, and smoke prints
-`ready` + `snapshot ok`. Prefer live suite output over frozen counts in prose.
+`ready` + `snapshot ok` and a structurally valid project-list response (which
+may be empty when every project is archived). Prefer live suite output over frozen counts in prose.
+The xterm runtime must remain in a deferred chunk: aggregate renderer payload
+may include it, but the initial/largest chunk retains the pre-terminal budget.
 
 | Gate | Includes |
 |------|----------|
@@ -65,10 +68,17 @@ files in Diff/File mode, metadata uses the primary sans font, and rail resize
 handles respond to pointer and keyboard input. Confirm the right workspace dock
 matches the chat background (no decorative divider/project header), Projects/Chats
 headers collapse, and user-message actions appear under the bubble on hover.
-Open Session, Changes, Git, and Jobs in turn; each must use the same right-side
-activity lane, reserve space in the main stage, preserve the conversation
-position, and close without a full-workspace jump. Files should open
-Finder actions rather than an in-app replacement view.
+Open Session, Changes, Git, Terminal, and Jobs in turn. Each must use the same
+full-height edge-attached sidebar with one left divider, no outer radius/shadow,
+and no desktop scrim; resizing any view must persist for the others. Confirm the
+five-item top switcher stays visible, chat remains mounted and unobscured, and
+compact widths use an end drawer. In Terminal, start a delayed command, switch
+to Session, then return to Terminal: the command must keep running and its output
+must replay. Close/reopen Terminal and verify the same PTY remains. Files reveals Finder.
+Confirm terminal chrome uses the app sans stack while the xterm grid uses the
+compact mono stack with neutral tracking, even cell spacing, and a thin cursor.
+Resize through narrow and wide layouts and confirm the same stylized ASCII Vibe
+Codr wordmark remains visible rather than switching to a plain text fallback.
 
 ## Packaged app
 
@@ -102,9 +112,9 @@ npm run dev
    - `/skills` → choose prefills `/skill name ` (add args before Enter).
 9. `@` file pick; ⌘V image paste → `@.vibe/clipboard/…`.
 10. `/theme tokyonight`; `/keys`; open Session from the workspace dock (or ⇧⌘I);
-    switch through Changes, Git, and Jobs without leaving the chat surface;
-    narrow the window for drawer behavior (dock hides below ~960px; `/jobs`
-    still works).
+    switch through Changes, Git, Terminal, and Jobs without leaving the chat surface;
+    narrow the window for drawer behavior (dock becomes a compact icon strip
+    below ~960px; `/jobs` still works).
 11. Click a user message to fold/unfold its turn; confirm no persistent arrow is rendered;
     hover the bubble — Copy/Edit/time appear **under** it (not beside).
 12. Confirm approval panels and output align to the composer width; inspect source

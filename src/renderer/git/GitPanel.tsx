@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { GitFullStatus } from "../../shared/git-types";
-import { IconClose, IconSidebar } from "../icons";
+import { IconClose } from "../icons";
 
 type Tab = "branches" | "changes" | "history" | "remotes" | "prs";
 
@@ -44,97 +44,9 @@ function statusIcon(index: string, working: string): string {
 
 interface GitOpResult { ok: boolean; message?: string; error?: string }
 
-// ── Sidebar ──────────────────────────────────────────────────────────────
-
-export function GitSidebar({
-  status,
-  cwd,
-  activeTab,
-  onSelectTab,
-  busy,
-  onAction,
-  onClose,
-}: {
-  status: GitFullStatus | null;
-  cwd: string;
-  loading: boolean;
-  activeTab: Tab;
-  onSelectTab: (tab: Tab) => void;
-  busy: boolean;
-  onAction: (op: () => Promise<GitOpResult>, msg?: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <aside
-      id="project-rail"
-      className="project-rail is-open settings-rail"
-      aria-label="Git sections"
-    >
-      <div className="rail-chrome">
-        <button type="button" className="icon-button rail-chrome-toggle no-drag" onClick={onClose} aria-label="Close git panel">
-          <IconSidebar size={15} />
-        </button>
-      </div>
-
-      <div className="rail-title-row">
-        <h1 className="rail-product-name">Git</h1>
-      </div>
-
-      {status && (
-        <div className="git-rail-status">
-          <span className="git-branch-name">{status.branch}</span>
-          <div className="git-rail-meta">
-            {status.upstream && <span className="git-upstream">{status.upstream}</span>}
-            {status.ahead > 0 && <span className="git-ahead">↑{status.ahead}</span>}
-            {status.behind > 0 && <span className="git-behind">↓{status.behind}</span>}
-            {status.clean
-              ? <span className="git-clean">clean</span>
-              : <span className="git-dirty">{status.entries.length} changed</span>}
-          </div>
-        </div>
-      )}
-
-      {/* Quick actions */}
-      <div className="rail-actions git-rail-actions">
-        <button type="button" className="rail-action" disabled={busy} onClick={() => onAction(() => window.vibe.gitFetch({ cwd }))}>
-          <span>Fetch</span>
-        </button>
-        <button type="button" className="rail-action" disabled={busy} onClick={() => onAction(() => window.vibe.gitPull({ cwd }))}>
-          <span>Pull</span>
-        </button>
-        <button type="button" className="rail-action" disabled={busy} onClick={() => onAction(() => window.vibe.gitPush({ cwd }))}>
-          <span>Push</span>
-        </button>
-      </div>
-
-      <div className="settings-nav-heading">
-        <h2 className="rail-section-label">Sections</h2>
-      </div>
-      <nav className="settings-nav-list" aria-label="Git sections">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`settings-nav-item${activeTab === tab.id ? " active" : ""}`}
-            onClick={() => onSelectTab(tab.id)}
-          >
-            <span className="settings-nav-label">
-              {tab.label}
-              {tab.id === "changes" && status && status.entries.length > 0 && (
-                <span className="git-tab-count">{status.entries.length}</span>
-              )}
-            </span>
-            <span className="settings-nav-desc">{tab.desc}</span>
-          </button>
-        ))}
-      </nav>
-    </aside>
-  );
-}
-
 // ── Content area ─────────────────────────────────────────────────────────
 
-export function GitContent({
+function GitContent({
   status,
   tab,
   cwd,
@@ -247,15 +159,15 @@ export function GitView({
   }, [onClose]);
 
   return (
-    <aside
+    <section
       className="activity-rail git-activity-rail"
       aria-label="Git workspace"
-      aria-labelledby="git-drawer-title"
+      aria-labelledby="git-panel-title"
     >
-      <header className="sidebar-heading-row git-drawer-heading">
+      <header className="sidebar-heading-row git-panel-heading">
         <div className="sidebar-heading-copy">
           <p className="sidebar-eyebrow">Workspace</p>
-          <h2 id="git-drawer-title" className="sidebar-heading-title">Git</h2>
+          <h2 id="git-panel-title" className="sidebar-heading-title">Git</h2>
           <p className="sidebar-heading-sub">
             {status
               ? `${status.branch}${status.clean ? " · clean" : ` · ${status.entries.length} changed`}`
@@ -273,18 +185,18 @@ export function GitView({
         </button>
       </header>
 
-      <div className="git-drawer-actions" aria-label="Git actions">
+      <div className="git-panel-actions" aria-label="Git actions">
         <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitFetch({ cwd }))}>Fetch</button>
         <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitPull({ cwd }))}>Pull</button>
         <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitPush({ cwd }))}>Push</button>
       </div>
 
-      <nav className="git-drawer-tabs" aria-label="Git sections">
+      <nav className="git-panel-tabs" aria-label="Git sections">
         {TABS.map((item) => (
           <button
             key={item.id}
             type="button"
-            className={`git-drawer-tab${tab === item.id ? " is-active" : ""}`}
+            className={`git-panel-tab${tab === item.id ? " is-active" : ""}`}
             onClick={() => setTab(item.id)}
             aria-current={tab === item.id ? "page" : undefined}
           >
@@ -296,7 +208,7 @@ export function GitView({
         ))}
       </nav>
 
-      <div className="git-drawer-content">
+      <div className="git-panel-content">
         <GitContent
           status={status}
           tab={tab}
@@ -310,7 +222,7 @@ export function GitView({
           showToast={showToast}
         />
       </div>
-    </aside>
+    </section>
   );
 }
 

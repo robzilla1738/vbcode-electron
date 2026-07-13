@@ -23,6 +23,12 @@ import type {
 } from "../shared/git-types";
 import type { RpcMethod } from "../shared/protocol";
 import type { ProjectSummary } from "../shared/protocol";
+import type {
+  TerminalCommandResult,
+  TerminalEvent,
+  TerminalOpenRequest,
+  TerminalOpenResult,
+} from "../shared/terminal";
 
 export interface BootstrapOpts {
   cwd: string;
@@ -110,6 +116,13 @@ export interface VibeApi {
 
   /** Shell version + last host launch description for diagnostics banners. */
   getShellInfo(): Promise<{ version: string; lastLaunch?: string }>;
+
+  // ── Project terminal ────────────────────────────────────────────────
+  terminalOpen(opts: TerminalOpenRequest): Promise<TerminalOpenResult>;
+  terminalWrite(opts: { id: string; data: string }): Promise<TerminalCommandResult>;
+  terminalResize(opts: { id: string; cols: number; rows: number }): Promise<TerminalCommandResult>;
+  terminalClose(id: string): Promise<TerminalCommandResult>;
+  onTerminalEvent(cb: (event: TerminalEvent) => void): () => void;
 }
 
 const api: VibeApi = {
@@ -181,6 +194,16 @@ const api: VibeApi = {
   ghPrCreate: (req) => ipcRenderer.invoke("gh:prCreate", req),
 
   getShellInfo: () => ipcRenderer.invoke("app:getShellInfo"),
+
+  terminalOpen: (opts) => ipcRenderer.invoke("terminal:open", opts),
+  terminalWrite: (opts) => ipcRenderer.invoke("terminal:write", opts),
+  terminalResize: (opts) => ipcRenderer.invoke("terminal:resize", opts),
+  terminalClose: (id) => ipcRenderer.invoke("terminal:close", id),
+  onTerminalEvent: (cb) => {
+    const handler = (_event: Electron.IpcRendererEvent, terminalEvent: TerminalEvent) => cb(terminalEvent);
+    ipcRenderer.on("terminal:event", handler);
+    return () => ipcRenderer.removeListener("terminal:event", handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("vibe", api);

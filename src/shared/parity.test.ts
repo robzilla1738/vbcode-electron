@@ -4,7 +4,7 @@ import { reduceTranscript, initialTranscript, groupIntoTurns } from "./reducer";
 import { decodeOutbound, encodeInbound } from "./protocol";
 import { cycleModeAction, deriveUiMode, selectModeAction } from "./modes";
 import { getTheme, THEME_NAMES } from "./themes";
-import { toolCollapsed, nextDensity } from "./density";
+import { isDensityChangeNotice, toolCollapsed, nextDensity } from "./density";
 import { seedChromeFromSessionStart } from "./chrome-seed";
 import { fuzzyPathScore, rankPaths, atMentionState, applyAtMention, formatAtPath } from "./file-fuzzy";
 import { formatKeysHelp, ESSENTIAL_KEYS } from "./keys-help";
@@ -178,6 +178,20 @@ describe("modes & themes", () => {
     expect(nextDensity("quiet")).toBe("normal");
     expect(toolCollapsed("quiet", { collapsed: false, isError: true, isDiff: false })).toBe(true);
     expect(toolCollapsed("verbose", { collapsed: true, isError: true, isDiff: false })).toBe(false);
+  });
+
+  it("keeps density acknowledgements out of the transcript", () => {
+    expect(isDensityChangeNotice("Details: verbose.")).toBe(true);
+    expect(isDensityChangeNotice("details: quiet")).toBe(true);
+    expect(isDensityChangeNotice("Details: normal operation resumed.")).toBe(false);
+
+    const initial = initialTranscript();
+    const next = reduceTranscript(initial, {
+      type: "notice",
+      text: "Details: normal.",
+      level: "info",
+    });
+    expect(next).toBe(initial);
   });
 });
 
@@ -580,6 +594,7 @@ describe("breakpoints", () => {
     expect(BREAKPOINTS).toEqual({
       wide: 1280,
       laptop: 1100,
+      dock: 960,
       tablet: 900,
       compact: 720,
       narrow: 640,

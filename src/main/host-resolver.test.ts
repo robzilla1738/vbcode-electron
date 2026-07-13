@@ -90,7 +90,7 @@ describe("resolveHostLaunch", () => {
         [`${root}/packages/core/src`]: { dir: true, children: ["index.ts"] },
         [`${root}/packages/core/src/index.ts`]: { mtimeMs: 200 },
         [entry]: { mtimeMs: 200 },
-        ["/home/dev/.bun/bin/bun"]: { mtimeMs: 1 },
+        "/home/dev/.bun/bin/bun": { mtimeMs: 1 },
       },
     });
     const launch = resolveHostLaunch(deps);

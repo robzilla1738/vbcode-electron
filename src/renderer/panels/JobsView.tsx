@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { belowBreakpoint } from "../../shared/breakpoints";
 import type { JobInfo } from "../../shared/types";
 import { CopyButton } from "../CopyButton";
-import { IconClose, IconJobs, IconLink } from "../icons";
+import { IconClose, IconLink } from "../icons";
 import { ExternalLink } from "../primitives";
 
 function statusLabel(status: JobInfo["status"]): string {
@@ -122,10 +123,17 @@ export function JobsView({
   onClose?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const [isDrawer, setIsDrawer] = useState(() => belowBreakpoint("compact"));
+
+  useEffect(() => {
+    const onResize = () => setIsDrawer(belowBreakpoint("compact"));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || !isDrawer) return;
     // Capture the element that opened the drawer (e.g. the Jobs toggle) before
     // moving focus inside, so we can restore it on close (I47 — no focus orphan).
     const trigger = document.activeElement as HTMLElement | null;
@@ -163,17 +171,14 @@ export function JobsView({
       // Restore focus to the opener on dismiss so keyboard users aren't orphaned.
       trigger?.focus();
     };
-  }, []);
+  }, [isDrawer]);
 
   const heading = (
-    <header className="jobs-heading">
-      <span className="jobs-heading-icon" aria-hidden>
-        <IconJobs size={14} />
-      </span>
-      <div className="jobs-heading-copy">
-        <p className="jobs-eyebrow">Workspace</p>
-        <h2 id="jobs-drawer-title">Background jobs</h2>
-        <p>
+    <header className="sidebar-heading-row jobs-heading">
+      <div className="sidebar-heading-copy">
+        <p className="sidebar-eyebrow">Workspace</p>
+        <h2 id="jobs-panel-title" className="sidebar-heading-title">Background jobs</h2>
+        <p className="sidebar-heading-sub">
           {jobs.length === 0
             ? "None yet"
             : `${jobs.length} ${jobs.length === 1 ? "process" : "processes"}`}
@@ -182,7 +187,7 @@ export function JobsView({
       {onClose ? (
         <button
           type="button"
-          className="jobs-close"
+          className="icon-button sidebar-close jobs-close"
           onClick={onClose}
           aria-label="Close jobs"
           title="Close (Esc)"
@@ -199,7 +204,7 @@ export function JobsView({
         ref={rootRef}
         className="jobs-view"
         tabIndex={-1}
-        aria-labelledby="jobs-drawer-title"
+        aria-labelledby="jobs-panel-title"
       >
         {heading}
         <div className="jobs-empty">
@@ -217,7 +222,7 @@ export function JobsView({
       ref={rootRef}
       className="jobs-view"
       tabIndex={-1}
-      aria-labelledby="jobs-drawer-title"
+      aria-labelledby="jobs-panel-title"
       aria-label={`Background jobs, ${jobs.length} total`}
     >
       {heading}

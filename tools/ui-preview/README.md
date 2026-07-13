@@ -26,9 +26,10 @@ file-reference composer state, including Finder-style URI path fallback. The
 `inspector` scenario exercises the Session panel and changed-file review flow;
 `settings` remains a full-workspace tool; `git` and `inspector` exercise the
 right-side activity surface. Live app chrome (not fully mirrored in every mock
-scenario) also includes the workspace dock, shared Session/Changes/Git/Jobs
-end-panel lane, and turn-changes card — prefer `npm run dev` or E2E when
-checking panel switching, reserved chat space, or native Finder actions.
+scenario) also includes the workspace dock, shared Session/Changes/Git/Terminal/Jobs
+activity sidebar, and turn-changes card — prefer `npm run dev` or E2E when
+checking panel switching, persistent native PTY behavior, reserved chat space,
+or native Finder actions.
 
 Dev tooling only: nothing in this folder ships in the app bundle, and the mock
 event timelines live entirely in `mock-vibe.ts`.

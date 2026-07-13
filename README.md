@@ -6,7 +6,7 @@ macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/v
 
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
-**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project + chats rail, seamless right workspace dock (Session / Changes / Git / Jobs / Files), quiet empty home, terminal themes/accents, resizable sidebars, turn-changes card + Diff/File review, and one uniform end-panel lane for Session / Changes / Git / Jobs.
+**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project + chats rail, seamless right workspace dock (Session / Changes / Git / Terminal / Jobs / Files), quiet empty home, terminal themes/accents, resizable sidebars, turn-changes card + Diff/File review, and one structural activity sidebar for Session / Changes / Git / Terminal / Jobs.
 
 Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmacos) (SwiftUI). This repo is the Electron equivalent.
 
@@ -21,9 +21,9 @@ Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmaco
 
 | Layer | Path | Role |
 |-------|------|------|
-| Renderer | `src/renderer/` | Transcript, composer, drag/drop attachments, slash menu, permissions, plan, themes, inspector/review |
-| Preload | `src/preload/` | `window.vibe` bridge API, including native dropped-file path resolution |
-| Main | `src/main/` | Host spawn, NDJSON, folder picker, clipboard image, `@` file walk |
+| Renderer | `src/renderer/` | Transcript, composer, activity sidebar, terminal view, attachments, permissions, plan, themes, review |
+| Preload | `src/preload/` | `window.vibe` bridge API, including terminal IPC and native dropped-file path resolution |
+| Main | `src/main/` | Host spawn, NDJSON, persistent project PTYs, folder picker, clipboard image, `@` file walk |
 | Shared UI logic | `src/shared/` | Ported from `@vibe/tui`: reducer, slash, themes, modes, file-fuzzy |
 | Engine host | vibe-codr `packages/macos-bridge` | In-process Engine over stdio |
 
@@ -124,9 +124,12 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 
 - Content max ~130ch; transcript prose, tool output, approval panels, and the composer share the `--composer-max: 40rem` reading measure
 - **Left rail:** collapsible Projects + Chats sections; section **+** only (add project / new chat); Git & Settings in the footer
-- **Right workspace dock:** full-label Session / Changes / Git / Jobs / Files on the same `var(--bg)` as chat (no decorative divider or project header); hidden below ~960px
-- **Shared end-panel lane:** Session, Changes, Git, and Jobs open fluidly in one right-side section; the main stage reserves its width so transcript, user bubbles, and composer never sit underneath it. Files remains a Finder reveal (not an in-app panel).
-- Project rail and end panels resize or become drawers at responsive breakpoints; widths persist where resizing is available
+- **Right workspace dock:** full-label Session / Changes / Git / Terminal / Jobs / Files on the same `var(--bg)` as chat (no decorative divider or project header); compact below ~960px
+- **Shared activity sidebar:** Session, Changes, Git, Terminal, and Jobs open in one full-height, edge-attached right pane with a persistent top switcher, shared headers, divider, resize handle, and responsive drawer behavior. It is a structural sibling of chat, never a floating card or overlay on desktop. Files remains a Finder reveal.
+- **Persistent project terminal:** each opened project PTY lives in the main process. Closing Terminal or switching sidebar views detaches the renderer without stopping commands; reopening reconnects with bounded buffered output.
+- **Deferred terminal runtime:** xterm is code-split and loaded only when the
+  Terminal activity view first opens, preserving the chat startup bundle.
+- Project rail and activity sidebar resize or become drawers at responsive breakpoints; widths persist where resizing is available
 - Projects and session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 16 palettes as OpenTUI); accents via `/accent`
 - Modes: **Plan / Agent / Yolo** dropdown in the composer (Shift+Tab still cycles)
@@ -142,7 +145,7 @@ type scale, spacing/radii, a motion system (`--ease-enter/exit/standard`,
 two-layer keyboard focus rings (`--focus-ring`), and an elevation grammar of
 hairlines + inset edge-highlights at rest with layered shadows reserved for
 true overlays. **Sans is the UI voice**; monospace is reserved for real code
-(fenced blocks, tool/diff/job output, inline code, ASCII wordmark). Icons are
+(terminal grids, fenced blocks, tool/diff/job output, inline code, ASCII wordmark). Icons are
 Lucide stroke wrappers in `src/renderer/icons.tsx`. The composer, transcript
 output, and approval panels share one 40rem measure. The conversation pane is
 edge-to-edge inside the workspace; the composer is a dense, continuously
@@ -150,8 +153,8 @@ frosted floating surface so transcript text is blurred across its full bounds
 without a hard cut. Approval cards stay opaque. Queue is one quiet card above
 the composer with a flat “N Queued” list and hover steer/dequeue. Slash,
 mention, and catalog menus are floating and
-keyboard-contained; the Session, Changes, Git, and Jobs panels open in one
-explicit end-panel lane without replacing the chat surface. Project/session ⋯ menus are portal-mounted, trigger-anchored, and
+keyboard-contained; Session, Changes, Git, Terminal, and Jobs open in one
+edge-attached activity sidebar without replacing the chat surface. Project/session ⋯ menus are portal-mounted, trigger-anchored, and
 toggle cleanly. User-message Copy/Edit/time actions sit **under** the bubble
 (trailing-aligned); assistant actions remain below the response. Tool/thinking
 rows stay compact under a `Thinking · N steps` group; open thoughts are one
@@ -230,26 +233,26 @@ Everything the TUI exposes through `EngineCommand` / `UIEvent` — tools, MCP, m
 
 Shell-owned surfaces:
 
-- Streaming transcript (Streamdown markdown with Shiki + line numbers while generating, diffs, tools, thinking, notices)
+- Streaming transcript (lightweight plain text while generating; finalized Streamdown GFM with Shiki + line numbers, diffs, tools, thinking, and low-noise notices)
 - Permission + plan approval cards (human titles, soft chrome, deny-reason on demand)
 - Slash palette (builtins + custom `commandNames`), catalog pickers (model context window shown)
 - Multi-project + Chats rail (collapsible sections, + add project / new chat, resume, filter; Continue Latest via ⇧⌘N)
-- Workspace dock: Session / Changes / Git / Jobs / Files on the chat surface;
-  Session, Changes, Git, and Jobs share one mutually exclusive right-side lane
+- Workspace dock: Session / Changes / Git / Terminal / Jobs / Files on the chat surface;
+  Session, Changes, Git, Terminal, and Jobs share one mutually exclusive right-side lane
 - Turn-changes card after file edits; Session inspector Diff/File review + Reveal
-- `/jobs` drawer with live auto-follow output, localhost links, and copy
+- Jobs activity view with live auto-follow output, localhost links, and copy
 - Anchored streaming with intentional scroll disengagement and Jump to latest
 - `@` fuzzy attach, clipboard image paste, external editor
 - Finder drag/drop for images and files, including removable previews, mixed
   batches, duplicate detection, native path resolution, and URI fallback
 - Stop control with elapsed time until `engine-idle` (Esc still interrupts); green-gate RED notice
 - Session inspector closed by default; open from dock, Review, ⇧⌘I, or live chips;
-  it shares the right-side lane with Changes, Git, and Jobs and does not replace
+  it shares the right-side lane with Changes, Git, Terminal, and Jobs and does not replace
   the chat workspace
 - Project rail and right-side activity panels are responsive, with persisted
   desktop widths where resize handles are present
 - Theme-faithful selection colors, headings, and user-message accent (white band on Graphite; `/accent` remaps)
-- Empty-home splash: quiet ASCII wordmark, centered composer, and no automatic prompt suggestions
+- Empty-home splash: the same stylized, fluidly scaled ASCII wordmark at every window size, centered composer, and no automatic prompt suggestions
 - Project rail: rename/archive/delete on hover, titled sessions, working-only spinner for the active busy session
 - Host fatal recovery: **New session** on the boot-error card
 - Memory notice: quiet `Memory · N notes` disclosure with click-to-expand note details
@@ -263,13 +266,14 @@ Shell-owned surfaces:
 
 See **[PARITY.md](./PARITY.md)** for the full CLI ↔ Electron checklist (modeled on the macOS app’s parity doc).
 
-Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AGENTS.md](./AGENTS.md)**.
+Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
+**[AGENTS.md](./AGENTS.md)** and its mirrored **[CLAUDE.md](./CLAUDE.md)**.
 
 ```bash
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **259 unit tests**, **11 Electron E2E scenarios**, 19 source
+Current baseline: **269 unit tests**, **12 Electron E2E scenarios**, 19 source
 parity pairs, Biome, typecheck, production build, and renderer bundle budget
 pass in the current checkout. CI runs `verify` + coverage floors + bridge smoke
 + E2E on Linux and unsigned pack smoke on macOS. Prefer live `npm test` counts
@@ -284,9 +288,9 @@ contract, and release gates.
 
 ```
 vbcode-electron/
-  src/main/           # Electron main + EngineBridge + host resolver
-  src/preload/        # contextBridge API
-  src/renderer/       # React UI
+  src/main/           # Electron main + EngineBridge + host resolver + PTY owner
+  src/preload/        # contextBridge API, including terminal IPC
+  src/renderer/       # React UI, activity sidebar, and xterm renderer
   src/shared/         # Pure ports from vibe-codr TUI / shared contracts
   scripts/            # copy-engine-host, smoke-bridge, pack helpers
   test/               # Playwright e2e + fixtures

@@ -348,40 +348,27 @@ export function PlanCard({
 }
 
 export function QueuePanel({
-  active = null,
   pending,
   onSteer,
   onDequeue,
 }: {
-  active?: QueuedItem | null;
   pending: QueuedItem[];
   onSteer: (id: string) => void;
   onDequeue: (id: string) => void;
 }) {
-  if (!active && pending.length === 0) return null;
+  if (pending.length === 0) return null;
 
   return (
     <div className="composer-queue-tray" role="region" aria-label="Queued prompts">
       <div className="queue-tray-bar">
-        <span className="queue-tray-count">
-          {active ? "Running" : null}
-          {active && pending.length > 0 ? " · " : null}
-          {pending.length > 0 ? `${pending.length} queued` : null}
-        </span>
+        <span className="queue-tray-count">{pending.length} queued</span>
       </div>
       <ul id="composer-queue-items" className="queue-items">
-        {active ? (
-          <li className="queue-row queue-row-active" aria-current="true">
-            <span className="queue-row-mark is-active" aria-hidden />
-            <span className="queue-label">{active.label}</span>
-            <span className="queue-active-badge">Running</span>
-          </li>
-        ) : null}
         {pending.map((q) => (
           <li key={q.id} className="queue-row">
             <span className="queue-row-mark" aria-hidden />
             <span className="queue-label">{q.label}</span>
-            <div className="queue-actions">
+            <div className="queue-actions hover-reveal">
               <button
                 type="button"
                 className="queue-action"

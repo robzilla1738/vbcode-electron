@@ -56,6 +56,7 @@ export function ProjectRail({
   onRetry,
   onOpenProject,
   onNewChat,
+  onNewProjectChat,
   onResume,
   onRenameProject,
   onArchiveProject,
@@ -80,6 +81,8 @@ export function ProjectRail({
   onOpenProject: () => void;
   /** Start a new one-off chat (not a code project). */
   onNewChat: () => void;
+  /** Start a fresh session inside an existing code project. */
+  onNewProjectChat: (cwd: string) => void;
   onResume: (cwd: string, id: string) => void;
   onRenameProject: (cwd: string, name: string) => Promise<boolean>;
   onArchiveProject: (cwd: string) => Promise<boolean>;
@@ -371,29 +374,6 @@ export function ProjectRail({
         </button>
       </div>
 
-      <div className="rail-actions rail-primary-actions" aria-label="Primary actions">
-        <button
-          type="button"
-          className="rail-action"
-          onClick={onNewChat}
-          disabled={busy}
-          title={busy ? busyTitle : "Start a new chat"}
-        >
-          <IconPlus size={15} />
-          <span>New chat</span>
-        </button>
-        <button
-          type="button"
-          className="rail-action"
-          onClick={onOpenProject}
-          disabled={busy}
-          title={busy ? busyProjectTitle : "Open a project folder"}
-        >
-          <IconFolderOpen size={15} />
-          <span>Open project</span>
-        </button>
-      </div>
-
       <label id="project-filter" className={`rail-filter${searchIsOpen ? " is-open" : ""}`}>
         <span className="sr-only">Filter chats and projects</span>
         <IconSearch size={14} />
@@ -508,19 +488,34 @@ export function ProjectRail({
                       <IconChevron open={isExpanded} size={13} />
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    className="project-more"
-                    aria-label={`Actions for project ${projectLabel(project, projects)}`}
-                    aria-haspopup="menu"
-                    aria-expanded={
-                      menu?.kind === "project" && menu.cwd === project.cwd && !menuClosing
-                    }
-                    title="Project actions"
-                    onClick={(event) => openProjectMenu(event, project)}
-                  >
-                    <IconMore size={14} />
-                  </button>
+                  <div className="project-row-actions">
+                    <button
+                      type="button"
+                      className="project-more"
+                      aria-label={`Actions for project ${projectLabel(project, projects)}`}
+                      aria-haspopup="menu"
+                      aria-expanded={
+                        menu?.kind === "project" && menu.cwd === project.cwd && !menuClosing
+                      }
+                      title="Project actions"
+                      onClick={(event) => openProjectMenu(event, project)}
+                    >
+                      <IconMore size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="project-new-chat"
+                      onClick={() => onNewProjectChat(project.cwd)}
+                      disabled={busy}
+                      title={busy ? busyProjectTitle : `New chat in ${projectLabel(project, projects)}`}
+                      aria-label={busyActionLabel(
+                        `New chat in ${projectLabel(project, projects)}`,
+                        busyProjectTitle,
+                      )}
+                    >
+                      <IconRename size={14} />
+                    </button>
+                  </div>
                 </div>
               )}
               {isExpanded && (

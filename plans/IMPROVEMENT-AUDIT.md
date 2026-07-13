@@ -213,7 +213,7 @@ OpenTUI grid, mouse capture, engine reimplementation, plugin install UI, job-kil
 # 11. How verification was done
 
 1. One-item-at-a-time implementation with unit tests on real exports.  
-2. Full `npm test` (259) + `npm run typecheck`.  
+2. Full `npm test` (269) + `npm run typecheck`.
 3. Structural audit test + vibe-api-keys + busy/path/stream caps.  
 4. CI YAML + package scripts read for coverage/bridge smoke wiring.  
 

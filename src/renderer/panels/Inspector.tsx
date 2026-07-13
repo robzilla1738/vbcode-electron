@@ -7,10 +7,9 @@ import {
 import { formatDiffStats, parseUnifiedDiff } from "../../shared/diff-view";
 import type { ChangedFile } from "../../shared/reducer";
 import { hasUnfinishedTasks } from "../../shared/task-window";
-import type { SessionChrome } from "../hooks/useSession";
 import { CopyButton } from "../CopyButton";
+import type { SessionChrome } from "../hooks/useSession";
 import { IconClose, IconFolderOpen } from "../icons";
-import { SidebarResizeHandle } from "../layout/SidebarResizeHandle";
 import {
   formatGitLine,
   formatGoalLine,
@@ -294,7 +293,7 @@ export function Inspector({
   }
 
   return (
-    <aside
+    <section
       id="session-panel"
       className="activity-rail inspector-rail"
       aria-label="Session details"
@@ -349,75 +348,79 @@ export function Inspector({
         {previewPath ? (
           <div className="sidebar-section">
             <div className="file-preview-toolbar">
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  setPreviewPath(null);
-                  setReviewMode("diff");
-                }}
-              >
-                Back
-              </button>
-              <div className="review-mode-toggle" role="tablist" aria-label="Review mode">
-                <button
-                  type="button"
-                  className={`review-mode-button${reviewMode === "diff" ? " is-active" : ""}`}
-                  role="tab"
-                  aria-selected={reviewMode === "diff"}
-                  onClick={() => setReviewMode("diff")}
-                >
-                  Diff
-                </button>
-                <button
-                  type="button"
-                  className={`review-mode-button${reviewMode === "file" ? " is-active" : ""}`}
-                  role="tab"
-                  aria-selected={reviewMode === "file"}
-                  onClick={() => setReviewMode("file")}
-                >
-                  File
-                </button>
-              </div>
-              <div className="file-preview-nav" role="group" aria-label="Files in this turn">
+              <div className="file-preview-toolbar-primary">
                 <button
                   type="button"
                   className="button"
-                  disabled={!prevFile}
-                  onClick={() => prevFile && setPreviewPath(prevFile.path)}
-                  title={prevFile ? `Previous · ${prevFile.path}` : "No previous file"}
-                  aria-label="Previous changed file"
+                  onClick={() => {
+                    setPreviewPath(null);
+                    setReviewMode("diff");
+                  }}
                 >
-                  ←
+                  Back
                 </button>
-                <span className="file-preview-index" aria-live="polite">
-                  {selectedIndex >= 0
-                    ? `${selectedIndex + 1} / ${orderedFiles.length}`
-                    : "—"}
-                </span>
+                <div className="review-mode-toggle" role="tablist" aria-label="Review mode">
+                  <button
+                    type="button"
+                    className={`review-mode-button${reviewMode === "diff" ? " is-active" : ""}`}
+                    role="tab"
+                    aria-selected={reviewMode === "diff"}
+                    onClick={() => setReviewMode("diff")}
+                  >
+                    Diff
+                  </button>
+                  <button
+                    type="button"
+                    className={`review-mode-button${reviewMode === "file" ? " is-active" : ""}`}
+                    role="tab"
+                    aria-selected={reviewMode === "file"}
+                    onClick={() => setReviewMode("file")}
+                  >
+                    File
+                  </button>
+                </div>
+              </div>
+              <div className="file-preview-toolbar-actions">
+                <div className="file-preview-nav" role="group" aria-label="Files in this turn">
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={!prevFile}
+                    onClick={() => prevFile && setPreviewPath(prevFile.path)}
+                    title={prevFile ? `Previous · ${prevFile.path}` : "No previous file"}
+                    aria-label="Previous changed file"
+                  >
+                    ←
+                  </button>
+                  <span className="file-preview-index" aria-live="polite">
+                    {selectedIndex >= 0
+                      ? `${selectedIndex + 1} / ${orderedFiles.length}`
+                      : "—"}
+                  </span>
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={!nextFile}
+                    onClick={() => nextFile && setPreviewPath(nextFile.path)}
+                    title={nextFile ? `Next · ${nextFile.path}` : "No next file"}
+                    aria-label="Next changed file"
+                  >
+                    →
+                  </button>
+                </div>
                 <button
                   type="button"
                   className="button"
-                  disabled={!nextFile}
-                  onClick={() => nextFile && setPreviewPath(nextFile.path)}
-                  title={nextFile ? `Next · ${nextFile.path}` : "No next file"}
-                  aria-label="Next changed file"
+                  onClick={() => onRevealFile(previewPath)}
+                  title="Reveal in Finder"
                 >
-                  →
+                  <IconFolderOpen size={13} />
+                  Reveal
                 </button>
+                {reviewMode === "diff" && selectedFile?.diff ? (
+                  <CopyButton text={selectedFile.diff} label="Copy diff" />
+                ) : null}
               </div>
-              <button
-                type="button"
-                className="button"
-                onClick={() => onRevealFile(previewPath)}
-                title="Reveal in Finder"
-              >
-                <IconFolderOpen size={13} />
-                Reveal
-              </button>
-              {reviewMode === "diff" && selectedFile?.diff ? (
-                <CopyButton text={selectedFile.diff} label="Copy diff" />
-              ) : null}
             </div>
             <p className="inspector-path" title={previewPath}>
               {previewPath}
@@ -591,15 +594,6 @@ export function Inspector({
           </p>
         )}
       </div>
-      <SidebarResizeHandle
-        side="end"
-        cssVar="--activity-rail-w"
-        defaultWidth={320}
-        min={280}
-        max={520}
-        storageKey="vibe.activity-rail-width"
-        label="Resize session panel"
-      />
-    </aside>
+    </section>
   );
 }

@@ -48,6 +48,7 @@ export type ToastSeverity = "info" | "warn" | "error";
 export interface ToastState {
   message: string;
   severity: ToastSeverity;
+  closing?: boolean;
 }
 
 /** Auto-dismiss delay by severity. Errors stay long enough to read (I55). */
@@ -56,6 +57,7 @@ const TOAST_TTL: Record<ToastSeverity, number> = {
   warn: 4500,
   error: 6000,
 };
+const TOAST_EXIT_MS = 140;
 
 /** Events suppressed while the clear-gate is active (TUI parity:
  * clearScopedEventTypes). Stale stream/notice/subagent/checkpoint/verify
@@ -140,6 +142,7 @@ export function useSession(cwd: string | null) {
   const bootstrapGate = useRef(new RequestGate());
   const activeSessionId = useRef("");
   const toastTimer = useRef<number | null>(null);
+  const toastExitTimer = useRef<number | null>(null);
   const bootstrapContext = useRef<{ usedTokens: number; contextWindow: number } | null>(null);
   /** Always-current chrome.busy for send-failure busy policy (avoid stale closures). */
   const busyRef = useRef(chrome.busy);
@@ -723,26 +726,40 @@ export function useSession(cwd: string | null) {
     [revealedTurnItems],
   );
 
+  const beginToastExit = useCallback(() => {
+    if (toastExitTimer.current != null) window.clearTimeout(toastExitTimer.current);
+    setToast((current) => (current ? { ...current, closing: true } : null));
+    toastExitTimer.current = window.setTimeout(() => {
+      toastExitTimer.current = null;
+      setToast(null);
+    }, TOAST_EXIT_MS);
+  }, []);
+
   const dismissToast = useCallback(() => {
     if (toastTimer.current != null) {
       window.clearTimeout(toastTimer.current);
       toastTimer.current = null;
     }
-    setToast(null);
-  }, []);
+    beginToastExit();
+  }, [beginToastExit]);
 
   const showToast = useCallback((msg: string, severity: ToastSeverity = "info") => {
     if (toastTimer.current != null) window.clearTimeout(toastTimer.current);
-    setToast({ message: msg, severity });
+    if (toastExitTimer.current != null) {
+      window.clearTimeout(toastExitTimer.current);
+      toastExitTimer.current = null;
+    }
+    setToast({ message: msg, severity, closing: false });
     toastTimer.current = window.setTimeout(() => {
       toastTimer.current = null;
-      setToast(null);
+      beginToastExit();
     }, TOAST_TTL[severity]);
-  }, []);
+  }, [beginToastExit]);
 
   // Clear any pending toast on unmount.
   useEffect(() => () => {
     if (toastTimer.current != null) window.clearTimeout(toastTimer.current);
+    if (toastExitTimer.current != null) window.clearTimeout(toastExitTimer.current);
   }, []);
 
   const setBusy = useCallback((busy: boolean) => {

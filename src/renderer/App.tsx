@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { belowBreakpoint } from "../shared/breakpoints";
 import {
   agentsPickerQuery,
@@ -11,13 +11,13 @@ import {
   skillsPickerFilter,
 } from "../shared/catalog-draft";
 import { sortChangedFilesForDisplay } from "../shared/changed-files";
+import { commandsExpectBusy } from "../shared/command-busy";
 import { densityLabel, nextDensity } from "../shared/density";
 import { projectLabel } from "../shared/project-index";
 import type { ProjectSummary } from "../shared/protocol";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
-import { commandsExpectBusy } from "../shared/command-busy";
-import { classifySubmitLine } from "../shared/submit-routing";
 import { lineToCommands, routePendingPermLine } from "../shared/slash";
+import { classifySubmitLine } from "../shared/submit-routing";
 import { hasUnfinishedTasks } from "../shared/task-window";
 import type {
   AgentInfo,
@@ -30,18 +30,21 @@ import { Composer, type ComposerMetric } from "./composer/Composer";
 import { RequestGate } from "./hooks/request-gate";
 import { useSession } from "./hooks/useSession";
 import { IconSidebar } from "./icons";
+import {
+  ActivitySidebar,
+  type ActivitySidebarTarget,
+} from "./layout/ActivitySidebar";
 import { ProjectRail } from "./layout/ProjectRail";
-import { WorkspaceDock, type WorkspaceDockTarget } from "./layout/WorkspaceDock";
+import { SidebarResizeHandle } from "./layout/SidebarResizeHandle";
 import { Splash } from "./layout/Splash";
 import { SessionBoot, SessionBootError, WelcomeGate } from "./layout/WelcomeGate";
+import { WorkspaceDock, type WorkspaceDockTarget } from "./layout/WorkspaceDock";
 import { Inspector } from "./panels/Inspector";
-import { ChangedFilesPill } from "./panels/TurnChangesCard";
-import { SettingsView } from "./settings/SettingsPanel";
-import { GitView } from "./git/GitPanel";
 import { JobsView } from "./panels/JobsView";
 import { KeysOverlay } from "./panels/KeysOverlay";
 import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
 import { OnboardingModal, type ProviderStatus } from "./panels/OnboardingModal";
+import { ChangedFilesPill } from "./panels/TurnChangesCard";
 import { type CatalogChoice, CatalogModal, type CatalogPickerState } from "./pickers/CatalogModal";
 import {
   formatChromeSummary,
@@ -50,9 +53,17 @@ import {
   projectName,
   StatusDot,
 } from "./primitives";
+import { SettingsView } from "./settings/SettingsPanel";
 import { TranscriptView } from "./transcript/TranscriptView";
 
 type Picker = CatalogPickerState | null;
+
+const TerminalPanel = lazy(() =>
+  import("./panels/TerminalPanel").then((module) => ({ default: module.TerminalPanel })),
+);
+const GitView = lazy(() =>
+  import("./git/GitPanel").then((module) => ({ default: module.GitView })),
+);
 
 function pickerMatchesDraft(picker: Picker, draft: string, modelTarget: "main" | "sub"): boolean {
   if (!picker) return false;
@@ -112,16 +123,28 @@ export function App() {
   /** Bumped on N so PermissionCard can open deny-reason then confirm (card parity). */
   const [permDenyKick, setPermDenyKick] = useState(0);
   const [gitOpen, setGitOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [projectRailOpen, setProjectRailOpen] = useState(true);
   const [followSignal, setFollowSignal] = useState(0);
   /** When opening the Session panel from the turn card / dock, focus this path. */
   const [inspectorFocusPath, setInspectorFocusPath] = useState<string | null>(null);
+  const [inspectorTool, setInspectorTool] = useState<"session" | "changes">("session");
   const didRestoreProject = useRef(false);
   /** Bound by SettingsView while mounted — true when config form has unsaved edits. */
   const settingsDirtyRef = useRef<() => boolean>(() => false);
   const projectRefreshGate = useRef(new RequestGate());
   const composerStackRef = useRef<HTMLDivElement>(null);
   const session = useSession(cwd);
+  const activeEndPanel: ActivitySidebarTarget | null = session.inspectorOpen
+    ? inspectorTool
+    : session.jobsView
+      ? "jobs"
+      : gitOpen
+        ? "git"
+        : terminalOpen
+          ? "terminal"
+          : null;
+  const endPanelOpen = activeEndPanel !== null;
   const showToastRef = useRef(session.showToast);
   showToastRef.current = session.showToast;
 
@@ -169,6 +192,7 @@ export function App() {
   const openSettings = useCallback(() => {
     setSettingsOpen(true);
     setGitOpen(false);
+    setTerminalOpen(false);
     session.setInspectorOpen(false);
     session.setJobsView(false);
   }, [session]);
@@ -182,6 +206,7 @@ export function App() {
         return false;
       }
       setGitOpen(false);
+      setTerminalOpen(false);
       session.setInspectorOpen(false);
       session.setJobsView(false);
       return true;
@@ -193,6 +218,7 @@ export function App() {
     if (!confirmLeaveSettings()) return;
     setGitOpen(true);
     setSettingsOpen(false);
+    setTerminalOpen(false);
     session.setInspectorOpen(false);
     session.setJobsView(false);
   }, [cwd, confirmLeaveSettings, session]);
@@ -205,6 +231,7 @@ export function App() {
         return prev;
       }
       setSettingsOpen(false);
+      setTerminalOpen(false);
       session.setInspectorOpen(false);
       session.setJobsView(false);
       return true;
@@ -216,25 +243,34 @@ export function App() {
       if (!confirmLeaveSettings()) return;
       setSettingsOpen(false);
       setGitOpen(false);
+      setTerminalOpen(false);
       setInspectorFocusPath(null);
+      setInspectorTool("session");
       session.setInspectorOpen(true);
       return;
     }
     setGitOpen(false);
+    setTerminalOpen(false);
     session.setJobsView(false);
     session.setInspectorOpen((v) => {
-      if (v) setInspectorFocusPath(null);
+      if (v) {
+        setInspectorFocusPath(null);
+      } else {
+        setInspectorTool("session");
+      }
       return !v;
     });
   }, [settingsOpen, confirmLeaveSettings, session]);
 
   const openSessionReview = useCallback(
-    (path?: string) => {
+    (path?: string, tool: "session" | "changes" = path ? "changes" : "session") => {
       if (settingsOpen && !confirmLeaveSettings()) return;
       setSettingsOpen(false);
       setGitOpen(false);
+      setTerminalOpen(false);
       session.setJobsView(false);
       setInspectorFocusPath(path ?? null);
+      setInspectorTool(tool);
       session.setInspectorOpen(true);
     },
     [settingsOpen, confirmLeaveSettings, session],
@@ -255,16 +291,27 @@ export function App() {
         if (settingsOpen && !confirmLeaveSettings()) return;
         setSettingsOpen(false);
         setGitOpen(false);
+        setTerminalOpen(false);
         session.setInspectorOpen(false);
         setInspectorFocusPath(null);
         // Toggle so the dock control matches keyboard / e2e "Toggle background jobs".
         session.setJobsView((open) => !open);
         return;
       }
+      if (target === "terminal") {
+        if (settingsOpen && !confirmLeaveSettings()) return;
+        setSettingsOpen(false);
+        setGitOpen(false);
+        session.setInspectorOpen(false);
+        session.setJobsView(false);
+        setInspectorFocusPath(null);
+        setTerminalOpen((open) => !open);
+        return;
+      }
       if (target === "changes") {
         // Open highest-churn file first (same order as the turn card / inspector list).
         const ordered = sortChangedFilesForDisplay(session.transcript.changedFiles);
-        openSessionReview(ordered[0]?.path);
+        openSessionReview(ordered[0]?.path, "changes");
         return;
       }
       // session overview
@@ -272,6 +319,31 @@ export function App() {
     },
     [cwd, openGit, settingsOpen, confirmLeaveSettings, session, openSessionReview],
   );
+
+  const selectActivityTool = useCallback(
+    (target: ActivitySidebarTarget) => {
+      if (target === activeEndPanel) return;
+      openWorkspaceDock(target);
+    },
+    [activeEndPanel, openWorkspaceDock],
+  );
+
+  const closeActiveEndPanel = useCallback(() => {
+    if (session.inspectorOpen) {
+      setInspectorFocusPath(null);
+      session.setInspectorOpen(false);
+      return;
+    }
+    if (session.jobsView) {
+      session.setJobsView(false);
+      return;
+    }
+    if (gitOpen) {
+      setGitOpen(false);
+      return;
+    }
+    if (terminalOpen) setTerminalOpen(false);
+  }, [gitOpen, session, terminalOpen]);
 
   // Preview harness: auto-open a panel when a `vibe-preview-open-panel` event
   // is dispatched (used by `npm run ui:preview ?scenario=settings|git`).
@@ -494,6 +566,24 @@ export function App() {
     }
     return ok;
   }, [cwd, session, refreshProjects, invalidateCatalogs]);
+
+  const startProjectChat = useCallback(async (projectCwd: string) => {
+    if (session.chrome.busy) {
+      session.showToast("Stop the current turn before starting a new chat.", "warn");
+      return;
+    }
+    const wasDirty = settingsDirtyRef.current();
+    if (!confirmLeaveSettings()) return;
+    if (wasDirty) setSettingsOpen(false);
+    invalidateCatalogs();
+    setCwd(projectCwd);
+    const ok = await session.bootstrap({ cwd: projectCwd });
+    if (ok) {
+      setDraft("");
+      setFollowSignal((value) => value + 1);
+      await refreshProjects();
+    }
+  }, [confirmLeaveSettings, invalidateCatalogs, refreshProjects, session]);
 
   /** One-off conversation in `~/.vibe/chats` — not a code project. */
   const startNewChat = useCallback(async () => {
@@ -798,7 +888,7 @@ export function App() {
 
       const localRoute = classifySubmitLine(trimmed);
       if (localRoute.kind === "jobs") {
-        // Same mutual-exclusion as the dock control (Session/Changes/Git/Jobs).
+        // Same mutual-exclusion as the dock control (Session/Changes/Git/Terminal/Jobs).
         openWorkspaceDock("jobs");
         return true;
       }
@@ -1122,7 +1212,7 @@ export function App() {
         return;
       }
       // Inspector toggle
-      if (e.key === "i" && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+      if (e.key.toLowerCase() === "i" && (e.ctrlKey || e.metaKey) && e.shiftKey) {
         e.preventDefault();
         toggleInspector();
         return;
@@ -1193,16 +1283,8 @@ export function App() {
           setPicker(null);
           return;
         }
-        if (session.inspectorOpen) {
-          session.setInspectorOpen(false);
-          return;
-        }
-        if (session.jobsView) {
-          session.setJobsView(false);
-          return;
-        }
-        if (gitOpen) {
-          setGitOpen(false);
+        if (endPanelOpen) {
+          closeActiveEndPanel();
           return;
         }
         if (projectRailOpen && belowBreakpoint("tablet")) {
@@ -1252,7 +1334,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [session, draft, continueLatest, answerPerm, answerPlan, composeInEditor, picker, keysOpen, cwd, projectRailOpen, toggleInspector]);
+  }, [session, draft, continueLatest, answerPerm, answerPlan, composeInEditor, picker, keysOpen, cwd, projectRailOpen, toggleInspector, endPanelOpen, closeActiveEndPanel]);
 
   const chrome = session.chrome;
   const ctxPct =
@@ -1371,6 +1453,10 @@ export function App() {
             if (belowBreakpoint("tablet")) setProjectRailOpen(false);
             void startNewChat();
           }}
+          onNewProjectChat={(projectCwd) => {
+            if (belowBreakpoint("tablet")) setProjectRailOpen(false);
+            void startProjectChat(projectCwd);
+          }}
           onResume={(projectCwd, id) => {
             if (belowBreakpoint("tablet")) setProjectRailOpen(false);
             void resumeSession(projectCwd, id);
@@ -1391,18 +1477,18 @@ export function App() {
             onClick={() => setProjectRailOpen(false)}
           />
         )}
-        {session.inspectorOpen && (
+        {endPanelOpen && (
           <button
             type="button"
             className="drawer-scrim"
             data-drawer="end"
-            aria-label="Close inspector"
-            onClick={() => session.setInspectorOpen(false)}
+            aria-label="Close activity sidebar"
+            onClick={closeActiveEndPanel}
           />
         )}
 
         <div className={`content-inset${projectRailOpen ? "" : " is-expanded"}${
-          session.inspectorOpen || session.jobsView || gitOpen ? " end-panel-open" : ""
+          endPanelOpen ? " end-panel-open" : ""
         }`}>
           <header className="topbar">
             <div className="topbar-leading">
@@ -1631,11 +1717,10 @@ export function App() {
               {!chrome.busy && session.transcript.changedFiles.length > 0 && (
                 <ChangedFilesPill
                   files={session.transcript.changedFiles}
-                  onReview={() => openSessionReview()}
+                  onReview={() => openWorkspaceDock("changes")}
                 />
               )}
               <QueuePanel
-                active={chrome.queueActive}
                 pending={chrome.queuePending}
                 onSteer={(id) => void session.send({ type: "steer", id })}
                 onDequeue={(id) => void session.send({ type: "dequeue", id })}
@@ -1723,62 +1808,11 @@ export function App() {
             </div>
           </main>
 
-          {session.jobsView && (
-            <div className="jobs-drawer-root">
-              <button
-                type="button"
-                className="jobs-drawer-backdrop"
-                aria-label="Dismiss jobs"
-                onClick={() => session.setJobsView(false)}
-              />
-              <div
-                className="jobs-drawer"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="jobs-drawer-title"
-              >
-                <JobsView
-                  jobs={chrome.jobs}
-                  onClose={() => session.setJobsView(false)}
-                />
-              </div>
-            </div>
-          )}
+          </div>
 
-          {session.inspectorOpen && (
-            <Inspector
-              chrome={chrome}
-              changedFiles={session.transcript.changedFiles}
-              cwd={cwd}
-              focusPath={inspectorFocusPath}
-              onClose={() => {
-                setInspectorFocusPath(null);
-                session.setInspectorOpen(false);
-              }}
-              onUndo={() => void session.send({ type: "run-slash", name: "undo", args: "" })}
-              onRedo={() => void session.send({ type: "run-slash", name: "redo", args: "" })}
-              onRevealFile={(path) => {
-                if (!cwd) return;
-                const absolute = path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)
-                  ? path
-                  : `${cwd}/${path}`;
-                void window.vibe.showItem(absolute);
-              }}
-            />
-          )}
-
-          {gitOpen && cwd && (
-            <GitView
-              cwd={cwd}
-              onClose={() => setGitOpen(false)}
-              showToast={session.showToast}
-            />
-          )}
-
-          {/* The environment card is the launcher for the side section. Once
-              Session or Jobs opens, hand the same edge over to that section
-              instead of stacking two competing floating surfaces. */}
-          {!session.inspectorOpen && !session.jobsView && !gitOpen && (
+          {/* The launcher is anchored to the full workspace frame—not the
+              below-topbar chat column—so it occupies the upper-right corner. */}
+          {!endPanelOpen && (
             <WorkspaceDock
               changedFiles={session.transcript.changedFiles}
               cwd={cwd}
@@ -1787,12 +1821,101 @@ export function App() {
               sessionOpen={false}
               changesOpen={false}
               gitOpen={false}
+              terminalOpen={false}
               jobsOpen={false}
               onOpen={openWorkspaceDock}
             />
           )}
 
-          </div>
+          {activeEndPanel && (
+            <ActivitySidebar
+              active={activeEndPanel}
+              changedCount={session.transcript.changedFiles.length}
+              jobCount={chrome.jobs.length}
+              onSelect={selectActivityTool}
+              onClose={closeActiveEndPanel}
+            >
+              {session.jobsView && (
+                <section
+                  className="activity-rail jobs-activity-rail"
+                  aria-labelledby="jobs-panel-title"
+                >
+                  <JobsView
+                    jobs={chrome.jobs}
+                    onClose={() => session.setJobsView(false)}
+                  />
+                </section>
+              )}
+
+              {session.inspectorOpen && (
+                <Inspector
+                  key={`${inspectorTool}:${inspectorFocusPath ?? ""}`}
+                  chrome={chrome}
+                  changedFiles={session.transcript.changedFiles}
+                  cwd={cwd}
+                  focusPath={inspectorFocusPath}
+                  onClose={() => {
+                    setInspectorFocusPath(null);
+                    session.setInspectorOpen(false);
+                  }}
+                  onUndo={() => void session.send({ type: "run-slash", name: "undo", args: "" })}
+                  onRedo={() => void session.send({ type: "run-slash", name: "redo", args: "" })}
+                  onRevealFile={(path) => {
+                    if (!cwd) return;
+                    const resolvedPath = path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)
+                      ? path
+                      : `${cwd}/${path}`;
+                    void window.vibe.showItem(resolvedPath);
+                  }}
+                />
+              )}
+
+              {gitOpen && cwd && (
+                <Suspense
+                  fallback={(
+                    <section
+                      className="activity-rail git-activity-rail"
+                      aria-label="Loading Git view"
+                    />
+                  )}
+                >
+                  <GitView
+                    cwd={cwd}
+                    onClose={() => setGitOpen(false)}
+                    showToast={session.showToast}
+                  />
+                </Suspense>
+              )}
+
+              {terminalOpen && cwd && (
+                <Suspense
+                  fallback={(
+                    <section
+                      className="activity-rail terminal-activity-rail"
+                      aria-label="Loading project terminal"
+                    />
+                  )}
+                >
+                  <TerminalPanel
+                    cwd={cwd}
+                    onClose={() => setTerminalOpen(false)}
+                  />
+                </Suspense>
+              )}
+            </ActivitySidebar>
+          )}
+
+          {endPanelOpen && (
+            <SidebarResizeHandle
+              side="end"
+              cssVar="--activity-rail-w"
+              defaultWidth={320}
+              min={280}
+              max={520}
+              storageKey="vibe.activity-rail-width"
+              label="Resize activity sidebar"
+            />
+          )}
         </div>
         </div>
       </div>
@@ -1801,7 +1924,7 @@ export function App() {
 
       {session.toast && (
         <div
-          className={`toast toast-${session.toast.severity}`}
+          className={`toast toast-${session.toast.severity}${session.toast.closing ? " is-closing" : ""}`}
           role="status"
           aria-live={session.toast.severity === "error" ? "assertive" : "polite"}
           aria-atomic="true"

@@ -9,6 +9,7 @@
 import { GLYPH } from "./glyphs";
 import { truncateWidth } from "./markdown-blocks";
 import { isLongOutputTool, LONG_OUTPUT_COLLAPSE_LINES, toolLabel } from "./tool-icons";
+import { isDensityChangeNotice } from "./density";
 
 /**
  * One block in the transcript. The transcript is append-only: positions never
@@ -401,6 +402,7 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       return { ...fin, blocks: [...fin.blocks, folded], nextId: fin.nextId + 1 };
     }
     case "notice": {
+      if (isDensityChangeNotice(a.text)) return s;
       const f = finalizeActive(s);
       return {
         ...f,

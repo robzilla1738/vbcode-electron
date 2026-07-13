@@ -1,6 +1,6 @@
-import type { EngineSnapshot } from "./types";
 import type { UIEvent } from "./events";
 import { isUIEvent, type ProjectSummary, type RpcMethod } from "./protocol";
+import type { EngineSnapshot } from "./types";
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -139,11 +139,6 @@ function task(value: unknown): boolean {
     && (item.status === "pending" || item.status === "in_progress" || item.status === "completed");
 }
 
-function queuedItem(value: unknown): boolean {
-  const item = record(value);
-  return !!item && typeof item.id === "string" && typeof item.label === "string";
-}
-
 function gitInfo(value: unknown): boolean {
   const git = record(value);
   return !!git
@@ -163,25 +158,6 @@ function goalRun(value: unknown): boolean {
     && finite(run.max)
     && (run.pausedReason === null || typeof run.pausedReason === "string")
     && typeof run.met === "boolean";
-}
-
-function job(value: unknown): boolean {
-  const item = record(value);
-  return !!item
-    && typeof item.id === "string"
-    && typeof item.command === "string"
-    && (item.status === "running" || item.status === "exited" || item.status === "killed")
-    && (item.exitCode === null || finite(item.exitCode))
-    && (item.pid === undefined || finite(item.pid))
-    && stringList(item.servers)
-    && typeof item.outputTail === "string";
-}
-
-function planSource(value: unknown): boolean {
-  const source = record(value);
-  return !!source
-    && typeof source.url === "string"
-    && (source.title === undefined || typeof source.title === "string");
 }
 
 /**

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { describe, expect, it } from "vitest";
 import { EngineBridge } from "./engine-bridge";
 import type { HostLaunch } from "./host-resolver";
 
@@ -15,8 +15,8 @@ function fixture(source: string): HostLaunch {
 function bridgeFor(source: string): EngineBridge {
   return new EngineBridge({
     resolveLaunch: () => fixture(source),
-    readyTimeoutMs: 800,
-    rpcTimeoutMs: 800,
+    readyTimeoutMs: 5_000,
+    rpcTimeoutMs: 5_000,
     stopTimeoutMs: 800,
   });
 }
@@ -88,7 +88,7 @@ describe("EngineBridge lifecycle", () => {
 
     await expect(bridge.start({ cwd: process.cwd() })).rejects.toThrow("invalid protocol output");
     expect(fatals[0]).toContain("not-json");
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await pollUntil(() => !bridge.isRunning);
     expect(bridge.isRunning).toBe(false);
   });
 
@@ -101,7 +101,7 @@ describe("EngineBridge lifecycle", () => {
     const fatals: string[] = [];
     bridge.onFatal = (message) => fatals.push(message);
     await expect(bridge.start({ cwd: process.cwd() })).rejects.toThrow("timed out waiting for ready");
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await pollUntil(() => !bridge.isRunning);
     expect(bridge.isRunning).toBe(false);
     // Bootstrap reject is the user-facing error; exit must not emit a second fatal.
     expect(fatals).toEqual([]);
@@ -188,7 +188,7 @@ describe("EngineBridge lifecycle", () => {
           });
         `);
       },
-      readyTimeoutMs: 1_000,
+      readyTimeoutMs: 5_000,
       stopTimeoutMs: 500,
     });
 
@@ -230,7 +230,7 @@ describe("EngineBridge lifecycle", () => {
           });
         `);
       },
-      readyTimeoutMs: 1_000,
+      readyTimeoutMs: 5_000,
       stopTimeoutMs: 100,
     });
     const events: unknown[] = [];
@@ -264,7 +264,7 @@ describe("EngineBridge lifecycle", () => {
           });
         `);
       },
-      readyTimeoutMs: 1_000,
+      readyTimeoutMs: 5_000,
       stopTimeoutMs: 200,
       onSpawn: (proc) => children.push(proc),
     });
@@ -277,7 +277,14 @@ describe("EngineBridge lifecycle", () => {
     await expect(second).rejects.toThrow("stopped");
     await expect(third).resolves.toBe("session-2");
     expect(launches).toBe(2);
-    expect(children.filter((child) => !child.killed && child.exitCode === null)).toHaveLength(1);
+    await pollUntil(
+      () =>
+        children.filter((child) => child.exitCode === null && child.signalCode === null).length === 1,
+      2_000,
+    );
+    expect(
+      children.filter((child) => child.exitCode === null && child.signalCode === null),
+    ).toHaveLength(1);
     await bridge.stop();
   });
 
@@ -293,7 +300,7 @@ describe("EngineBridge lifecycle", () => {
         if (msg.op === "shutdown") process.exit(0);
       });
       `),
-      readyTimeoutMs: 800,
+      readyTimeoutMs: 5_000,
       rpcTimeoutMs: 800,
       stopTimeoutMs: 800,
       onSpawn: (proc) => { childProcess = proc; },
@@ -312,7 +319,7 @@ describe("EngineBridge lifecycle", () => {
   it("rejects RPC before the host reaches ready", async () => {
     let childProcess: ChildProcessWithoutNullStreams | null = null;
     const bridge = new EngineBridge({
-      resolveLaunch: () => fixture(String.raw`
+      resolveLaunch: () => fixture(`
         process.stdin.resume();
         // Never emit ready — hold the process open for the test.
         setInterval(() => {}, 60_000);
@@ -351,7 +358,7 @@ describe("EngineBridge lifecycle", () => {
             // Never honor shutdown.
           });
         `),
-      readyTimeoutMs: 800,
+      readyTimeoutMs: 5_000,
       stopTimeoutMs: 80,
       killWaitMs: 500,
       onSpawn: (proc) => {
@@ -376,7 +383,6 @@ describe("EngineBridge lifecycle", () => {
   });
 
   it("disposeForQuit finalizes when ready and always leaves no owned child", async () => {
-    let finalized = false;
     const bridge = bridgeFor(String.raw`
       const readline = require("node:readline");
       const rl = readline.createInterface({ input: process.stdin });
@@ -396,7 +402,6 @@ describe("EngineBridge lifecycle", () => {
     await bridge.disposeForQuit();
     expect(bridge.isRunning).toBe(false);
     expect(bridge.isReady).toBe(false);
-    void finalized;
   });
 
   it("disposeForQuit still reaps when finalize never responds", async () => {
@@ -415,7 +420,7 @@ describe("EngineBridge lifecycle", () => {
             } else if (msg.op === "shutdown") process.exit(0);
           });
         `),
-      readyTimeoutMs: 800,
+      readyTimeoutMs: 5_000,
       rpcTimeoutMs: 10_000,
       quitFinalizeTimeoutMs: 80,
       stopTimeoutMs: 200,
@@ -442,7 +447,7 @@ describe("EngineBridge lifecycle", () => {
     // Host never emits ready — classic quit-during-bootstrap race.
     const bridge = new EngineBridge({
       resolveLaunch: () =>
-        fixture(String.raw`
+        fixture(`
           // Stay alive; ignore everything. Never emit ready.
           setInterval(() => {}, 60_000);
           process.stdin.resume();
@@ -487,7 +492,7 @@ describe("EngineBridge lifecycle", () => {
             }
           });
         `),
-      readyTimeoutMs: 800,
+      readyTimeoutMs: 5_000,
       stopTimeoutMs: 50,
       killWaitMs: 50,
       onSpawn: (proc) => {

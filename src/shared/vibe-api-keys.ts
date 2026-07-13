@@ -50,6 +50,11 @@ export const VIBE_API_KEYS = [
   "ghPrList",
   "ghPrCreate",
   "getShellInfo",
+  "terminalOpen",
+  "terminalWrite",
+  "terminalResize",
+  "terminalClose",
+  "onTerminalEvent",
 ] as const;
 
 export type VibeApiKey = (typeof VIBE_API_KEYS)[number];

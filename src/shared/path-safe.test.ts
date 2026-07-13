@@ -1,38 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolvePathInsideRoot, type PathSafeFs } from "./path-safe";
-
-function mockFs(opts: {
-  rootReal: string;
-  files: Record<string, { real: string; isFile: boolean }>;
-}): PathSafeFs {
-  return {
-    realpathSync(path: string) {
-      if (path === opts.rootReal || path === "/proj") return opts.rootReal;
-      const hit = opts.files[path];
-      if (hit) return hit.real;
-      // Lexical path under root that maps 1:1
-      for (const [lex, meta] of Object.entries(opts.files)) {
-        if (lex === path) return meta.real;
-      }
-      throw new Error(`ENOENT: ${path}`);
-    },
-    existsSync(path: string) {
-      return Object.values(opts.files).some((f) => f.real === path) || path === opts.rootReal;
-    },
-    isFile(path: string) {
-      return Object.values(opts.files).some((f) => f.real === path && f.isFile);
-    },
-  };
-}
+import { resolvePathInsideRoot } from "./path-safe";
 
 describe("resolvePathInsideRoot", () => {
   it("accepts a normal file under the project", () => {
-    const fs = mockFs({
-      rootReal: "/proj",
-      files: {
-        "/proj/src/a.ts": { real: "/proj/src/a.ts", isFile: true },
-      },
-    });
     // resolve() will make absolute paths from cwd — use absolute cwd
     const res = resolvePathInsideRoot("/proj", "src/a.ts", {
       realpathSync(path) {

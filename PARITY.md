@@ -1,6 +1,6 @@
 # CLI ↔ Electron parity checklist
 
-Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (259 unit tests), `npm run test:e2e` (11 scenarios), plus `npm run verify:source-parity` and CI coverage/`smoke:bridge` gates.
+Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (269 unit tests), `npm run test:e2e` (12 scenarios), plus `npm run verify:source-parity` and CI coverage/`smoke:bridge` gates.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
@@ -45,7 +45,7 @@ to weaken the parity guard.
 - [x] Plan card: Enter accept / type revise / Esc keep / ⌘Y accept+YOLO
 - [x] Queue steer + dequeue while busy
 - [x] `/clear` & `/new` abort + full local reset + suppress stale stream (full clearScopedEventTypes parity)
-- [x] `/jobs` opens a jobs drawer overlay (chat stays); Esc / Close dismisses
+- [x] `/jobs` opens Jobs in the shared activity sidebar (chat stays); Esc / Close dismisses
 - [x] Esc aborts in-flight turn
 - [x] Graceful quit finalizes session (`finalize` RPC + shutdown)
 - [x] Busy cue until engine-idle (composer Stop + elapsed; Esc via keyboard / Stop title)
@@ -53,15 +53,17 @@ to weaken the parity guard.
 
 ## Transcript fidelity
 
-- [x] Assistant markdown (Streamdown + GFM; live while streaming)
+- [x] Assistant output streams as lightweight plain text, then finalizes into Streamdown + GFM
 - [x] Diff blocks green/red hunk coloring
 - [x] Tool icons + condensed labels; expand on click; auto-expand on error
 - [x] Consecutive tool/thinking activity groups under `Thinking · N steps`; individual rows retain click-to-expand bodies
 - [x] Turn fold (click or keyboard-activate the user bubble / ⌘O fold-all; no persistent arrow); density quiet/normal/verbose (⌘D)
 - [x] Windowed transcript (“N earlier turns”) with progressive reveal (20 at a time)
 - [x] Per-turn item windowing for long tool runs (cap 120, step 24, reveal page)
+- [x] Electron Trail intentionally hard-caps newline-free open reasoning streams
+  at 16,384 characters; the source-parity guard records this renderer-safety divergence
 - [x] Streaming follows only while anchored; upward scroll reveals Jump to latest
-- [x] Notices as level-styled banners
+- [x] Notices use restrained level semantics; density acknowledgements are silent and verbose warnings collapse
 - [x] Web-search results + `sources` fences as safe external source cards
 - [x] Rich data views: bar/line/sparkline/pie/weather fenced blocks render as visual components (RichBlockView)
 - [x] Active-task windowing; completed task panels retire with the CLI
@@ -83,7 +85,7 @@ to weaken the parity guard.
 - [x] Catalog filtering, no-results state, current-model marker, and RPC failure feedback
 - [x] Multi-project + Chats rail with collapsible sections, section +, titles, resume/filter; Continue Latest via ⇧⌘N / menu
 - [x] Project/session rename, archive, and delete menus with in-app confirmation; project menus escape rail clipping
-- [x] Workspace dock (Session / Changes / Git / Jobs / Files) on chat surface; no topbar duplicates
+- [x] Workspace dock (Session / Changes / Git / Terminal / Jobs / Files) on chat surface; no topbar duplicates
 - [x] Turn-changes card after file edits; dock Changes opens inspector review
 - [x] Host fatal / boot error: primary New session recovery
 - [x] `/jobs` drawer: live auto-follow terminal (full outputTail, stick-to-bottom, jump-to-latest); Close without Esc chip; quiet status/link chips
@@ -173,7 +175,7 @@ npm run dev
 - [x] Markdown headings use --heading (white on Graphite; follows `/accent` when set)
 - [x] Table headers use --heading (TUI parity)
 - [x] User message left accent border using --user color (TUI ❯ marker parity)
-- [x] Splash wordmark brand gradient sweep (TUI brandSpans parity via CSS background-clip)
+- [x] Splash uses one solid, stylized ASCII wordmark whose container-relative scale survives every breakpoint
 - [x] Busy cue shows elapsed time via workingLabel (TUI parity)
 - [x] Busy cue: Stop button is the primary interrupt (elapsed + Esc hint via title; no separate Esc chip)
 - [x] Goal suffix: plan phase reads "planning" (not "plan"), no round/max until execute (TUI parity)
@@ -251,12 +253,12 @@ npm run dev
 
 ## Agent-home polish + typography (session 6)
 
-- [x] Empty-home: brand-first wordmark/type, quiet tagline, centered composer, no automatic suggestions; container-query compact brand; WelcomeGate + SessionBoot shared boot copy; recent projects on cold start
+- [x] Empty-home: invariant stylized ASCII wordmark, quiet tagline, centered composer, no automatic suggestions; fluid container-relative scaling; WelcomeGate + SessionBoot shared boot copy; recent projects on cold start
 - [x] ProjectRail: active session surface highlight (no accent bar/dot); always-on search; measured context menus; archive confirm; topbar brand when rail closed
 - [x] Composer: shared transcript/approval/composer measure (`--composer-max: 40rem`), taller resting input (`--composer-input-min: 44px`); queue is one card above the composer (flat list, hover steer/dequeue)
 - [x] Mode dropdown Plan / Agent / Yolo (`selectModeAction`); Shift+Tab still cycles; plan-pending guard unchanged
 - [x] Lucide stroke icons for chrome + composer; tool-row glyphs via renderer `tool-glyph.tsx` (shared unicode `toolIcon` labels unchanged)
-- [x] Sans UI chrome; mono reserved for real code (fences, tool/diff/job bodies, wordmark, rich charts)
+- [x] Sans UI chrome; mono reserved for real code (terminal grids, fences, tool/diff/job bodies, wordmark, rich charts)
 - [x] Streamdown markdown fences use Shiki `CodeBlock` + line numbers; theme follows app palette via `shikiThemeFor` (not hardcoded github)
 - [x] One copy control (`CopyButton`) for fences, tool output, answers, thinking, plans; Streamdown table copy enabled
 - [x] GFM tables: Streamdown 2.5 wrapper is flex (no float); scroll on the table shell; fixed layout so prose columns don’t clip or hog width
@@ -273,7 +275,7 @@ npm run dev
 - [x] Menus: slash/mention quiet surface-enter, sentence-case compact typography, keyboard containment, catalog grouping (favorites via localStorage + recent 8 + provider buckets, Free badge, clear ×)
 - [x] Session panel (Inspector): shared Session/Changes end-panel view; closed by default; explicit dock/topbar toggle; user can close; LiveSidebar removed
 - [x] Rails: active session uses surface highlight only; project row radius 7px, topbar 14px semibold, Session panel border 22% + blur 12px sticky header, meta-block tighter
-- [x] Secondary: restrained cards, single Stop + Esc interrupt language, jobs drawer, earlier/jump controls, compact toast, memory notice, and source/article cards
+- [x] Secondary: restrained cards, single Stop + Esc interrupt language, Jobs activity view, earlier/jump controls, compact toast, memory notice, and source/article cards
 - [x] Model pill bordered 18% + hover 68%, transcript gap 28px/10px, code 12.5px
 - [x] Light scheme: restored edge-highlight + soft frost elevation; hairlines via `--border-soft` (not hard card borders)
 - [x] `/accent` remaps `--sel-bg` / `--sel-fg` / `--heading` / focus ring with contrast-aware foreground
@@ -298,8 +300,8 @@ npm run dev
 - [x] Project rail actions are hover/focus revealed, portal-mounted, and
   overlaid inside rows without a permanent action-column gutter.
 - [x] Session inspector is explicit-toggle only; sending a message does not
-  reopen it. Session/Changes/Git/Jobs share one mutually exclusive end-panel
-  lane without replacing the chat workspace.
+  reopen it. Session/Changes/Git/Terminal/Jobs share one mutually exclusive,
+  edge-attached activity sidebar without replacing the chat workspace.
 - [x] Approval panels and transcript output share the composer measure.
 - [x] User turns fold from the message itself without a persistent arrow.
 - [x] Memory notices use a quiet `Memory · N notes` disclosure with an
@@ -488,22 +490,25 @@ npm run dev
 - [x] 140 unit tests, 10 e2e tests, lint, typecheck, build, bundle, source
   parity all green; 31 UI preview scenarios all render correctly
 
-## Unified end panels and design-system documentation (2026-07-12)
+## Unified activity sidebar and design-system documentation (2026-07-13)
 
-- [x] Session, Changes, Git, and Jobs use one mutually exclusive right-side
-  activity lane with shared width, header, shadow, close behavior, Escape
-  handling, and open/replace geometry.
-- [x] Opening an end-panel view reserves `--activity-rail-w` in the main stage;
-  user messages, transcript output, approvals, turn-changes, and composer stay
-  visible rather than moving behind or underneath the panel.
+- [x] Session, Changes, Git, Terminal, and Jobs use one mutually exclusive,
+  full-height right activity sidebar with shared width, header, hairline divider,
+  close behavior, Escape handling, persisted resizing, and open/replace geometry.
+- [x] The sidebar keeps all five view switches visible at the top. Project PTYs
+  remain main-owned and continue running across Terminal close/view switches,
+  then reconnect with bounded replay output.
+- [x] The activity sidebar is a structural grid column, not an inset floating
+  card; user messages, transcript output, approvals, turn-changes, and composer
+  stay visible beside it.
 - [x] Git no longer replaces the full workspace. Its Branches, Changes,
   History, Remotes, and Pull Requests content renders inside the activity rail.
-- [x] Files remains a Finder reveal; `/jobs` remains available when the
-  workspace dock is hidden on narrow layouts.
+- [x] Files remains a Finder reveal; `/jobs` remains available while the
+  workspace dock compacts to icon navigation on narrow layouts.
 - [x] Decorative white section outlines and moving white selection lines remain
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current local gate: 259 unit tests, 11 e2e scenarios, lint, typecheck,
+- [x] Current local gate: 269 unit tests, 12 e2e scenarios, lint, typecheck,
   build, bundle budget, source parity (19 pairs), coverage floors in CI, and
   bridge smoke in `verify:ci` / GitHub Actions.

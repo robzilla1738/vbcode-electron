@@ -16,7 +16,10 @@ if (files.length === 0) {
 const sizes = await Promise.all(files.map(async (name) => ({ name, bytes: (await stat(join(assets, name))).size })));
 const total = sizes.reduce((sum, item) => sum + item.bytes, 0);
 const largest = sizes.reduce((max, item) => Math.max(max, item.bytes), 0);
-const totalBudget = 2_200_000;
+// xterm is a project-terminal feature and is code-split from chat startup.
+// Keep the initial/largest chunk on the existing budget while allowing the
+// shipped aggregate to include the isolated terminal runtime.
+const totalBudget = 2_650_000;
 const chunkBudget = 2_100_000;
 
 if (total > totalBudget || largest > chunkBudget) {
