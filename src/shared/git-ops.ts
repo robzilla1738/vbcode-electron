@@ -17,10 +17,17 @@ import type {
   GitResult,
   GitStatusEntry,
 } from "./git-types";
+import {
+  appendCapture,
+  captureOverflowError,
+  createCaptureBuffers,
+  DEFAULT_CAPTURE_MAX_BYTES,
+} from "./stream-cap";
 
 const GIT_TIMEOUT_MS = 30_000;
+
 /** Cap captured stdout/stderr so a huge porcelain dump cannot pin the main process. */
-const GIT_MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
+const GIT_MAX_CAPTURE_BYTES = DEFAULT_CAPTURE_MAX_BYTES;
 
 interface SpawnedChild {
   stdout: Readable;
@@ -58,50 +65,29 @@ export async function runGit(cwd: string, args: string[]): Promise<GitRunResult>
       env: gitEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     }) as unknown as SpawnedChild;
-    let stdout = "";
-    let stderr = "";
-    let truncated = false;
+    const capture = createCaptureBuffers(GIT_MAX_CAPTURE_BYTES);
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
       setTimeout(() => child.kill("SIGKILL"), 2000);
     }, GIT_TIMEOUT_MS);
 
-    const append = (target: "out" | "err", chunk: Buffer) => {
-      const text = chunk.toString();
-      if (target === "out") {
-        if (stdout.length + text.length > GIT_MAX_CAPTURE_BYTES) {
-          stdout = stdout.slice(0, GIT_MAX_CAPTURE_BYTES);
-          truncated = true;
-          return;
-        }
-        stdout += text;
-      } else {
-        if (stderr.length + text.length > GIT_MAX_CAPTURE_BYTES) {
-          stderr = stderr.slice(0, GIT_MAX_CAPTURE_BYTES);
-          truncated = true;
-          return;
-        }
-        stderr += text;
-      }
-    };
-
-    child.stdout.on("data", (chunk: Buffer) => append("out", chunk));
-    child.stderr.on("data", (chunk: Buffer) => append("err", chunk));
+    child.stdout.on("data", (chunk: Buffer) => appendCapture(capture, "stdout", chunk));
+    child.stderr.on("data", (chunk: Buffer) => appendCapture(capture, "stderr", chunk));
     child.on("error", (err: Error) => {
       clearTimeout(timer);
-      resolve({ ok: false, stdout, stderr: err.message });
+      resolve({ ok: false, stdout: capture.stdout, stderr: err.message });
     });
     child.on("close", (code: number | null) => {
       clearTimeout(timer);
-      if (truncated) {
+      if (capture.truncated) {
         resolve({
           ok: false,
-          stdout,
-          stderr: stderr || `git output exceeded ${GIT_MAX_CAPTURE_BYTES} bytes`,
+          stdout: capture.stdout,
+          stderr: captureOverflowError(capture, "git output"),
         });
         return;
       }
-      resolve({ ok: code === 0, stdout, stderr });
+      resolve({ ok: code === 0, stdout: capture.stdout, stderr: capture.stderr });
     });
   });
 }

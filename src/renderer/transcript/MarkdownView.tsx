@@ -1,4 +1,4 @@
-import { isValidElement, type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { isValidElement, memo, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import {
   CodeBlock,
   Streamdown,
@@ -116,7 +116,19 @@ const streamingComponents: Components = {
   code: StreamingCode,
 };
 
-export function MarkdownView({
+/**
+ * Streaming path: lightweight pre-wrap text (no Streamdown reparse every 24ms).
+ * Incomplete fences stay readable; full GFM/Shiki runs only when finalized.
+ */
+function StreamingPlain({ text }: { text: string }) {
+  return (
+    <div className="md-streaming-plain" data-streaming="true">
+      <pre className="md-streaming-pre">{text}</pre>
+    </div>
+  );
+}
+
+export const MarkdownView = memo(function MarkdownView({
   children,
   streaming = false,
   theme,
@@ -129,22 +141,10 @@ export function MarkdownView({
   const themeName = theme ?? document.documentElement.dataset.theme;
   const shikiTheme = shikiThemeFor(themeName) as [ThemeInput, ThemeInput];
 
-  // While streaming: no Shiki theme, no lineNumbers, no CodeBlock component.
-  // Re-highlighting growing markdown every flush was a main-thread hotspot.
+  // While streaming: plain text only — Streamdown+incomplete parse on every
+  // flush was the remaining main-thread hotspot after Shiki was deferred.
   if (streaming) {
-    return (
-      <Streamdown
-        mode="streaming"
-        isAnimating
-        parseIncompleteMarkdown
-        controls={false}
-        lineNumbers={false}
-        animated={false}
-        components={streamingComponents}
-      >
-        {children}
-      </Streamdown>
-    );
+    return <StreamingPlain text={children} />;
   }
 
   return (
@@ -161,4 +161,4 @@ export function MarkdownView({
       {children}
     </Streamdown>
   );
-}
+});

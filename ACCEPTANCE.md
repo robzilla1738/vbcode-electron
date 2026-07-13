@@ -1,8 +1,8 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-13 (design dock contract, shell lifecycle/session/git hardening, 226 unit + 10 e2e)
-> Status: implementation complete; automated publication gates are green on 2026-07-12
+> Last updated: 2026-07-13 (residual audit implementation pass)
+> Status: shell product complete for P0 acceptance rows; residual risks and verification methods documented below — do not treat frozen unit/e2e counts as a live baseline
 
 ## Summary
 
@@ -12,12 +12,12 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 
 Rows marked `pass` below may still rely on **review** or **manual** verification for some sub-behaviors. Known residual automation gaps (not product non-goals):
 
-- Settings write / Git mutation / dock lane exclusivity / Finder multi-drop / onboarding first-run are not fully covered by Playwright e2e (unit + preview + review cover most).
-- Visual regression screenshots (`ui:shots`) are capture-only, not pixel-diff gated in CI.
-- Public signing/notarization/auto-update require release credentials (see VERIFICATION.md).
-- Engine-adjacent: edit-message resubmit protocol, snapshot-native full diff map if history lacks tool inputs.
+- Settings write / Git mutation / Finder multi-drop / onboarding first-run are not fully covered by Playwright e2e (unit + preview + review cover most; dock mutual exclusivity has a hermetic e2e case).
+- Visual regression screenshots (`ui:shots`) fail on capture errors but are not pixel-diff gated in CI.
+- Public signing/notarization/auto-update require release credentials (see VERIFICATION.md). Local crashReporter is on without upload.
+- Engine-adjacent: edit-message resubmit protocol, host protocol version handshake, shared Zod config package, snapshot-native full diff map if history lacks tool inputs.
 
-Prefer `npm run verify` + CI for automated gates; do not treat frozen unit/e2e counts in prose as a live baseline.
+Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat frozen unit/e2e counts in prose as a live baseline. Hardening residual status: [plans/IMPROVEMENT-AUDIT.md](./plans/IMPROVEMENT-AUDIT.md).
 
 ## Areas
 
@@ -109,17 +109,19 @@ Prefer `npm run verify` + CI for automated gates; do not treat frozen unit/e2e c
 - [x] Verification commands were run (list below)
 
 | 2026-07-13 | Grok | 36/36 | 4/4 | Shell hardening + design direction: host lifecycle (dispose/reap/single-instance), session Trail/handoff/busy optimism, git ref safety + force-with-lease, host-resolver tests, long-session stream/markdown bounds, quiet dock contract (Session/Changes/Git/Jobs/Files only). 226 unit tests, typecheck green. |
+| 2026-07-13 | Grok | 36/36 | 4/4 | Residual audit implementation: disposeForQuit bootstrap preemption, busy-on-send-failure policy, realpath+capped reads, cwd allowlist, stream/gh capture caps, stdin write queue with epoch, plain streaming markdown, block retention, CI coverage+bridge smoke, preload VibeApi key contract, dock exclusivity e2e. 259 unit + 11 e2e; typecheck green. |
 
 **Current verification snapshot (2026-07-13):**
 
 ```text
-npm test                         # 226/226 pass
+npm test                         # 259/259 pass
+npm run test:coverage            # floors on shared + bridge modules
 npm run lint                     # clean
 npm run typecheck                # pass
-npm run build                    # pass
-npm run test:e2e                 # 10/10 pass
+npm run test:e2e                 # 11 scenarios (incl. dock exclusivity)
 npm run verify:source-parity     # pass (19 source pairs)
 npm run verify:bundle            # pass
 npm run verify                   # pass
 npm run smoke:bridge             # pass; ready, snapshot, and project-list checks
+npm run verify:ci                # verify + coverage + bridge smoke + e2e
 ```

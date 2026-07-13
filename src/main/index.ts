@@ -1,7 +1,7 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell } from "electron";
+import { app, BrowserWindow, clipboard, crashReporter, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell } from "electron";
 import { join, resolve, relative, isAbsolute } from "node:path";
-import { writeFile, mkdir, readFile, rm } from "node:fs/promises";
-import { existsSync, statSync, readdirSync } from "node:fs";
+import { writeFile, mkdir, readFile, rm, open as fsOpen } from "node:fs/promises";
+import { existsSync, statSync, readdirSync, realpathSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { chatsCwdFromHome } from "../shared/project-index";
@@ -16,9 +16,39 @@ import { assertTrustedIpc, assertTrustedSender, setMainWindow } from "./ipc-secu
 import { registerConfigIpc } from "./config-ipc";
 import { registerGitIpc } from "./git-ipc";
 import { enrichedEnv } from "./host-resolver";
+import { resolvePathInsideRoot } from "../shared/path-safe";
+import { readTextFileCapped } from "../shared/capped-read";
+import { isAllowedCwd, projectCwdAllowlist } from "../shared/cwd-allowlist";
+import { getMainWindow } from "./ipc-security";
 
 let mainWindow: BrowserWindow | null = null;
 const bridge = new EngineBridge();
+
+/** Short-TTL cache for `@` mention tree walks (avoids main-thread stalls). */
+const LIST_FILES_CACHE_TTL_MS = 5_000;
+const listFilesCache = new Map<string, { paths: string[]; at: number }>();
+
+function listProjectFilesCached(cwd: string): string[] {
+  const now = Date.now();
+  const hit = listFilesCache.get(cwd);
+  if (hit && now - hit.at < LIST_FILES_CACHE_TTL_MS) return hit.paths;
+  const paths = listProjectFiles(cwd, {
+    maxFiles: 2000,
+    maxDepth: 6,
+    readdir: (dir) => {
+      try {
+        return readdirSync(dir, { withFileTypes: true }).map((d) => ({
+          name: d.name,
+          isDirectory: d.isDirectory(),
+        }));
+      } catch {
+        return [];
+      }
+    },
+  });
+  listFilesCache.set(cwd, { paths, at: now });
+  return paths;
+}
 
 /** Unpackaged runs use Electron's default dock icon unless we set one explicitly. */
 function applyDevDockIcon(): void {
@@ -319,6 +349,9 @@ function registerIpc(): void {
           model: message.model,
           mode: message.mode,
         });
+        // Only after a successful host start — failed bootstrap must not widen
+        // git/config/fs IPC to an unopened path.
+        projectCwdAllowlist.add(message.cwd);
         return { ok: true as const, sessionId, launch: bridge.lastLaunchDescription };
       } catch (err) {
         return {
@@ -363,12 +396,18 @@ function registerIpc(): void {
 
   ipcMain.handle("dialog:openProject", async (event) => {
     assertTrustedIpc(event);
-    const result = await dialog.showOpenDialog(mainWindow!, {
-      properties: ["openDirectory", "createDirectory"],
+    const parent = getMainWindow() ?? mainWindow;
+    const dialogOpts = {
+      properties: ["openDirectory" as const, "createDirectory" as const],
       title: "Open Project",
-    });
+    };
+    const result = parent
+      ? await dialog.showOpenDialog(parent, dialogOpts)
+      : await dialog.showOpenDialog(dialogOpts);
     if (result.canceled || !result.filePaths[0]) return null;
-    return result.filePaths[0];
+    const chosen = result.filePaths[0];
+    projectCwdAllowlist.add(chosen);
+    return chosen;
   });
 
   ipcMain.handle("shell:openExternal", async (event, url: string) => {
@@ -412,6 +451,9 @@ function registerIpc(): void {
               error: `Clipboard image exceeds ${CLIPBOARD_MAX_BYTES} bytes`,
             };
           }
+          if (opts?.cwd && !isAllowedCwd(opts.cwd)) {
+            return { kind: "error" as const, error: "Clipboard write is limited to opened project roots" };
+          }
           const dir = opts?.cwd
             ? join(opts.cwd, ".vibe", "clipboard")
             : join(tmpdir(), `vibe-clips-${process.pid}`);
@@ -422,8 +464,16 @@ function registerIpc(): void {
           const path = opts?.cwd ? join(".vibe", "clipboard", filename) : abs;
           return { kind: "image" as const, path };
         }
+        const CLIPBOARD_TEXT_MAX = 2 * 1024 * 1024; // 2 MiB — match image defense-in-depth
         const text = clipboard.readText();
-        return text ? { kind: "text" as const, text } : { kind: "none" as const };
+        if (!text) return { kind: "none" as const };
+        if (Buffer.byteLength(text, "utf8") > CLIPBOARD_TEXT_MAX) {
+          return {
+            kind: "error" as const,
+            error: `Clipboard text exceeds ${CLIPBOARD_TEXT_MAX} bytes`,
+          };
+        }
+        return { kind: "text" as const, text };
       } catch (error) {
         return {
           kind: "error" as const,
@@ -436,6 +486,14 @@ function registerIpc(): void {
   ipcMain.handle("editor:compose", async (event, draft: string) => {
     assertTrustedIpc(event);
     if (typeof draft !== "string") return { ok: false, reason: "failed" as const, error: "Invalid editor draft" };
+    const EDITOR_DRAFT_MAX_BYTES = 2 * 1024 * 1024; // 2 MiB — reject extreme drafts before tmp write
+    if (Buffer.byteLength(draft, "utf8") > EDITOR_DRAFT_MAX_BYTES) {
+      return {
+        ok: false,
+        reason: "failed" as const,
+        error: `Editor draft exceeds ${EDITOR_DRAFT_MAX_BYTES} bytes`,
+      };
+    }
     const EDITOR_TIMEOUT_MS = 30 * 60 * 1000; // long but finite — hung editors must not pin IPC forever
     const result = await composeInEditor({
       editor: process.env.VISUAL || process.env.EDITOR,
@@ -471,6 +529,14 @@ function registerIpc(): void {
     return { ok: false, reason: "kept" };
   });
 
+  ipcMain.handle("app:getShellInfo", (event) => {
+    assertTrustedIpc(event);
+    return {
+      version: app.getVersion(),
+      lastLaunch: bridge.lastLaunchDescription || undefined,
+    };
+  });
+
   ipcMain.handle("app:getPath", (event, name: "home" | "userData") => {
     assertTrustedIpc(event);
     if (name !== "home" && name !== "userData") throw new Error("Unsupported app path");
@@ -495,26 +561,15 @@ function registerIpc(): void {
     async (event, opts: { cwd: string; query: string; limit?: number }) => {
       assertTrustedIpc(event);
       if (!opts || typeof opts.cwd !== "string" || typeof opts.query !== "string") return [];
+      if (!isAllowedCwd(opts.cwd)) return [];
       const limit = Math.min(100, Math.max(1, Number.isFinite(opts.limit) ? Math.trunc(opts.limit!) : 40));
       try {
         if (!existsSync(opts.cwd) || !statSync(opts.cwd).isDirectory()) return [];
       } catch {
         return [];
       }
-      const all = listProjectFiles(opts.cwd, {
-        maxFiles: 2000,
-        maxDepth: 6,
-        readdir: (dir) => {
-          try {
-            return readdirSync(dir, { withFileTypes: true }).map((d) => ({
-              name: d.name,
-              isDirectory: d.isDirectory(),
-            }));
-          } catch {
-            return [];
-          }
-        },
-      });
+      // Cache tree walks briefly so repeated @ mentions don't re-stat the tree.
+      const all = listProjectFilesCached(opts.cwd);
       return rankPaths(all, opts.query, limit);
     },
   );
@@ -529,32 +584,36 @@ function registerIpc(): void {
       if (!opts || typeof opts.cwd !== "string" || typeof opts.path !== "string") {
         return { ok: false, error: "Invalid path" };
       }
+      if (!isAllowedCwd(opts.cwd)) {
+        return { ok: false, error: "cwd is not an opened project root" };
+      }
       const maxBytes = Math.min(
         256_000,
         Math.max(1024, Number.isFinite(opts.maxBytes) ? Math.trunc(opts.maxBytes!) : 65_536),
       );
-      try {
-        const root = resolve(opts.cwd);
-        const target = resolve(root, opts.path);
-        const rel = relative(root, target);
-        if (rel.startsWith("..") || isAbsolute(rel)) {
-          return { ok: false, error: "Path escapes the project" };
-        }
-        if (!existsSync(target) || !statSync(target).isFile()) {
-          return { ok: false, error: "File not found" };
-        }
-        const buf = await readFile(target);
-        const slice = buf.subarray(0, maxBytes + 1);
-        // Reject obvious binaries (NUL in the first chunk).
-        if (slice.includes(0)) {
-          return { ok: false, error: "Binary file — reveal in Finder instead" };
-        }
-        const truncated = buf.length > maxBytes;
-        const text = slice.subarray(0, maxBytes).toString("utf8");
-        return { ok: true, text, truncated };
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : "Couldn’t read file" };
-      }
+      const located = resolvePathInsideRoot(opts.cwd, opts.path, {
+        realpathSync,
+        existsSync,
+        isFile: (p) => {
+          try {
+            return statSync(p).isFile();
+          } catch {
+            return false;
+          }
+        },
+      });
+      if (!located.ok) return { ok: false, error: located.error };
+      // Byte-capped open/read — never load multi-GB artifacts into main memory.
+      return readTextFileCapped(located.target, maxBytes, {
+        open: async (path, flags) => {
+          const fh = await fsOpen(path, flags);
+          return {
+            read: (buffer, offset, length, position) =>
+              fh.read(buffer, offset, length, position),
+            close: () => fh.close(),
+          };
+        },
+      });
     },
   );
 
@@ -570,13 +629,35 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    if (!mainWindow) return;
+    // After last window close on macOS, mainWindow is null — recreate so a
+    // second launch is not a silent no-op until Dock activate.
+    if (!mainWindow) {
+      createWindow();
+      return;
+    }
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
   });
 
   app.whenReady().then(() => {
     configureDevCsp();
+    // Local-only crash breadcrumbs (version + path) — no prompt content, no upload
+    // without an explicit submit URL (signing/update channel remains credential-gated).
+    try {
+      crashReporter.start({
+        productName: "Vibe Codr",
+        companyName: "Vibe Codr",
+        submitURL: "",
+        uploadToServer: false,
+        compress: true,
+        ignoreSystemCrashHandler: false,
+        extra: {
+          shellVersion: app.getVersion(),
+        },
+      });
+    } catch (err) {
+      console.warn("crashReporter unavailable:", err);
+    }
     // Defense-in-depth: deny Chromium permission prompts (media, geolocation, …)
     // this shell never needs — a compromised dependency cannot elevate them.
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => {

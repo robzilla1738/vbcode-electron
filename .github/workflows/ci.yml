@@ -33,6 +33,14 @@ jobs:
         env:
           VIBE_CODR_ROOT: ${{ github.workspace }}/vibe-codr
         run: npm run verify
+      - name: Coverage floors (shared + bridge)
+        env:
+          VIBE_CODR_ROOT: ${{ github.workspace }}/vibe-codr
+        run: npm run test:coverage
+      - name: Host NDJSON bridge smoke
+        env:
+          VIBE_CODR_ROOT: ${{ github.workspace }}/vibe-codr
+        run: npm run smoke:bridge
       - name: Install Electron runtime dependencies
         run: npx playwright install --with-deps chromium
       - name: Electron end-to-end tests

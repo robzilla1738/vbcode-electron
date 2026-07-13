@@ -167,17 +167,58 @@ export function validateConfig(config: Record<string, unknown>): string[] {
   }
   if (isPlainObject(config.budget)) {
     errors.push(...checkEnum(config.budget.onExceed, ENUM_VALUES["budget.onExceed"]!, "budget.onExceed"));
+    errors.push(...checkNumber(config.budget.limitUSD, { min: 0 }, "budget.limitUSD"));
+  }
+  if (isPlainObject(config.retry)) {
+    errors.push(...checkNumber(config.retry.maxAttempts, { min: 0, max: 20, integer: true }, "retry.maxAttempts"));
+    errors.push(...checkNumber(config.retry.baseDelayMs, { min: 0, integer: true }, "retry.baseDelayMs"));
+  }
+  if (isPlainObject(config.goal)) {
+    errors.push(...checkNumber(config.goal.maxRounds, { min: 0, integer: true }, "goal.maxRounds"));
+  }
+  if (isPlainObject(config.loop)) {
+    errors.push(...checkNumber(config.loop.maxIterations, { min: 0, integer: true }, "loop.maxIterations"));
+  }
+  if (isPlainObject(config.reasoning)) {
+    errors.push(...checkNumber(config.reasoning.budgetTokens, { min: 0, integer: true }, "reasoning.budgetTokens"));
+  }
+  // Permissions actions (Settings surface)
+  if (Array.isArray(config.permissions)) {
+    const validActions = new Set(["allow", "deny", "ask"]);
+    config.permissions.forEach((rule, i) => {
+      if (!isPlainObject(rule)) return;
+      if (rule.action !== undefined && (typeof rule.action !== "string" || !validActions.has(rule.action))) {
+        errors.push(`permissions[${i}].action: must be one of allow, deny, ask`);
+      }
+    });
   }
   if (isPlainObject(config.build)) {
     if (isPlainObject(config.build.commit)) {
       errors.push(...checkEnum(config.build.commit.mode, ENUM_VALUES["build.commit.mode"]!, "build.commit.mode"));
     }
-    if (isPlainObject(config.build.gate) && Array.isArray(config.build.gate.checks)) {
-      const validChecks = ["build", "typecheck", "test", "lint"];
-      for (const check of config.build.gate.checks) {
-        if (typeof check !== "string" || !validChecks.includes(check)) {
-          errors.push(`build.gate.checks: invalid check "${check}"`);
+    if (isPlainObject(config.build.gate)) {
+      errors.push(...checkNumber(config.build.gate.maxRounds, { min: 0, max: 20, integer: true }, "build.gate.maxRounds"));
+      errors.push(...checkNumber(config.build.gate.timeoutSec, { min: 1, integer: true }, "build.gate.timeoutSec"));
+      if (Array.isArray(config.build.gate.checks)) {
+        const validChecks = ["build", "typecheck", "test", "lint"];
+        for (const check of config.build.gate.checks) {
+          if (typeof check !== "string" || !validChecks.includes(check)) {
+            errors.push(`build.gate.checks: invalid check "${check}"`);
+          }
         }
+      }
+    }
+    if (isPlainObject(config.build.review)) {
+      errors.push(...checkNumber(config.build.review.maxRounds, { min: 0, max: 10, integer: true }, "build.review.maxRounds"));
+    }
+  }
+  // Expandable MCP URLs with ${ must use valid ${ENV_VAR} placeholders
+  if (isPlainObject(config.mcp) && isPlainObject(config.mcp.servers)) {
+    for (const [name, server] of Object.entries(config.mcp.servers as Record<string, unknown>)) {
+      if (!isPlainObject(server) || typeof server.url !== "string") continue;
+      if (!server.url.includes("${")) continue;
+      if (!/\$\{[A-Za-z_][A-Za-z0-9_]*\}/.test(server.url)) {
+        errors.push(`mcp.servers.${name}.url: invalid env placeholder`);
       }
     }
   }

@@ -27,6 +27,14 @@ import type {
   MemoryWriteRequest,
 } from "../shared/config-schema";
 import type { AssertTrustedIpc } from "./ipc-security";
+import { isAllowedCwd } from "../shared/cwd-allowlist";
+
+function projectCwdGuard(scope: ConfigScope, cwd?: string): string | null {
+  if (scope !== "project") return null;
+  if (typeof cwd !== "string" || !cwd) return "Project scope requires a cwd";
+  if (!isAllowedCwd(cwd)) return "cwd is not an opened project root";
+  return null;
+}
 
 export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
   ipcMain.handle("config:read", async (event, opts: { scope: ConfigScope; cwd?: string }) => {
@@ -34,6 +42,8 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     if (!opts || (opts.scope !== "global" && opts.scope !== "project")) {
       return { ok: false as const, error: "Invalid scope" };
     }
+    const guard = projectCwdGuard(opts.scope, opts.cwd);
+    if (guard) return { ok: false as const, error: guard };
     try {
       const path = configPathForScope(opts.scope, opts.cwd);
       const read = await readConfigFile(path);
@@ -57,6 +67,8 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     ) {
       return { ok: false as const, error: "Invalid write request" };
     }
+    const guard = projectCwdGuard(req.scope, req.cwd);
+    if (guard) return { ok: false as const, error: guard };
     try {
       const path = configPathForScope(req.scope, req.cwd);
       // Single critical section: read → merge → validate → write under the
@@ -89,6 +101,8 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     if (!opts || (opts.scope !== "global" && opts.scope !== "project")) {
       return { ok: false as const, error: "Invalid scope" };
     }
+    const guard = projectCwdGuard(opts.scope, opts.cwd);
+    if (guard) return { ok: false as const, error: guard };
     try {
       const path = memoryPathForScope(opts.scope, opts.cwd);
       const read = await readMemoryFile(path);
@@ -103,6 +117,8 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     if (!req || (req.scope !== "global" && req.scope !== "project") || typeof req.content !== "string") {
       return { ok: false as const, error: "Invalid write request" };
     }
+    const guard = projectCwdGuard(req.scope, req.cwd);
+    if (guard) return { ok: false as const, error: guard };
     try {
       const path = memoryPathForScope(req.scope, req.cwd);
       await writeMemoryFile(path, req.content);

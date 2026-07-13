@@ -7,6 +7,7 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 ```bash
 cd ~/Code/vbcode-electron   # or your clone of this repo
 npm test
+npm run test:coverage  # V8 floors on shared + bridge/host-resolver/ipc-security
 npm run lint
 npm run verify:source-parity
 npm run typecheck
@@ -16,20 +17,27 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (currently **226** tests), Playwright Electron E2E green
-(**10** scenarios), all 19 upstream source pairs aligned, Biome and `tsc` clean,
-electron-vite build and renderer bundle budget OK, and smoke prints `ready` +
-`snapshot ok`. `npm run verify` runs the non-E2E subset as one gate;
-`npm run verify:fast` is lint + unit + typecheck; `npm run verify:ci` adds E2E.
+Expect: Vitest green (**259** tests as of 2026-07-13), Playwright Electron E2E
+green (**11** scenarios), all 19 upstream source pairs aligned, Biome and `tsc`
+clean, electron-vite build and renderer/host bundle budget OK, and smoke prints
+`ready` + `snapshot ok`. Prefer live suite output over frozen counts in prose.
+
+| Gate | Includes |
+|------|----------|
+| `npm run verify` | lint + unit + source-parity + typecheck + build + bundle |
+| `npm run verify:fast` | lint + unit + typecheck |
+| `npm run verify:ci` | verify + coverage + bridge smoke + E2E |
 
 The source-parity command compares against the live sibling checkout selected
 by `VIBE_CODR_ROOT` or `~/Code/vibe-codr`. Keep that checkout on the revision
 expected by this repository before calling the full gate green. The parity
 script allows intentional Electron-specific additions and normalizes
-whitespace to avoid false formatting drift. On the current checkout, all 19
-source pairs pass and the renderer bundle is within its configured budget.
+whitespace to avoid false formatting drift.
 
-GitHub CI repeats this gate plus Electron E2E on Linux and an unsigned bundled-host smoke on macOS. Public signing/notarization remains a release-credential step.
+GitHub CI (`.github/workflows/ci.yml`) runs `verify`, coverage floors,
+`smoke:bridge`, and Electron E2E on Linux, plus an unsigned bundled-host smoke
+on macOS. Public signing/notarization and a live auto-update channel remain
+release-credential steps. Local crash breadcrumbs are enabled without upload.
 
 ## UI preview (renderer-only, no engine)
 
@@ -44,8 +52,10 @@ Visually sweep the scenario matrix (`welcome`, `splash`, `chat`, `table`,
 `onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`, `jobs`,
 `attachments`, `inspector`, `settings`, `git`, `toast`, `density-quiet`,
 `density-verbose`, `ctx-hot`) in the default theme, plus `&theme=light` and one accent theme (e.g.
-`&theme=opencode`). Focus rings must be visible keyboard-only, overlays must
-animate (and respect reduced motion), and no surface may lose theme colors.
+`&theme=opencode`). `npm run ui:shots` fails non-zero if any scenario capture
+errors (still not a pixel-diff CI gate). Focus rings must be visible
+keyboard-only, overlays must animate (and respect reduced motion), and no
+surface may lose theme colors.
 Confirm queue is one card above the composer, Copy/Edit actions are clean white
 icons without filled backgrounds, scrollbars stay overlay-only, the chat pane
 reaches its workspace edges, and the composer’s continuous frost fully blurs

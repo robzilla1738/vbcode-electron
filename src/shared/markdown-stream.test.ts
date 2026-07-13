@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Structural guard: streaming markdown must not wire the Shiki CodeBlock
- * component (the 24ms stream hotspot). Static path still uses CodeBlock.
+ * Structural guard: streaming markdown must not reparse with Streamdown/Shiki
+ * on every flush. Static path still uses Streamdown + CodeBlock.
  */
 describe("MarkdownView streaming cost", () => {
   const source = readFileSync(
@@ -12,22 +12,22 @@ describe("MarkdownView streaming cost", () => {
     "utf8",
   );
 
-  it("defines a StreamingCode path without CodeBlock", () => {
-    expect(source).toContain("function StreamingCode");
-    expect(source).toContain("streamingComponents");
-    // Streaming components must use StreamingCode, not Code
-    expect(source).toMatch(/streamingComponents[\s\S]*code:\s*StreamingCode/);
-    // The StreamingCode body must not instantiate CodeBlock
-    const streamingFn = source.slice(
-      source.indexOf("function StreamingCode"),
-      source.indexOf("const staticComponents"),
+  it("uses a plain streaming path without Streamdown or CodeBlock", () => {
+    expect(source).toContain("function StreamingPlain");
+    expect(source).toContain("md-streaming-plain");
+    // Streaming branch must not mount Streamdown
+    const streamingBranch = source.slice(
+      source.indexOf("if (streaming)"),
+      source.indexOf("return (\n    <Streamdown"),
     );
-    expect(streamingFn).not.toContain("<CodeBlock");
-    expect(streamingFn).toContain("md-code-block-streaming");
+    expect(streamingBranch).toContain("StreamingPlain");
+    expect(streamingBranch).not.toContain("<Streamdown");
+    expect(streamingBranch).not.toContain("<CodeBlock");
   });
 
   it("keeps Shiki CodeBlock on the static path only", () => {
     expect(source).toMatch(/staticComponents[\s\S]*code:\s*Code/);
     expect(source).toContain("<CodeBlock");
+    expect(source).toContain('mode="static"');
   });
 });

@@ -12,6 +12,7 @@ import {
   readdirSync,
   statSync,
 } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -89,6 +90,28 @@ if (sourceMtime > binaryMtime) {
       `Run: cd ${engineRoot} && bun run build:macos-bridge`,
   );
   process.exit(1);
+}
+
+// Refuse clearly non-executable or zero-length binaries; on macOS prefer matching arch when file(1) is available.
+const st = statSync(src);
+if (st.size < 1024) {
+  console.error(`Refusing to pack host binary that is too small (${st.size} bytes): ${src}`);
+  process.exit(1);
+}
+if (process.platform === "darwin") {
+  try {
+    const fileOut = execFileSync("file", ["-b", src], { encoding: "utf8" });
+    const want = process.arch === "arm64" ? "arm64" : "x86_64";
+    if (!fileOut.includes(want) && !fileOut.includes("universal")) {
+      console.error(
+        `Refusing to pack host for arch ${process.arch}: file reports "${fileOut.trim()}"\n` +
+          `Rebuild the host on this machine: cd ${engineRoot} && bun run build:macos-bridge`,
+      );
+      process.exit(1);
+    }
+  } catch {
+    /* file(1) unavailable — size/freshness checks still apply */
+  }
 }
 
 mkdirSync(destDir, { recursive: true });

@@ -855,30 +855,22 @@ const mock = {
     ],
   }),
   ghPrCreate: async () => ({ ok: true as const, url: "https://github.com/robzilla1738/vbcode-electron/pull/43", message: "PR created" }),
+  getShellInfo: async () => ({ version: "0.1.0-preview", lastLaunch: "mock host" }),
 };
 
 // Structural contract: mock must implement every preload VibeApi method name.
-// (Full type import of VibeApi pulls Electron types into the browser preview
-// bundle — we assert the key surface instead.)
+// Canonical list lives in src/shared/vibe-api-keys.ts — kept inlined here so the
+// browser preview bundle does not need a separate resolve path for Node tests.
 const REQUIRED_VIBE_KEYS = [
-  "bootstrap",
-  "send",
-  "rpc",
-  "listProjects",
-  "stop",
-  "quit",
-  "onEvent",
-  "onReady",
-  "onFatal",
-  "onMenuAction",
-  "openProject",
-  "readConfig",
-  "writeConfig",
-  "gitStatus",
-  "gitCommit",
-  "getPathForFile",
-  "pasteClipboard",
-  "composeInEditor",
+  "bootstrap", "send", "rpc", "listProjects", "renameProject", "archiveProject",
+  "deleteProject", "renameSession", "deleteSession", "archiveSession", "stop",
+  "quit", "onEvent", "onReady", "onFatal", "onMenuAction", "openProject",
+  "ensureChatsDir", "openExternal", "showItem", "readTextFile", "composeInEditor",
+  "getPath", "getPathForFile", "listFiles", "pasteClipboard", "globalConfigPath",
+  "readConfig", "writeConfig", "projectConfigPath", "readMemory", "writeMemory",
+  "gitStatus", "gitCreateBranch", "gitCheckout", "gitDeleteBranch", "gitStage",
+  "gitUnstage", "gitCommit", "gitMerge", "gitPush", "gitPull", "gitFetch",
+  "ghCheckAvailable", "ghPrList", "ghPrCreate", "getShellInfo",
 ] as const;
 for (const key of REQUIRED_VIBE_KEYS) {
   if (!(key in mock)) {

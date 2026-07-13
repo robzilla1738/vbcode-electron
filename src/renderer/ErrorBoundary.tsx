@@ -22,11 +22,14 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     console.error("[renderer] uncaught error:", error, info.componentStack);
   }
 
+  /** Soft remount: clear error state first so React re-renders children. */
+  handleSoftReset = (): void => {
+    this.setState({ error: null });
+  };
+
   handleReload = (): void => {
     this.setState({ error: null });
-    // Force a full re-mount by reloading the renderer. In a packaged app this
-    // reloads the file:// page; in dev it reloads the Vite URL (HMR state is
-    // discarded, which is the desired clean-slate recovery).
+    // Full re-mount — last resort when soft reset is not enough.
     window.location.reload();
   };
 
@@ -40,7 +43,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
                 <div className="gate-inner">
                   <div className="gate-copy">
                     <h1 id="error-title">Something went wrong</h1>
-                    <p>An unexpected error occurred in the UI. Reloading usually fixes it.</p>
+                    <p>An unexpected error occurred in the UI. Try recovering without a full reload first.</p>
                   </div>
                   <pre className="gate-error" role="alert" tabIndex={-1}>
                     {this.state.error.message}
@@ -50,11 +53,14 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
                     <button
                       type="button"
                       className="button primary"
-                      onClick={this.handleReload}
+                      onClick={this.handleSoftReset}
                       // biome-ignore lint/a11y/noAutofocus: single autofocus owner on the error recovery screen
                       autoFocus
                     >
-                      Reload
+                      Try again
+                    </button>
+                    <button type="button" className="button" onClick={this.handleReload}>
+                      Reload window
                     </button>
                   </div>
                 </div>

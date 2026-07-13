@@ -39,6 +39,19 @@ import type {
 } from "../shared/git-types";
 import { enrichedEnv } from "./host-resolver";
 import type { AssertTrustedIpc } from "./ipc-security";
+import {
+  appendCapture,
+  captureOverflowError,
+  createCaptureBuffers,
+  DEFAULT_CAPTURE_MAX_BYTES,
+} from "../shared/stream-cap";
+import { isAllowedCwd } from "../shared/cwd-allowlist";
+
+function rejectCwd(cwd: unknown): { ok: false; error: string } | null {
+  if (typeof cwd !== "string" || !cwd) return { ok: false, error: "cwd required" };
+  if (!isAllowedCwd(cwd)) return { ok: false, error: "cwd is not an opened project root" };
+  return null;
+}
 
 interface SpawnedChild {
   stdout: Readable;
@@ -55,21 +68,28 @@ function spawnGh(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: st
       env: enrichedEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     }) as unknown as SpawnedChild;
-    let stdout = "";
-    let stderr = "";
+    const capture = createCaptureBuffers(DEFAULT_CAPTURE_MAX_BYTES);
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
       setTimeout(() => child.kill("SIGKILL"), 2000);
     }, 30_000);
-    child.stdout.on("data", (c: Buffer) => { stdout += c.toString(); });
-    child.stderr.on("data", (c: Buffer) => { stderr += c.toString(); });
+    child.stdout.on("data", (c: Buffer) => appendCapture(capture, "stdout", c));
+    child.stderr.on("data", (c: Buffer) => appendCapture(capture, "stderr", c));
     child.on("error", () => {
       clearTimeout(timer);
-      resolve({ ok: false, stdout, stderr: "gh CLI not found" });
+      resolve({ ok: false, stdout: capture.stdout, stderr: "gh CLI not found" });
     });
     child.on("close", (code: number | null) => {
       clearTimeout(timer);
-      resolve({ ok: code === 0, stdout, stderr });
+      if (capture.truncated) {
+        resolve({
+          ok: false,
+          stdout: capture.stdout,
+          stderr: captureOverflowError(capture, "gh output"),
+        });
+        return;
+      }
+      resolve({ ok: code === 0, stdout: capture.stdout, stderr: capture.stderr });
     });
   });
 }
@@ -77,7 +97,8 @@ function spawnGh(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: st
 export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
   ipcMain.handle("git:status", async (event, cwd: string) => {
     assertTrusted(event);
-    if (typeof cwd !== "string" || !cwd) return { ok: false as const, error: "cwd required" };
+    const bad = rejectCwd(cwd);
+    if (bad) return bad;
     try {
       if (!(await isGitRepo(cwd))) {
         return { ok: true as const, status: null };
@@ -94,6 +115,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!req || typeof req.cwd !== "string" || typeof req.name !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(req.cwd);
+    if (bad) return bad;
     const result = await createBranch(req.cwd, req.name, req.from, req.checkout);
     return { ok: result.ok, message: result.message, error: result.ok ? undefined : result.stderr || "Failed" };
   });
@@ -103,6 +126,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!req || typeof req.cwd !== "string" || typeof req.name !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(req.cwd);
+    if (bad) return bad;
     const result = await checkoutBranch(req.cwd, req.name, req.track);
     return { ok: result.ok, message: result.message, error: result.ok ? undefined : result.stderr || "Failed" };
   });
@@ -112,6 +137,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!req || typeof req.cwd !== "string" || typeof req.name !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(req.cwd);
+    if (bad) return bad;
     const result = await deleteBranch(req.cwd, req.name, req.force);
     return { ok: result.ok, message: result.message, error: result.ok ? undefined : result.stderr || "Failed" };
   });
@@ -121,6 +148,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!opts || typeof opts.cwd !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(opts.cwd);
+    if (bad) return bad;
     let result: { ok: boolean; stdout: string; stderr: string; message?: string };
     if (opts.all || opts.allIncludingUntracked) {
       result = await stageAll(opts.cwd, opts.allIncludingUntracked ?? false);
@@ -138,6 +167,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!opts || typeof opts.cwd !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(opts.cwd);
+    if (bad) return bad;
     const result =
       opts.paths && opts.paths.length > 0
         ? await unstageFiles(opts.cwd, opts.paths)
@@ -150,6 +181,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!req || typeof req.cwd !== "string" || typeof req.message !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(req.cwd);
+    if (bad) return bad;
     const result = await commit(req.cwd, req.message, {
       stageAll: req.stageAll,
       stageAllIncludingUntracked: req.stageAllIncludingUntracked,
@@ -163,6 +196,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!req || typeof req.cwd !== "string" || typeof req.branch !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(req.cwd);
+    if (bad) return bad;
     const result = await mergeBranch(req.cwd, req.branch, req.noFastForward);
     return { ok: result.ok, message: result.message, error: result.ok ? undefined : result.stderr || "Failed" };
   });
@@ -172,6 +207,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!req || typeof req.cwd !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(req.cwd);
+    if (bad) return bad;
     const result = await pushBranch(req.cwd, {
       remote: req.remote,
       branch: req.branch,
@@ -186,6 +223,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!req || typeof req.cwd !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(req.cwd);
+    if (bad) return bad;
     const result = await pullBranch(req.cwd, { remote: req.remote, branch: req.branch });
     return { ok: result.ok, message: result.message, error: result.ok ? undefined : result.stderr || "Failed" };
   });
@@ -195,6 +234,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!opts || typeof opts.cwd !== "string") {
       return { ok: false as const, error: "Invalid request" };
     }
+    const bad = rejectCwd(opts.cwd);
+    if (bad) return bad;
     const result = await fetchRemotes(opts.cwd, opts.remote);
     return { ok: result.ok, message: result.message, error: result.ok ? undefined : result.stderr || "Failed" };
   });
@@ -209,7 +250,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
 
   ipcMain.handle("gh:prList", async (event, cwd: string) => {
     assertTrusted(event);
-    if (typeof cwd !== "string" || !cwd) return { ok: false as const, error: "cwd required" } as GhPrListResult;
+    const bad = rejectCwd(cwd);
+    if (bad) return { ok: false as const, prs: [], error: bad.error } as GhPrListResult;
     try {
       const res = await spawnGh(cwd, ["pr", "list", "--json", "number,title,state,headRefName,url", "--limit", "20"]);
       if (!res.ok) {
@@ -230,6 +272,8 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     if (!req || typeof req.cwd !== "string" || typeof req.title !== "string") {
       return { ok: false as const, error: "Invalid request" } as GhPrCreateResult;
     }
+    const bad = rejectCwd(req.cwd);
+    if (bad) return { ok: false as const, error: bad.error } as GhPrCreateResult;
     try {
       const args = ["pr", "create", "--title", req.title];
       if (req.body) { args.push("--body", req.body); }

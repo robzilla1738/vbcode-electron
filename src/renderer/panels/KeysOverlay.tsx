@@ -1,26 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { createPortal } from "react-dom";
 import { ESSENTIAL_KEYS } from "../../shared/keys-help";
 import { IconClose } from "../icons";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 /** Dedicated keyboard cheatsheet overlay (I57) — replaces the /keys transcript
  *  notice with a dismissible panel so power features stay discoverable. */
 export function KeysOverlay({ onClose }: { onClose: () => void }) {
   const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const close = rootRef.current?.querySelector<HTMLButtonElement>(".keys-close");
-    close?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useFocusTrap(true, rootRef, onClose);
 
   return createPortal(
     <div className="keys-overlay-root">

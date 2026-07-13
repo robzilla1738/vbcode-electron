@@ -2,23 +2,22 @@
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| [IMPROVEMENT-AUDIT.md](./IMPROVEMENT-AUDIT.md) | Thorough logic audit of the Electron presentation shell with prioritized, evidence-backed improvement backlog (2026-07-13, commit `c8b60f9`) | Audit complete; major in-scope items implemented on `main` through 2026-07-13 |
+| [IMPROVEMENT-AUDIT.md](./IMPROVEMENT-AUDIT.md) | Verified improvement backlog; residual §§1–5 implemented 2026-07-13 | In-scope residual closed; credential/engine-adjacent deferred |
 
-## Implemented from the audit (summary)
+## Implemented (this pass)
 
-1. Host lifecycle — quit/reap/single-instance, RPC-ready gate  
-2. Session correctness — Trail reset, handoff filter, busy optimism  
-3. Git/config hardening — refs, porcelain `-z`, force-with-lease, 0o600  
-4. Host-resolver — mtime cache + unit matrix  
-5. Long-session performance — stream markdown, tool output caps  
-6. Design direction — quiet dock contract (Session/Changes/Git/Jobs/Files)  
+1. Host quit-during-bootstrap preemption + process-group kill + stdin write queue (epoch-safe drain)  
+2. Busy-rule send-failure policy (mid-turn incidental send)  
+3. File read realpath + byte cap; gh/git capture caps; cwd allowlist after successful bootstrap  
+4. Renderer: catalog cancel, /jobs exclusivity, streaming plain markdown, session memo, block retention, density toast after send  
+5. CI: `test:coverage` + `smoke:bridge` in workflow/`verify:ci`; preload key contract; dock e2e; docs honesty  
 
-## Residual / deferred
+## Still deferred
 
-See audit §7 and residual notes in `ACCEPTANCE.md` (credentials, engine-adjacent, intentional non-parity, fuller e2e matrix).
+- Apple signing / notarization / live auto-update (credentials)  
+- Engine-adjacent: edit-resubmit protocol, host protocol version, shared Zod  
+- Optional: true list virtualization, Biome format enable, macOS full e2e matrix  
 
-## Recommended follow-up (optional)
+## Verification snapshot (2026-07-13)
 
-1. Visual regression CI for `ui:shots`  
-2. Broader Playwright coverage (settings write, dock exclusivity)  
-3. Signing / notarization when credentials exist  
+259 unit tests, 11 e2e scenarios, typecheck green. See root `VERIFICATION.md` / `ACCEPTANCE.md`.

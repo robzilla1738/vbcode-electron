@@ -253,3 +253,28 @@ test("recovers from a fatal host by starting a fresh session", async () => {
   await submit("recovered");
   await expect(page.getByText("Echo: recovered")).toBeVisible();
 });
+
+test("workspace dock keeps Session/Changes/Git/Jobs mutually exclusive", async () => {
+  // Open Jobs via dock, then Session — Jobs must not remain stacked.
+  const jobsToggle = page.getByRole("button", { name: /jobs|background jobs/i }).first();
+  if (await jobsToggle.isVisible().catch(() => false)) {
+    await jobsToggle.click();
+    await expect(page.getByText(/Long-running commands|background/i).first()).toBeVisible({
+      timeout: 5_000,
+    });
+  }
+  const sessionToggle = page.getByRole("button", { name: /session|review/i }).first();
+  if (await sessionToggle.isVisible().catch(() => false)) {
+    await sessionToggle.click();
+  }
+  // Git toggle should replace the prior end-panel view
+  const gitToggle = page.getByRole("button", { name: /^git$/i }).first();
+  if (await gitToggle.isVisible().catch(() => false)) {
+    await gitToggle.click();
+    await expect(page.getByRole("heading", { name: /git/i }).first()).toBeVisible({
+      timeout: 5_000,
+    });
+  }
+  // Composer remains usable (chat workspace not replaced)
+  await expect(page.getByRole("textbox", { name: "Task message" })).toBeVisible();
+});

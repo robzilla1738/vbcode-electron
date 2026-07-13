@@ -335,7 +335,18 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       const suppressCallIds = { ...s.suppressCallIds, [a.toolCallId]: true as const };
       const verb = a.action === "write" ? "wrote" : "edited";
       const header = `${GLYPH.file} ${verb} ${a.path}  +${a.added} -${a.removed}`;
-      const lines = a.diff ? a.diff.split("\n") : [];
+      // Same line budget as tool bodies — huge multi-file diffs must not pin RAM.
+      const FILE_DIFF_MAX_LINES = 4_000;
+      let lines = a.diff ? a.diff.split("\n") : [];
+      let storedDiff = a.diff;
+      if (lines.length > FILE_DIFF_MAX_LINES) {
+        const omitted = lines.length - FILE_DIFF_MAX_LINES;
+        lines = [
+          `… ${omitted} earlier diff lines omitted …`,
+          ...lines.slice(-FILE_DIFF_MAX_LINES),
+        ];
+        storedDiff = lines.join("\n");
+      }
       // Cumulative per-file delta for the footer summary.
       const ci = s.changedFiles.findIndex((f) => f.path === a.path);
       let changedFiles: ChangedFile[];
@@ -346,7 +357,7 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
           path: f.path,
           added: f.added + a.added,
           removed: f.removed + a.removed,
-          ...(a.diff || f.diff ? { diff: a.diff || f.diff } : {}),
+          ...(storedDiff || f.diff ? { diff: storedDiff || f.diff } : {}),
         };
       } else {
         changedFiles = [
@@ -355,7 +366,7 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
             path: a.path,
             added: a.added,
             removed: a.removed,
-            ...(a.diff ? { diff: a.diff } : {}),
+            ...(storedDiff ? { diff: storedDiff } : {}),
           },
         ];
       }

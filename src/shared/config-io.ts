@@ -14,7 +14,9 @@ import { dirname, join } from "node:path";
 import { readFile, mkdir, writeFile, rename, rm } from "node:fs/promises";
 import type { ConfigScope, VibeConfig } from "./config-schema";
 
-/** Strip `//` line and `/* *\/` block comments (string-aware). */
+/** Strip line and block comments (string-aware).
+ * Throws if a block comment is left unclosed so a missing closer cannot
+ * silently swallow the rest of the file. */
 function stripJsonComments(input: string): string {
   let out = "";
   let inString = false;
@@ -44,6 +46,9 @@ function stripJsonComments(input: string): string {
     else if (ch === "/" && next === "/") { inLine = true; i++; }
     else if (ch === "/" && next === "*") { inBlock = true; i++; }
     else { out += ch; }
+  }
+  if (inBlock) {
+    throw new Error("Unclosed block comment in JSONC");
   }
   return out;
 }
@@ -136,9 +141,25 @@ export function configPathForScope(scope: ConfigScope, cwd?: string): string {
   return projectConfigPath(cwd);
 }
 
+/** Config reads refuse multi-megabyte files (Settings open must not OOM main). */
+export const CONFIG_MAX_READ_BYTES = 2_000_000;
+
 export async function readConfigFile(path: string): Promise<{ config: VibeConfig; raw: string } | null> {
   if (!existsSync(path)) return null;
+  const { stat } = await import("node:fs/promises");
+  try {
+    const st = await stat(path);
+    if (st.size > CONFIG_MAX_READ_BYTES) {
+      throw new Error(`Config at ${path} exceeds ${CONFIG_MAX_READ_BYTES} bytes`);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("exceeds")) throw err;
+    /* fall through to read — race with delete */
+  }
   const raw = await readFile(path, "utf8");
+  if (Buffer.byteLength(raw, "utf8") > CONFIG_MAX_READ_BYTES) {
+    throw new Error(`Config at ${path} exceeds ${CONFIG_MAX_READ_BYTES} bytes`);
+  }
   const cleaned = stripTrailingCommas(stripJsonComments(raw));
   const parsed = JSON.parse(cleaned) as VibeConfig;
   return { config: parsed, raw };
@@ -277,14 +298,26 @@ export function memoryPathForScope(scope: ConfigScope, cwd?: string): string {
   return projectMemoryPath(cwd);
 }
 
-export async function readMemoryFile(path: string): Promise<{ content: string; exists: boolean }> {
-  if (!existsSync(path)) return { content: "", exists: false };
-  const content = await readFile(path, "utf8");
-  return { content, exists: true };
-}
-
 /** Custom instructions (VIBE.md) — hard cap so a paste cannot blow disk/memory. */
 export const MEMORY_MAX_BYTES = 1_500_000;
+
+export async function readMemoryFile(path: string): Promise<{ content: string; exists: boolean }> {
+  if (!existsSync(path)) return { content: "", exists: false };
+  const { stat } = await import("node:fs/promises");
+  try {
+    const st = await stat(path);
+    if (st.size > MEMORY_MAX_BYTES) {
+      throw new Error(`Memory file exceeds ${MEMORY_MAX_BYTES} bytes`);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("exceeds")) throw err;
+  }
+  const content = await readFile(path, "utf8");
+  if (Buffer.byteLength(content, "utf8") > MEMORY_MAX_BYTES) {
+    throw new Error(`Memory file exceeds ${MEMORY_MAX_BYTES} bytes`);
+  }
+  return { content, exists: true };
+}
 
 export async function writeMemoryFile(path: string, content: string): Promise<void> {
   if (Buffer.byteLength(content, "utf8") > MEMORY_MAX_BYTES) {

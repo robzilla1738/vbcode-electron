@@ -437,6 +437,40 @@ describe("EngineBridge lifecycle", () => {
     );
   });
 
+  it("disposeForQuit reaps a host that never reaches ready without waiting the ready timeout", async () => {
+    let childProcess: ChildProcessWithoutNullStreams | null = null;
+    // Host never emits ready — classic quit-during-bootstrap race.
+    const bridge = new EngineBridge({
+      resolveLaunch: () =>
+        fixture(String.raw`
+          // Stay alive; ignore everything. Never emit ready.
+          setInterval(() => {}, 60_000);
+          process.stdin.resume();
+        `),
+      readyTimeoutMs: 30_000,
+      stopTimeoutMs: 200,
+      killWaitMs: 200,
+      quitFinalizeTimeoutMs: 50,
+      onSpawn: (proc) => {
+        childProcess = proc;
+      },
+    });
+    // Start but do not await ready — quit while bootstrap is in flight.
+    const startPromise = bridge.start({ cwd: process.cwd() });
+    await pollUntil(() => childProcess != null, 2_000);
+    const started = Date.now();
+    await bridge.disposeForQuit();
+    const elapsed = Date.now() - started;
+    expect(bridge.isRunning).toBe(false);
+    // Must not wait the 30s ready timeout.
+    expect(elapsed).toBeLessThan(5_000);
+    await expect(startPromise).rejects.toThrow();
+    await pollUntil(
+      () => !childProcess || childProcess.exitCode !== null || childProcess.signalCode !== null,
+      2_000,
+    );
+  });
+
   it("keeps isRunning true after soft-kill until the child actually exits", async () => {
     let childProcess: ChildProcessWithoutNullStreams | null = null;
     const bridge = new EngineBridge({

@@ -91,17 +91,21 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 |---------|---------|
 | `npm run dev` | electron-vite + Electron window |
 | `npm run build` | Compile main / preload / renderer → `out/` |
-| `npm test` | Vitest parity, lifecycle, protocol, and editor-compose tests |
+| `npm test` | Vitest unit suite (lifecycle, protocol, security helpers, parity) |
+| `npm run test:coverage` | Same suite with V8 coverage floors (shared + bridge) |
 | `npm run test:e2e` | Hermetic Electron UI/IPC/bridge parity scenarios |
 | `npm run lint` | Biome correctness and maintainability gate |
 | `npm run verify` | Lint + unit + source parity + types + build + bundle budget |
+| `npm run verify:fast` | Lint + unit + typecheck |
+| `npm run verify:ci` | `verify` + coverage + bridge smoke + E2E |
 | `npm run verify:source-parity` | AST drift gate against live CLI/shared/bridge sources |
-| `npm run verify:bundle` | Renderer JavaScript regression budget |
+| `npm run verify:bundle` | Renderer JavaScript + staged host binary budget |
 | `npm run typecheck` | `tsc` for node + web projects |
 | `npm run ui:preview` | Renderer in a browser with a mocked bridge (no engine) |
-| `npm run ui:shots` | Headless screenshot matrix of every preview scenario |
+| `npm run ui:shots` | Headless screenshot matrix (fails non-zero on capture errors) |
 | `npm run smoke:bridge` | NDJSON bootstrap → snapshot → shutdown |
-| `npm run copy-host` | Copy host binary into `resources/` |
+| `npm run smoke:packaged` | Packaged app smoke without developer host fallback |
+| `npm run copy-host` | Copy host binary into `resources/` (freshness + arch checks) |
 | `npm run pack` | macOS dir build (copies host first) |
 | `npm run dist` | macOS `.dmg` / distributable |
 
@@ -265,14 +269,16 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AG
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **226 unit tests**, **10 Electron E2E scenarios**, 19 source
+Current baseline: **259 unit tests**, **11 Electron E2E scenarios**, 19 source
 parity pairs, Biome, typecheck, production build, and renderer bundle budget
-pass in the current checkout. Bridge smoke and E2E are separate release gates;
-run them when the sibling host and packaged/runtime environment are available.
-The deterministic preview matrix covers attachments, settings, Git, Session
-review, light mode, and alternate themes. See [design-system.md](./design-system.md),
-[VERIFICATION.md](./VERIFICATION.md), and [ACCEPTANCE.md](./ACCEPTANCE.md) for
-the visual contract, acceptance contract, and release gates.
+pass in the current checkout. CI runs `verify` + coverage floors + bridge smoke
++ E2E on Linux and unsigned pack smoke on macOS. Prefer live `npm test` counts
+over frozen numbers in prose. The deterministic preview matrix covers
+attachments, settings, Git, Session review, light mode, and alternate themes.
+Hardening backlog: [plans/IMPROVEMENT-AUDIT.md](./plans/IMPROVEMENT-AUDIT.md).
+See [design-system.md](./design-system.md), [VERIFICATION.md](./VERIFICATION.md),
+and [ACCEPTANCE.md](./ACCEPTANCE.md) for the visual contract, acceptance
+contract, and release gates.
 
 ## Project layout
 

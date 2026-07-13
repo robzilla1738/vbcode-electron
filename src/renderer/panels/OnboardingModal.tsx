@@ -16,6 +16,7 @@ import {
   type ProviderChoice,
 } from "../../shared/providers-catalog";
 import { IconClose, IconExternalLink } from "../icons";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 export interface ProviderStatus {
   id: string;
@@ -54,6 +55,8 @@ export function OnboardingModal({
   const [baseURL, setBaseURL] = useState("");
   const [model, setModel] = useState(PROVIDER_CHOICES[initialIdx]?.defaultModel ?? "");
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(true, dialogRef, onDismiss);
 
   const choice: ProviderChoice = PROVIDER_CHOICES[selectedIdx] ?? PROVIDER_CHOICES[0]!;
 
@@ -81,7 +84,7 @@ export function OnboardingModal({
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="onboarding-modal-title">
-      <div className="onboarding-modal">
+      <div className="onboarding-modal" ref={dialogRef}>
         <header className="onboarding-modal-header">
           <div>
             <h2 id="onboarding-modal-title">Set up a model provider</h2>

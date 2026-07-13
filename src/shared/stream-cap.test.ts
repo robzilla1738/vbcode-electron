@@ -1,0 +1,32 @@
+import { describe, expect, it } from "vitest";
+import { appendCapture, captureOverflowError, createCaptureBuffers } from "./stream-cap";
+
+describe("stream capture cap", () => {
+  it("appends under the cap without truncating", () => {
+    const buf = createCaptureBuffers(100);
+    appendCapture(buf, "stdout", "hello");
+    appendCapture(buf, "stderr", "warn");
+    expect(buf.stdout).toBe("hello");
+    expect(buf.stderr).toBe("warn");
+    expect(buf.truncated).toBe(false);
+  });
+
+  it("marks truncated and stops growing past maxBytes", () => {
+    const buf = createCaptureBuffers(10);
+    appendCapture(buf, "stdout", "1234567890EXTRA");
+    expect(buf.truncated).toBe(true);
+    expect(buf.stdout.length).toBe(10);
+    appendCapture(buf, "stdout", "more");
+    expect(buf.stdout.length).toBe(10);
+  });
+
+  it("overflow error prefers stderr then a clear message", () => {
+    const empty = createCaptureBuffers(8);
+    empty.truncated = true;
+    expect(captureOverflowError(empty, "gh output")).toMatch(/exceeded 8 bytes/);
+    const withErr = createCaptureBuffers(8);
+    withErr.stderr = "boom";
+    withErr.truncated = true;
+    expect(captureOverflowError(withErr)).toBe("boom");
+  });
+});

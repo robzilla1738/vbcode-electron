@@ -25,6 +25,7 @@ import { getTheme } from "../../shared/themes";
 import { Trail, turnWindowStart, windowStartIndex } from "../../shared/trail";
 import type { EngineSnapshot } from "../../shared/types";
 import { stripVisionRelayContext } from "../../shared/vision-display";
+import { shouldClearBusyOnSendFailure } from "../../shared/busy-on-send-failure";
 import { applyPalette } from "../theme/applyPalette";
 import { RequestGate } from "./request-gate";
 import { initialChrome, reduceChrome } from "./session-state";
@@ -87,12 +88,35 @@ const REVEAL_PAGE = 20;
 const TURN_ITEMS_MAX = 120;
 const TURN_ITEMS_STEP = 24;
 const TURN_ITEM_REVEAL_PAGE = TURN_ITEMS_STEP;
+/** Hard ceiling on retained transcript blocks (DOM window is separate). */
+const MAX_RETAINED_BLOCKS = 2_500;
+
+function reduceTxCapped(s: TranscriptState, a: TxAction): TranscriptState {
+  const next = reduceTx(s, a);
+  if (next.blocks.length <= MAX_RETAINED_BLOCKS) return next;
+  // Drop oldest blocks while preserving active streaming/tool indices when possible.
+  const overflow = next.blocks.length - MAX_RETAINED_BLOCKS;
+  const blocks = next.blocks.slice(overflow);
+  const shift = overflow;
+  const toolByCallId: Record<string, number> = {};
+  for (const [id, idx] of Object.entries(next.toolByCallId)) {
+    const shifted = idx - shift;
+    if (shifted >= 0) toolByCallId[id] = shifted;
+  }
+  return {
+    ...next,
+    blocks,
+    activeAssistant:
+      next.activeAssistant >= shift ? next.activeAssistant - shift : -1,
+    toolByCallId,
+  };
+}
 
 export function useSession(cwd: string | null) {
   const [chrome, dispatchChrome] = useReducer(reduceChrome, cwd ?? "", (c) =>
     initialChrome(c || ""),
   );
-  const [transcript, dispatchTranscript] = useReducer(reduceTx, undefined, initialTranscript);
+  const [transcript, dispatchTranscript] = useReducer(reduceTxCapped, undefined, initialTranscript);
   const [foldedTurns, setFoldedTurns] = useState<Set<number>>(new Set());
   const [revealTurns, setRevealTurns] = useState(0);
   const [revealedTurnItems, setRevealedTurnItems] = useState<Map<number, number>>(() => new Map());
@@ -117,6 +141,9 @@ export function useSession(cwd: string | null) {
   const activeSessionId = useRef("");
   const toastTimer = useRef<number | null>(null);
   const bootstrapContext = useRef<{ usedTokens: number; contextWindow: number } | null>(null);
+  /** Always-current chrome.busy for send-failure busy policy (avoid stale closures). */
+  const busyRef = useRef(chrome.busy);
+  busyRef.current = chrome.busy;
 
   const uiMode: UiMode = deriveUiMode(chrome.mode, chrome.approvals);
 
@@ -447,7 +474,9 @@ export function useSession(cwd: string | null) {
     const res = await window.vibe.send(command);
     if (!res.ok) {
       dispatchTranscript({ type: "notice", text: res.error, level: "error" });
-      dispatchChrome({ type: "set-busy", busy: false });
+      if (shouldClearBusyOnSendFailure([command], busyRef.current)) {
+        dispatchChrome({ type: "set-busy", busy: false });
+      }
       return false;
     }
     return true;
@@ -455,12 +484,23 @@ export function useSession(cwd: string | null) {
 
   const sendMany = useCallback(
     async (commands: EngineCommand[]): Promise<boolean> => {
-      for (const c of commands) {
-        if (!(await send(c))) return false;
+      const alreadyBusy = busyRef.current;
+      for (let i = 0; i < commands.length; i++) {
+        const c = commands[i]!;
+        const res = await window.vibe.send(c);
+        if (!res.ok) {
+          dispatchTranscript({ type: "notice", text: res.error, level: "error" });
+          // Policy uses the full intended batch so a mid-batch failure of a
+          // turn-start still clears optimistic busy correctly.
+          if (shouldClearBusyOnSendFailure(commands, alreadyBusy)) {
+            dispatchChrome({ type: "set-busy", busy: false });
+          }
+          return false;
+        }
       }
       return true;
     },
-    [send],
+    [],
   );
 
   const clearSessionLocal = useCallback(() => {
@@ -582,6 +622,8 @@ export function useSession(cwd: string | null) {
   useEffect(() => {
     const offEvent = window.vibe.onEvent(handleEvent);
     const offFatal = window.vibe.onFatal((message) => {
+      // Host death mid-bootstrap must reopen the event filter so Retry/New work.
+      bootstrapHandoff.current = false;
       setBootError(message);
       setReady(false);
       setBooting(false);
@@ -703,44 +745,84 @@ export function useSession(cwd: string | null) {
     if (toastTimer.current != null) window.clearTimeout(toastTimer.current);
   }, []);
 
-  return {
-    chrome,
-    transcript,
-    dispatchTranscript,
-    foldedTurns,
-    setFoldedTurns,
-    foldAllTurns,
-    revealEarlier,
-    revealTurnItems,
-    itemWindowFor,
-    jobsView,
-    setJobsView,
-    toast,
-    showToast,
-    dismissToast,
-    bootError,
-    setBootError,
-    booting,
-    ready,
-    uiMode,
-    modeLabel: modeWord(uiMode),
-    turns: visibleTurns,
-    hiddenCount,
-    revealPage: Math.min(REVEAL_PAGE, hiddenCount),
-    totalTurns: turns.length,
-    send,
-    sendMany,
-    bootstrap,
-    cycleMode,
-    selectMode,
-    dispatchChrome,
-    clearSessionLocal,
-    setBusy: (busy: boolean) => dispatchChrome({ type: "set-busy", busy }),
-    setSubagentModel: (model: string | undefined) =>
-      dispatchChrome({ type: "set-subagent-model", model }),
-    inspectorOpen,
-    setInspectorOpen,
-  };
+  const setBusy = useCallback((busy: boolean) => {
+    dispatchChrome({ type: "set-busy", busy });
+  }, []);
+
+  const setSubagentModel = useCallback((model: string | undefined) => {
+    dispatchChrome({ type: "set-subagent-model", model });
+  }, []);
+
+  // Stabilize the public session object so memoized children (BlockView) and
+  // App callbacks that only need dispatch helpers do not thrash every chrome tick.
+  return useMemo(
+    () => ({
+      chrome,
+      transcript,
+      dispatchTranscript,
+      foldedTurns,
+      setFoldedTurns,
+      foldAllTurns,
+      revealEarlier,
+      revealTurnItems,
+      itemWindowFor,
+      jobsView,
+      setJobsView,
+      toast,
+      showToast,
+      dismissToast,
+      bootError,
+      setBootError,
+      booting,
+      ready,
+      uiMode,
+      modeLabel: modeWord(uiMode),
+      turns: visibleTurns,
+      hiddenCount,
+      revealPage: Math.min(REVEAL_PAGE, hiddenCount),
+      totalTurns: turns.length,
+      send,
+      sendMany,
+      bootstrap,
+      cycleMode,
+      selectMode,
+      dispatchChrome,
+      clearSessionLocal,
+      setBusy,
+      setSubagentModel,
+      inspectorOpen,
+      setInspectorOpen,
+    }),
+    [
+      chrome,
+      transcript,
+      foldedTurns,
+      foldAllTurns,
+      revealEarlier,
+      revealTurnItems,
+      itemWindowFor,
+      jobsView,
+      toast,
+      showToast,
+      dismissToast,
+      bootError,
+      booting,
+      ready,
+      uiMode,
+      visibleTurns,
+      hiddenCount,
+      turns.length,
+      send,
+      sendMany,
+      bootstrap,
+      cycleMode,
+      selectMode,
+      clearSessionLocal,
+      setBusy,
+      setSubagentModel,
+      inspectorOpen,
+    ],
+  );
 }
 
 export type SessionApi = ReturnType<typeof useSession>;

@@ -223,10 +223,24 @@ export function GitView({
     finally { setBusy(false); }
   }, [refresh, showToast]);
 
-  // Keyboard: Escape closes
+  // Keyboard: Esc stack — dismiss nested forms first, then the panel.
+  // Do not capture-close while the user is typing in a free-text field unless
+  // that field has no nested cancel (then clear value once, second Esc closes).
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
+      if (event.key !== "Escape") return;
+      const target = event.target as HTMLElement | null;
+      const inField =
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "INPUT" ||
+        target?.isContentEditable;
+      if (inField) {
+        // Let the field clear / native behavior first; do not close the whole lane.
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);

@@ -49,6 +49,7 @@ const SHOTS = [
 
 await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch();
+let failures = 0;
 
 for (const [name, query, viewport] of SHOTS) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 2 });
@@ -59,9 +60,14 @@ for (const [name, query, viewport] of SHOTS) {
     await page.screenshot({ path: `${OUT}/${name}.png`, animations: "disabled" });
     console.log(`✓ ${name}`);
   } catch (err) {
+    failures += 1;
     console.error(`✗ ${name}: ${err instanceof Error ? err.message : err}`);
   }
   await page.close();
 }
 
 await browser.close();
+if (failures > 0) {
+  console.error(`ui:shots failed: ${failures} scenario(s)`);
+  process.exitCode = 1;
+}

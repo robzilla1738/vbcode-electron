@@ -1872,6 +1872,22 @@ html[data-scheme="light"] .block-assistant { color: var(--assistant); }
 .md p, .md ul, .md ol, .md blockquote { margin: 0.55em 0; }
 .md p + ul, .md p + ol, .md ul + p, .md ol + p { margin-top: 0.35em; }
 
+/* Streaming assistant text — plain pre until finalize (no Streamdown reparse). */
+.md-streaming-plain {
+  margin: 0;
+}
+.md-streaming-pre {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  font-family: var(--font-sans);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: transparent;
+  border: 0;
+  color: inherit;
+}
+
 /* Streamdown ships Tailwind list-inside utilities — force outside so nested
    definition lists (bold label → detail lines) keep a clean hanging indent. */
 .md ul,

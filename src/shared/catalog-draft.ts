@@ -140,6 +140,8 @@ export function mcpPickerQuery(draft: string): string | null {
 }
 
 export interface CatalogOption {
+  /** When true, this row is the currently selected model for the picker target. */
+  current?: boolean;
   key: string;
   primary: string;
   secondary: string;
@@ -211,7 +213,10 @@ export function modelCatalogOptions(
 
   const makeRow = (model: ModelSummary): CatalogOption => {
     const full = `${model.providerId}/${model.id}`;
-    const sec = [model.name, fmtContext(model.contextWindow)].filter(Boolean).join(" · ");
+    const isCurrent = current != null && current !== "" && full === current;
+    const secParts = [model.name, fmtContext(model.contextWindow)];
+    if (isCurrent) secParts.unshift("current");
+    const sec = secParts.filter(Boolean).join(" · ");
     const free = isModelFree(model);
     if (typeof target === "object") {
       return {
@@ -220,6 +225,7 @@ export function modelCatalogOptions(
         secondary: sec,
         free,
         providerId: model.providerId,
+        current: isCurrent,
         command: { type: "set-agent-model", name: target.agent, model: full },
       };
     }
@@ -230,15 +236,17 @@ export function modelCatalogOptions(
         secondary: sec,
         free,
         providerId: model.providerId,
+        current: isCurrent,
         command: { type: "set-subagent-model", model: full },
       };
     }
     return {
       key: full,
       primary: full,
-      secondary: model.name ?? "",
+      secondary: isCurrent ? `current · ${model.name ?? ""}`.replace(/ · $/, "") : (model.name ?? ""),
       free,
       providerId: model.providerId,
+      current: isCurrent,
       command: { type: "set-model", model: full },
     };
   };
@@ -258,11 +266,9 @@ export function modelCatalogOptions(
           ? { type: "set-agent-model", name: target.agent, model: null }
           : { type: "set-subagent-model", model: null },
     });
-    void current;
     return rows;
   }
 
-  void current;
   // Main model picker — opencode-inspired grouping: Favorites, Recent, by provider
   const favFulls = getModelFavorites();
   const recentFulls = getModelRecents().filter((f) => !favFulls.includes(f));

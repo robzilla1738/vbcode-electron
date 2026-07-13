@@ -1,6 +1,6 @@
 # CLI ↔ Electron parity checklist
 
-Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (currently 125+ tests), `npm run test:e2e` (10 scenarios), plus `npm run verify:source-parity`.
+Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated: `npm test` (259 unit tests), `npm run test:e2e` (11 scenarios), plus `npm run verify:source-parity` and CI coverage/`smoke:bridge` gates.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
@@ -504,5 +504,6 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current local gate: 226 unit tests, lint, typecheck, build, bundle budget,
-  source parity (19 pairs), and `git diff --check` pass.
+- [x] Current local gate: 259 unit tests, 11 e2e scenarios, lint, typecheck,
+  build, bundle budget, source parity (19 pairs), coverage floors in CI, and
+  bridge smoke in `verify:ci` / GitHub Actions.

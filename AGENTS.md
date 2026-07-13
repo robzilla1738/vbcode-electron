@@ -10,7 +10,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 
 1. **No engine fork.** Features that belong in the agent loop stay in vibe-codr; this repo only renders `UIEvent`s and sends `EngineCommand`s.
 2. **TUI-faithful behavior + themes.** Layout constants: content ~130ch, sidebar ~42ch, and a shared transcript/approval/composer measure of `40rem`; wide breakpoint ~1280px (`BREAKPOINTS.wide` in `src/shared/breakpoints.ts`). Themes from `src/shared/themes.ts`. macOS Liquid Glass may tint chrome (rails/topbar/composer); do not replace CLI theme semantics.
-3. **Busy until `engine-idle`.** Do not clear `busy` on `session-idle` / `turn-finished` alone — follow-up turns must not flicker idle.
+3. **Busy until `engine-idle`.** Do not clear `busy` on `session-idle` / `turn-finished` alone — follow-up turns must not flicker idle. Incidental failed `send` (density, steer, mode) must not clear mid-turn busy; use `shouldClearBusyOnSendFailure` / `commandsExpectBusy`.
 4. **`/clear` / `/new`:** abort if busy → `clearSessionLocal()` (transcript + overlays + `suppressAfterClear`) → forward slash to engine.
 5. Prefer porting pure modules from `vibe-codr/packages/tui` (`reducer`, `slash`, `modes`, `density`, `file-fuzzy`, `commands-catalog`) over rewriting behavior.
 6. Development host resolution must reject a compiled `vibecodr-engine-host` when runtime source under the sibling checkout is newer, then fall back to Bun source execution. This prevents stale host behavior from being reported as a generic renderer failure.
@@ -20,9 +20,10 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 
 | Concern | File |
 |---------|------|
-| Host spawn + NDJSON | `src/main/engine-bridge.ts`, `host-resolver.ts` (freshness-checked compiled host) |
+| Host spawn + NDJSON | `src/main/engine-bridge.ts` (disposeForQuit preemption, stdin write queue), `host-resolver.ts` (freshness-checked compiled host) |
 | App icon | `assets/icon.png` → `npm run build:icon` → `assets/icon.icns`; unpackaged dock via `src/main/index.ts` |
-| IPC surface | `src/preload/index.ts` → `window.vibe` |
+| IPC surface | `src/preload/index.ts` → `window.vibe` (`getShellInfo`, full key list in `src/shared/vibe-api-keys.ts`) |
+| Path / capture safety | `src/shared/path-safe.ts`, `capped-read.ts`, `stream-cap.ts`, `cwd-allowlist.ts` |
 | Native dropped-file paths | `src/preload/index.ts` → `window.vibe.getPathForFile`; `src/renderer/composer/Composer.tsx` fallback parsing |
 | Session / event wiring | `src/renderer/hooks/useSession.ts` |
 | Keyboard + submit routing | `src/renderer/App.tsx` |
@@ -57,14 +58,16 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 
 ```bash
 npm run dev            # launch Electron
-npm test               # unit tests (Vitest)
+npm test               # unit tests (Vitest; ~259)
+npm run test:coverage  # coverage floors (shared + bridge)
 npm run typecheck
 npm run verify         # lint + unit + source-parity + typecheck + build + bundle
-npm run test:e2e       # Playwright Electron harness (10 scenarios)
+npm run verify:ci      # verify + coverage + smoke:bridge + e2e
+npm run test:e2e       # Playwright Electron harness (11 scenarios)
 npm run ui:preview     # renderer in a browser, mocked window.vibe (no engine)
-npm run ui:shots       # headless screenshots of every preview scenario
+npm run ui:shots       # headless screenshots (non-zero exit on capture failure)
 npm run smoke:bridge   # host NDJSON smoke (needs vibe-codr dist host)
-npm run copy-host      # embed host for pack
+npm run copy-host      # embed host for pack (freshness + arch checks)
 ```
 
 Engine host (sibling):

@@ -107,6 +107,9 @@ export interface VibeApi {
   ghCheckAvailable(): Promise<{ available: boolean }>;
   ghPrList(cwd: string): Promise<GhPrListResult>;
   ghPrCreate(req: GhPrCreateRequest): Promise<GhPrCreateResult>;
+
+  /** Shell version + last host launch description for diagnostics banners. */
+  getShellInfo(): Promise<{ version: string; lastLaunch?: string }>;
 }
 
 const api: VibeApi = {
@@ -176,6 +179,8 @@ const api: VibeApi = {
   ghCheckAvailable: () => ipcRenderer.invoke("gh:checkAvailable"),
   ghPrList: (cwd) => ipcRenderer.invoke("gh:prList", cwd),
   ghPrCreate: (req) => ipcRenderer.invoke("gh:prCreate", req),
+
+  getShellInfo: () => ipcRenderer.invoke("app:getShellInfo"),
 };
 
 contextBridge.exposeInMainWorld("vibe", api);

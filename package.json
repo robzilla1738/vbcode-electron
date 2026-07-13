@@ -24,7 +24,7 @@
     "lint": "biome lint --error-on-warnings .",
     "verify": "npm run lint && npm test && npm run verify:source-parity && npm run typecheck && npm run build && npm run verify:bundle",
     "verify:fast": "npm run lint && npm test && npm run typecheck",
-    "verify:ci": "npm run verify && npm run test:e2e",
+    "verify:ci": "npm run verify && npm run test:coverage && npm run smoke:bridge && npm run test:e2e",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && playwright test",

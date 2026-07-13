@@ -20,8 +20,26 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+/** Structural deep equality — avoids JSON.stringify key-order / undefined quirks. */
 function deepEqual(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  if (Object.is(a, b)) return true;
+  if (typeof a !== typeof b) return false;
+  if (a === null || b === null) return a === b;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => deepEqual(v, b[i]));
+  }
+  if (typeof a === "object" && typeof b === "object") {
+    if (Array.isArray(a) || Array.isArray(b)) return false;
+    const ak = Object.keys(a as object).sort();
+    const bk = Object.keys(b as object).sort();
+    if (ak.length !== bk.length) return false;
+    if (!ak.every((k, i) => k === bk[i])) return false;
+    const ao = a as Record<string, unknown>;
+    const bo = b as Record<string, unknown>;
+    return ak.every((k) => deepEqual(ao[k], bo[k]));
+  }
+  return false;
 }
 
 /**

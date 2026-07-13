@@ -9,6 +9,7 @@ import {
 } from "../shared/protocol";
 import { enrichedEnv, resolveHostLaunch, type HostLaunch } from "./host-resolver";
 import { isRenderableUIEvent, isRpcResult } from "../shared/runtime-guards";
+import { StdinWriteQueue } from "../shared/stdin-write-queue";
 
 const READY_TIMEOUT_MS = 45_000;
 const RPC_TIMEOUT_MS = 20_000;
@@ -59,6 +60,8 @@ export class EngineBridge {
   private didReady = false;
   private sessionId = "";
   private stderrBuf = "";
+  /** Serializes stdin writes behind Node backpressure (drain). */
+  private stdinQueue = new StdinWriteQueue();
   lastLaunchDescription = "";
   lastFatal: string | null = null;
   lastStderr = "";
@@ -113,6 +116,7 @@ export class EngineBridge {
     this.lastFatal = null;
     this.lastStderr = "";
     this.stderrBuf = "";
+    this.stdinQueue.clear();
     this.didReady = false;
     this.sessionId = "";
 
@@ -125,10 +129,14 @@ export class EngineBridge {
     this.lastLaunchDescription = launch.description;
     console.log(`[bridge] launching: ${launch.description}`);
 
+    // Own a process group on POSIX so stop can reap grandchildren (bun workers).
+    // Windows has no process groups of this form — fall back to direct kill.
+    const useProcessGroup = process.platform !== "win32";
     const proc = spawn(launch.executable, launch.arguments, {
       cwd: launch.workingDirectory,
       env: (this.options.environment ?? enrichedEnv)(),
       stdio: ["pipe", "pipe", "pipe"],
+      detached: useProcessGroup,
     });
     this.proc = proc;
 
@@ -211,11 +219,22 @@ export class EngineBridge {
   /**
    * App-quit path: best-effort short finalize (only if ready), then always reap
    * the child with SIGTERM→SIGKILL. Never leave an orphan host.
+   *
+   * Preempt ready/RPC waiters **before** scheduling so an in-flight
+   * `waitForReady` (up to READY_TIMEOUT_MS) cannot pin the lifecycle queue
+   * past quit's hard ceiling. Do **not** bump `generation` here — finalize
+   * still needs handleLine to accept the resp; `stopCurrent` advances generation.
    */
   disposeForQuit(): Promise<void> {
+    // Invalidate pending start requests and release waitForReady/RPC waiters
+    // immediately so the lifecycle chain can advance to this dispose step.
+    this.startRequest += 1;
+    this.failReady(new Error("Engine host stopped"));
+    this.failAllRpc(new Error("Engine host stopped"));
     return this.schedule(async () => {
       const finalizeMs = this.options.quitFinalizeTimeoutMs ?? QUIT_FINALIZE_MS;
-      if (this.isReady) {
+      // Finalize only when the host completed ready and still owns a child.
+      if (this.didReady && this.hasOwnedChild()) {
         try {
           await Promise.race([
             this.rpcUnlocked("finalize"),
@@ -227,10 +246,6 @@ export class EngineBridge {
           /* best-effort — stop still reaps */
         }
       }
-      this.startRequest += 1;
-      this.generation += 1;
-      this.failReady(new Error("Engine host stopped"));
-      this.failAllRpc(new Error("Engine host stopped"));
       await this.stopCurrent();
     });
   }
@@ -239,6 +254,7 @@ export class EngineBridge {
     this.generation += 1;
     this.failReady(new Error("Engine host stopped"));
     this.failAllRpc(new Error("Engine host stopped"));
+    this.stdinQueue.clear();
     const proc = this.proc;
     if (!proc) {
       this.didReady = false;
@@ -263,25 +279,43 @@ export class EngineBridge {
     await this.waitForExit(proc, graceMs);
 
     if (proc.exitCode === null && proc.signalCode === null) {
-      try {
-        proc.kill("SIGTERM");
-      } catch {
-        /* ignore */
-      }
+      this.killOwned(proc, "SIGTERM");
       await this.waitForExit(proc, graceMs);
     }
 
     if (proc.exitCode === null && proc.signalCode === null) {
-      try {
-        proc.kill("SIGKILL");
-      } catch {
-        /* ignore */
-      }
+      this.killOwned(proc, "SIGKILL");
       await this.waitForExit(proc, killWait);
     }
 
-    if (this.proc === proc) this.proc = null;
-    this.didReady = false;
+    // Only drop ownership when the OS has actually reaped the child. A wedged
+    // D-state process must keep isRunning true so quit does not skip cleanup.
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      if (this.proc === proc) this.proc = null;
+      this.didReady = false;
+    } else {
+      console.error(
+        `[bridge] host pid ${proc.pid} did not exit after SIGKILL wait — retaining ownership`,
+      );
+      this.didReady = false;
+    }
+  }
+
+  /** Kill the child, and on POSIX the whole process group when detached. */
+  private killOwned(proc: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {
+    try {
+      if (process.platform !== "win32" && typeof proc.pid === "number" && proc.pid > 0) {
+        try {
+          process.kill(-proc.pid, signal);
+          return;
+        } catch {
+          /* fall through to direct kill (group may not exist in tests) */
+        }
+      }
+      proc.kill(signal);
+    } catch {
+      /* ignore */
+    }
   }
 
   private waitForExit(proc: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<void> {
@@ -348,10 +382,18 @@ export class EngineBridge {
   private writeRaw(proc: ChildProcessWithoutNullStreams, msg: HostInbound): void {
     if (!proc.stdin.writable) throw new Error("Engine host stdin closed");
     const payload = encodeInbound(msg);
-    // Respect backpressure: when write returns false, wait for drain before further
-    // large writes would matter; for NDJSON control messages a single buffered
-    // chunk is fine — Node retains the buffer until drain.
-    proc.stdin.write(payload);
+    // Queue writes so a false return from write() pauses until drain — never
+    // fire-and-forget after backpressure (large send bursts / wedged host).
+    this.stdinQueue.enqueue(
+      payload,
+      (chunk) => {
+        if (!proc.stdin.writable) throw new Error("Engine host stdin closed");
+        return proc.stdin.write(chunk);
+      },
+      (resume) => {
+        proc.stdin.once("drain", resume);
+      },
+    );
   }
 
   private handleLine(
@@ -446,22 +488,21 @@ export class EngineBridge {
     }
     const graceMs = this.options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
     const killWait = this.options.killWaitMs ?? KILL_WAIT_MS;
-    try {
-      proc.kill("SIGTERM");
-    } catch {
-      /* ignore */
-    }
+    this.killOwned(proc, "SIGTERM");
     await this.waitForExit(proc, graceMs);
     if (proc.exitCode === null && proc.signalCode === null) {
-      try {
-        proc.kill("SIGKILL");
-      } catch {
-        /* ignore */
-      }
+      this.killOwned(proc, "SIGKILL");
       await this.waitForExit(proc, killWait);
     }
-    if (this.proc === proc) {
-      this.proc = null;
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      if (this.proc === proc) {
+        this.proc = null;
+        this.didReady = false;
+      }
+    } else if (this.proc === proc) {
+      console.error(
+        `[bridge] host pid ${proc.pid} did not exit after SIGKILL wait — retaining ownership`,
+      );
       this.didReady = false;
     }
   }

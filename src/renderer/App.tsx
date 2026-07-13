@@ -16,6 +16,7 @@ import { projectLabel } from "../shared/project-index";
 import type { ProjectSummary } from "../shared/protocol";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
 import { commandsExpectBusy } from "../shared/command-busy";
+import { classifySubmitLine } from "../shared/submit-routing";
 import { lineToCommands, routePendingPermLine } from "../shared/slash";
 import { hasUnfinishedTasks } from "../shared/task-window";
 import type {
@@ -403,27 +404,7 @@ export function App() {
     await openProjectAt(path);
   }, [openProjectAt, session]);
 
-  // Application menu actions (File → Open Project, Tools → Settings/Git, etc.)
-  // continueLatest is wired after the shared busy-safe callback is defined below.
-  useEffect(() => {
-    const off = window.vibe.onMenuAction((action) => {
-      switch (action) {
-        case "openProject":
-          void openProject();
-          break;
-        case "toggleSettings":
-          toggleSettings();
-          break;
-        case "toggleGit":
-          toggleGit();
-          break;
-        case "toggleInspector":
-          toggleInspector();
-          break;
-      }
-    });
-    return off;
-  }, [openProject, toggleSettings, toggleGit, toggleInspector]);
+  // Application menu actions — single subscription (continueLatest included once defined).
 
   // Restore last project on launch; otherwise load recent projects for the welcome gate.
   useEffect(() => {
@@ -477,13 +458,29 @@ export function App() {
     if (ok) await refreshProjects();
   }, [cwd, session, refreshProjects, invalidateCatalogs]);
 
-  // Menu File → Continue Latest must use the same busy-safe path as the rail.
+  // Single menu router: File/Tools actions + Continue Latest (busy-safe).
   useEffect(() => {
     const off = window.vibe.onMenuAction((action) => {
-      if (action === "continueLatest") void continueLatest();
+      switch (action) {
+        case "openProject":
+          void openProject();
+          break;
+        case "toggleSettings":
+          toggleSettings();
+          break;
+        case "toggleGit":
+          toggleGit();
+          break;
+        case "toggleInspector":
+          toggleInspector();
+          break;
+        case "continueLatest":
+          void continueLatest();
+          break;
+      }
     });
     return off;
-  }, [continueLatest]);
+  }, [openProject, toggleSettings, toggleGit, toggleInspector, continueLatest]);
 
   const newSession = useCallback(async () => {
     if (!cwd) return false;
@@ -659,6 +656,10 @@ export function App() {
         });
         if (!sent) return false;
         session.dispatchChrome({ type: "clear-plan" });
+        // Accept/edit start real engine work — match commandsExpectBusy optimism.
+        if (decision === "accept" || decision === "edit") {
+          session.setBusy(true);
+        }
         return true;
       } finally {
         resolvingGate.current = false;
@@ -687,7 +688,13 @@ export function App() {
           void presentCatalog(opts);
         };
         const res = await opts.fetch();
-        if (opts.cancelled() || generation !== catalogGeneration.current) return false;
+        if (opts.cancelled() || generation !== catalogGeneration.current) {
+          // Cancel after loading was shown — clear stuck "loading" popover.
+          setPicker((current) =>
+            current?.status === "loading" ? null : current,
+          );
+          return false;
+        }
         if (!res.ok) {
           setPicker({ ...opts.loadingPicker, status: "error", error: res.error });
           return false;
@@ -695,7 +702,12 @@ export function App() {
         items = res.value;
         opts.cache.current = items;
       }
-      if (opts.cancelled() || generation !== catalogGeneration.current) return false;
+      if (opts.cancelled() || generation !== catalogGeneration.current) {
+        setPicker((current) =>
+          current?.status === "loading" ? null : current,
+        );
+        return false;
+      }
       setPicker(opts.readyPicker(items));
       return true;
     },
@@ -784,22 +796,21 @@ export function App() {
       if (!trimmed) return false;
       const catalogRequestGeneration = catalogGeneration.current;
 
-      if (trimmed === "/jobs") {
-        session.setJobsView((v) => !v);
+      const localRoute = classifySubmitLine(trimmed);
+      if (localRoute.kind === "jobs") {
+        // Same mutual-exclusion as the dock control (Session/Changes/Git/Jobs).
+        openWorkspaceDock("jobs");
         return true;
       }
-
-      if (trimmed === "/keys") {
+      if (localRoute.kind === "keys") {
         setKeysOpen(true);
         return true;
       }
-
-      if (trimmed === "/settings" || trimmed === "/config") {
+      if (localRoute.kind === "settings") {
         openSettings();
         return true;
       }
-
-      if (trimmed === "/git" || trimmed === "/branches") {
+      if (localRoute.kind === "git") {
         if (!cwd) return false;
         openGit();
         return true;
@@ -905,7 +916,7 @@ export function App() {
       if (!sent && expectBusy) session.setBusy(false);
       return sent;
     },
-    [session, cwd, answerPerm, answerPlan, openModelsPicker, presentCatalog, openSettings, openGit],
+    [session, cwd, answerPerm, answerPlan, openModelsPicker, presentCatalog, openSettings, openGit, openWorkspaceDock],
   );
 
   // Live draft catalogs — open/update pickers while typing (TUI parity).
@@ -1068,8 +1079,10 @@ export function App() {
       if (e.key === "d" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
         e.preventDefault();
         const next = nextDensity(session.chrome.density);
-        void session.send({ type: "run-slash", name: "details", args: next });
-        session.showToast(`Density · ${densityLabel(next)}`);
+        void (async () => {
+          const sent = await session.send({ type: "run-slash", name: "details", args: next });
+          if (sent) session.showToast(`Density · ${densityLabel(next)}`);
+        })();
         return;
       }
       // Ctrl/Cmd+O fold all turns
@@ -1164,7 +1177,13 @@ export function App() {
       }
 
       if (e.key === "Escape") {
-        if (inInput && !inComposer) return;
+        // Allow Esc from end-panel inputs (inspector search, git fields) to close
+        // the topmost overlay; only block free-text that is not composer when a
+        // permission deny-reason field owns the chord (handled below via flag).
+        const inEndPanel =
+          target?.closest?.(".activity-rail, .session-panel, .git-activity-rail, .jobs-view") !=
+          null;
+        if (inInput && !inComposer && !inEndPanel) return;
         e.preventDefault();
         if (keysOpen) {
           setKeysOpen(false);
@@ -1182,11 +1201,15 @@ export function App() {
           session.setJobsView(false);
           return;
         }
+        if (gitOpen) {
+          setGitOpen(false);
+          return;
+        }
         if (projectRailOpen && belowBreakpoint("tablet")) {
           setProjectRailOpen(false);
           return;
         }
-        if (draft.trim()) {
+        if (draft.trim() && inComposer) {
           // Clear draft first (TUI: Esc clears half-typed revision / draft)
           if (session.chrome.plan) {
             setDraft("");
@@ -1672,8 +1695,14 @@ export function App() {
                 onAbort={() => void session.send({ type: "abort" })}
                 onCycleDensity={() => {
                   const next = nextDensity(chrome.density);
-                  void session.send({ type: "run-slash", name: "details", args: next });
-                  session.showToast(`Density · ${densityLabel(next)}`);
+                  void (async () => {
+                    const sent = await session.send({
+                      type: "run-slash",
+                      name: "details",
+                      args: next,
+                    });
+                    if (sent) session.showToast(`Density · ${densityLabel(next)}`);
+                  })();
                 }}
                 onPasteError={session.showToast}
                 onOpenModel={() => void openModelsPicker("main")}

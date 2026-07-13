@@ -208,5 +208,38 @@ describe("config-io", () => {
         writeConfigFile(path, null as unknown as Record<string, unknown>),
       ).rejects.toThrow(/plain object/);
     });
+
+    it("writeConfigFileValidated rejects invalid merged config under the lock", async () => {
+      const { writeConfigFileValidated } = await import("./config-io");
+      const path = join(tmpDir, "validated.json");
+      const res = await writeConfigFileValidated(
+        path,
+        { maxSteps: -1 },
+        (merged) => (typeof merged.maxSteps === "number" && merged.maxSteps < 1 ? ["maxSteps: must be ≥ 1"] : []),
+      );
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toMatch(/maxSteps/);
+      // Must not have written an invalid file
+      expect(existsSync(path)).toBe(false);
+    });
+
+    it("writeMemoryFile rejects oversize content", async () => {
+      const { writeMemoryFile, MEMORY_MAX_BYTES } = await import("./config-io");
+      const path = join(tmpDir, "VIBE.md");
+      const huge = "x".repeat(MEMORY_MAX_BYTES + 10);
+      await expect(writeMemoryFile(path, huge)).rejects.toThrow(/exceeds/);
+    });
+
+    it("writes secret-bearing config with mode 0o600 when platform supports chmod", async () => {
+      const { writeConfigFile } = await import("./config-io");
+      const { stat } = await import("node:fs/promises");
+      const path = join(tmpDir, "secret-mode.json");
+      await writeConfigFile(path, { model: "x" });
+      const st = await stat(path);
+      // On Unix, mode should be owner-only. Windows may report differently — accept owner-readable.
+      if (process.platform !== "win32") {
+        expect(st.mode & 0o777).toBe(0o600);
+      }
+    });
   });
 });
