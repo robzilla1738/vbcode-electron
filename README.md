@@ -129,6 +129,8 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 - **Persistent project terminal:** each opened project PTY lives in the main process. Closing Terminal or switching sidebar views detaches the renderer without stopping commands; reopening reconnects with bounded buffered output.
 - **Deferred terminal runtime:** xterm is code-split and loaded only when the
   Terminal activity view first opens, preserving the chat startup bundle.
+- **Cross-platform CI install:** macOS-only Liquid Glass is optional, so Linux
+  quality/E2E runners skip it while packaged macOS builds retain native chrome.
 - Project rail and activity sidebar resize or become drawers at responsive breakpoints; widths persist where resizing is available
 - Projects and session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 16 palettes as OpenTUI); accents via `/accent`
