@@ -662,6 +662,7 @@ export function Composer({
 
   /** Shared clipboard-paste flow for both native paste and the insert menu. */
   const runPasteClipboard = (start: number, end: number) => {
+    const sourceDraft = draft;
     void window.vibe.pasteClipboard(cwd ?? undefined).then((result) => {
       if (result.kind === "error") {
         onPasteError(`Clipboard paste failed · ${result.error}`);
@@ -671,9 +672,20 @@ export function Composer({
         onPasteError("Clipboard has no image or text to paste.");
         return;
       }
+      const input = ref.current;
+      const liveStart = input?.selectionStart ?? sourceDraft.length;
+      const liveEnd = input?.selectionEnd ?? liveStart;
       let caret = start;
       setDraft((current) => {
-        const edit = applyComposerPaste(current, start, end, result);
+        // If the user typed while native clipboard IPC was resolving, paste at
+        // the live caret instead of applying stale offsets to the newer draft.
+        const unchanged = current === sourceDraft;
+        const edit = applyComposerPaste(
+          current,
+          unchanged ? start : liveStart,
+          unchanged ? end : liveEnd,
+          result,
+        );
         caret = edit.caret;
         return edit.value;
       });
@@ -681,6 +693,10 @@ export function Composer({
         ref.current?.focus();
         ref.current?.setSelectionRange(caret, caret);
       });
+    }).catch((error: unknown) => {
+      onPasteError(
+        `Clipboard paste failed · ${error instanceof Error ? error.message : String(error)}`,
+      );
     });
   };
 

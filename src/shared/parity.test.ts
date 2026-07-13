@@ -107,6 +107,37 @@ describe("transcript reducer", () => {
     expect(s.blocks[0]).toMatchObject({ kind: "tool", isDiff: true, done: true });
     expect(s.changedFiles).toEqual([{ path: "a.ts", added: 1, removed: 0, diff: "+x" }]);
   });
+
+  it("bounds newline-free tool output and file diffs", () => {
+    let s = initialTranscript();
+    s = reduceTranscript(s, {
+      type: "tool-start",
+      toolCallId: "large-output",
+      toolName: "bash",
+      input: { cmd: "generate" },
+    });
+    s = reduceTranscript(s, {
+      type: "tool-finish",
+      toolCallId: "large-output",
+      output: "x".repeat(600_000),
+      isError: false,
+    });
+    const output = s.blocks[0];
+    expect(output?.kind === "tool" ? output.output.join("\n").length : 0).toBeLessThan(525_000);
+    expect(output?.kind === "tool" ? output.output[0] : "").toContain("earlier output characters omitted");
+
+    s = reduceTranscript(s, {
+      type: "file-changed",
+      toolCallId: "large-diff",
+      path: "huge.txt",
+      action: "write",
+      added: 1,
+      removed: 0,
+      diff: "d".repeat(1_100_000),
+    });
+    expect(s.changedFiles[0]?.diff?.length).toBeLessThan(1_050_000);
+    expect(s.changedFiles[0]?.diff).toContain("earlier diff characters omitted");
+  });
 });
 
 describe("protocol", () => {

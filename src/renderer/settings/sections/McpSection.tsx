@@ -2,9 +2,9 @@ import { useState } from "react";
 import type { McpServerConfig } from "../../../shared/config-schema";
 import { mcpServerTypeTemplate } from "../../../shared/mcp-server-edit";
 import type { SectionProps } from "./types";
-import { NumberInput, SettingBadge, SettingField, SettingSection, TextArea, TextInput, ToggleSwitch } from "../FormControls";
+import { KeyValueTextArea, NumberInput, SettingBadge, SettingField, SettingSection, TextArea, TextInput, ToggleSwitch } from "../FormControls";
 
-export function McpSection({ config, updateConfig }: SectionProps) {
+export function McpSection({ config, scope, updateConfig, cwd }: SectionProps) {
   const servers = config.mcp?.servers ?? {};
   const serverNames = Object.keys(servers);
   const [expanded, setExpanded] = useState<string | null>(serverNames[0] ?? null);
@@ -79,11 +79,11 @@ export function McpSection({ config, updateConfig }: SectionProps) {
                     </SettingField>
                     {isStdio ? (
                       <>
-                        <SettingField label="Command" description="Executable to spawn. Supports ${VAR} expansion.">
+                        <SettingField label="Command" description="Executable only; put flags and package names in Args. Supports ${VAR} expansion.">
                           <TextInput
                             value={server.command}
                             onChange={(v) => updateServer(name, { ...server, command: v })}
-                            placeholder="npx -y @modelcontextprotocol/server-filesystem"
+                            placeholder="npx"
                             monospace
                           />
                         </SettingField>
@@ -91,25 +91,19 @@ export function McpSection({ config, updateConfig }: SectionProps) {
                           <TextArea
                             value={(server.args ?? []).join("\n")}
                             onChange={(v) => updateServer(name, { ...server, args: v.split("\n").map((s) => s).filter((s, i, arr) => s.trim() || i < arr.length - 1) })}
-                            placeholder={"/path/to/project"}
+                            placeholder={"-y\n@modelcontextprotocol/server-filesystem\n/path/to/project"}
                             rows={3}
                             monospace
                           />
                         </SettingField>
                         <SettingField label="Environment" description="One per line: KEY=value. Values support ${VAR} expansion.">
-                          <TextArea
-                            value={Object.entries(server.env ?? {}).map(([k, v]) => `${k}=${v}`).join("\n")}
-                            onChange={(v) => {
-                              const env: Record<string, string> = {};
-                              for (const line of v.split("\n")) {
-                                const m = line.match(/^([^=]+)=(.*)$/);
-                                if (m) env[m[1]!.trim()] = m[2]!;
-                              }
-                              updateServer(name, { ...server, env: Object.keys(env).length ? env : undefined });
-                            }}
+                          <KeyValueTextArea
+                            value={server.env}
+                            onChange={(env) => updateServer(name, { ...server, env })}
+                            separator="="
+                            resetKey={`${scope}:${cwd ?? ""}:${name}:env`}
                             placeholder={"API_KEY=$" + "{MY_API_KEY}"}
-                            rows={3}
-                            monospace
+                            trimValues={false}
                           />
                         </SettingField>
                         <SettingField label="Working directory" description="cwd for the spawned server process.">
@@ -155,21 +149,88 @@ export function McpSection({ config, updateConfig }: SectionProps) {
                           </div>
                         </SettingField>
                         <SettingField label="Headers" description="Auth/identity headers. One per line: key: value. Values support ${VAR}.">
-                          <TextArea
-                            value={Object.entries(server.headers ?? {}).map(([k, v]) => `${k}: ${v}`).join("\n")}
-                            onChange={(v) => {
-                              const headers: Record<string, string> = {};
-                              for (const line of v.split("\n")) {
-                                const m = line.match(/^([^:]+):\s*(.*)$/);
-                                if (m) headers[m[1]!.trim()] = m[2]!.trim();
-                              }
-                              updateServer(name, { ...server, headers: Object.keys(headers).length ? headers : undefined });
-                            }}
+                          <KeyValueTextArea
+                            value={server.headers}
+                            onChange={(headers) => updateServer(name, { ...server, headers })}
+                            separator=":"
+                            resetKey={`${scope}:${cwd ?? ""}:${name}:headers`}
                             placeholder={"Authorization: Bearer $" + "{MCP_TOKEN}"}
-                            rows={3}
-                            monospace
                           />
                         </SettingField>
+                        <SettingField
+                          label="OAuth 2.1"
+                          description="Refreshes persisted OAuth tokens. The first authorization grant is currently out-of-band; place existing tokens in the configured store."
+                        >
+                          <ToggleSwitch
+                            checked={server.oauth !== undefined}
+                            onChange={(enabled) => updateServer(name, {
+                              ...server,
+                              oauth: enabled ? server.oauth ?? {} : undefined,
+                            })}
+                          />
+                        </SettingField>
+                        {server.oauth !== undefined && (
+                          <>
+                            <SettingField label="OAuth scopes" description="One requested scope per line.">
+                              <TextArea
+                                value={(server.oauth.scopes ?? []).join("\n")}
+                                onChange={(value) => updateServer(name, {
+                                  ...server,
+                                  oauth: {
+                                    ...server.oauth,
+                                    scopes: value.split("\n").map((scopeName) => scopeName.trim()).filter(Boolean),
+                                  },
+                                })}
+                                placeholder={"openid\noffline_access"}
+                                rows={3}
+                                monospace
+                              />
+                            </SettingField>
+                            <SettingField label="Client ID" description="Pre-registered client ID. Leave empty for dynamic client registration.">
+                              <TextInput
+                                value={server.oauth.clientId ?? ""}
+                                onChange={(clientId) => updateServer(name, {
+                                  ...server,
+                                  oauth: { ...server.oauth, clientId: clientId || undefined },
+                                })}
+                                monospace
+                              />
+                            </SettingField>
+                            <SettingField label="Client name" description="Name advertised during dynamic client registration.">
+                              <TextInput
+                                value={server.oauth.clientName ?? ""}
+                                onChange={(clientName) => updateServer(name, {
+                                  ...server,
+                                  oauth: { ...server.oauth, clientName: clientName || undefined },
+                                })}
+                                placeholder="vibe-codr"
+                              />
+                            </SettingField>
+                            <SettingField label="Redirect URI" description="Registered HTTP callback URI for this OAuth client.">
+                              <TextInput
+                                value={server.oauth.redirectUri ?? ""}
+                                onChange={(redirectUri) => updateServer(name, {
+                                  ...server,
+                                  oauth: { ...server.oauth, redirectUri: redirectUri || undefined },
+                                })}
+                                placeholder="http://localhost:8765/callback"
+                                type="url"
+                                monospace
+                              />
+                            </SettingField>
+                            <SettingField label="Token store" description="Optional token file override. Defaults to the engine's per-server config path.">
+                              <TextInput
+                                value={server.oauth.tokenStore ?? ""}
+                                onChange={(tokenStore) => updateServer(name, {
+                                  ...server,
+                                  oauth: { ...server.oauth, tokenStore: tokenStore || undefined },
+                                })}
+                                placeholder="~/.config/vibe-codr/mcp/server.json"
+                                monospace
+                              />
+                            </SettingField>
+                          </>
+                        )}
                       </>
                     )}
                     <SettingField label="Enabled">
@@ -206,7 +267,7 @@ export function McpSection({ config, updateConfig }: SectionProps) {
               if (e.key === "Escape") { setShowAdd(false); setNewName(""); }
             }}
           />
-          <button type="button" className="button primary" disabled={!newName.trim()} onClick={confirmAdd}>Add</button>
+          <button type="button" className="button primary" disabled={!newName.trim() || Boolean(servers[newName.trim()])} onClick={confirmAdd}>Add</button>
           <button type="button" className="button" onClick={() => { setShowAdd(false); setNewName(""); }}>Cancel</button>
         </div>
       ) : (

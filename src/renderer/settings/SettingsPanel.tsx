@@ -192,7 +192,7 @@ function SettingsFormArea({
 
   const loadConfig = useCallback(async (selectedScope: ConfigScope) => {
     const seq = ++loadSeq.current;
-    setState((prev) => ({ ...prev, loading: true, error: null }));
+    setState((prev) => ({ ...prev, loading: true, error: null, saving: false, saveError: null }));
     try {
       const res = await window.vibe.readConfig({ scope: selectedScope, cwd: selectedScope === "project" ? cwd ?? undefined : undefined });
       if (seq !== loadSeq.current) return;
@@ -202,9 +202,14 @@ function SettingsFormArea({
       discardAcceptedRef.current = false;
     } catch (err) {
       if (seq !== loadSeq.current) return;
-      setState((prev) => ({ ...prev, loading: false, error: err instanceof Error ? err.message : "Failed to load config" }));
+      setState((prev) => ({ ...prev, loading: false, saving: false, saveError: null, error: err instanceof Error ? err.message : "Failed to load config" }));
     }
   }, [cwd]);
+
+  useEffect(() => () => {
+    // Invalidate in-flight reads/writes before this settings surface disappears.
+    loadSeq.current += 1;
+  }, []);
 
   useEffect(() => {
     const cwdChanged = prevCwdRef.current !== cwd;
@@ -291,17 +296,28 @@ function SettingsFormArea({
   }, []);
 
   const saveConfig = useCallback(async () => {
+    const seq = loadSeq.current;
+    const savedConfig = state.config;
+    const savedOriginal = state.original;
     setState((prev) => ({ ...prev, saving: true, saveError: null }));
     try {
       const patch = buildConfigPatch(
-        state.original as Record<string, unknown>,
-        state.config as Record<string, unknown>,
+        savedOriginal as Record<string, unknown>,
+        savedConfig as Record<string, unknown>,
       );
       const res = await window.vibe.writeConfig({ scope, cwd: scope === "project" ? cwd ?? undefined : undefined, patch });
+      if (seq !== loadSeq.current) return;
       if (!res.ok) { setState((prev) => ({ ...prev, saving: false, saveError: res.error })); return; }
-      setState((prev) => ({ ...prev, original: prev.config, dirty: false, saving: false, saveError: null }));
+      setState((prev) => ({
+        ...prev,
+        original: savedConfig,
+        dirty: !configEqual(prev.config, savedConfig),
+        saving: false,
+        saveError: null,
+      }));
       showToast("Settings saved — new sessions will use these values", "info");
     } catch (err) {
+      if (seq !== loadSeq.current) return;
       setState((prev) => ({ ...prev, saving: false, saveError: err instanceof Error ? err.message : "Failed to save" }));
     }
   }, [scope, cwd, state.config, state.original, showToast]);
@@ -368,6 +384,11 @@ function SettingsFormArea({
           </div>
         ) : (
           <>
+            {scope === "project" && (
+              <p className="setting-empty" role="note">
+                Safety note: until trusted from Global settings, project providers, hooks/plugins/MCP, LSP or verify commands, sandbox/SSRF relaxations, auto approvals, and broad allow rules are ignored. Exact “always for this project” grants and deny/ask rules still apply.
+              </p>
+            )}
             {/* Keep instructions mounted (hidden) so VIBE.md drafts + dirty bind survive section switches. */}
             <div
               hidden={activeSection !== "instructions"}

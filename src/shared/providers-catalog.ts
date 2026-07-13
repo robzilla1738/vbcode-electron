@@ -57,11 +57,11 @@ export const PROVIDER_CHOICES: ProviderChoice[] = [
     key: "codex",
     registryId: "codex",
     label: "OpenAI · Codex (ChatGPT login)",
-    blurb: "Reuse your `codex login` session (~/.codex/auth.json) — no API key.",
+    blurb: "Uses a detected `codex login` session, or a Codex/OpenAI API key.",
     defaultModel: "codex/gpt-5.3-codex",
     env: "CODEX_API_KEY",
     keyUrl: "https://github.com/openai/codex",
-    note: "run `codex login` once with the official Codex CLI",
+    note: "run `codex login` with the official Codex CLI, then reopen setup; otherwise enter CODEX_API_KEY or OPENAI_API_KEY",
   },
   {
     key: "google",
@@ -366,6 +366,22 @@ export function initialChoiceIndex(
         (!c.customEndpoint && c.registryId !== "" && (configuredIds?.has(c.registryId) ?? false))),
   );
   return detected >= 0 ? detected : 0;
+}
+
+/** Whether onboarding must collect a credential for the selected provider. */
+export function providerChoiceNeedsApiKey(
+  choice: ProviderChoice,
+  configuredIds: ReadonlySet<string> = new Set(),
+): boolean {
+  return !choice.localKeyless && !choice.customEndpoint && choice.registryId !== "" && !configuredIds.has(choice.registryId);
+}
+
+/** Whether onboarding should offer a credential field, required or optional. */
+export function providerChoiceAcceptsApiKey(
+  choice: ProviderChoice,
+  configuredIds: ReadonlySet<string> = new Set(),
+): boolean {
+  return choice.customEndpoint === true || providerChoiceNeedsApiKey(choice, configuredIds);
 }
 
 /**

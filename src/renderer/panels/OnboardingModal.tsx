@@ -13,6 +13,8 @@ import {
   PROVIDER_CHOICES,
   buildOnboardingPatch,
   initialChoiceIndex,
+  providerChoiceAcceptsApiKey,
+  providerChoiceNeedsApiKey,
   type ProviderChoice,
 } from "../../shared/providers-catalog";
 import { IconClose, IconExternalLink } from "../icons";
@@ -67,7 +69,8 @@ export function OnboardingModal({
     setModel(choice.defaultModel);
   }, [selectedIdx, choice.defaultModel]);
 
-  const needsKey = !choice.localKeyless && !choice.customEndpoint && choice.registryId !== "";
+  const needsKey = providerChoiceNeedsApiKey(choice, configuredIds);
+  const acceptsKey = providerChoiceAcceptsApiKey(choice, configuredIds);
   const needsBaseURL = choice.customEndpoint === true;
   const canSave = model.trim().length > 0 && (!needsKey || apiKey.trim().length > 0) && (!needsBaseURL || baseURL.trim().length > 0);
 
@@ -76,7 +79,7 @@ export function OnboardingModal({
     const patch = buildOnboardingPatch({
       model: model.trim(),
       providerId: choice.registryId,
-      apiKey: needsKey ? apiKey.trim() || undefined : undefined,
+      apiKey: acceptsKey ? apiKey.trim() || undefined : undefined,
       baseURL: needsBaseURL ? baseURL.trim() || undefined : undefined,
     });
     void onSave(patch);
@@ -120,9 +123,9 @@ export function OnboardingModal({
             <p className="onboarding-detail-blurb">{choice.blurb}</p>
             {choice.note && <p className="onboarding-detail-note">{choice.note}</p>}
 
-            {needsKey && (
+            {acceptsKey && (
               <div className="onboarding-field">
-                <label htmlFor="onboarding-apikey">API key</label>
+                <label htmlFor="onboarding-apikey">API key{needsKey ? "" : " (optional)"}</label>
                 <input
                   id="onboarding-apikey"
                   type="password"
@@ -139,7 +142,9 @@ export function OnboardingModal({
                     className="onboarding-key-link"
                     onClick={(e) => {
                       e.preventDefault();
-                      void window.vibe.openExternal(choice.keyUrl!);
+                      void window.vibe.openExternal(choice.keyUrl!).catch(() => {
+                        /* Keep setup usable when the OS browser launch fails. */
+                      });
                     }}
                   >
                     <IconExternalLink size={12} /> Get a key
@@ -180,6 +185,12 @@ export function OnboardingModal({
               <p className="onboarding-detail-hint">
                 This is a local provider — no API key needed. Just make sure the
                 server is running and pick a model.
+              </p>
+            )}
+
+            {!choice.localKeyless && choice.registryId !== "" && configuredIds.has(choice.registryId) && (
+              <p className="onboarding-detail-hint">
+                Existing credentials detected — no new API key is needed.
               </p>
             )}
 

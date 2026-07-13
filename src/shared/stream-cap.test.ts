@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendCapture, captureOverflowError, createCaptureBuffers } from "./stream-cap";
+import { appendCapture, appendRollingText, captureOverflowError, createCaptureBuffers } from "./stream-cap";
 
 describe("stream capture cap", () => {
   it("appends under the cap without truncating", () => {
@@ -28,5 +28,13 @@ describe("stream capture cap", () => {
     withErr.stderr = "boom";
     withErr.truncated = true;
     expect(captureOverflowError(withErr)).toBe("boom");
+  });
+
+  it("keeps a single marked tail for long-lived rolling text", () => {
+    const first = appendRollingText("", "1".repeat(80), 40);
+    const second = appendRollingText(first, "abcdefghij", 40);
+    expect(second).toHaveLength(40);
+    expect(second.match(/omitted/g)).toHaveLength(1);
+    expect(second.endsWith("abcdefghij")).toBe(true);
   });
 });

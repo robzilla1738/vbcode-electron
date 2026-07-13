@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff  
-> **Updated:** 2026-07-13 (editing-view persistence, contextual terminal, and master-detail Changes review)
+> **Updated:** 2026-07-13 (production settings, transport, and workspace-state hardening)
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
@@ -197,9 +197,16 @@ snippet. External links go through `ExternalLink` / host bridge.
   positive values only. Switching MCP transport disables the entry until its
   new command/endpoint is reviewed, and a remote draft always remains
   engine-schema-valid.
+- MCP environment/header editors preserve invalid partial lines and show the
+  parse error; OAuth settings are honest that first grant is out-of-band. LSP
+  exposes per-language command/args/enabled overrides. Project trust is a
+  global-only decision and cannot be enabled by the project being loaded;
+  untrusted filtering preserves exact persisted grants and deny/ask rules while
+  rejecting broad allows and code/credential-bearing settings.
 - The save path deep-diffs, validates structural types/URLs/OAuth/ranges, and
   writes atomically under a bounded per-path queue. Invalid merged config is
-  surfaced in Settings and never persisted. **Instructions** (VIBE.md)
+  surfaced in Settings and never persisted. A save snapshots the revision it
+  submits, so newer edits remain dirty after the write resolves. **Instructions** (VIBE.md)
   keeps its own Save/Reset and stays **mounted (hidden)** when navigating away
   so drafts and dirty bind survive section switches. Closing settings still
   clears the shell dirty guard.

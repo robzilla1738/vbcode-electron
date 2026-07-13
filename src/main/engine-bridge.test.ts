@@ -92,6 +92,23 @@ describe("EngineBridge lifecycle", () => {
     expect(bridge.isRunning).toBe(false);
   });
 
+  it("terminates a host that emits an oversized unterminated protocol line", async () => {
+    const bridge = new EngineBridge({
+      resolveLaunch: () => fixture(`process.stdin.resume(); process.stdout.write("x".repeat(65))`),
+      readyTimeoutMs: 5_000,
+      stopTimeoutMs: 200,
+      protocolLineMaxBytes: 64,
+    });
+    const fatals: string[] = [];
+    bridge.onFatal = (message) => fatals.push(message);
+
+    await expect(bridge.start({ cwd: process.cwd() })).rejects.toThrow(
+      "protocol line exceeded 64 bytes",
+    );
+    expect(fatals).toEqual(["Engine host protocol line exceeded 64 bytes"]);
+    await pollUntil(() => !bridge.isRunning);
+  });
+
   it("kills a host that never reaches ready", async () => {
     const bridge = new EngineBridge({
       resolveLaunch: () => fixture("process.stdin.resume()"),
@@ -314,6 +331,29 @@ describe("EngineBridge lifecycle", () => {
     expect(fatals).toHaveLength(1);
     expect(fatals[0]).toContain("stdin failed");
     await bridge.stop();
+  });
+
+  it("reaps the host when the bootstrap write fails synchronously", async () => {
+    const bridge = new EngineBridge({
+      resolveLaunch: () => fixture("process.stdin.resume()"),
+      readyTimeoutMs: 5_000,
+      stopTimeoutMs: 200,
+      onSpawn: (proc) => {
+        proc.stdin.write = (() => {
+          throw new Error("synchronous pipe failure");
+        }) as typeof proc.stdin.write;
+      },
+    });
+    const fatals: string[] = [];
+    bridge.onFatal = (message) => fatals.push(message);
+
+    await expect(bridge.start({ cwd: process.cwd() })).rejects.toThrow(
+      "Could not bootstrap engine host",
+    );
+    expect(fatals).toEqual([
+      "Engine host stdin failed: synchronous pipe failure",
+    ]);
+    await pollUntil(() => !bridge.isRunning);
   });
 
   it("rejects RPC before the host reaches ready", async () => {

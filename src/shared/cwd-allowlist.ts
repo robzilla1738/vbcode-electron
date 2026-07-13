@@ -3,16 +3,16 @@
  * Defense-in-depth against a compromised renderer pointing cwd at arbitrary trees.
  */
 
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 
-/** Global vibe paths that Settings/memory may always touch. */
-export function globalVibeRoots(home = homedir()): string[] {
-  const xdg = process.env.XDG_CONFIG_HOME || resolve(home, ".config");
-  return [
-    resolve(xdg, "vibe-codr"),
-    resolve(home, ".vibe"),
-  ];
+/** True when `candidate` is the root itself or a descendant of it. */
+export function pathIsInsideRoot(candidate: string, root: string): boolean {
+  if (typeof candidate !== "string" || !candidate || typeof root !== "string" || !root) {
+    return false;
+  }
+  const rel = relative(resolve(root), resolve(candidate));
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
 export class CwdAllowlist {
@@ -33,21 +33,7 @@ export class CwdAllowlist {
     if (this.roots.has(abs)) return true;
     // Also allow paths under an allowed root (subdirs of an opened project).
     for (const root of this.roots) {
-      if (abs === root || abs.startsWith(`${root}/`) || abs.startsWith(`${root}\\`)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /** True when cwd is allowlisted or under a global vibe path. */
-  allows(cwd: string, home = homedir()): boolean {
-    if (this.has(cwd)) return true;
-    const abs = resolve(cwd);
-    for (const root of globalVibeRoots(home)) {
-      if (abs === root || abs.startsWith(`${root}/`) || abs.startsWith(`${root}\\`)) {
-        return true;
-      }
+      if (pathIsInsideRoot(abs, root)) return true;
     }
     return false;
   }
@@ -61,17 +47,32 @@ export class CwdAllowlist {
 export const projectCwdAllowlist = new CwdAllowlist();
 
 export function assertAllowedCwd(cwd: string, label = "cwd"): void {
-  if (!projectCwdAllowlist.allows(cwd)) {
+  if (!projectCwdAllowlist.has(cwd)) {
     throw new Error(`${label} is not an opened project root`);
   }
 }
 
 export function isAllowedCwd(cwd: string): boolean {
-  return projectCwdAllowlist.allows(cwd);
+  return projectCwdAllowlist.has(cwd);
+}
+
+/**
+ * Finder Reveal accepts opened projects wherever they live (including external
+ * volumes) plus the app's own process-scoped clipboard directory. It must not
+ * grant broad access to every file under the user's home or the system temp
+ * directory.
+ */
+export function isAllowedRevealPath(
+  path: string,
+  clipboardRoot: string,
+  allowlist = projectCwdAllowlist,
+): boolean {
+  if (typeof path !== "string" || !path) return false;
+  return allowlist.has(path) || pathIsInsideRoot(path, clipboardRoot);
 }
 
 /** Terminal additionally permits the exact user home used by one-off Chats. */
 export function isAllowedTerminalCwd(cwd: string, home = homedir()): boolean {
   if (typeof cwd !== "string" || !cwd) return false;
-  return resolve(cwd) === resolve(home) || projectCwdAllowlist.allows(cwd, home);
+  return resolve(cwd) === resolve(home) || projectCwdAllowlist.has(cwd);
 }

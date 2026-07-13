@@ -19,6 +19,7 @@ describe("StdinWriteQueue", () => {
     });
     expect(written).toEqual(["a\n", "b\n"]);
     expect(q.pending).toBe(0);
+    expect(q.pendingBytes).toBe(0);
     expect(q.isWaitingForDrain).toBe(false);
   });
 
@@ -50,11 +51,33 @@ describe("StdinWriteQueue", () => {
     // Still waiting — only first chunk flushed
     expect(written).toEqual(["first\n"]);
     expect(q.pending).toBe(2);
+    expect(q.pendingBytes).toBe(Buffer.byteLength("second\nthird\n"));
 
     resume!();
     expect(written).toEqual(["first\n", "second\n", "third\n"]);
     expect(q.pending).toBe(0);
+    expect(q.pendingBytes).toBe(0);
     expect(q.isWaitingForDrain).toBe(false);
+  });
+
+  it("rejects an unbounded backlog while the host is not draining", () => {
+    const q = new StdinWriteQueue(6);
+    let resume: (() => void) | undefined;
+
+    q.enqueue("first", () => false, (value) => {
+      resume = value;
+    });
+    q.enqueue("1234", () => true, () => undefined);
+    expect(q.pendingBytes).toBe(4);
+    expect(() => q.enqueue("567", () => true, () => undefined)).toThrow(
+      "stdin backlog exceeded 6 bytes",
+    );
+    expect(q.pending).toBe(1);
+    expect(q.pendingBytes).toBe(4);
+
+    q.clear();
+    expect(q.pendingBytes).toBe(0);
+    resume?.();
   });
 
   it("clear drops pending work and ignores stale drain", () => {

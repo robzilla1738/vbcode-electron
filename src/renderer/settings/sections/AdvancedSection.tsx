@@ -1,13 +1,41 @@
+import { useState } from "react";
 import type { SectionProps } from "./types";
 import { NumberInput, SettingField, SettingSection, TextArea, TextInput, ToggleSwitch } from "../FormControls";
 
 export function AdvancedSection({ config, updateConfig, updateNested }: SectionProps) {
   const lsp = config.lsp ?? {};
+  const lspServers = lsp.servers ?? {};
   const vision = config.vision?.relay ?? {};
+  const [newLspLanguage, setNewLspLanguage] = useState("");
+
+  const updateLspServer = (
+    language: string,
+    patch: Partial<NonNullable<typeof lspServers[string]>>,
+  ) => {
+    updateNested("lsp", {
+      servers: {
+        ...lspServers,
+        [language]: { ...lspServers[language], ...patch },
+      },
+    });
+  };
+
+  const removeLspServer = (language: string) => {
+    const next = { ...lspServers };
+    delete next[language];
+    updateNested("lsp", { servers: next });
+  };
+
+  const addLspServer = () => {
+    const language = newLspLanguage.trim();
+    if (!language || lspServers[language]) return;
+    updateLspServer(language, {});
+    setNewLspLanguage("");
+  };
   return (
     <>
-      <SettingSection title="Plugins" description="NPM module specifiers or local paths for engine plugins.">
-        <SettingField label="Plugin modules" description="One per line. Loaded by the engine at startup.">
+      <SettingSection title="Plugins" description="NPM module specifiers or local paths for trusted engine plugins.">
+        <SettingField label="Plugin modules" description="One per line. Plugins execute code with the agent's privileges at startup; project plugins are ignored unless project config is globally trusted.">
           <TextArea
             value={(config.plugins ?? []).join("\n")}
             onChange={(v) => updateConfig({ plugins: v.split("\n").map((s) => s.trim()).filter(Boolean) })}
@@ -37,6 +65,71 @@ export function AdvancedSection({ config, updateConfig, updateNested }: SectionP
             monospace
           />
         </SettingField>
+      </SettingSection>
+
+      <SettingSection title="LSP Server Overrides" description="Override the executable, arguments, or enabled state for a language key. Empty overrides keep the engine's built-in candidates.">
+        {Object.keys(lspServers).length === 0 ? (
+          <p className="setting-empty">No language-server overrides.</p>
+        ) : (
+          <div className="setting-list">
+            {Object.entries(lspServers).map(([language, server]) => (
+              <div key={language} className="setting-card expanded">
+                <div className="setting-card-header">
+                  <span className="setting-card-title">{language}</span>
+                  <button type="button" className="button danger" onClick={() => removeLspServer(language)}>Remove</button>
+                </div>
+                <div className="setting-card-body">
+                  <SettingField label="Command" description="Executable only. Leave empty to use the engine's detected default.">
+                    <TextInput
+                      value={server.command ?? ""}
+                      onChange={(command) => updateLspServer(language, { command: command || undefined })}
+                      placeholder="pyright-langserver"
+                      monospace
+                    />
+                  </SettingField>
+                  <SettingField label="Arguments" description="One argument per line. An empty list uses the built-in candidate's arguments.">
+                    <TextArea
+                      value={(server.args ?? []).join("\n")}
+                      onChange={(value) => updateLspServer(language, {
+                        args: value.split("\n").map((arg) => arg.trim()).filter(Boolean),
+                      })}
+                      placeholder={"--stdio"}
+                      rows={3}
+                      monospace
+                    />
+                  </SettingField>
+                  <SettingField label="Enabled" description="Disable only this language without adding it to the global disabled list.">
+                    <ToggleSwitch
+                      checked={server.enabled ?? true}
+                      onChange={(enabled) => updateLspServer(language, { enabled })}
+                    />
+                  </SettingField>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="git-create-row">
+          <input
+            type="text"
+            className="setting-input is-mono"
+            value={newLspLanguage}
+            placeholder="language key (e.g. py, go, rust)"
+            onChange={(event) => setNewLspLanguage(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") addLspServer();
+              if (event.key === "Escape") setNewLspLanguage("");
+            }}
+          />
+          <button
+            type="button"
+            className="button primary"
+            disabled={!newLspLanguage.trim() || Boolean(lspServers[newLspLanguage.trim()])}
+            onClick={addLspServer}
+          >
+            Add override
+          </button>
+        </div>
       </SettingSection>
 
       <SettingSection title="Vision Relay" description="Caption attached images via a vision-capable relay model when the primary model can't see images.">

@@ -2,17 +2,19 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XtermTerminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
-import type { TerminalEvent } from "../../shared/terminal";
+import type { TerminalEvent, TerminalOpenResult } from "../../shared/terminal";
+import { getTheme } from "../../shared/themes";
 import { IconClose } from "../icons";
 
 function themeFromTokens(): { background: string; foreground: string; cursor: string; selectionBackground: string } {
   const styles = getComputedStyle(document.documentElement);
+  const fallback = getTheme("default");
   const token = (name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback;
   return {
-    background: token("--bg", "#111111"),
-    foreground: token("--assistant", "#eeeeee"),
-    cursor: token("--accent", "#eeeeee"),
-    selectionBackground: token("--sel-bg", "#eeeeee"),
+    background: token("--bg", fallback.background),
+    foreground: token("--assistant", fallback.assistant),
+    cursor: token("--accent", fallback.primary),
+    selectionBackground: token("--sel-bg", fallback.selBg),
   };
 }
 
@@ -79,6 +81,10 @@ export function TerminalPanel({
           id: sessionId,
           cols: terminal.cols,
           rows: terminal.rows,
+        }).then((result) => {
+          if (!result.ok && !disposed) setError(result.error);
+        }).catch((reason: unknown) => {
+          if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
         });
       }
     };
@@ -94,6 +100,8 @@ export function TerminalPanel({
       if (!sessionId) return;
       void window.vibe.terminalWrite({ id: sessionId, data }).then((result) => {
         if (!result.ok && !disposed) setError(result.error);
+      }).catch((reason: unknown) => {
+        if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
       });
     });
     const resizeObserver = new ResizeObserver(resize);
@@ -103,15 +111,20 @@ export function TerminalPanel({
       setError(null);
       setExit(null);
       fit.fit();
-      const result = await window.vibe.terminalOpen({
-        cwd,
-        cols: terminal.cols,
-        rows: terminal.rows,
-      });
-      if (disposed) {
-        if (result.ok) void window.vibe.terminalClose(result.id);
+      let result: TerminalOpenResult;
+      try {
+        result = await window.vibe.terminalOpen({
+          cwd,
+          cols: terminal.cols,
+          rows: terminal.rows,
+        });
+      } catch (reason) {
+        if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
         return;
       }
+      // Closing/switching panels detaches only; the main-owned PTY remains for
+      // replay until app shutdown, even if this renderer closed mid-handshake.
+      if (disposed) return;
       if (!result.ok) {
         setError(result.error);
         return;

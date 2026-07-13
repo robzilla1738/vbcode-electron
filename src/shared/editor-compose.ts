@@ -66,7 +66,7 @@ export async function composeInEditor(deps: EditorComposeDeps): Promise<EditorCo
   if (!command) return { kind: "unavailable" };
 
   const path = deps.outPath ?? join(tmpdir(), `vibe-compose-${randomUUID()}.md`);
-  const write = deps.writeText ?? ((p, t) => writeFile(p, t, "utf8"));
+  const write = deps.writeText ?? ((p, t) => writeFile(p, t, { encoding: "utf8", mode: 0o600 }));
   const read = deps.readText ?? ((p) => readFile(p, "utf8"));
   const remove = deps.removeFile ?? ((p) => rm(p, { force: true }));
 

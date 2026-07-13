@@ -11,6 +11,16 @@ import { truncateWidth } from "./markdown-blocks";
 import { isLongOutputTool, LONG_OUTPUT_COLLAPSE_LINES, toolLabel } from "./tool-icons";
 import { isDensityChangeNotice } from "./density";
 
+const TOOL_OUTPUT_MAX_CHARS = 512 * 1024;
+const FILE_DIFF_MAX_CHARS = 1024 * 1024;
+
+/** Keep the useful tail while bounding a single newline-free payload. */
+function capTextTail(value: string, maxChars: number, kind: string): string {
+  if (value.length <= maxChars) return value;
+  const omitted = value.length - maxChars;
+  return `… ${omitted} earlier ${kind} characters omitted …\n${value.slice(-maxChars)}`;
+}
+
 /**
  * One block in the transcript. The transcript is append-only: positions never
  * move, so app.tsx renders it with <Index> (stable per-position rows) and only
@@ -297,6 +307,7 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
           out = String(a.output);
         }
       }
+      out = capTextTail(out, TOOL_OUTPUT_MAX_CHARS, "output");
       // Cap retained tool bodies in the reducer (windowing only bounds DOM).
       // Very large bash dumps otherwise pin RAM for the whole session.
       const TOOL_OUTPUT_MAX_LINES = 4_000;
@@ -361,8 +372,10 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       const header = `${GLYPH.file} ${verb} ${a.path}  +${a.added} -${a.removed}`;
       // Same line budget as tool bodies — huge multi-file diffs must not pin RAM.
       const FILE_DIFF_MAX_LINES = 4_000;
-      let lines = a.diff ? a.diff.split("\n") : [];
-      let storedDiff = a.diff;
+      let storedDiff = a.diff
+        ? capTextTail(a.diff, FILE_DIFF_MAX_CHARS, "diff")
+        : a.diff;
+      let lines = storedDiff ? storedDiff.split("\n") : [];
       if (lines.length > FILE_DIFF_MAX_LINES) {
         const omitted = lines.length - FILE_DIFF_MAX_LINES;
         lines = [

@@ -5,7 +5,7 @@
  * Changes, and Jobs. Git operations still run directly in the main process.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { GitFullStatus } from "../../shared/git-types";
 import { IconClose } from "../icons";
 
@@ -90,7 +90,7 @@ function GitContent({
       {tab === "changes" && <ChangesContent status={status} cwd={cwd} busy={busy} runOp={runOp} />}
       {tab === "history" && <HistoryContent status={status} />}
       {tab === "remotes" && <RemotesContent status={status} />}
-      {tab === "prs" && <PrsContent cwd={cwd} ghAvailable={ghAvailable} showToast={showToast} />}
+      {tab === "prs" && <PrsContent key={cwd} cwd={cwd} ghAvailable={ghAvailable} showToast={showToast} />}
     </div>
   );
 }
@@ -112,18 +112,33 @@ export function GitView({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ghAvailable, setGhAvailable] = useState(false);
+  const refreshSeq = useRef(0);
 
   const refresh = useCallback(async () => {
+    const seq = ++refreshSeq.current;
     setLoading(true); setError(null);
     try {
       const res = await window.vibe.gitStatus(cwd);
+      if (seq !== refreshSeq.current) return;
       if (!res.ok) { setError(res.error); setLoading(false); return; }
       setStatus(res.status); setLoading(false);
-    } catch (err) { setError(err instanceof Error ? err.message : "Failed"); setLoading(false); }
+    } catch (err) {
+      if (seq !== refreshSeq.current) return;
+      setError(err instanceof Error ? err.message : "Failed"); setLoading(false);
+    }
   }, [cwd]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
-  useEffect(() => { void window.vibe.ghCheckAvailable().then((res) => setGhAvailable(res.available)); }, []);
+  useEffect(() => {
+    void refresh();
+    return () => { refreshSeq.current += 1; };
+  }, [refresh]);
+  useEffect(() => {
+    let cancelled = false;
+    void window.vibe.ghCheckAvailable()
+      .then((res) => { if (!cancelled) setGhAvailable(res.available); })
+      .catch(() => { if (!cancelled) setGhAvailable(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const runOp = useCallback(async (op: () => Promise<GitOpResult>, successMsg?: string) => {
     setBusy(true);
@@ -402,6 +417,14 @@ function PrsContent({ cwd, ghAvailable, showToast }: { cwd: string; ghAvailable:
   const [prDraft, setPrDraft] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  const openExternal = useCallback(async (url: string) => {
+    try {
+      await window.vibe.openExternal(url);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Couldn’t open the link", "error");
+    }
+  }, [showToast]);
+
   const loadPrs = useCallback(async () => {
     setLoading(true); setError(null);
     try { const res = await window.vibe.ghPrList(cwd); if (!res.ok) { setError(res.error ?? "Failed"); setLoading(false); return; } setPrs(res.prs); setLoading(false); }
@@ -414,16 +437,18 @@ function PrsContent({ cwd, ghAvailable, showToast }: { cwd: string; ghAvailable:
     setCreating(true);
     try {
       const res = await window.vibe.ghPrCreate({ cwd, title: prTitle.trim(), body: prBody.trim() || undefined, base: prBase.trim() || undefined, draft: prDraft });
-      if (res.ok) { showToast(res.url ? `PR created: ${res.url}` : "PR created", "info"); if (res.url) void window.vibe.openExternal(res.url); setShowCreate(false); setPrTitle(""); setPrBody(""); setPrBase(""); setPrDraft(false); void loadPrs(); }
+      if (res.ok) { showToast(res.url ? `PR created: ${res.url}` : "PR created", "info"); if (res.url) void openExternal(res.url); setShowCreate(false); setPrTitle(""); setPrBody(""); setPrBase(""); setPrDraft(false); void loadPrs(); }
       else { showToast(res.error ?? "Failed to create PR", "error"); }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to create PR", "error");
     } finally { setCreating(false); }
-  }, [cwd, prTitle, prBody, prBase, prDraft, showToast, loadPrs]);
+  }, [cwd, prTitle, prBody, prBase, prDraft, showToast, loadPrs, openExternal]);
 
   if (!ghAvailable) {
     return (
       <div className="settings-section">
         <p className="setting-empty">GitHub CLI (<code>gh</code>) is not installed. Install it to manage pull requests.</p>
-        <button type="button" className="button" onClick={() => void window.vibe.openExternal("https://cli.github.com/")}>Install gh CLI</button>
+        <button type="button" className="button" onClick={() => void openExternal("https://cli.github.com/")}>Install gh CLI</button>
       </div>
     );
   }
@@ -449,7 +474,7 @@ function PrsContent({ cwd, ghAvailable, showToast }: { cwd: string; ghAvailable:
       {loading ? <p className="setting-empty"><span className="spinner" aria-hidden /> Loading PRs…</p>
         : error ? <div className="settings-save-error" role="alert">{error}</div>
         : prs.length === 0 ? <p className="setting-empty">No open pull requests.</p>
-        : <div className="git-pr-list">{prs.map((pr) => (<button key={pr.number} type="button" className="git-pr-row" onClick={() => void window.vibe.openExternal(pr.url)}><span className="git-pr-number">#{pr.number}</span><span className="git-pr-title">{pr.title}</span><span className={`git-pr-state ${pr.state.toLowerCase()}`}>{pr.state}</span><span className="git-pr-branch">{pr.head}</span></button>))}</div>}
+        : <div className="git-pr-list">{prs.map((pr) => (<button key={pr.number} type="button" className="git-pr-row" onClick={() => void openExternal(pr.url)}><span className="git-pr-number">#{pr.number}</span><span className="git-pr-title">{pr.title}</span><span className={`git-pr-state ${pr.state.toLowerCase()}`}>{pr.state}</span><span className="git-pr-branch">{pr.head}</span></button>))}</div>}
     </div>
   );
 }

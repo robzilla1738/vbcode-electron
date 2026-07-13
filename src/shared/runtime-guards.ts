@@ -70,12 +70,16 @@ export function isEngineSnapshot(value: unknown): value is EngineSnapshot {
     && Array.isArray(snap.tasks) && snap.tasks.every(task)
     && !!usage && finite(usage.inputTokens) && finite(usage.outputTokens)
     && finite(usage.totalTokens) && finite(usage.costUSD)
+    && (usage.costEstimated === undefined || typeof usage.costEstimated === "boolean")
+    && (usage.cachedInputTokens === undefined || finite(usage.cachedInputTokens))
     && typeof snap.busy === "boolean"
     && typeof snap.theme === "string"
     && typeof snap.accentColor === "string"
     && (snap.details === "quiet" || snap.details === "normal" || snap.details === "verbose")
     && typeof snap.mouse === "boolean"
     && (snap.approvalMode === "ask" || snap.approvalMode === "auto")
+    && (snap.subagentModel === undefined || typeof snap.subagentModel === "string")
+    && (snap.reasoning === undefined || typeof snap.reasoning === "string")
     && (snap.git === undefined || gitInfo(snap.git))
     && (snap.goalRun === undefined || goalRun(snap.goalRun))
     && Array.isArray(snap.commandNames) && snap.commandNames.every((item) => typeof item === "string");
@@ -107,7 +111,7 @@ export function isRpcResult(method: RpcMethod, value: unknown): boolean {
     case "listProviders": return everyRecord(value, (item) => typeof item.id === "string" && typeof item.configured === "boolean" && typeof item.keyless === "boolean" && stringList(item.env));
     case "listAgents": return everyRecord(value, (item) => typeof item.name === "string" && typeof item.description === "string" && optionalStringOrNull(item.model) && (item.mode === "plan" || item.mode === "execute"));
     case "listSkills": return everyRecord(value, (item) => typeof item.name === "string" && typeof item.description === "string");
-    case "listMcp": return everyRecord(value, (item) => typeof item.name === "string" && typeof item.connected === "boolean" && typeof item.configured === "boolean" && finite(item.toolCount) && finite(item.resourceCount) && finite(item.promptCount));
+    case "listMcp": return everyRecord(value, (item) => typeof item.name === "string" && typeof item.connected === "boolean" && typeof item.configured === "boolean" && finite(item.toolCount) && finite(item.resourceCount) && finite(item.promptCount) && (item.error === undefined || typeof item.error === "string"));
     case "listSessions": return recordsWithString(value, "id");
     case "renameProject": return typeof record(value)?.name === "string";
     case "archiveProject":

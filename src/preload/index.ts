@@ -122,7 +122,6 @@ export interface VibeApi {
   terminalOpen(opts: TerminalOpenRequest): Promise<TerminalOpenResult>;
   terminalWrite(opts: { id: string; data: string }): Promise<TerminalCommandResult>;
   terminalResize(opts: { id: string; cols: number; rows: number }): Promise<TerminalCommandResult>;
-  terminalClose(id: string): Promise<TerminalCommandResult>;
   onTerminalEvent(cb: (event: TerminalEvent) => void): () => void;
 }
 
@@ -200,7 +199,6 @@ const api: VibeApi = {
   terminalOpen: (opts) => ipcRenderer.invoke("terminal:open", opts),
   terminalWrite: (opts) => ipcRenderer.invoke("terminal:write", opts),
   terminalResize: (opts) => ipcRenderer.invoke("terminal:resize", opts),
-  terminalClose: (id) => ipcRenderer.invoke("terminal:close", id),
   onTerminalEvent: (cb) => {
     const handler = (_event: Electron.IpcRendererEvent, terminalEvent: TerminalEvent) => cb(terminalEvent);
     ipcRenderer.on("terminal:event", handler);

@@ -124,6 +124,27 @@ describe("validateConfig", () => {
     expect(errs.some((e) => e.includes("oauth.redirectUri"))).toBe(true);
   });
 
+  it("rejects malformed colors, environment names, and HTTP header names", () => {
+    const errors = validateConfig({
+      accentColor: "purple",
+      providers: { openai: { headers: { "Bad Header": "value" } } },
+      mcp: {
+        servers: {
+          local: { command: "node", env: { "BAD=NAME": "value" } },
+          remote: { url: "https://example.com/mcp", headers: { "Bad Header": "value" } },
+        },
+      },
+    });
+    for (const path of ["accentColor", "providers.openai.headers", "mcp.servers.local.env", "mcp.servers.remote.headers"]) {
+      expect(errors.some((error) => error.includes(path))).toBe(true);
+    }
+  });
+
+  it("rejects relative sandbox writable paths", () => {
+    const errors = validateConfig({ sandbox: { writablePaths: ["build/cache", "/tmp/cache"] } });
+    expect(errors.some((error) => error.includes("sandbox.writablePaths[0]"))).toBe(true);
+  });
+
   it.each([
     [{ budget: { limitUSD: 0 } }, "budget.limitUSD"],
     [{ goal: { maxRounds: 0 } }, "goal.maxRounds"],

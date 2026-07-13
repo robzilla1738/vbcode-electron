@@ -3,12 +3,31 @@ import {
   PROVIDER_CHOICES,
   buildOnboardingPatch,
   initialChoiceIndex,
+  providerChoiceAcceptsApiKey,
+  providerChoiceNeedsApiKey,
 } from "./providers-catalog";
 
 describe("providers-catalog", () => {
   it("has unique choice keys", () => {
     const keys = PROVIDER_CHOICES.map((c) => c.key);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  describe("providerChoiceNeedsApiKey", () => {
+    it("requires credentials for unconfigured remote providers", () => {
+      const openai = PROVIDER_CHOICES.find((c) => c.key === "openai")!;
+      expect(providerChoiceNeedsApiKey(openai)).toBe(true);
+    });
+
+    it("accepts detected credentials, local providers, and optional custom keys", () => {
+      const codex = PROVIDER_CHOICES.find((c) => c.key === "codex")!;
+      const ollama = PROVIDER_CHOICES.find((c) => c.key === "ollama-local")!;
+      const custom = PROVIDER_CHOICES.find((c) => c.key === "custom-endpoint")!;
+      expect(providerChoiceNeedsApiKey(codex, new Set(["codex"]))).toBe(false);
+      expect(providerChoiceNeedsApiKey(ollama)).toBe(false);
+      expect(providerChoiceNeedsApiKey(custom)).toBe(false);
+      expect(providerChoiceAcceptsApiKey(custom)).toBe(true);
+    });
   });
 
   it("includes the major providers", () => {

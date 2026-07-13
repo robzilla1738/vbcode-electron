@@ -32,7 +32,7 @@ Config/state are **shared with the CLI**:
 - Config: `~/.config/vibe-codr/config.json`
 - Sessions: `~/.vibe/state`
 
-## Requirements
+## Requirements (development)
 
 - Node 22.12+ (required by the Electron 43 development runtime)
 - Sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) at `~/Code/vibe-codr` **or** `VIBE_CODR_ROOT`
@@ -41,6 +41,9 @@ Config/state are **shared with the CLI**:
 ```bash
 cd ~/Code/vibe-codr && bun install && bun run build:macos-bridge
 ```
+
+Packaged release builds bundle the revision-locked engine host; end users do
+not need Node, Bun, `VIBE_CODR_ROOT`, or a sibling vibe-codr checkout.
 
 ## Clone
 
@@ -192,6 +195,9 @@ responsive contract lives in [design-system.md](./design-system.md).
 | ⌘K | Open slash palette |
 | ⇧⌘N | Continue latest session |
 | ⇧⌘I | Toggle inspector |
+| ⌘N / ⌘O | New session / Open project |
+| ⌘J / ⇧⌘J | Terminal / Background jobs |
+| ⌘/ | Keyboard shortcuts |
 | `/` | Slash commands |
 | `@` | Attach file (fuzzy) |
 
@@ -205,13 +211,22 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
 - **Full-workspace settings**: 15 sections covering every config field — Models
   (default, planning, fallbacks, reasoning, turn/stream/queue limits,
   pricing/context-window overrides),
-  Providers (curated dropdown + free-text), MCP Servers (stdio + remote),
+  Providers (curated dropdown + free-text), MCP Servers (stdio + remote,
+  headers/environment, OAuth token-store settings),
   Permissions (tool/match/matchExact/action), Appearance (16 themes + accent
   swatches), Behavior (mode, approvals, sandbox, checkpoints, trust), Subagents,
   Build & Verify (recon, green gate, checks, review, worktrees, ensemble, plan
   gate), Memory, Search & Web, Compaction, Budget & Retry, Hooks, Custom
-  Instructions (VIBE.md), Advanced (plugins, LSP, vision relay, verify, updates,
-  goal/loop, orchestration)
+  Instructions (VIBE.md), Advanced (trusted plugins, LSP plus per-language
+  server overrides, vision relay, verify, updates, goal/loop, orchestration)
+- **Project trust is global-only**: a repository cannot authorize its own
+  providers, hooks/plugins/MCP, LSP or verify commands, sandbox/SSRF
+  relaxations, auto approvals, or broad allows. Exact scoped grants created by
+  “Always for this project” and deny/ask rules still work while untrusted.
+- **Draft-safe editors and saves**: incomplete header/environment lines remain
+  visible with inline validation; config and instructions saves snapshot the
+  submitted revision, so edits typed while a write is in flight remain dirty
+  instead of being silently marked saved.
 - **Atomic, bounded config writes**: temp+rename so a crash mid-write can't
   corrupt the config; per-path write serialization prevents concurrent
   clobber, settled queues are evicted, and the writer cannot create a file the
@@ -231,10 +246,14 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   `ELECTRON_RENDERER_URL` is present
 - **React ErrorBoundary**: uncaught render errors show a recovery card with
   Reload instead of blanking the window
-- **Application menu**: standard macOS roles (App, Edit, View, Window) plus
-  app-specific actions (Open Project, Continue Latest, Settings, Git, Inspector)
+- **Application menu**: standard desktop roles plus New Session, Open Project,
+  Continue Latest, Settings, Git, Inspector, Terminal, Background Jobs,
+  Keyboard Shortcuts, documentation, and issue reporting
 - **IPC security**: all handlers assert trusted sender; context isolation +
   sandbox enabled; `nodeIntegration: false`
+- **Bounded transport and output**: host NDJSON lines, individual commands,
+  stdin backpressure queues, reasoning, tool bodies, diffs, clipboard data,
+  file reads, terminal replay, and subprocess capture all have explicit ceilings
 - **ATS**: `NSAllowsArbitraryLoads=false`, `NSAllowsLocalNetworking=true`;
   unused permission strings (camera/mic/Bluetooth) stripped in `after-pack`
 - **Release integrity**: CI and release jobs pin third-party actions by commit
@@ -289,9 +308,10 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **294 unit tests**, **12 Electron E2E scenarios**, 19 source
+Current baseline: **311 unit tests**, **12 Electron E2E scenarios**, 19 source
 parity pairs, 40 top-level config fields, Biome, typecheck, production build,
-and renderer bundle budget pass in the current checkout. CI runs `verify` +
+and renderer bundle budget pass in the current checkout. Settings, Terminal,
+Git, and Changes are isolated from the initial renderer chunk. CI runs `verify` +
 coverage floors + bridge smoke + E2E on Linux and unsigned pack smoke on macOS;
 the tag workflow signs, notarizes, verifies, and publishes public artifacts.
 Prefer live `npm test` counts over frozen numbers in prose. The deterministic preview matrix covers

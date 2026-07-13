@@ -897,7 +897,6 @@ const mock = {
   }),
   terminalWrite: async () => ({ ok: true as const }),
   terminalResize: async () => ({ ok: true as const }),
-  terminalClose: async () => ({ ok: true as const }),
   onTerminalEvent: () => () => undefined,
 };
 
@@ -914,7 +913,7 @@ const REQUIRED_VIBE_KEYS = [
   "gitStatus", "gitCreateBranch", "gitCheckout", "gitDeleteBranch", "gitStage",
   "gitUnstage", "gitCommit", "gitMerge", "gitPush", "gitPull", "gitFetch",
   "ghCheckAvailable", "ghPrList", "ghPrCreate", "getShellInfo", "terminalOpen",
-  "terminalWrite", "terminalResize", "terminalClose", "onTerminalEvent",
+  "terminalWrite", "terminalResize", "onTerminalEvent",
 ] as const;
 for (const key of REQUIRED_VIBE_KEYS) {
   if (!(key in mock)) {

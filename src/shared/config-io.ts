@@ -164,8 +164,11 @@ export async function readConfigFile(path: string): Promise<{ config: VibeConfig
     throw new Error(`Config at ${path} exceeds ${CONFIG_MAX_READ_BYTES} bytes`);
   }
   const cleaned = stripTrailingCommas(stripJsonComments(raw));
-  const parsed = JSON.parse(cleaned) as VibeConfig;
-  return { config: parsed, raw };
+  const parsed = JSON.parse(cleaned) as unknown;
+  if (!isPlainObject(parsed)) {
+    throw new Error(`Config at ${path} is not a JSON object — fix or remove it before opening Settings`);
+  }
+  return { config: parsed as VibeConfig, raw };
 }
 
 /** Atomic temp+rename JSON write — a crash mid-write cannot truncate the

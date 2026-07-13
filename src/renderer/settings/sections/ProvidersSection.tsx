@@ -2,11 +2,18 @@ import { useState } from "react";
 import type { ProviderConfig } from "../../../shared/config-schema";
 import { PROVIDER_CHOICES } from "../../../shared/providers-catalog";
 import type { SectionProps } from "./types";
-import { SettingBadge, SettingField, SettingSection, TextArea, TextInput } from "../FormControls";
+import { KeyValueTextArea, SettingBadge, SettingField, SettingSection, TextInput } from "../FormControls";
 
-export function ProvidersSection({ config, updateConfig }: SectionProps) {
+export function ProvidersSection({ config, scope, updateConfig, cwd }: SectionProps) {
   const providers = config.providers ?? {};
   const providerIds = Object.keys(providers);
+  const providerOptions = Array.from(
+    new Map(
+      PROVIDER_CHOICES
+        .filter((choice) => choice.registryId && !choice.customEndpoint && !providers[choice.registryId])
+        .map((choice) => [choice.registryId, choice]),
+    ).values(),
+  );
   const [expanded, setExpanded] = useState<string | null>(providerIds[0] ?? null);
   const [showAdd, setShowAdd] = useState(false);
   const [newId, setNewId] = useState("");
@@ -52,7 +59,7 @@ export function ProvidersSection({ config, updateConfig }: SectionProps) {
                 <div className="setting-card-header">
                   <button type="button" className="setting-card-toggle" onClick={() => setExpanded(isExpanded ? null : id)}>
                     <span className="setting-card-title">{id}</span>
-                    {p.apiKey ? <SettingBadge>key set</SettingBadge> : p.tokenFile ? <SettingBadge>token file</SettingBadge> : <SettingBadge tone="warn">no key</SettingBadge>}
+                    {p.apiKey ? <SettingBadge>key set</SettingBadge> : p.tokenFile ? <SettingBadge>token file</SettingBadge> : <SettingBadge tone="warn">no saved credential</SettingBadge>}
                   </button>
                   <button type="button" className="button danger" onClick={() => removeProvider(id)}>Remove</button>
                 </div>
@@ -93,19 +100,12 @@ export function ProvidersSection({ config, updateConfig }: SectionProps) {
                       />
                     </SettingField>
                     <SettingField label="Extra headers" description="One per line: key: value">
-                      <TextArea
-                        value={Object.entries(p.headers ?? {}).map(([k, v]) => `${k}: ${v}`).join("\n")}
-                        onChange={(v) => {
-                          const headers: Record<string, string> = {};
-                          for (const line of v.split("\n")) {
-                            const m = line.match(/^([^:]+):\s*(.*)$/);
-                            if (m) headers[m[1]!.trim()] = m[2]!.trim();
-                          }
-                          updateProvider(id, { headers: Object.keys(headers).length ? headers : undefined });
-                        }}
-                        placeholder={"X-Account-Id: 12345"}
-                        rows={3}
-                        monospace
+                      <KeyValueTextArea
+                        value={p.headers}
+                        onChange={(headers) => updateProvider(id, { headers })}
+                        separator=":"
+                        resetKey={`${scope}:${cwd ?? ""}:${id}:headers`}
+                        placeholder="X-Account-Id: 12345"
                       />
                     </SettingField>
                   </div>
@@ -148,7 +148,7 @@ export function ProvidersSection({ config, updateConfig }: SectionProps) {
               autoFocus
             >
               <option value="">Select a provider…</option>
-              {PROVIDER_CHOICES.filter((c) => c.registryId !== "" && !c.customEndpoint).map((c) => (
+              {providerOptions.map((c) => (
                 <option key={c.key} value={c.registryId}>{c.label}</option>
               ))}
             </select>

@@ -11,6 +11,8 @@
  * a config the engine will reject on the next bootstrap.
  */
 
+import { isAbsolute } from "node:path";
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -93,6 +95,29 @@ function checkStringArray(value: unknown, path: string): string[] {
   return [];
 }
 
+function checkStringRecord(
+  value: unknown,
+  path: string,
+  keyPattern?: RegExp,
+  keyDescription?: string,
+): string[] {
+  if (value === undefined || value === null) return [];
+  if (!isPlainObject(value) || Object.values(value).some((entry) => typeof entry !== "string")) {
+    return [`${path}: must be an object of string values`];
+  }
+  if (keyPattern) {
+    for (const key of Object.keys(value)) {
+      if (!keyPattern.test(key)) {
+        return [`${path}.${key}: ${keyDescription ?? "invalid key"}`];
+      }
+    }
+  }
+  return [];
+}
+
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const HTTP_HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
 function objectField(
   parent: Record<string, unknown>,
   key: string,
@@ -121,6 +146,13 @@ export function validateConfig(config: Record<string, unknown>): string[] {
   errors.push(...checkBoolean(config.mouse, "mouse"));
   errors.push(...checkString(config.theme, "theme"));
   errors.push(...checkString(config.accentColor, "accentColor"));
+  if (
+    typeof config.accentColor === "string" &&
+    config.accentColor !== "" &&
+    !/^#[0-9a-f]{6}$/i.test(config.accentColor)
+  ) {
+    errors.push("accentColor: must be empty or a 6-digit hex color such as #8b5cf6");
+  }
   errors.push(...checkStringArray(config.plugins, "plugins"));
 
   // Provider baseURLs
@@ -136,9 +168,12 @@ export function validateConfig(config: Record<string, unknown>): string[] {
       errors.push(...checkString(prov.tokenPath, `providers.${id}.tokenPath`));
       const urlCheck = httpUrlWithHost(prov.baseURL);
       if (urlCheck !== true) errors.push(`providers.${id}.baseURL: ${urlCheck}`);
-      if (prov.headers !== undefined && (!isPlainObject(prov.headers) || Object.values(prov.headers).some((v) => typeof v !== "string"))) {
-        errors.push(`providers.${id}.headers: must be an object of string values`);
-      }
+      errors.push(...checkStringRecord(
+        prov.headers,
+        `providers.${id}.headers`,
+        HTTP_HEADER_NAME,
+        "must be a valid HTTP header name",
+      ));
     }
   }
 
@@ -155,9 +190,12 @@ export function validateConfig(config: Record<string, unknown>): string[] {
       errors.push(...checkNumber(server.timeoutMs, { min: 1, integer: true }, `mcp.servers.${name}.timeoutMs`));
       if ("url" in server) {
         errors.push(...checkEnum(server.transport, ["http", "sse"], `mcp.servers.${name}.transport`));
-        if (server.headers !== undefined && (!isPlainObject(server.headers) || Object.values(server.headers).some((v) => typeof v !== "string"))) {
-          errors.push(`mcp.servers.${name}.headers: must be an object of string values`);
-        }
+        errors.push(...checkStringRecord(
+          server.headers,
+          `mcp.servers.${name}.headers`,
+          HTTP_HEADER_NAME,
+          "must be a valid HTTP header name",
+        ));
         const urlCheck = expandableHttpUrl(server.url);
         if (urlCheck !== true) errors.push(`mcp.servers.${name}.url: ${urlCheck}`);
         const oauth = objectField(server, "oauth", `mcp.servers.${name}.oauth`, errors);
@@ -181,9 +219,12 @@ export function validateConfig(config: Record<string, unknown>): string[] {
         errors.push(...checkString(server.command, `mcp.servers.${name}.command`));
         errors.push(...checkStringArray(server.args, `mcp.servers.${name}.args`));
         errors.push(...checkString(server.cwd, `mcp.servers.${name}.cwd`));
-        if (server.env !== undefined && (!isPlainObject(server.env) || Object.values(server.env).some((v) => typeof v !== "string"))) {
-          errors.push(`mcp.servers.${name}.env: must be an object of string values`);
-        }
+        errors.push(...checkStringRecord(
+          server.env,
+          `mcp.servers.${name}.env`,
+          ENV_NAME,
+          "must be a valid environment variable name",
+        ));
       }
     }
   }
@@ -257,6 +298,13 @@ export function validateConfig(config: Record<string, unknown>): string[] {
     errors.push(...checkEnum(sandbox.mode, ENUM_VALUES["sandbox.mode"]!, "sandbox.mode"));
     errors.push(...checkEnum(sandbox.network, ENUM_VALUES["sandbox.network"]!, "sandbox.network"));
     errors.push(...checkStringArray(sandbox.writablePaths, "sandbox.writablePaths"));
+    if (Array.isArray(sandbox.writablePaths)) {
+      sandbox.writablePaths.forEach((entry, index) => {
+        if (typeof entry === "string" && !isAbsolute(entry)) {
+          errors.push(`sandbox.writablePaths[${index}]: must be an absolute path`);
+        }
+      });
+    }
   }
   const reasoning = objectField(config, "reasoning", "reasoning", errors);
   if (reasoning) {

@@ -30,4 +30,19 @@ describe("settings instructions mount contract", () => {
     expect(instructionsSrc).not.toMatch(/onBindDirty\?\.\(\(\) => false\)/);
     expect(instructionsSrc).toMatch(/onBindDirty\?\.\(\(\) => dirtyRef\.current\)/);
   });
+
+  it("keeps edits made during an async save dirty", () => {
+    expect(panelSrc).toContain("const savedConfig = state.config");
+    expect(panelSrc).toContain("original: savedConfig");
+    expect(panelSrc).toContain("dirty: !configEqual(prev.config, savedConfig)");
+    expect(panelSrc).not.toContain("original: prev.config, dirty: false");
+    expect(instructionsSrc).toContain("const savedContent = content");
+    expect(instructionsSrc).toContain("setOriginal(savedContent)");
+    expect(instructionsSrc).toContain("contentRef.current === savedContent");
+  });
+
+  it("invalidates stale save results after a settings context change", () => {
+    expect(panelSrc).toContain("if (seq !== loadSeq.current) return");
+    expect(instructionsSrc).toContain("if (seq !== loadSeq.current) return");
+  });
 });

@@ -1,7 +1,7 @@
 # CLI ↔ Electron parity checklist
 
 Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated:
-`npm test` (294 unit tests), `npm run test:e2e` (12 scenarios),
+`npm test` (311 unit tests), `npm run test:e2e` (12 scenarios),
 `npm run verify:source-parity` (19 declaration pairs),
 `npm run verify:config-shape` (40 top-level engine fields), and CI
 coverage/bridge/packaged-host gates.
@@ -38,7 +38,8 @@ reason to weaken either guard.
 ## Core session loop
 
 - [x] Open project → engine bootstrap → wait for `ready` → snapshot
-- [x] Last-cwd restore on launch
+- [x] Last-cwd restore on launch; a workspace is persisted only after bootstrap
+  and snapshot validation succeed
 - [x] Resume hydrates transcript from `snapshot.history`
 - [x] Submit prompt → streaming assistant text + tool rows
 - [x] `busy` held until `engine-idle` (not per-turn idle)
@@ -65,8 +66,9 @@ reason to weaken either guard.
 - [x] Turn fold (click or keyboard-activate the user bubble / ⌘O fold-all; no persistent arrow); density quiet/normal/verbose (⌘D)
 - [x] Windowed transcript (“N earlier turns”) with progressive reveal (20 at a time)
 - [x] Per-turn item windowing for long tool runs (cap 120, step 24, reveal page)
-- [x] Electron Trail intentionally hard-caps newline-free open reasoning streams
-  at 16,384 characters; the source-parity guard records this renderer-safety divergence
+- [x] Electron hard-caps live reasoning state (256 KiB), the compact Trail
+  preview (16,384 characters), tool bodies, and file diffs; the source-parity
+  guard records the intentional Trail renderer-safety divergence
 - [x] Streaming follows only while anchored; upward scroll reveals Jump to latest
 - [x] Notices use restrained level semantics; density acknowledgements are silent and verbose warnings collapse
 - [x] Web-search results + `sources` fences as safe external source cards
@@ -123,13 +125,16 @@ reason to weaken either guard.
 - [x] Host resolution: fresh compiled dist → Bun source fallback when runtime sources are newer → bundled resources
 - [x] `npm run copy-host` / `npm run pack` copies host
 - [x] Ready timeout 45s, RPC timeout 20s
+- [x] Bounded NDJSON transport: 32 MiB output-line ceiling, 8 MiB inbound-message
+  ceiling, and a 32 MiB stdin backlog ceiling behind stream backpressure
 - [x] Read-only `listProjects` host index keeps session storage out of Electron
 - [x] Bridge smoke: `npm run smoke:bridge`
 - [x] Packaged renderer runs sandboxed with a CommonJS preload bridge
 - [x] Packaged app prefers its release-matched bundled host over developer checkouts
 - [x] Custom macOS app icon with optical safe-area padding; restrictive ATS; no unused hardware permission descriptions
 - [ ] Full interactive GUI smoke of every slash against live paid models (manual)
-- [ ] Release app without `VIBE_CODR_ROOT` end-user smoke (manual)
+- [x] Standalone packaged-app smoke without `VIBE_CODR_ROOT`: bundled host
+  boots, restores the project, applies a command, and leaves no orphan process
 
 ## Intentional non-parity
 
@@ -137,7 +142,9 @@ reason to weaken either guard.
 - Pixel-perfect terminal glyph metrics
 - Engine reimplementation in Electron
 - Plugin install/enable UI (CLI has none — config + `commandNames` only)
-- In-app MCP server editor / reconnect RPC (config-file at boot, same as TUI)
+- Live MCP reconnect/install RPC and the first interactive OAuth grant
+  (server config is edited in-app and loaded on the next bootstrap; OAuth token
+  refresh works, but first authorization remains out-of-band in the engine)
 - Job-kill UI (none in TUI)
 - Interactive orchestration DAG graph (list only; TUI ignores the event)
 - Subagent detail drill-in (Electron intentionally renders compact static status rows with spinner/check completion state)
@@ -378,8 +385,9 @@ npm run dev
   reducer/density/tool-icons/themes/protocol; whitespace normalization for
   formatting-only drift
 - [x] Forward-compatible parity allowances are declaration-scoped: only
-  `spinner.compactElapsed` and the additive `GLYPH` expansion may precede the
-  corresponding `vibe-codr/main` revision; unrelated file drift still fails
+  `spinner.compactElapsed`, additive `GLYPH` entries, engine-authored
+  `UIEvent` user-message labels, and the Electron editor draft's `0600` mode
+  may differ from v0.5.1; unrelated file drift still fails
 - [x] Formatting in markdown-blocks, rich-blocks, spinner synced to match
   upstream TUI exactly (import paths only difference)
 - [x] 2 new unit tests: subagent-started in-place update + fresh-id append
@@ -401,6 +409,7 @@ npm run dev
 - [x] Provider management: API keys, base URLs, token files, extra headers per
   provider with expand/collapse cards and inline add form (no window.prompt)
 - [x] MCP server management: stdio + remote (HTTP/SSE) with env-var expansion,
+  draft-preserving environment/header editors, OAuth 2.1 token-store settings,
   per-server enable/disable, timeout, inline add form
 - [x] Permission rules editor: tool/match/action with add/remove
 - [x] Hooks editor: 8 lifecycle events, shell command or URL, async toggle
@@ -478,6 +487,7 @@ npm run dev
     allowUngrounded, maxRejections) as "Plan Gate" subsection in Build section
   - `pricing` per-model overrides (input/output/cacheRead/cacheWrite) in Models
   - `contextWindow` per-model overrides in Models
+  - `lsp.servers` command/args/enabled overrides per language in Advanced
 - [x] Dead code removed: `OnboardingHint.tsx` + its CSS (replaced by
   `OnboardingModal`)
 - [x] 125+ unit tests, lint, typecheck, build, bundle, source parity all green
@@ -489,9 +499,10 @@ npm run dev
 - [x] Dev-mode CSP relaxation: Vite injects inline scripts (React refresh, HMR)
   that the production CSP blocks — `onHeadersReceived` injects a dev-friendly
   CSP only when `ELECTRON_RENDERER_URL` is present; production CSP untouched
-- [x] Application menu: standard macOS roles (App, Edit, View, Window) plus
-  app-specific actions (File → Open Project, Continue Latest; Tools → Settings,
-  Git, Inspector) wired via `onMenuAction` IPC
+- [x] Application menu: standard desktop roles plus File → New Session, Open
+  Project, Continue Latest; Tools → Settings, Git, Inspector, Terminal, Jobs;
+  Help → Keyboard Shortcuts, docs, issue reporting, wired through one
+  `onMenuAction` router
 - [x] Theme list fix: AppearanceSection had completely wrong theme names
   (midnight, solarized-dark, github, rose-pine — none exist in the registry).
   Fixed to use the actual `THEME_NAMES` from `theme-registry.ts` with labels
@@ -527,6 +538,6 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current release gate: 294 unit tests, 12 e2e scenarios, lint, typecheck,
+- [x] Current release gate: 311 unit tests, 12 e2e scenarios, lint, typecheck,
   build, bundle budget, source parity (19 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.

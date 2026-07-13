@@ -18,22 +18,32 @@ export function InstructionsSection({
   const [exists, setExists] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const loadSeq = useRef(0);
+  const savedTimer = useRef<number | null>(null);
   const dirtyRef = useRef(false);
+  const contentRef = useRef(content);
   dirtyRef.current = content !== original;
+  contentRef.current = content;
   const prevCwdRef = useRef(cwd);
 
   const load = useCallback(async (loadScope: ConfigScope) => {
     const seq = ++loadSeq.current;
     setLoading(true);
-    setError(null);
+    setSaving(false);
+    setLoadError(null);
+    setSaveError(null);
     setSaved(false);
+    if (savedTimer.current != null) {
+      window.clearTimeout(savedTimer.current);
+      savedTimer.current = null;
+    }
     try {
       const res = await window.vibe.readMemory({ scope: loadScope, cwd: loadScope === "project" ? cwd ?? undefined : undefined });
       if (seq !== loadSeq.current) return;
-      if (!res.ok) { setError(res.error); setLoading(false); return; }
+      if (!res.ok) { setLoadError(res.error); setLoading(false); return; }
       setContent(res.content);
       setOriginal(res.content);
       setPath(res.path);
@@ -41,7 +51,7 @@ export function InstructionsSection({
       setLoading(false);
     } catch (err) {
       if (seq !== loadSeq.current) return;
-      setError(err instanceof Error ? err.message : "Failed to load");
+      setLoadError(err instanceof Error ? err.message : "Failed to load");
       setLoading(false);
     }
   }, [cwd]);
@@ -53,6 +63,11 @@ export function InstructionsSection({
   useEffect(() => {
     onBindDirty?.(() => dirtyRef.current);
   }, [onBindDirty]);
+
+  useEffect(() => () => {
+    loadSeq.current += 1;
+    if (savedTimer.current != null) window.clearTimeout(savedTimer.current);
+  }, []);
 
   useEffect(() => {
     const cwdChanged = prevCwdRef.current !== cwd;
@@ -78,22 +93,42 @@ export function InstructionsSection({
   };
 
   const save = useCallback(async () => {
+    const seq = loadSeq.current;
+    const savedContent = content;
     setSaving(true);
-    setError(null);
+    setSaveError(null);
     setSaved(false);
     try {
-      const res = await window.vibe.writeMemory({ scope: activeScope, cwd: activeScope === "project" ? cwd ?? undefined : undefined, content });
-      if (!res.ok) { setError(res.error); setSaving(false); return; }
-      setOriginal(content);
+      const res = await window.vibe.writeMemory({ scope: activeScope, cwd: activeScope === "project" ? cwd ?? undefined : undefined, content: savedContent });
+      if (seq !== loadSeq.current) return;
+      if (!res.ok) { setSaveError(res.error); setSaving(false); return; }
+      setOriginal(savedContent);
       setExists(true);
       setSaving(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      const isCurrent = contentRef.current === savedContent;
+      setSaved(isCurrent);
+      if (savedTimer.current != null) window.clearTimeout(savedTimer.current);
+      savedTimer.current = isCurrent
+        ? window.setTimeout(() => {
+            savedTimer.current = null;
+            setSaved(false);
+          }, 2000)
+        : null;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      if (seq !== loadSeq.current) return;
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
       setSaving(false);
     }
   }, [activeScope, cwd, content]);
+
+  const updateContent = useCallback((next: string) => {
+    setContent(next);
+    setSaved(false);
+    if (savedTimer.current != null) {
+      window.clearTimeout(savedTimer.current);
+      savedTimer.current = null;
+    }
+  }, []);
 
   const dirty = content !== original;
 
@@ -112,8 +147,8 @@ export function InstructionsSection({
       </div>
       {loading ? (
         <p className="setting-empty"><span className="spinner" aria-hidden /> Loading…</p>
-      ) : error ? (
-        <div className="settings-save-error" role="alert">{error}</div>
+      ) : loadError ? (
+        <div className="settings-save-error" role="alert">{loadError}</div>
       ) : (
         <>
           <SettingField
@@ -122,12 +157,13 @@ export function InstructionsSection({
           >
             <TextArea
               value={content}
-              onChange={setContent}
+              onChange={updateContent}
               placeholder={"# Project instructions\n\nDescribe your project conventions, coding style, and any rules the agent should follow.\n\n- Use TypeScript strict mode\n- Prefer functional components\n- Run tests before declaring done"}
               rows={16}
               monospace
             />
           </SettingField>
+          {saveError && <div className="settings-save-error" role="alert">{saveError}</div>}
           <div className="setting-actions">
             {dirty && <span className="settings-dirty-indicator">Unsaved</span>}
             {saved && <span className="settings-clean-indicator">Saved</span>}

@@ -30,7 +30,10 @@ export function ExternalLink({
       title={safeHref}
       onClick={(event) => {
         event.preventDefault();
-        void window.vibe.openExternal(safeHref);
+        void window.vibe.openExternal(safeHref).catch(() => {
+          // The URL stays in the title so it can still be copied if the OS
+          // refuses to launch a browser. Avoid an unhandled IPC rejection.
+        });
       }}
     >
       {children}

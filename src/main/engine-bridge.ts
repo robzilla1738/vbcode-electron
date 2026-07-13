@@ -1,5 +1,4 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createInterface } from "node:readline";
 import type { EngineCommand } from "../shared/commands";
 import {
   decodeOutbound,
@@ -18,6 +17,10 @@ const STOP_TIMEOUT_MS = 2_000;
 const KILL_WAIT_MS = 1_000;
 /** Finalize budget during app quit — must be well under the overall quit budget. */
 const QUIT_FINALIZE_MS = 1_500;
+/** Commands may include bounded clipboard/file content; reject accidental giant sends. */
+const STDIN_MESSAGE_MAX_BYTES = 8 * 1024 * 1024;
+/** A snapshot can contain substantial history, but one line must never grow without bound. */
+const PROTOCOL_LINE_MAX_BYTES = 32 * 1024 * 1024;
 
 export type BridgeEventHandler = (event: unknown) => void;
 export type BridgeFatalHandler = (message: string) => void;
@@ -31,6 +34,8 @@ export interface EngineBridgeOptions {
   stopTimeoutMs?: number;
   quitFinalizeTimeoutMs?: number;
   killWaitMs?: number;
+  stdinMessageMaxBytes?: number;
+  protocolLineMaxBytes?: number;
   /** Test seam for deterministic stream/process failure injection. */
   onSpawn?: (proc: ChildProcessWithoutNullStreams) => void;
 }
@@ -141,9 +146,62 @@ export class EngineBridge {
     this.proc = proc;
 
     const isCurrent = () => this.proc === proc && this.generation === generation;
-    const rl = createInterface({ input: proc.stdout });
-    rl.on("line", (line) => {
-      if (isCurrent()) this.handleLine(line, proc, generation);
+    const protocolLineMaxBytes =
+      this.options.protocolLineMaxBytes ?? PROTOCOL_LINE_MAX_BYTES;
+    let stdoutFragments: Buffer[] = [];
+    let stdoutLineBytes = 0;
+    let protocolFailed = false;
+
+    const failOversizedProtocolLine = () => {
+      if (protocolFailed || !isCurrent()) return;
+      protocolFailed = true;
+      stdoutFragments = [];
+      stdoutLineBytes = 0;
+      this.terminateFatal(
+        `Engine host protocol line exceeded ${protocolLineMaxBytes} bytes`,
+        proc,
+        generation,
+      );
+    };
+
+    const appendProtocolFragment = (fragment: Buffer): boolean => {
+      if (stdoutLineBytes + fragment.length > protocolLineMaxBytes) {
+        failOversizedProtocolLine();
+        return false;
+      }
+      if (fragment.length > 0) stdoutFragments.push(fragment);
+      stdoutLineBytes += fragment.length;
+      return true;
+    };
+
+    const emitProtocolLine = () => {
+      if (!isCurrent() || protocolFailed) return;
+      let line = Buffer.concat(stdoutFragments, stdoutLineBytes);
+      stdoutFragments = [];
+      stdoutLineBytes = 0;
+      if (line.at(-1) === 0x0d) line = line.subarray(0, line.length - 1);
+      this.handleLine(line.toString("utf8"), proc, generation);
+    };
+
+    proc.stdout.on("data", (chunk: Buffer | string) => {
+      if (!isCurrent() || protocolFailed) return;
+      const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      let start = 0;
+      while (start < data.length) {
+        const newline = data.indexOf(0x0a, start);
+        if (newline < 0) {
+          appendProtocolFragment(data.subarray(start));
+          return;
+        }
+        if (!appendProtocolFragment(data.subarray(start, newline))) return;
+        emitProtocolLine();
+        if (protocolFailed || !isCurrent()) return;
+        start = newline + 1;
+      }
+    });
+
+    proc.stdout.on("end", () => {
+      if (isCurrent() && !protocolFailed && stdoutLineBytes > 0) emitProtocolLine();
     });
 
     proc.stderr.on("data", (chunk: Buffer) => {
@@ -163,7 +221,6 @@ export class EngineBridge {
     this.options.onSpawn?.(proc);
 
     proc.on("exit", (code, signal) => {
-      rl.close();
       if (!isCurrent()) return;
       this.proc = null;
       this.didReady = false;
@@ -196,14 +253,21 @@ export class EngineBridge {
       this.failAllRpc(new Error(message));
     });
 
-    this.write({
-      op: "bootstrap",
-      cwd: opts.cwd,
-      ...(opts.resume ? { resume: opts.resume } : {}),
-      ...(opts.continueLatest ? { continue: true } : {}),
-      ...(opts.model ? { model: opts.model } : {}),
-      ...(opts.mode ? { mode: opts.mode } : {}),
-    });
+    try {
+      this.write({
+        op: "bootstrap",
+        cwd: opts.cwd,
+        ...(opts.resume ? { resume: opts.resume } : {}),
+        ...(opts.continueLatest ? { continue: true } : {}),
+        ...(opts.model ? { model: opts.model } : {}),
+        ...(opts.mode ? { mode: opts.mode } : {}),
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const message = `Could not bootstrap engine host: ${reason}`;
+      this.terminateFatal(message, proc, generation);
+      throw new Error(message);
+    }
 
     return this.waitForReady(this.options.readyTimeoutMs ?? READY_TIMEOUT_MS);
   }
@@ -376,12 +440,23 @@ export class EngineBridge {
   private write(msg: HostInbound): void {
     const proc = this.proc;
     if (!proc?.stdin.writable) throw new Error("Engine host stdin closed");
-    this.writeRaw(proc, msg);
+    try {
+      this.writeRaw(proc, msg);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.terminateFatal(`Engine host stdin failed: ${reason}`, proc);
+      throw error;
+    }
   }
 
   private writeRaw(proc: ChildProcessWithoutNullStreams, msg: HostInbound): void {
     if (!proc.stdin.writable) throw new Error("Engine host stdin closed");
     const payload = encodeInbound(msg);
+    const payloadBytes = Buffer.byteLength(payload);
+    const maxBytes = this.options.stdinMessageMaxBytes ?? STDIN_MESSAGE_MAX_BYTES;
+    if (payloadBytes > maxBytes) {
+      throw new Error(`Engine host message exceeded ${maxBytes} bytes`);
+    }
     // Queue writes so a false return from write() pauses until drain — never
     // fire-and-forget after backpressure (large send bursts / wedged host).
     this.stdinQueue.enqueue(
@@ -391,7 +466,14 @@ export class EngineBridge {
         return proc.stdin.write(chunk);
       },
       (resume) => {
-        proc.stdin.once("drain", resume);
+        proc.stdin.once("drain", () => {
+          try {
+            resume();
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            this.terminateFatal(`Engine host stdin failed: ${reason}`, proc);
+          }
+        });
       },
     );
   }
@@ -536,6 +618,8 @@ export class EngineBridge {
     if (!proc || this.proc !== proc || this.generation !== generation) return;
     if (this.lastFatal) return;
     this.lastFatal = message;
+    // Release queued payloads immediately and invalidate any late drain resume.
+    this.stdinQueue.clear();
     this.onFatal?.(message);
     const error = new Error(message);
     this.failReady(error);

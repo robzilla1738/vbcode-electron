@@ -149,6 +149,12 @@ export function Inspector({
         setPreviewError(null);
         setPreviewTruncated(res.truncated);
       })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setPreviewText(null);
+        setPreviewError(error instanceof Error ? error.message : String(error));
+        setPreviewTruncated(false);
+      })
       .finally(() => {
         if (!cancelled) setPreviewLoading(false);
       });

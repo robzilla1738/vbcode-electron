@@ -53,7 +53,6 @@ import {
   projectName,
   StatusDot,
 } from "./primitives";
-import { SettingsView } from "./settings/SettingsPanel";
 import { TranscriptView } from "./transcript/TranscriptView";
 
 type Picker = CatalogPickerState | null;
@@ -66,6 +65,9 @@ const GitView = lazy(() =>
 );
 const ChangesView = lazy(() =>
   import("./panels/ChangesView").then((module) => ({ default: module.ChangesView })),
+);
+const SettingsView = lazy(() =>
+  import("./settings/SettingsPanel").then((module) => ({ default: module.SettingsView })),
 );
 
 function pickerMatchesDraft(picker: Picker, draft: string, modelTarget: "main" | "sub"): boolean {
@@ -119,6 +121,8 @@ export function App() {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  /** "Skip for now" lasts only for this renderer session, not forever. */
+  const onboardingDismissed = useRef(false);
   const [onboardingProviders, setOnboardingProviders] = useState<ProviderStatus[]>([]);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
@@ -153,6 +157,15 @@ export function App() {
   const terminalScope = cwd && chatsCwd && isChatsCwd(cwd, chatsCwd) ? "chat" : "project";
   const showToastRef = useRef(session.showToast);
   showToastRef.current = session.showToast;
+
+  const revealPath = useCallback((path: string) => {
+    void window.vibe.showItem(path).catch((error: unknown) => {
+      session.showToast(
+        error instanceof Error ? error.message : "Couldn’t reveal that item",
+        "error",
+      );
+    });
+  }, [session]);
 
   // The composer overlays the transcript so output can continue to scroll
   // underneath it. Keep the transcript's bottom clearance tied to the actual
@@ -286,7 +299,7 @@ export function App() {
     (target: WorkspaceDockTarget) => {
       if (target === "files") {
         if (!cwd) return;
-        void window.vibe.showItem(cwd);
+        revealPath(cwd);
         return;
       }
       if (target === "git") {
@@ -323,7 +336,7 @@ export function App() {
       // session overview
       openSessionReview();
     },
-    [cwd, openGit, settingsOpen, confirmLeaveSettings, session, openSessionReview],
+    [cwd, openGit, settingsOpen, confirmLeaveSettings, session, openSessionReview, revealPath],
   );
 
   const selectActivityTool = useCallback(
@@ -364,7 +377,9 @@ export function App() {
     return () => window.removeEventListener("vibe-preview-open-panel", onOpenPanel);
   }, [openSettings, openGit, openWorkspaceDock]);
 
-  // Global keyboard shortcuts for settings (⌘,) and git (⌘ShiftB) panels.
+  // Global keyboard shortcuts for app-owned panels. Native menu accelerators
+  // route through the same actions in Electron; this also keeps preview mode
+  // and non-macOS behavior consistent.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === ",") {
@@ -375,10 +390,18 @@ export function App() {
         event.preventDefault();
         toggleGit();
       }
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && (event.key === "j" || event.key === "J")) {
+        event.preventDefault();
+        openWorkspaceDock(event.shiftKey ? "jobs" : "terminal");
+      }
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key === "/") {
+        event.preventDefault();
+        setKeysOpen(true);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleSettings, toggleGit]);
+  }, [toggleSettings, toggleGit, openWorkspaceDock]);
 
   const chromeRef = useRef(session.chrome);
   chromeRef.current = session.chrome;
@@ -423,22 +446,25 @@ export function App() {
       if (!confirmLeaveSettings()) return;
       if (wasDirty) setSettingsOpen(false);
       invalidateCatalogs();
-      setCwd(path);
       const ok = await session.bootstrap({ cwd: path });
       if (ok) {
+        setCwd(path);
         await refreshProjects();
-        const prov = await window.vibe.rpc("listProviders");
-        if (prov.ok) {
+        try {
+          const prov = await window.vibe.rpc("listProviders");
+          if (!prov.ok) {
+            setOnboardingProviders([]);
+            setShowOnboarding(false);
+            return;
+          }
           const items = (prov.value as ProviderInfo[]) ?? [];
           setOnboardingProviders(items as ProviderStatus[]);
           const anyReady = items.some((p) => p.configured || p.keyless);
-          let dismissed = false;
-          try {
-            dismissed = localStorage.getItem("vibe.onboardingDismissed") === "1";
-          } catch {
-            /* storage unavailable — fall back to per-session dismiss */
-          }
-          setShowOnboarding(!anyReady && !dismissed);
+          setShowOnboarding(!anyReady && !onboardingDismissed.current);
+        } catch {
+          // Unknown provider state must not open a misleading first-run modal.
+          setOnboardingProviders([]);
+          setShowOnboarding(false);
         }
       }
     },
@@ -457,11 +483,7 @@ export function App() {
           return;
         }
         setShowOnboarding(false);
-        try {
-          localStorage.removeItem("vibe.onboardingDismissed");
-        } catch {
-          /* ignore */
-        }
+        onboardingDismissed.current = false;
         setOnboardingSaving(false);
         // Re-bootstrap so the engine picks up the new provider config.
         if (cwd) await session.bootstrap({ cwd });
@@ -478,9 +500,16 @@ export function App() {
       session.showToast("Stop the current turn before switching projects.", "warn");
       return;
     }
-    const path = await window.vibe.openProject();
-    if (!path) return;
-    await openProjectAt(path);
+    try {
+      const path = await window.vibe.openProject();
+      if (!path) return;
+      await openProjectAt(path);
+    } catch (error) {
+      session.showToast(
+        error instanceof Error ? error.message : "Couldn’t open the project picker",
+        "error",
+      );
+    }
   }, [openProjectAt, session]);
 
   // Application menu actions — single subscription (continueLatest included once defined).
@@ -519,9 +548,11 @@ export function App() {
       if (!confirmLeaveSettings()) return;
       if (wasDirty) setSettingsOpen(false);
       invalidateCatalogs();
-      setCwd(projectCwd);
       const ok = await session.bootstrap({ cwd: projectCwd, resume: id });
-      if (ok) await refreshProjects();
+      if (ok) {
+        setCwd(projectCwd);
+        await refreshProjects();
+      }
     },
     [session, refreshProjects, invalidateCatalogs, confirmLeaveSettings],
   );
@@ -537,10 +568,28 @@ export function App() {
     if (ok) await refreshProjects();
   }, [cwd, session, refreshProjects, invalidateCatalogs]);
 
-  // Single menu router: File/Tools actions + Continue Latest (busy-safe).
+  const newSession = useCallback(async () => {
+    if (!cwd) return false;
+    if (settingsOpen && !confirmLeaveSettings()) return false;
+    if (session.chrome.busy && !(await session.send({ type: "abort" }))) return false;
+    invalidateCatalogs();
+    const ok = await session.bootstrap({ cwd });
+    if (ok) {
+      setSettingsOpen(false);
+      setDraft("");
+      setFollowSignal((value) => value + 1);
+      await refreshProjects();
+    }
+    return ok;
+  }, [cwd, session, settingsOpen, confirmLeaveSettings, refreshProjects, invalidateCatalogs]);
+
+  // Single menu router for File, Tools, and Help actions.
   useEffect(() => {
     const off = window.vibe.onMenuAction((action) => {
       switch (action) {
+        case "newSession":
+          void newSession();
+          break;
         case "openProject":
           void openProject();
           break;
@@ -553,26 +602,22 @@ export function App() {
         case "toggleInspector":
           toggleInspector();
           break;
+        case "toggleTerminal":
+          openWorkspaceDock("terminal");
+          break;
+        case "toggleJobs":
+          openWorkspaceDock("jobs");
+          break;
+        case "showKeys":
+          setKeysOpen(true);
+          break;
         case "continueLatest":
           void continueLatest();
           break;
       }
     });
     return off;
-  }, [openProject, toggleSettings, toggleGit, toggleInspector, continueLatest]);
-
-  const newSession = useCallback(async () => {
-    if (!cwd) return false;
-    if (session.chrome.busy) await session.send({ type: "abort" });
-    invalidateCatalogs();
-    const ok = await session.bootstrap({ cwd });
-    if (ok) {
-      setDraft("");
-      setFollowSignal((value) => value + 1);
-      await refreshProjects();
-    }
-    return ok;
-  }, [cwd, session, refreshProjects, invalidateCatalogs]);
+  }, [newSession, openProject, toggleSettings, toggleGit, toggleInspector, openWorkspaceDock, continueLatest]);
 
   const startProjectChat = useCallback(async (projectCwd: string) => {
     if (session.chrome.busy) {
@@ -583,9 +628,9 @@ export function App() {
     if (!confirmLeaveSettings()) return;
     if (wasDirty) setSettingsOpen(false);
     invalidateCatalogs();
-    setCwd(projectCwd);
     const ok = await session.bootstrap({ cwd: projectCwd });
     if (ok) {
+      setCwd(projectCwd);
       setDraft("");
       setFollowSignal((value) => value + 1);
       await refreshProjects();
@@ -605,10 +650,10 @@ export function App() {
       const path = await window.vibe.ensureChatsDir();
       setChatsCwd(path);
       invalidateCatalogs();
-      setCwd(path);
       setGitOpen(false);
       const ok = await session.bootstrap({ cwd: path });
       if (ok) {
+        setCwd(path);
         setDraft("");
         setFollowSignal((value) => value + 1);
         await refreshProjects();
@@ -633,41 +678,56 @@ export function App() {
 
   const renameSession = useCallback(
     async (projectCwd: string, id: string, title: string) => {
-      const res = await window.vibe.renameSession({ cwd: projectCwd, id, title });
-      if (!res.ok) {
-        session.showToast(res.error || "Rename failed", "error");
+      try {
+        const res = await window.vibe.renameSession({ cwd: projectCwd, id, title });
+        if (!res.ok) {
+          session.showToast(res.error || "Rename failed", "error");
+          return false;
+        }
+        await refreshProjects();
+        return true;
+      } catch (error) {
+        session.showToast(error instanceof Error ? error.message : "Rename failed", "error");
         return false;
       }
-      await refreshProjects();
-      return true;
     },
     [refreshProjects, session],
   );
 
   const renameProject = useCallback(
     async (projectCwd: string, name: string) => {
-      const res = await window.vibe.renameProject({ cwd: projectCwd, name });
-      if (!res.ok) {
-        session.showToast(res.error || "Rename project failed", "error");
+      try {
+        const res = await window.vibe.renameProject({ cwd: projectCwd, name });
+        if (!res.ok) {
+          session.showToast(res.error || "Rename project failed", "error");
+          return false;
+        }
+        await refreshProjects();
+        session.showToast("Project renamed");
+        return true;
+      } catch (error) {
+        session.showToast(error instanceof Error ? error.message : "Rename project failed", "error");
         return false;
       }
-      await refreshProjects();
-      session.showToast("Project renamed");
-      return true;
     },
     [refreshProjects, session],
   );
 
   const archiveProject = useCallback(
     async (projectCwd: string) => {
-      const res = await window.vibe.archiveProject({ cwd: projectCwd });
-      if (!res.ok) {
-        session.showToast(res.error || "Archive project failed", "error");
+      try {
+        const res = await window.vibe.archiveProject({ cwd: projectCwd });
+        if (!res.ok) {
+          session.showToast(res.error || "Archive project failed", "error");
+          return false;
+        }
+        await refreshProjects();
+        session.showToast("Project archived");
+        return true;
+      } catch (error) {
+        session.showToast(error instanceof Error ? error.message : "Archive project failed", "error");
         return false;
       }
-      await refreshProjects();
-      session.showToast("Project archived");
-      return true;
     },
     [refreshProjects, session],
   );
@@ -678,14 +738,19 @@ export function App() {
         session.showToast("Open another project before deleting this project.", "warn");
         return false;
       }
-      const res = await window.vibe.deleteProject({ cwd: projectCwd });
-      if (!res.ok) {
-        session.showToast(res.error || "Delete project failed", "error");
+      try {
+        const res = await window.vibe.deleteProject({ cwd: projectCwd });
+        if (!res.ok) {
+          session.showToast(res.error || "Delete project failed", "error");
+          return false;
+        }
+        await refreshProjects();
+        session.showToast("Project deleted");
+        return true;
+      } catch (error) {
+        session.showToast(error instanceof Error ? error.message : "Delete project failed", "error");
         return false;
       }
-      await refreshProjects();
-      session.showToast("Project deleted");
-      return true;
     },
     [cwd, refreshProjects, session],
   );
@@ -696,17 +761,25 @@ export function App() {
       // Retire/finalize the active engine before removing its persisted record;
       // otherwise shutdown can save the just-deleted session back to disk.
       if (active && !(await newSession())) return false;
-      const res =
-        mode === "delete"
-          ? await window.vibe.deleteSession({ cwd: projectCwd, id })
-          : await window.vibe.archiveSession({ cwd: projectCwd, id });
-      if (!res.ok) {
-        session.showToast(res.error || `${mode === "delete" ? "Delete" : "Archive"} failed`, "error");
+      try {
+        const res =
+          mode === "delete"
+            ? await window.vibe.deleteSession({ cwd: projectCwd, id })
+            : await window.vibe.archiveSession({ cwd: projectCwd, id });
+        if (!res.ok) {
+          session.showToast(res.error || `${mode === "delete" ? "Delete" : "Archive"} failed`, "error");
+          return false;
+        }
+        await refreshProjects();
+        session.showToast(mode === "delete" ? "Session deleted" : "Session archived");
+        return true;
+      } catch (error) {
+        session.showToast(
+          error instanceof Error ? error.message : `${mode === "delete" ? "Delete" : "Archive"} failed`,
+          "error",
+        );
         return false;
       }
-      await refreshProjects();
-      session.showToast(mode === "delete" ? "Session deleted" : "Session archived");
-      return true;
     },
     [cwd, newSession, refreshProjects, session],
   );
@@ -787,7 +860,15 @@ export function App() {
         pickerRetryRef.current = () => {
           void presentCatalog(opts);
         };
-        const res = await opts.fetch();
+        let res: { ok: true; value: T[] } | { ok: false; error: string };
+        try {
+          res = await opts.fetch();
+        } catch (error) {
+          res = {
+            ok: false,
+            error: error instanceof Error ? error.message : "Catalog request failed",
+          };
+        }
         if (opts.cancelled() || generation !== catalogGeneration.current) {
           // Cancel after loading was shown — clear stuck "loading" popover.
           setPicker((current) =>
@@ -883,6 +964,12 @@ export function App() {
           level: "info",
         });
       }
+    } catch (error) {
+      session.dispatchTranscript({
+        type: "notice",
+        text: `The external editor failed: ${error instanceof Error ? error.message : String(error)} — kept your prior text.`,
+        level: "warn",
+      });
     } finally {
       window.requestAnimationFrame(() => {
         document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus();
@@ -1436,12 +1523,18 @@ export function App() {
             hidden={!settingsOpen}
             aria-hidden={!settingsOpen}
           >
-            <SettingsView
-              cwd={cwd}
-              onClose={() => setSettingsOpen(false)}
-              showToast={session.showToast}
-              onBindDirty={bindSettingsDirty}
-            />
+            <Suspense
+              fallback={(
+                <section className="settings-workspace" aria-label="Loading settings" />
+              )}
+            >
+              <SettingsView
+                cwd={cwd}
+                onClose={() => setSettingsOpen(false)}
+                showToast={session.showToast}
+                onBindDirty={bindSettingsDirty}
+              />
+            </Suspense>
           </div>
         ) : null}
         <div className={`chat-workspace${settingsOpen ? " is-obscured" : ""}`} aria-hidden={settingsOpen || undefined}>
@@ -1673,11 +1766,7 @@ export function App() {
                   saving={onboardingSaving}
                   saveError={onboardingError}
                   onDismiss={() => {
-                    try {
-                      localStorage.setItem("vibe.onboardingDismissed", "1");
-                    } catch {
-                      /* ignore */
-                    }
+                    onboardingDismissed.current = true;
                     setShowOnboarding(false);
                   }}
                 />
@@ -1891,7 +1980,7 @@ export function App() {
                       const resolvedPath = path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)
                         ? path
                         : `${cwd}/${path}`;
-                      void window.vibe.showItem(resolvedPath);
+                      revealPath(resolvedPath);
                     }}
                   />
                 </Suspense>
@@ -1915,7 +2004,7 @@ export function App() {
                     const resolvedPath = path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)
                       ? path
                       : `${cwd}/${path}`;
-                    void window.vibe.showItem(resolvedPath);
+                    revealPath(resolvedPath);
                   }}
                 />
               )}
@@ -1930,6 +2019,7 @@ export function App() {
                   )}
                 >
                   <GitView
+                    key={cwd}
                     cwd={cwd}
                     onClose={() => setGitOpen(false)}
                     showToast={session.showToast}

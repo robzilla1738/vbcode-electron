@@ -74,19 +74,27 @@ export class TerminalManager {
 
     const shell = this.shellPath();
     const id = randomUUID();
-    const sessionPty = pty.spawn(shell, this.shellArgs(), {
-      name: "xterm-256color",
-      cols: clampDimension(request.cols, MIN_COLS, MAX_COLS),
-      rows: clampDimension(request.rows, MIN_ROWS, MAX_ROWS),
-      cwd,
-      env: {
-        ...enrichedEnv({ homedir, env: process.env }),
-        TERM: "xterm-256color",
-        COLORTERM: "truecolor",
-        TERM_PROGRAM: "Vibe Codr",
-      },
-      encoding: "utf8",
-    });
+    let sessionPty: pty.IPty;
+    try {
+      sessionPty = pty.spawn(shell, this.shellArgs(), {
+        name: "xterm-256color",
+        cols: clampDimension(request.cols, MIN_COLS, MAX_COLS),
+        rows: clampDimension(request.rows, MIN_ROWS, MAX_ROWS),
+        cwd,
+        env: {
+          ...enrichedEnv({ homedir, env: process.env }),
+          TERM: "xterm-256color",
+          COLORTERM: "truecolor",
+          TERM_PROGRAM: "Vibe Codr",
+        },
+        encoding: "utf8",
+      });
+    } catch (error) {
+      return {
+        ok: false,
+        error: `Could not start ${shell}: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
     const session: TerminalSession = {
       id,
       cwd,
@@ -127,8 +135,18 @@ export class TerminalManager {
     if (typeof data !== "string" || Buffer.byteLength(data, "utf8") > MAX_WRITE_BYTES) {
       return { ok: false, error: "Terminal input is too large" };
     }
-    session.pty.write(data);
-    return { ok: true };
+    try {
+      session.pty.write(data);
+      return { ok: true };
+    } catch {
+      this.forget(session);
+      try {
+        session.pty.kill();
+      } catch {
+        /* Already exited. */
+      }
+      return { ok: false, error: "Terminal session exited before input could be written" };
+    }
   }
 
   resize(id: string, cols: number, rows: number): TerminalCommandResult {
@@ -137,23 +155,21 @@ export class TerminalManager {
     if (!Number.isFinite(cols) || !Number.isFinite(rows)) {
       return { ok: false, error: "Invalid terminal size" };
     }
-    session.pty.resize(
-      clampDimension(Math.trunc(cols), MIN_COLS, MAX_COLS),
-      clampDimension(Math.trunc(rows), MIN_ROWS, MAX_ROWS),
-    );
-    return { ok: true };
-  }
-
-  close(id: string): TerminalCommandResult {
-    const session = this.match(id);
-    if (!session) return { ok: true };
-    this.forget(session);
     try {
-      session.pty.kill();
+      session.pty.resize(
+        clampDimension(Math.trunc(cols), MIN_COLS, MAX_COLS),
+        clampDimension(Math.trunc(rows), MIN_ROWS, MAX_ROWS),
+      );
+      return { ok: true };
     } catch {
-      /* The shell may have exited between the renderer request and kill. */
+      this.forget(session);
+      try {
+        session.pty.kill();
+      } catch {
+        /* Already exited. */
+      }
+      return { ok: false, error: "Terminal session exited before it could be resized" };
     }
-    return { ok: true };
   }
 
   dispose(): void {

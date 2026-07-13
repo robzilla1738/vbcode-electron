@@ -38,3 +38,20 @@ describe("MarkdownView streaming cost", () => {
     expect(styles).not.toContain('.block-assistant.streaming::after');
   });
 });
+
+describe("session delta coalescing", () => {
+  const source = readFileSync(
+    join(process.cwd(), "src/renderer/hooks/useSession.ts"),
+    "utf8",
+  );
+
+  it("does not synchronously flush each assistant token", () => {
+    const assistantCase = source.slice(
+      source.indexOf('case "assistant-text-delta"'),
+      source.indexOf('case "reasoning-delta"'),
+    );
+    expect(assistantCase).not.toContain("flushDeltas();");
+    expect(assistantCase).toContain("deltaBuf.current += event.delta");
+    expect(source).toMatch(/const flushDeltas[\s\S]*window\.clearTimeout\(flushTimer\.current\)/);
+  });
+});

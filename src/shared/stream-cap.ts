@@ -36,3 +36,19 @@ export function appendCapture(
 export function captureOverflowError(buf: CaptureBuffers, label = "output"): string {
   return buf.stderr || `${label} exceeded ${buf.maxBytes} bytes`;
 }
+
+const ROLLING_OMISSION = "… earlier content omitted …\n";
+
+/** Keep the newest text under a hard character budget with one stable marker. */
+export function appendRollingText(current: string, chunk: string, maxChars: number): string {
+  if (maxChars <= ROLLING_OMISSION.length) {
+    return (current + chunk).slice(-Math.max(0, maxChars));
+  }
+  const wasOmitted = current.startsWith(ROLLING_OMISSION);
+  const prior = wasOmitted
+    ? current.slice(ROLLING_OMISSION.length)
+    : current;
+  const next = prior + chunk;
+  if (!wasOmitted && next.length <= maxChars) return next;
+  return ROLLING_OMISSION + next.slice(-(maxChars - ROLLING_OMISSION.length));
+}

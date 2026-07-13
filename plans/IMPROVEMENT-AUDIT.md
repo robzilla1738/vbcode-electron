@@ -1,8 +1,8 @@
 # vbcode-electron — verified improvement backlog (post-implementation)
 
 **Date:** 2026-07-13  
-**Commit base audited:** `2dc10e0`
-**Implementation pass:** public-release logic and distribution hardening (this tree)
+**Commit base audited:** `66bf96f`
+**Implementation pass:** exhaustive production-user hardening (this working tree)
 **Scope:** Electron presentation shell only (main · preload · renderer · shared · scripts/tests/docs)
 
 This document is the living backlog. **Open residual** items are only those still deferred with an explicit label (engine-adjacent, credential-gated, or intentional non-goal). Everything else from the prior residual list is in the **Fixed inventory**.
@@ -28,6 +28,13 @@ the public-release pass:
 8. **Release supply chain** — engine source is commit-locked, GitHub Actions are
    SHA-pinned, unsigned smoke and signed public builds are separate, and tags run
    sign/notarize/Gatekeeper/stapler/checksum verification before publishing.
+9. **Production workflows** — async Settings/Instructions writes preserve newer
+   edits; failed workspaces never replace the active/last-known-good cwd;
+   onboarding dismissal is session-only; project trust is global-only; menus,
+   Git, file review, terminal, and project/session mutations surface failures.
+10. **Transport and renderer bounds** — v0.5.1 host protocol lines, inbound
+    messages, backpressured stdin, reasoning, tool output, diffs, terminal
+    replay, clipboard/file reads, and subprocess capture all have explicit caps.
 
 | Tier | Residual open | Status |
 |------|---------------|--------|
@@ -75,6 +82,17 @@ the public-release pass:
 | P1 clean-install Electron race | `postinstall` prefetches Electron 43 before native rebuild/tests, preventing parallel lazy-download extraction races |
 | P3 dialog mainWindow! | null-safe `showOpenDialog` |
 | P3 stdin backpressure | real `StdinWriteQueue` serializes writes behind drain |
+| P1 stdin/NDJSON unbounded memory | Per-message, queued-byte, and output-line ceilings; async drain failures become one fatal host lifecycle error |
+| P1 failed workspace poisons restore | Active cwd and `vibe.lastCwd` commit only after ready + validated snapshot |
+| P1 Settings save race | Submitted revision is snapshotted; edits made during save remain dirty for config and VIBE.md |
+| P1 project self-trust | Trust toggle disabled in Project scope; copy accurately distinguishes filtered broad/code-bearing settings from preserved exact grants and deny/ask rules |
+| P1 MCP/provider draft loss | Draft-preserving key/value editors, duplicate guards, honest OAuth first-grant limitation |
+| P2 LSP config surface gap | Per-language command, args, and enabled overrides exposed in Settings |
+| P2 renderer retained payload size | Newline-free reasoning, tool results, and diffs use rolling/tail caps |
+| P2 onboarding permanence | Skip is renderer-session-only; provider/keyless/custom endpoint copy matches actual behavior |
+| P2 terminal lifecycle | Closing/switching detaches renderer only; main-owned PTY/replay survives until app shutdown |
+| P2 app menu gaps | New/Open/Continue, Settings/Git/Inspector/Terminal/Jobs, keys/docs/issues wired through one router |
+| P2 engine release drift | `ENGINE_COMMIT` locked to exact vibe-codr v0.5.1 tag commit; clean archive parity required |
 | P3 editor draft uncapped | 2 MiB reject before compose |
 | P1 preload↔mock contract | `vibe-api-keys.ts` + unit test + full mock key list |
 | P2 shell version surface | `getShellInfo` IPC + preload |
@@ -229,7 +247,7 @@ virtualization polish or engine protocol coordination; neither is release debt.
 # 11. How verification was done
 
 1. One-item-at-a-time implementation with unit tests on real exports.  
-2. Full `npm test` (289) + `npm run typecheck`.
+2. Full `npm test` (311) + coverage floors + lint + `npm run typecheck`.
 3. Structural audit test + vibe-api-keys + busy/path/stream caps.  
 4. CI/release YAML parsed; actions and engine commit pinned.
 5. Clean locked-engine archive passed source/config parity, native host build,

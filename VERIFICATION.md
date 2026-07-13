@@ -18,14 +18,15 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (**294** tests as of 2026-07-13), Playwright Electron E2E
+Expect: Vitest green (**311** tests as of 2026-07-13), Playwright Electron E2E
 green (**12** scenarios), all 19 upstream source pairs aligned, Biome and `tsc`
 clean, all 40 engine config fields represented, electron-vite build and
 renderer/host bundle budget OK, and smoke prints
 `ready` + `snapshot ok` and a structurally valid project-list response (which
 may be empty when every project is archived). Prefer live suite output over frozen counts in prose.
-The xterm runtime must remain in a deferred chunk: aggregate renderer payload
-may include it, but the initial/largest chunk retains the pre-terminal budget.
+Settings and the xterm runtime must remain in deferred chunks: aggregate
+renderer payload may include them, but the initial/largest chunk retains its
+budget.
 `npm ci` must finish the `install-electron` prefetch before Vitest starts; this
 prevents parallel test workers from racing Electron 43's lazy binary download.
 
@@ -161,24 +162,38 @@ npm run dev
 13. Expand a Thinking group — compact steps, no brain icon, one surface per open
     thought; tool rows stay expandable for output.
 14. Approve a permission request for a background `npm run dev`; confirm the job starts, the host remains healthy, and the session does not show a generic host-exited failure.
-15. Hover an assistant response — confirm clean white Copy/Edit icons appear below it; inspect a subagent row — confirm spinner/check status and no detail expansion.
-16. `/clear` mid-turn — abort + empty transcript.
-17. Quit app — host finalizes (no orphan process).
-18. Drag one image and one file from Finder onto the composer; confirm both
+15. Settings → MCP: add a stdio server with command and one-argument-per-line
+    args; verify an incomplete `KEY=value` or header line stays visible with an
+    inline error and cannot be silently discarded. For remote OAuth, verify the
+    UI states that first authorization is out-of-band rather than promising an
+    in-app callback flow.
+16. Settings → Behavior: switch to Project scope and confirm project trust is
+    disabled there; only Global settings can opt into unsafe repo-authored code,
+    credential routes, sandbox/SSRF relaxations, auto approvals, and broad
+    allows. Confirm an exact “Always for this project” grant remains effective.
+17. Onboarding: Skip for now, reopen/reload the renderer, and confirm onboarding
+    is eligible to appear again when no provider is configured. A failed or
+    inaccessible project open must not replace the last known-good workspace.
+18. Exercise File/Tools/Help menu actions: New Session, Open Project, Continue
+    Latest, Settings, Git, Inspector, Terminal, Jobs, and Keyboard Shortcuts.
+19. Hover an assistant response — confirm clean white Copy/Edit icons appear below it; inspect a subagent row — confirm spinner/check status and no detail expansion.
+20. `/clear` mid-turn — abort + empty transcript.
+21. Quit app — host finalizes (no orphan process).
+22. Drag one image and one file from Finder onto the composer; confirm both
     become removable chips, image previews render, spaces in names survive, and
     submit references the project-aware paths.
-19. Drop the same Finder file twice; confirm only one chip is retained and the
+23. Drop the same Finder file twice; confirm only one chip is retained and the
     duplicate toast appears only for the second drop.
-20. Open Changes from the dock. Confirm the pane expands without covering chat;
+24. Open Changes from the dock. Confirm the pane expands without covering chat;
     searchable directory groups remain visible beside the selected file; totals,
     churn bar, per-file stats, hunk count, and index are correct. Switch Diff/File,
     copy/reveal, navigate previous/next, resize and reopen, then verify the compact
     drawer stacks the navigator above review without losing selection.
-21. Switch through Session, Git, Terminal, and Jobs, then drag the project rail
+25. Switch through Session, Git, Terminal, and Jobs, then drag the project rail
     and activity-panel handles; verify keyboard Arrow/Home/End resizing and width
     persistence after reopening. After another edit, the footer chip and dock
     Changes count must update and open the highest-churn file in Diff mode.
-22. Kill/fatal the host (or `fixture:fatal` in e2e) — **New session** recovers;
+26. Kill/fatal the host (or `fixture:fatal` in e2e) — **New session** recovers;
     Settings → Instructions: switch sections without losing unsaved VIBE.md text.
 
 Full matrix: [PARITY.md](./PARITY.md).

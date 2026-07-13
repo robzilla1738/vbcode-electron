@@ -9,7 +9,7 @@ export function BudgetSection({ config, updateConfig, updateNested }: SectionPro
     <>
       <SettingSection title="Spend Guard" description="When cumulative session cost crosses the limit, warn or stop. No limit = unbounded.">
         <SettingField label="Limit (USD)" description="Spend threshold. Leave empty for unbounded.">
-          <NumberInput value={budget.limitUSD} onChange={(v) => updateNested("budget", { limitUSD: v })} min={0} step={0.01} placeholder="unbounded" />
+          <NumberInput value={budget.limitUSD} onChange={(v) => updateNested("budget", { limitUSD: v })} min={0.01} step={0.01} placeholder="unbounded" />
         </SettingField>
         <SettingField label="On exceed" description="What happens when the limit is crossed.">
           <SelectInput

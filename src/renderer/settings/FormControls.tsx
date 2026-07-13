@@ -6,7 +6,8 @@
  * + --edge-highlight for resting surfaces, focus rings via :focus-visible.
  */
 
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
+import { formatKeyValueLines, parseKeyValueLines } from "../../shared/key-value-lines";
 
 // ── Field wrapper ────────────────────────────────────────────────────────
 
@@ -197,6 +198,62 @@ export function TextArea({
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
     />
+  );
+}
+
+/**
+ * Draft-preserving editor for environment variables and HTTP headers. Invalid
+ * partial lines stay visible with an inline error and are never silently
+ * discarded from the controlled config object.
+ */
+export function KeyValueTextArea({
+  value,
+  onChange,
+  separator,
+  resetKey,
+  placeholder,
+  rows = 3,
+  trimValues = separator === ":",
+}: {
+  value: Record<string, string> | undefined;
+  onChange: (value: Record<string, string> | undefined) => void;
+  separator: "=" | ":";
+  resetKey: string;
+  placeholder?: string;
+  rows?: number;
+  trimValues?: boolean;
+}) {
+  const formatted = formatKeyValueLines(value ?? {}, separator);
+  const [draft, setDraft] = useState(formatted);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(formatted);
+    setError(null);
+  }, [formatted, resetKey]);
+
+  return (
+    <>
+      <textarea
+        className="setting-textarea is-mono"
+        value={draft}
+        placeholder={placeholder}
+        rows={rows}
+        aria-invalid={error ? true : undefined}
+        onChange={(event) => {
+          const next = event.target.value;
+          setDraft(next);
+          const parsed = parseKeyValueLines(next, separator, { trimValues });
+          if (!parsed.ok) {
+            setError(parsed.error);
+            return;
+          }
+          setError(null);
+          onChange(Object.keys(parsed.value).length ? parsed.value : undefined);
+        }}
+      />
+      {error ? <div className="settings-save-error" role="alert">{error}</div> : null}
+    </>
   );
 }
 

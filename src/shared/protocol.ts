@@ -248,7 +248,18 @@ function uiPlanSource(value: unknown): boolean {
 function sessionUsage(value: unknown): boolean {
   const usage = record(value);
   return !!usage && Number.isFinite(usage.inputTokens) && Number.isFinite(usage.outputTokens)
-    && Number.isFinite(usage.totalTokens) && Number.isFinite(usage.costUSD);
+    && Number.isFinite(usage.totalTokens) && Number.isFinite(usage.costUSD)
+    && optionalBoolean(usage.costEstimated)
+    && optionalNumber(usage.cachedInputTokens);
+}
+
+function stepUsage(value: unknown): boolean {
+  const usage = record(value);
+  return !!usage
+    && optionalNumber(usage.inputTokens)
+    && optionalNumber(usage.outputTokens)
+    && optionalNumber(usage.totalTokens)
+    && optionalNumber(usage.cachedInputTokens);
 }
 
 function engineCommand(value: unknown): value is EngineCommand {
@@ -278,13 +289,16 @@ export function isUIEvent(value: unknown): value is UIEvent {
   if (SESSION_EVENT_TYPES.has(event.type as UIEvent["type"]) && typeof event.sessionId !== "string") return false;
   switch (event.type) {
     case "session-start": return typeof event.model === "string" && (event.mode === "plan" || event.mode === "execute");
-    case "user-message": return typeof event.text === "string";
+    case "user-message":
+      return typeof event.text === "string"
+        && (event.origin === undefined || event.origin === "user" || event.origin === "engine")
+        && optionalString(event.label);
     case "assistant-text-delta":
     case "reasoning-delta": return typeof event.delta === "string" && optionalString(event.subagentId);
     case "tool-call-started": return typeof event.toolCallId === "string" && typeof event.toolName === "string" && optionalString(event.subagentId);
     case "tool-call-progress": return typeof event.toolCallId === "string" && typeof event.chunk === "string" && optionalString(event.subagentId);
     case "tool-call-finished": return typeof event.toolCallId === "string" && typeof event.toolName === "string" && typeof event.isError === "boolean" && optionalString(event.subagentId);
-    case "step-finished": return event.usage === undefined || record(event.usage) !== null;
+    case "step-finished": return event.usage === undefined || stepUsage(event.usage);
     case "usage-updated": return sessionUsage(event.usage);
     case "context-updated": return Number.isFinite(event.usedTokens) && Number.isFinite(event.contextWindow);
     case "mode-changed": return event.mode === "plan" || event.mode === "execute";

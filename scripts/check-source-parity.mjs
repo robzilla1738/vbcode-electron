@@ -28,12 +28,21 @@ const ALLOW_DECLARATION_EXTRAS = new Map([
   ["spinner", new Set(["FunctionDeclaration:compactElapsed"])],
 ]);
 const ALLOW_DECLARATION_DRIFT = new Map([
+  // Forward-compatible engine-authored user-message labels are already rendered
+  // by this shell but are not yet included in the v0.5.1 release declaration.
+  ["events", new Set(["TypeAliasDeclaration:UIEvent"])],
+  // Electron writes external-editor drafts with 0600 permissions; upstream's
+  // behavior is otherwise identical but still uses the default file mode.
+  ["editor-compose", new Set(["FunctionDeclaration:composeInEditor"])],
   ["glyphs", new Set(["FirstStatement:GLYPH"])],
 ]);
 
 const pairs = [
   ["packages/shared/src/commands.ts", "src/shared/commands.ts", { extras: true }],
-  ["packages/shared/src/events.ts", "src/shared/events.ts", { extras: true }],
+  ["packages/shared/src/events.ts", "src/shared/events.ts", {
+    extras: true,
+    driftDeclarations: ALLOW_DECLARATION_DRIFT.get("events"),
+  }],
   ["packages/shared/src/types.ts", "src/shared/types.ts", { extras: true }],
   ["packages/macos-bridge/src/protocol.ts", "src/shared/protocol.ts", { extras: true, drift: true }],
   ...[

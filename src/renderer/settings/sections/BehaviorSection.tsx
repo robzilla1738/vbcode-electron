@@ -1,7 +1,7 @@
 import type { SectionProps } from "./types";
 import { SelectInput, SettingField, SettingSection, TextArea, ToggleSwitch } from "../FormControls";
 
-export function BehaviorSection({ config, updateConfig, updateNested }: SectionProps) {
+export function BehaviorSection({ config, scope, updateConfig, updateNested }: SectionProps) {
   const sandbox = config.sandbox ?? { mode: "off", network: "on", writablePaths: [] };
   return (
     <>
@@ -71,10 +71,11 @@ export function BehaviorSection({ config, updateConfig, updateNested }: SectionP
       </SettingSection>
 
       <SettingSection title="Security" description="Trust posture for repo-local .vibe/config.json.">
-        <SettingField label="Trust project config" description="When off (default), project-layer hooks, plugins, relaxed approvals, MCP servers, and allow-globs from a cloned repo are dropped. Enable only for repos you trust.">
+        <SettingField label="Trust project config" description={scope === "global" ? "When off (default), unsafe project providers, hooks/plugins/MCP, LSP or verify commands, sandbox/SSRF relaxations, auto approvals, and broad allows are filtered. Exact scoped grants and deny/ask rules remain. Enable only for repos you trust." : "This trust decision is only honored from Global settings; a project cannot authorize itself."}>
           <ToggleSwitch
-            checked={config.security?.trustProjectConfig ?? false}
+            checked={scope === "global" && (config.security?.trustProjectConfig ?? false)}
             onChange={(v) => updateConfig({ security: { trustProjectConfig: v } })}
+            disabled={scope !== "global"}
           />
         </SettingField>
       </SettingSection>

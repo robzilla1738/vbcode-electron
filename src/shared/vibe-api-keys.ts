@@ -54,7 +54,6 @@ export const VIBE_API_KEYS = [
   "terminalOpen",
   "terminalWrite",
   "terminalResize",
-  "terminalClose",
   "onTerminalEvent",
 ] as const;
 

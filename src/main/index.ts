@@ -1,13 +1,13 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
-import { open as fsOpen, mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, open as fsOpen, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { app, BrowserWindow, clipboard, crashReporter, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell } from "electron";
 import { readTextFileCapped } from "../shared/capped-read";
 import type { EngineCommand } from "../shared/commands";
-import { isAllowedCwd, projectCwdAllowlist } from "../shared/cwd-allowlist";
+import { isAllowedCwd, isAllowedRevealPath, projectCwdAllowlist } from "../shared/cwd-allowlist";
 import { composeInEditor } from "../shared/editor-compose";
 import { listProjectFiles, rankPaths } from "../shared/file-fuzzy";
 import { resolvePathInsideRoot } from "../shared/path-safe";
@@ -27,6 +27,7 @@ const bridge = new EngineBridge();
 /** Short-TTL cache for `@` mention tree walks (avoids main-thread stalls). */
 const LIST_FILES_CACHE_TTL_MS = 5_000;
 const listFilesCache = new TtlLruCache<string, string[]>(32, LIST_FILES_CACHE_TTL_MS);
+const clipboardTempRoot = join(tmpdir(), `vibe-clips-${process.pid}`);
 
 function listProjectFilesCached(cwd: string): string[] {
   const now = Date.now();
@@ -79,6 +80,14 @@ function safeExternalUrl(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+function openSafeExternal(value: string): void {
+  const safeUrl = safeExternalUrl(value);
+  if (!safeUrl) return;
+  void shell.openExternal(safeUrl).catch((error) => {
+    console.warn(`Could not open external URL ${safeUrl}:`, error);
+  });
 }
 
 function applyMacChrome(win: BrowserWindow): void {
@@ -148,6 +157,12 @@ function buildApplicationMenu(): void {
           submenu: [
             { role: "about" as const },
             { type: "separator" as const },
+            {
+              label: "Settings…",
+              accelerator: "CmdOrCtrl+,",
+              click: () => sendToRenderer("menu:action", "toggleSettings"),
+            },
+            { type: "separator" as const },
             { role: "services" as const },
             { type: "separator" as const },
             { role: "hide" as const },
@@ -163,14 +178,19 @@ function buildApplicationMenu(): void {
       label: "File",
       submenu: [
         {
+          label: "New Session",
+          accelerator: "CmdOrCtrl+N",
+          click: () => sendToRenderer("menu:action", "newSession"),
+        },
+        {
           label: "Open Project…",
           accelerator: "CmdOrCtrl+O",
-          click: () => mainWindow?.webContents.send("menu:action", "openProject"),
+          click: () => sendToRenderer("menu:action", "openProject"),
         },
         {
           label: "Continue Latest Session",
           accelerator: "CmdOrCtrl+Shift+N",
-          click: () => mainWindow?.webContents.send("menu:action", "continueLatest"),
+          click: () => sendToRenderer("menu:action", "continueLatest"),
         },
         { type: "separator" as const },
         { role: "close" as const },
@@ -214,20 +234,31 @@ function buildApplicationMenu(): void {
     {
       label: "Tools",
       submenu: [
-        {
+        ...(!isMac ? [{
           label: "Settings…",
           accelerator: "CmdOrCtrl+,",
-          click: () => mainWindow?.webContents.send("menu:action", "toggleSettings"),
-        },
+          click: () => sendToRenderer("menu:action", "toggleSettings"),
+        }] : []),
         {
           label: "Git…",
           accelerator: "CmdOrCtrl+Shift+B",
-          click: () => mainWindow?.webContents.send("menu:action", "toggleGit"),
+          click: () => sendToRenderer("menu:action", "toggleGit"),
         },
         {
           label: "Toggle Inspector",
           accelerator: "CmdOrCtrl+Shift+I",
-          click: () => mainWindow?.webContents.send("menu:action", "toggleInspector"),
+          click: () => sendToRenderer("menu:action", "toggleInspector"),
+        },
+        { type: "separator" as const },
+        {
+          label: "Terminal",
+          accelerator: "CmdOrCtrl+J",
+          click: () => sendToRenderer("menu:action", "toggleTerminal"),
+        },
+        {
+          label: "Background Jobs",
+          accelerator: "CmdOrCtrl+Shift+J",
+          click: () => sendToRenderer("menu:action", "toggleJobs"),
         },
       ],
     },
@@ -238,6 +269,25 @@ function buildApplicationMenu(): void {
         { role: "minimize" as const },
         { role: "zoom" as const },
         ...(isMac ? [{ type: "separator" as const }, { role: "front" as const }] : []),
+      ],
+    },
+    {
+      role: "help" as const,
+      submenu: [
+        {
+          label: "Keyboard Shortcuts",
+          accelerator: "CmdOrCtrl+/",
+          click: () => sendToRenderer("menu:action", "showKeys"),
+        },
+        { type: "separator" as const },
+        {
+          label: "Vibe Codr Documentation",
+          click: () => openSafeExternal("https://github.com/robzilla1738/vbcode-electron#readme"),
+        },
+        {
+          label: "Report an Issue…",
+          click: () => openSafeExternal("https://github.com/robzilla1738/vbcode-electron/issues/new"),
+        },
       ],
     },
   ]);
@@ -264,8 +314,7 @@ function createWindow(): void {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    const safeUrl = safeExternalUrl(url);
-    if (safeUrl) void shell.openExternal(safeUrl);
+    openSafeExternal(url);
     return { action: "deny" };
   });
   mainWindow.webContents.on("will-navigate", (event, url) => {
@@ -273,18 +322,21 @@ function createWindow(): void {
     try {
       const nextUrl = new URL(url);
       const currentUrl = current ? new URL(current) : null;
-      // In-document file navigation is used by the accessibility skip link.
+      // In-document navigation is used by accessibility skip links in both the
+      // packaged file URL and the Vite dev-server URL.
       if (
-        nextUrl.protocol === "file:" &&
-        currentUrl?.protocol === "file:" &&
-        nextUrl.pathname === currentUrl.pathname
+        currentUrl &&
+        nextUrl.protocol === currentUrl.protocol &&
+        nextUrl.host === currentUrl.host &&
+        nextUrl.pathname === currentUrl.pathname &&
+        nextUrl.search === currentUrl.search &&
+        nextUrl.hash !== currentUrl.hash
       ) return;
     } catch {
       // Invalid navigation is denied below.
     }
     event.preventDefault();
-    const safeUrl = safeExternalUrl(url);
-    if (safeUrl) void shell.openExternal(safeUrl);
+    openSafeExternal(url);
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -304,7 +356,13 @@ function createWindow(): void {
 }
 
 function sendToRenderer(channel: string, ...args: unknown[]): void {
-  mainWindow?.webContents.send(channel, ...args);
+  const win = mainWindow;
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
+  try {
+    win.webContents.send(channel, ...args);
+  } catch {
+    // The window can be destroyed between the guards and send during shutdown.
+  }
 }
 
 const terminalManager = new TerminalManager((event) => sendToRenderer("terminal:event", event));
@@ -425,16 +483,9 @@ function registerIpc(): void {
   ipcMain.handle("shell:showItem", async (event, path: string) => {
     assertTrustedIpc(event);
     if (typeof path !== "string" || !path) throw new Error("Invalid item path");
-    // Defense-in-depth: only reveal paths under the user's home, temp, or an
-    // absolute path that resolves inside home (opened projects live under home
-    // in normal use; absolute paths outside home are rejected).
     const abs = resolve(path);
-    const home = resolve(homedir());
-    const tmp = resolve(tmpdir());
-    const under = (root: string) =>
-      abs === root || abs.startsWith(`${root}/`) || abs.startsWith(`${root}\\`);
-    if (!under(home) && !under(tmp)) {
-      throw new Error("Reveal is limited to paths under your home or temp directory");
+    if (!isAllowedRevealPath(abs, clipboardTempRoot)) {
+      throw new Error("Reveal is limited to opened projects and this app's clipboard files");
     }
     shell.showItemInFolder(abs);
   });
@@ -462,11 +513,16 @@ function registerIpc(): void {
           }
           const dir = opts?.cwd
             ? join(opts.cwd, ".vibe", "clipboard")
-            : join(tmpdir(), `vibe-clips-${process.pid}`);
-          await mkdir(dir, { recursive: true });
+            : clipboardTempRoot;
+          await mkdir(dir, { recursive: true, mode: 0o700 });
+          try {
+            await chmod(dir, 0o700);
+          } catch {
+            /* best-effort on platforms without POSIX modes */
+          }
           const filename = `vibe-clip-${randomUUID()}.png`;
           const abs = join(dir, filename);
-          await writeFile(abs, png);
+          await writeFile(abs, png, { mode: 0o600 });
           const path = opts?.cwd ? join(".vibe", "clipboard", filename) : abs;
           return { kind: "image" as const, path };
         }
@@ -612,12 +668,6 @@ function registerIpc(): void {
     return terminalManager.resize(request.id, request.cols, request.rows);
   });
 
-  ipcMain.handle("terminal:close", (event, id: string) => {
-    assertTrustedIpc(event);
-    if (typeof id !== "string") return { ok: false as const, error: "Invalid terminal session" };
-    return terminalManager.close(id);
-  });
-
   ipcMain.handle("app:getPath", (event, name: "home" | "userData") => {
     assertTrustedIpc(event);
     if (name !== "home" && name !== "userData") throw new Error("Unsupported app path");
@@ -628,7 +678,12 @@ function registerIpc(): void {
   ipcMain.handle("app:ensureChatsDir", async (event) => {
     assertTrustedIpc(event);
     const dir = chatsCwdFromHome(homedir());
-    await mkdir(dir, { recursive: true });
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    try {
+      await chmod(dir, 0o700);
+    } catch {
+      /* best-effort on platforms without POSIX modes */
+    }
     return dir;
   });
 
@@ -769,37 +824,34 @@ const QUIT_HARD_CEILING_MS = 8_000;
 app.on("before-quit", async (e) => {
   // Guard against re-entrant before-quit (e.g. Cmd+Q while already quitting,
   // or app.exit firing a second before-quit after cleanup completes).
-  if (quitting) return;
-  quitting = true;
-  terminalManager.dispose();
-
-  // Always try to reap when we still own a child (isRunning tracks exit codes,
-  // not proc.killed — soft-kill alone must not skip cleanup).
-  if (!bridge.isRunning) {
-    try {
-      await rm(join(tmpdir(), `vibe-clips-${process.pid}`), { recursive: true, force: true });
-    } catch {
-      /* swallow */
-    }
+  if (quitting) {
+    // A second Cmd+Q must not bypass the cleanup already in flight. `app.exit`
+    // below exits directly and does not re-enter this cancellable event.
+    e.preventDefault();
     return;
   }
-
+  quitting = true;
   e.preventDefault();
+  terminalManager.dispose();
   await Promise.race([
     (async () => {
-      try {
-        await bridge.disposeForQuit();
-      } catch {
-        /* stop must still have been attempted inside disposeForQuit */
+      // Always try to reap when we still own a child (isRunning tracks exit
+      // codes, not proc.killed — soft-kill alone must not skip cleanup).
+      if (bridge.isRunning) {
         try {
-          await bridge.stop();
+          await bridge.disposeForQuit();
         } catch {
-          /* ignore */
+          /* stop must still have been attempted inside disposeForQuit */
+          try {
+            await bridge.stop();
+          } catch {
+            /* ignore */
+          }
         }
       }
       // Clean up per-session clipboard temp PNGs (TUI parity: cleanupClipboardTempDir).
       try {
-        await rm(join(tmpdir(), `vibe-clips-${process.pid}`), { recursive: true, force: true });
+        await rm(clipboardTempRoot, { recursive: true, force: true });
       } catch {
         /* swallow */
       }
@@ -811,10 +863,9 @@ app.on("before-quit", async (e) => {
 
 app.on("window-all-closed", () => {
   // On macOS, closing the last window traditionally keeps the app alive — but
-  // an orphaned engine host with no UI sink burns CPU/API. Stop the host; the
-  // next activate/createWindow path bootstraps a fresh session.
+  // an engine host with no UI sink can burn API. Stop the agent host; persistent
+  // user terminals remain main-owned and replay when the window is reopened.
   if (process.platform === "darwin") {
-    terminalManager.dispose();
     void bridge.stop().catch(() => undefined);
     return;
   }

@@ -15,6 +15,8 @@ describe("RPC runtime guards", () => {
     expect(isEngineSnapshot({ ...snapshot, history: null })).toBe(false);
     expect(isEngineSnapshot({ ...snapshot, history: [null] })).toBe(false);
     expect(isEngineSnapshot({ ...snapshot, usage: { inputTokens: 0, outputTokens: 0 } })).toBe(false);
+    expect(isEngineSnapshot({ ...snapshot, subagentModel: 42 })).toBe(false);
+    expect(isEngineSnapshot({ ...snapshot, usage: { ...snapshot.usage, costEstimated: "yes" } })).toBe(false);
     expect(isRpcResult("snapshot", snapshot)).toBe(true);
   });
 
@@ -49,6 +51,12 @@ describe("RPC runtime guards", () => {
       type: "jobs-changed",
       sessionId: "s",
       jobs: [{ id: "j", status: "running" }],
+    } as never)).toBe(false);
+    expect(isRenderableUIEvent({
+      type: "user-message",
+      sessionId: "s",
+      text: "work",
+      origin: "automation",
     } as never)).toBe(false);
   });
 });

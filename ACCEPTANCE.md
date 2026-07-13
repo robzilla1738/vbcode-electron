@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-13 (editing workspace and Changes review polish)
+> Last updated: 2026-07-13 (production-user hardening and v0.5.1 engine lock)
 > Status: shell product complete for P0 acceptance rows; residual risks and verification methods documented below — do not treat frozen unit/e2e counts as a live baseline
 
 ## Summary
@@ -55,7 +55,7 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | A16 | P0 | Transcript | Tool and diff detail | Tool rows use meaningful labels/icons, expand on demand, auto-expand errors, and display diff additions/deletions clearly. | test: rich-block/tool helpers; manual: successful and failed edit tools | pass |
 | A17 | P0 | Transcript | Reasoning and folding | Reasoning is collapsed by default, Cmd-T toggles it, user messages fold individually by click/keyboard without a persistent arrow, Cmd-O folds all, and density matches CLI semantics without rendering redundant density acknowledgement notices. | test: density/folding helpers; manual: toggle during and after a turn | pass |
 | A18 | P0 | Transcript | Streaming anchor | Output follows only near the bottom; upward scrolling disengages follow; Jump to latest restores it without losing content and shares one footer row with the changed-files chip. Scroll position is preserved independently per resumed session. | test:`parity.test.ts` scroll threshold + session-view preservation; review:`TranscriptView.tsx` anchor restoration | pass |
-| A19 | P0 | Transcript | Long-session resilience | Transcript windowing preserves active work and exposes earlier turns without unbounded DOM growth or losing resumed history. | test:`parity.test.ts` turn/item windows; review:`useSession.ts` progressive reveal | pass |
+| A19 | P0 | Transcript | Long-session resilience | Transcript windowing preserves active work and exposes earlier turns without unbounded DOM growth or losing resumed history; reasoning, tool bodies, diffs, host lines, and stdin backlog are explicitly bounded. | test:`parity.test.ts` turn/item/output bounds + bridge queue/line limits; review:`useSession.ts` progressive reveal | pass |
 | A20 | P0 | Catalogs | Command palette | Slash/Cmd-K palette includes live engine command names, enum values, filtering, no-results, keyboard navigation, and correct input cues. | test: command catalog and draft detectors; manual: keyboard-only palette tour | pass |
 | A21 | P0 | Catalogs | Models/providers/agents | Main/subagent/agent targets, current markers, inherit clearing, configured/keyless provider flows, and new-agent prefills produce valid CLI commands. | test: catalog option builders; manual: each target/provider path | pass |
 | A22 | P0 | Catalogs | Skills and MCP | Skills prefill editable invocations; MCP status reflects connected state, tool count, and error data from host RPC. | test: catalog normalization; manual: live skills and MCP rosters | pass |
@@ -116,11 +116,12 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | 2026-07-13 | Codex | 36/36 | 4/4 | Design-polish completion: structural five-view activity sidebar, persistent main-owned project PTY with bounded replay, compact terminal typography, responsive invariant ASCII wordmark, quieter notices/queue state, transcript/diff/plan spacing, and project-rail interaction cleanup. 269 unit + 12 e2e scenarios at the release baseline. |
 | 2026-07-13 | Codex | 36/36 | 4/4 | Public-release hardening: engine commit lock, SHA-pinned CI/release actions, deterministic Electron 43 binary prefetch, signed/notarized tag workflow, bounded LRU/file/config state, timer cleanup, project-path allowlist, authoritative config validation including MCP/OAuth and queue timeout, plus permanent 40-field config-shape parity. 289 unit + 12 e2e scenarios; locked-engine packaged smoke green. |
 | 2026-07-13 | Codex | 36/36 | 4/4 | Editing-workspace polish: engine-owned follow-ups are distinct from user messages, native assistant Copy works, changed files open in a wider master-detail review, Jump to latest shares the footer row, activity view and transcript position persist by session, Chats terminals use home while projects use project cwd, plan approval is compact and fixed-action, loaders rotate, rail icons/type are uniform, and the Environment dock has equal inset with a subtle grey fill. `npm run verify` passed with 294 unit tests, source/config parity, typecheck, production build, and bundle budgets. |
+| 2026-07-13 | Codex | 36/36 | 4/4 | Production-user closeout: v0.5.1 engine lock; honest onboarding/provider and MCP OAuth flows; race-safe config/instructions saves; global-only project trust; complete LSP overrides; persistent PTYs; expanded menus; failed-workspace rollback; protocol/backpressure/output ceilings; stricter runtime/config validation; rejection-safe renderer IPC; and deferred Settings delivery. Final gate: 311 unit tests, coverage floors, 12 Electron scenarios, 19 source pairs, 40 config fields, bridge smoke, bundle budgets, and locked-engine standalone packaged smoke all green. |
 
 **Current verification snapshot (2026-07-13):**
 
 ```text
-npm test                         # 294/294 pass
+npm test                         # 311/311 pass
 npm run test:coverage            # floors on shared + bridge modules
 npm run lint                     # clean
 npm run typecheck                # pass
@@ -131,4 +132,5 @@ npm run verify:bundle            # pass
 npm run verify                   # pass
 npm run smoke:bridge             # pass; ready, snapshot, and project-list checks
 npm run verify:ci                # verify + coverage + bridge smoke + e2e
+npm run smoke:packaged           # pass without VIBE_CODR_ROOT; no orphan host
 ```

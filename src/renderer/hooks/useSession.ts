@@ -12,13 +12,14 @@ import {
   type UiMode,
 } from "../../shared/modes";
 import { isUIEvent } from "../../shared/protocol";
-import {firstLine, 
+import {
+  firstLine,
   groupIntoTurns,
   initialTranscript,
   reduceTranscript,
   truncate,
   type TranscriptAction,
-  type TranscriptState
+  type TranscriptState,
 } from "../../shared/reducer";
 import { isEngineSnapshot, isRenderableUIEvent } from "../../shared/runtime-guards";
 import { getTheme } from "../../shared/themes";
@@ -26,6 +27,7 @@ import { Trail, turnWindowStart, windowStartIndex } from "../../shared/trail";
 import type { EngineSnapshot } from "../../shared/types";
 import { stripVisionRelayContext } from "../../shared/vision-display";
 import { shouldClearBusyOnSendFailure } from "../../shared/busy-on-send-failure";
+import { appendRollingText } from "../../shared/stream-cap";
 import { applyPalette } from "../theme/applyPalette";
 import { RequestGate } from "./request-gate";
 import { initialChrome, reduceChrome } from "./session-state";
@@ -92,6 +94,9 @@ const TURN_ITEMS_STEP = 24;
 const TURN_ITEM_REVEAL_PAGE = TURN_ITEMS_STEP;
 /** Hard ceiling on retained transcript blocks (DOM window is separate). */
 const MAX_RETAINED_BLOCKS = 2_500;
+/** Reasoning is auxiliary UI detail; a newline-free or multi-hour stream must
+ * never grow renderer memory without bound. Keep the newest ~256k characters. */
+const MAX_REASONING_CHARS = 256 * 1024;
 
 function reduceTxCapped(s: TranscriptState, a: TxAction): TranscriptState {
   const next = reduceTx(s, a);
@@ -140,6 +145,7 @@ export function useSession(cwd: string | null) {
   const lastSnap = useRef<EngineSnapshot | null>(null);
   const trail = useRef(new Trail());
   const bootstrapGate = useRef(new RequestGate());
+  const modeTransitioning = useRef(false);
   const activeSessionId = useRef("");
   const toastTimer = useRef<number | null>(null);
   const toastExitTimer = useRef<number | null>(null);
@@ -156,6 +162,9 @@ export function useSession(cwd: string | null) {
   }, [chrome.theme, chrome.accent, uiMode]);
 
   const flushDeltas = useCallback(() => {
+    if (flushTimer.current != null) {
+      window.clearTimeout(flushTimer.current);
+    }
     flushTimer.current = null;
     // Flush buffered tool progress chunks first (TUI parity: landPending order).
     if (progressBuf.current.size) {
@@ -299,10 +308,9 @@ export function useSession(cwd: string | null) {
           dispatchTranscript({ type: "finalize" });
           break;
         case "assistant-text-delta":
-          if (event.subagentId) break;
-          // Flush any pending deltas before landing reasoning so the streaming
-          // reply stays intact (TUI parity: landPending before commitThinking).
-          flushDeltas();
+          if (event.subagentId || !event.delta) break;
+          // Commit reasoning before the first answer token. Keep prior answer
+          // chunks buffered so normal text streaming stays coalesced at 24ms.
           landReasoning();
           deltaBuf.current += event.delta;
           if (flushTimer.current == null) {
@@ -310,9 +318,13 @@ export function useSession(cwd: string | null) {
           }
           break;
         case "reasoning-delta":
-          if (event.subagentId) break;
+          if (event.subagentId || !event.delta) break;
           if (reasoningStarted.current == null) reasoningStarted.current = Date.now();
-          reasoningBuf.current += event.delta;
+          reasoningBuf.current = appendRollingText(
+            reasoningBuf.current,
+            event.delta,
+            MAX_REASONING_CHARS,
+          );
           // Append to the persistent trail (TUI parity: accumulates across bursts,
           // survives past turn end — reset only on the next user-message).
           trail.current.append(event.delta);
@@ -334,7 +346,7 @@ export function useSession(cwd: string | null) {
           });
           break;
         case "tool-call-progress":
-          if (event.subagentId) break;
+          if (event.subagentId || !event.chunk) break;
           // Buffer progress chunks and flush on the same timer as text deltas
           // (TUI parity: coalesce chatty tool output to avoid per-chunk re-renders).
           {
@@ -479,7 +491,15 @@ export function useSession(cwd: string | null) {
   );
 
   const send = useCallback(async (command: EngineCommand): Promise<boolean> => {
-    const res = await window.vibe.send(command);
+    let res: Awaited<ReturnType<typeof window.vibe.send>>;
+    try {
+      res = await window.vibe.send(command);
+    } catch (error) {
+      res = {
+        ok: false,
+        error: error instanceof Error ? error.message : "Engine command failed",
+      };
+    }
     if (!res.ok) {
       dispatchTranscript({ type: "notice", text: res.error, level: "error" });
       if (shouldClearBusyOnSendFailure([command], busyRef.current)) {
@@ -495,7 +515,15 @@ export function useSession(cwd: string | null) {
       const alreadyBusy = busyRef.current;
       for (let i = 0; i < commands.length; i++) {
         const c = commands[i]!;
-        const res = await window.vibe.send(c);
+        let res: Awaited<ReturnType<typeof window.vibe.send>>;
+        try {
+          res = await window.vibe.send(c);
+        } catch (error) {
+          res = {
+            ok: false,
+            error: error instanceof Error ? error.message : "Engine command failed",
+          };
+        }
         if (!res.ok) {
           dispatchTranscript({ type: "notice", text: res.error, level: "error" });
           // Policy uses the full intended batch so a mid-batch failure of a
@@ -560,12 +588,16 @@ export function useSession(cwd: string | null) {
       // Keep the current conversation visible while the replacement host
       // starts. The shell owns the transition surface; clearing here made a
       // sub-second engine handoff look like a blank, blocking screen.
+      let res: Awaited<ReturnType<typeof window.vibe.bootstrap>>;
       try {
-        localStorage.setItem("vibe.lastCwd", opts.cwd);
-      } catch {
-        /* ignore */
+        res = await window.vibe.bootstrap(opts);
+      } catch (error) {
+        if (!bootstrapGate.current.isCurrent(request)) return false;
+        bootstrapHandoff.current = false;
+        setBootError(error instanceof Error ? error.message : "Engine bootstrap failed");
+        setBooting(false);
+        return false;
       }
-      const res = await window.vibe.bootstrap(opts);
       if (!bootstrapGate.current.isCurrent(request)) return false;
       if (!res.ok) {
         bootstrapHandoff.current = false;
@@ -573,7 +605,17 @@ export function useSession(cwd: string | null) {
         setBooting(false);
         return false;
       }
-      const snapRes = await window.vibe.rpc("snapshot");
+      let snapRes: Awaited<ReturnType<typeof window.vibe.rpc>>;
+      try {
+        snapRes = await window.vibe.rpc("snapshot");
+      } catch (error) {
+        if (!bootstrapGate.current.isCurrent(request)) return false;
+        bootstrapHandoff.current = false;
+        await window.vibe.stop().catch(() => undefined);
+        setBootError(`Engine snapshot failed: ${error instanceof Error ? error.message : String(error)}`);
+        setBooting(false);
+        return false;
+      }
       if (!bootstrapGate.current.isCurrent(request)) return false;
       if (!snapRes.ok) {
         bootstrapHandoff.current = false;
@@ -618,6 +660,13 @@ export function useSession(cwd: string | null) {
       if (snap.history?.length) {
         dispatchTranscript({ type: "replace", state: hydrateFromHistory(snap.history) });
       }
+      // Persist only a fully bootstrapped workspace. Saving before host ready
+      // traps the next launch on a deleted/inaccessible path after a failed open.
+      try {
+        localStorage.setItem("vibe.lastCwd", opts.cwd);
+      } catch {
+        /* Persistence is optional. */
+      }
       setReady(true);
       setBooting(false);
       return true;
@@ -645,42 +694,60 @@ export function useSession(cwd: string | null) {
   }, [handleEvent]);
 
   const cycleMode = useCallback(() => {
+    if (modeTransitioning.current) return;
     const action = cycleModeAction(uiMode, { planPending: !!chrome.plan });
-    void sendMany(action.commands);
-    if (action.optimistic) {
-      dispatchChrome({
-        type: "optimistic-mode",
-        mode: action.optimistic.mode,
-        approvals: action.optimistic.approvals,
-      });
-    } else if (chrome.plan) {
-      // Silent no-op felt broken — surface why the chip didn't move (TUI parity).
-      dispatchTranscript({
-        type: "notice",
-        text: "Approve or revise the plan first (Enter / type / Esc) — mode stays PLAN.",
-        level: "info",
-      });
-    }
+    modeTransitioning.current = true;
+    void (async () => {
+      try {
+        const sent = await sendMany(action.commands);
+        if (!sent) return;
+        if (action.optimistic) {
+          dispatchChrome({
+            type: "optimistic-mode",
+            mode: action.optimistic.mode,
+            approvals: action.optimistic.approvals,
+          });
+        } else if (chrome.plan) {
+          // Silent no-op felt broken — surface why the chip didn't move (TUI parity).
+          dispatchTranscript({
+            type: "notice",
+            text: "Approve or revise the plan first (Enter / type / Esc) — mode stays PLAN.",
+            level: "info",
+          });
+        }
+      } finally {
+        modeTransitioning.current = false;
+      }
+    })();
   }, [uiMode, chrome.plan, sendMany]);
 
   const selectMode = useCallback(
     (target: UiMode) => {
+      if (modeTransitioning.current) return;
       const action = selectModeAction(uiMode, target, { planPending: !!chrome.plan });
       if (action.commands.length === 0 && !action.optimistic) return;
-      void sendMany(action.commands);
-      if (action.optimistic) {
-        dispatchChrome({
-          type: "optimistic-mode",
-          mode: action.optimistic.mode,
-          approvals: action.optimistic.approvals,
-        });
-      } else if (chrome.plan && target !== "plan") {
-        dispatchTranscript({
-          type: "notice",
-          text: "Approve or revise the plan first (Enter / type / Esc) — mode stays PLAN.",
-          level: "info",
-        });
-      }
+      modeTransitioning.current = true;
+      void (async () => {
+        try {
+          const sent = await sendMany(action.commands);
+          if (!sent) return;
+          if (action.optimistic) {
+            dispatchChrome({
+              type: "optimistic-mode",
+              mode: action.optimistic.mode,
+              approvals: action.optimistic.approvals,
+            });
+          } else if (chrome.plan && target !== "plan") {
+            dispatchTranscript({
+              type: "notice",
+              text: "Approve or revise the plan first (Enter / type / Esc) — mode stays PLAN.",
+              level: "info",
+            });
+          }
+        } finally {
+          modeTransitioning.current = false;
+        }
+      })();
     },
     [uiMode, chrome.plan, sendMany],
   );
