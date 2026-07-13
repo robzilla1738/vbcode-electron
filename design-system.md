@@ -245,6 +245,13 @@ Transition only transform, opacity, color, or box-shadow; never animate layout
 properties. The global reduced-motion rule collapses motion and JS scroll/rail
 animation must honor the same preference.
 
+The latest thinking group uses one restrained text shimmer while a turn is
+active (`--dur-thinking-shimmer: 1800ms`); completed groups remain static and
+the global reduced-motion rule collapses the effect. Assistant streaming stays
+in the normal sans prose flow with a thin inline caret—never a temporary mono
+code surface. Quiet informational notices align to the same `--prose-max`
+measure as assistant output.
+
 ## Focus and interaction states
 
 Focus is keyboard-only and two-layer:

@@ -166,6 +166,7 @@
   --dur-fast: 120ms;
   --dur-standard: 200ms;
   --dur-moderate: 280ms;
+  --dur-thinking-shimmer: 1800ms;
   --dur-press: 60ms;
   --press-offset: 1px;
   --z-raised: 1;
@@ -1736,7 +1737,7 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   display: flex;
   flex-direction: column;
   /* User → activity → answer: tight stack, not equal air gaps */
-  gap: var(--space-xs);
+  gap: var(--space-2xs);
 }
 
 /* ── User bubble — click the message to fold the turn ───────────────────── */
@@ -1882,13 +1883,6 @@ html[data-scheme="light"] .block-assistant { color: var(--assistant); }
 .block-assistant .md > :first-child { margin-top: 0; }
 .block-assistant .md > :last-child { margin-bottom: 0; }
 
-.block-assistant.streaming::after {
-  content: "▋";
-  margin-left: 2px;
-  color: var(--accent);
-  animation: blink 1s step-end infinite;
-}
-
 @keyframes blink { 50% { opacity: 0.18; } }
 
 .md > :first-child { margin-top: 0; }
@@ -2012,9 +2006,41 @@ html[data-scheme="light"] .block-assistant { color: var(--assistant); }
   white-space: pre;
 }
 
+/* Streaming assistant text is prose, not a temporary code block. This more
+   specific rule intentionally follows `.md pre` so the partial response keeps
+   the finalized response's font, measure, and transparent inline surface. */
+.md .md-streaming-pre {
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+}
+
+.md-streaming-pre::after {
+  content: "";
+  display: inline-block;
+  width: 1px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: var(--accent);
+  animation: blink 1s step-end infinite;
+}
+
 html[data-scheme="light"] .md pre {
   border-color: var(--border-soft);
   background: var(--surface-subtle);
+}
+
+html[data-scheme="light"] .md .md-streaming-pre {
+  border: 0;
+  background: transparent;
 }
 
 .md :not(pre) > code,
@@ -2216,6 +2242,21 @@ html[data-scheme="light"] .md pre {
   opacity: 0.88;
   transform: none;
   pointer-events: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* Invisible hover actions should not leave a full toolbar-sized void in the
+     transcript. Desktop keeps compact 22px targets; touch retains 26px. */
+  .block-assistant > .assistant-actions {
+    min-height: 22px;
+    margin-top: 0;
+  }
+
+  .block-assistant > .assistant-actions .copy-btn,
+  .block-assistant > .assistant-actions .assistant-action {
+    width: 22px;
+    height: 22px;
+  }
 }
 
 .block-assistant.has-actions {
@@ -2734,6 +2775,26 @@ html[data-scheme="light"] .md pre {
   color: var(--assistant);
 }
 
+.thinking-group.is-live .thinking-group-label > span:last-child,
+.thinking-group.is-live .thinking-group-meta {
+  color: transparent;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--muted) 76%, transparent) 0%,
+    var(--assistant) 46%,
+    color-mix(in oklab, var(--muted) 76%, transparent) 82%
+  );
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: thinking-shimmer var(--dur-thinking-shimmer) var(--ease-standard) infinite;
+}
+
+@keyframes thinking-shimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
 .thinking-group-label {
   display: inline-flex;
   min-width: 0;
@@ -2825,10 +2886,10 @@ html[data-scheme="light"] .md pre {
    alerts. Keep warnings/errors card-like, but let checkpoints read as quiet
    inline status so they do not outrank the answer that follows. */
 .notice.info {
-  display: inline-flex;
-  width: max-content;
+  display: block;
+  width: min(100%, var(--prose-max));
   max-width: 100%;
-  margin: 0;
+  margin: 0 auto;
   padding: 2px 0;
   border: 0;
   border-radius: 0;

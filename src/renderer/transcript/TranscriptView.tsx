@@ -102,12 +102,14 @@ function isActivityBlock(block: Block): block is ActivityBlock {
 
 function ThinkingGroup({
   blocks,
+  active,
   density,
   theme,
   now,
   onToggle,
 }: {
   blocks: ActivityBlock[];
+  active: boolean;
   density: TranscriptDensity;
   theme: string;
   now: number;
@@ -120,7 +122,7 @@ function ThinkingGroup({
 
   return (
     <details
-      className={`thinking-group${open ? " is-open" : ""}`}
+      className={`thinking-group${open ? " is-open" : ""}${active ? " is-live" : ""}`}
       open={open}
       onToggle={(event) => {
         if (density !== "verbose") setExpanded(event.currentTarget.open);
@@ -349,6 +351,7 @@ const BlockView = memo(function BlockView({
 
 export function TranscriptView({
   turns,
+  busy,
   hiddenCount,
   revealPage,
   foldedTurns,
@@ -363,6 +366,7 @@ export function TranscriptView({
   followSignal,
 }: {
   turns: Turn[];
+  busy: boolean;
   hiddenCount: number;
   revealPage: number;
   foldedTurns: Set<number>;
@@ -386,6 +390,7 @@ export function TranscriptView({
   const hasLiveTool = turns.some((turn) =>
     turn.items.some((block) => block.kind === "tool" && !block.done),
   );
+  const latestTurnKey = turns.at(-1)?.key;
 
   const scrollToLatest = (behavior: ScrollBehavior = "auto") => {
     const element = scrollRef.current;
@@ -436,6 +441,13 @@ export function TranscriptView({
             const folded = foldedTurns.has(turn.key);
             const itemWindow = itemWindowFor(turn.key, turn.items.length);
             const visibleItems = turn.items.slice(itemWindow.start);
+            let lastActivityIndex = -1;
+            for (let index = visibleItems.length - 1; index >= 0; index -= 1) {
+              if (isActivityBlock(visibleItems[index]!)) {
+                lastActivityIndex = index;
+                break;
+              }
+            }
             const renderedItems: ReactNode[] = [];
             for (let index = 0; index < visibleItems.length;) {
               const block = visibleItems[index]!;
@@ -451,6 +463,7 @@ export function TranscriptView({
                   <ThinkingGroup
                     key={`thinking-${activity[0]!.id}`}
                     blocks={activity}
+                    active={busy && turn.key === latestTurnKey && index - 1 === lastActivityIndex}
                     density={density}
                     theme={theme}
                     now={now}

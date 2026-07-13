@@ -11,6 +11,7 @@ describe("MarkdownView streaming cost", () => {
     join(process.cwd(), "src/renderer/transcript/MarkdownView.tsx"),
     "utf8",
   );
+  const styles = readFileSync(join(process.cwd(), "src/renderer/styles.css"), "utf8");
 
   it("uses a plain streaming path without Streamdown or CodeBlock", () => {
     expect(source).toContain("function StreamingPlain");
@@ -29,5 +30,11 @@ describe("MarkdownView streaming cost", () => {
     expect(source).toMatch(/staticComponents[\s\S]*code:\s*Code/);
     expect(source).toContain("<CodeBlock");
     expect(source).toContain('mode="static"');
+  });
+
+  it("keeps partial assistant output in the prose flow with an inline caret", () => {
+    expect(styles).toMatch(/\.md \.md-streaming-pre\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*font:\s*inherit;/s);
+    expect(styles).toContain(".md-streaming-pre::after");
+    expect(styles).not.toContain('.block-assistant.streaming::after');
   });
 });

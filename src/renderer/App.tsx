@@ -1558,6 +1558,7 @@ export function App() {
                 {session.transcript.blocks.length > 0 ? (
                   <TranscriptView
                     turns={session.turns}
+                    busy={chrome.busy}
                     hiddenCount={session.hiddenCount}
                     revealPage={session.revealPage}
                     foldedTurns={session.foldedTurns}
@@ -1606,6 +1607,7 @@ export function App() {
             ) : (
               <TranscriptView
                 turns={session.turns}
+                busy={chrome.busy}
                 hiddenCount={session.hiddenCount}
                 revealPage={session.revealPage}
                 foldedTurns={session.foldedTurns}

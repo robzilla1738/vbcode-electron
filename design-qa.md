@@ -1,0 +1,45 @@
+# Transcript rhythm design QA
+
+## Evidence
+
+- Source visual truth: `/var/folders/f4/7r6qlts50lj6_rncg4jffq140000gn/T/TemporaryItems/NSIRD_screencaptureui_4nOvTG/Screenshot 2026-07-13 at 12.36.28 PM.png`
+- Supporting references: the Codex activity rhythm and the supplied Vibe Codr inline-output screenshot from this review
+- Browser-rendered implementation: `tools/ui-preview/shots/qa-transcript-current.png`
+- Combined comparison: `tools/ui-preview/shots/qa-transcript-comparison.png`
+- Viewport: 1280 x 720 CSS pixels at 2x device scale
+- State: Graphite theme, populated chat transcript; active-thinking behavior separately checked in the `busy` preview scenario
+
+The source and preview contain different transcript copy, so the comparison is limited to the requested interaction surfaces: prose measure, thinking-to-output rhythm, quiet notices, active-state treatment, and streaming typography. Full-view and focused-region review use the same combined comparison image. A separate crop was unnecessary because those surfaces are legible in the combined view.
+
+## Findings
+
+- No actionable P0, P1, or P2 mismatch remains. Thinking rows and assistant output now share one compact vertical rhythm and prose alignment.
+- Typography: assistant streaming text inherits the application sans face, normal letter spacing, and prose line height. Code remains mono. The thick detached block cursor is replaced by a thin inline caret.
+- Spacing: transcript block gaps and the hidden hover-action reservation are reduced without removing touch target sizing. Informational notices align to the prose measure instead of the far-left transcript edge.
+- Colors and tokens: the active-thinking shimmer uses existing foreground/accent tokens and a dedicated duration token; reduced-motion behavior remains intact.
+- Image quality: no raster or decorative assets are involved in this change.
+- Copy and content: existing transcript wording and activity labels are unchanged.
+
+## Comparison history
+
+- Initial P2: excessive whitespace separated thinking activity from the following output. Fixed by tightening turn/block spacing and the hidden assistant action row. Post-fix evidence: the browser-rendered transcript and combined comparison above.
+- Initial P2: streaming prose appeared as a bordered mono block with a detached heavy cursor. Fixed by restoring inherited prose typography and a one-pixel inline caret. Verified by the focused style contract test.
+- Initial P2: quiet plan/status notices did not align with assistant output. Fixed by constraining informational notices to the shared prose measure.
+
+## Interaction and runtime checks
+
+- Active thinking group receives `is-live` only for the latest activity group while busy.
+- Computed active-label animation: `thinking-shimmer`, 1.8 seconds.
+- Workspace navigation and composer remain present in the preview.
+- Browser console warnings/errors: none.
+
+## Implementation checklist
+
+- [x] Compact thinking-to-output rhythm
+- [x] Tokenized active-thinking shimmer
+- [x] Reduced-motion fallback preserved
+- [x] Uniform inline streaming typography and caret
+- [x] Prose-aligned informational notices
+- [x] Focused tests and live browser check
+
+final result: passed
