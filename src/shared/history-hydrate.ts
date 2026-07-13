@@ -1,5 +1,6 @@
 import type { Message } from "./types";
 import { initialTranscript, reduceTranscript, type TranscriptState } from "./reducer";
+import { stripVisionRelayContext } from "./vision-display";
 
 /** Hydrate transcript blocks from snapshot history (resume UX). */
 export function hydrateFromHistory(history: Message[]): TranscriptState {
@@ -10,7 +11,7 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
         .filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text)
         .join("\n");
-      if (text) s = reduceTranscript(s, { type: "user", text, timestamp: msg.createdAt });
+      if (text) s = reduceTranscript(s, { type: "user", text: stripVisionRelayContext(text), timestamp: msg.createdAt });
     } else if (msg.role === "assistant" || msg.role === "tool") {
       for (const part of msg.parts) {
         if (msg.role === "assistant" && part.type === "text" && part.text) {

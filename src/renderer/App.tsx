@@ -33,7 +33,7 @@ import { WorkspaceDock, type WorkspaceDockTarget } from "./layout/WorkspaceDock"
 import { Splash } from "./layout/Splash";
 import { SessionBoot, SessionBootError, WelcomeGate } from "./layout/WelcomeGate";
 import { Inspector } from "./panels/Inspector";
-import { TurnChangesCard } from "./panels/TurnChangesCard";
+import { ChangedFilesPill } from "./panels/TurnChangesCard";
 import { SettingsView } from "./settings/SettingsPanel";
 import { GitView } from "./git/GitPanel";
 import { JobsView } from "./panels/JobsView";
@@ -64,13 +64,6 @@ function pickerMatchesDraft(picker: Picker, draft: string, modelTarget: "main" |
 function asMcpList(value: unknown): McpServerInfo[] {
   if (!Array.isArray(value)) return [];
   return value.map((row) => normalizeMcpServer((row ?? {}) as Record<string, unknown>));
-}
-
-function changedSummary(files: { path: string; added: number; removed: number }[]): string | null {
-  if (!files.length) return null;
-  const added = files.reduce((a, f) => a + f.added, 0);
-  const removed = files.reduce((a, f) => a + f.removed, 0);
-  return `${files.length} changed +${added} -${removed}`;
 }
 
 /** Compact token count: `1.5k` at ≥1000, the raw number below (TUI parity: fmtCount). */
@@ -173,6 +166,7 @@ export function App() {
     setSettingsOpen(true);
     setGitOpen(false);
     session.setInspectorOpen(false);
+    session.setJobsView(false);
   }, [session]);
 
   const toggleSettings = useCallback(() => {
@@ -185,6 +179,7 @@ export function App() {
       }
       setGitOpen(false);
       session.setInspectorOpen(false);
+      session.setJobsView(false);
       return true;
     });
   }, [session]);
@@ -195,6 +190,7 @@ export function App() {
     setGitOpen(true);
     setSettingsOpen(false);
     session.setInspectorOpen(false);
+    session.setJobsView(false);
   }, [cwd, confirmLeaveSettings, session]);
 
   const toggleGit = useCallback(() => {
@@ -206,6 +202,7 @@ export function App() {
       }
       setSettingsOpen(false);
       session.setInspectorOpen(false);
+      session.setJobsView(false);
       return true;
     });
   }, [cwd, session]);
@@ -220,6 +217,7 @@ export function App() {
       return;
     }
     setGitOpen(false);
+    session.setJobsView(false);
     session.setInspectorOpen((v) => {
       if (v) setInspectorFocusPath(null);
       return !v;
@@ -1211,15 +1209,14 @@ export function App() {
       : null;
   const hotCtx = ctxPct != null && ctxPct >= 80;
 
-  // Usage / files as composer chips. Gate has its own banner; queue has the tray.
+  // Usage as a composer chip. Changed files get their own review pill above
+  // the input so the action is visible without competing with model metrics.
   const composerMetrics = useMemo((): ComposerMetric[] => {
     const chips: ComposerMetric[] = [];
-    const changed = changedSummary(session.transcript.changedFiles);
-    if (changed) chips.push({ key: "files", label: changed, title: changed });
     const usage = formatUsage(chrome.usage);
     if (usage) chips.push({ key: "usage", label: usage, title: usage });
     return chips;
-  }, [chrome.usage, session.transcript.changedFiles]);
+  }, [chrome.usage]);
 
   const activeProject = projects.find((project) => project.cwd === cwd);
   const activeTask = chrome.tasks.find((t) => t.status === "in_progress");
@@ -1286,19 +1283,13 @@ export function App() {
           <a className="skip-link" href="#session-panel">Skip to session panel</a>
         ) : null}
       </nav>
-      <div className={`workspace${(settingsOpen || gitOpen || projectRailOpen) ? " rail-open" : ""}${session.inspectorOpen ? " inspector-open" : ""}`}>
+      <div className={`workspace${(settingsOpen || projectRailOpen) ? " rail-open" : ""}${session.inspectorOpen ? " inspector-open" : ""}`}>
         {settingsOpen && cwd ? (
           <SettingsView
             cwd={cwd}
             onClose={() => setSettingsOpen(false)}
             showToast={session.showToast}
             onBindDirty={bindSettingsDirty}
-          />
-        ) : gitOpen && cwd ? (
-          <GitView
-            cwd={cwd}
-            onClose={() => setGitOpen(false)}
-            showToast={session.showToast}
           />
         ) : (
           <>
@@ -1313,9 +1304,7 @@ export function App() {
           busy={chrome.busy || session.booting}
           onClose={() => setProjectRailOpen(false)}
           onOpenSettings={openSettings}
-          onOpenGit={openGit}
           settingsActive={settingsOpen}
-          gitActive={gitOpen}
           onRetry={() => void refreshProjects()}
           onOpenProject={() => void openProject()}
           onNewChat={() => {
@@ -1352,7 +1341,9 @@ export function App() {
           />
         )}
 
-        <div className={`content-inset${projectRailOpen ? "" : " is-expanded"}`}>
+        <div className={`content-inset${projectRailOpen ? "" : " is-expanded"}${
+          session.inspectorOpen || session.jobsView || gitOpen ? " end-panel-open" : ""
+        }`}>
           <header className="topbar">
             <div className="topbar-leading">
               {!projectRailOpen && (
@@ -1417,7 +1408,44 @@ export function App() {
             )}
 
             {session.booting ? (
-              <SessionBoot cwd={cwd} />
+              <>
+                {session.transcript.blocks.length > 0 ? (
+                  <TranscriptView
+                    turns={session.turns}
+                    hiddenCount={session.hiddenCount}
+                    revealPage={session.revealPage}
+                    foldedTurns={session.foldedTurns}
+                    density={chrome.density}
+                    theme={chrome.theme}
+                    itemWindowFor={session.itemWindowFor}
+                    onToggleBlock={(id) =>
+                      session.dispatchTranscript({ type: "toggle", id })
+                    }
+                    onToggleTurn={(key) =>
+                      session.setFoldedTurns((prev) => {
+                        const n = new Set(prev);
+                        if (n.has(key)) n.delete(key);
+                        else n.add(key);
+                        return n;
+                      })
+                    }
+                    onEdit={(text) => {
+                      setDraft(text);
+                      window.requestAnimationFrame(() => {
+                        document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus();
+                      });
+                    }}
+                    onShowEarlier={session.revealEarlier}
+                    onRevealTurnItems={session.revealTurnItems}
+                    followSignal={followSignal}
+                  />
+                ) : (
+                  <div className="transcript">
+                    <Splash />
+                  </div>
+                )}
+                <SessionBoot cwd={cwd} />
+              </>
             ) : session.bootError && !session.ready ? (
               <SessionBootError
                 error={session.bootError}
@@ -1461,28 +1489,6 @@ export function App() {
               />
             )}
 
-            {session.jobsView && (
-              <div className="jobs-drawer-root">
-                <button
-                  type="button"
-                  className="jobs-drawer-backdrop"
-                  aria-label="Dismiss jobs"
-                  onClick={() => session.setJobsView(false)}
-                />
-                <div
-                  className="jobs-drawer"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="jobs-drawer-title"
-                >
-                  <JobsView
-                    jobs={chrome.jobs}
-                    onClose={() => session.setJobsView(false)}
-                  />
-                </div>
-              </div>
-            )}
-
             <div className="panels">
               {showOnboarding && !chrome.perms[0] && !planPending && (
                 <OnboardingModal
@@ -1521,22 +1527,6 @@ export function App() {
                   onKeep={() => void answerPlan("keep-planning")}
                 />
               )}
-              {/* Files changed card — Cursor-like summary when the agent edited files */}
-              {!chrome.busy && session.transcript.changedFiles.length > 0 && (
-                <TurnChangesCard
-                  files={session.transcript.changedFiles}
-                  onReview={(path) => {
-                    if (path) {
-                      openSessionReview(path);
-                      return;
-                    }
-                    const top = sortChangedFilesForDisplay(session.transcript.changedFiles)[0];
-                    openSessionReview(top?.path);
-                  }}
-                  onOpenFile={(path) => openSessionReview(path)}
-                />
-              )}
-
               {!session.inspectorOpen &&
                 (hasUnfinishedTasks(chrome.tasks) || chrome.subagents.length > 0) && (
                 <div className="panel-strip-compact" role="group" aria-label="Live activity">
@@ -1577,6 +1567,12 @@ export function App() {
 
             {!(session.booting || (session.bootError && !session.ready)) && (
             <div className="composer-stack" id="composer" ref={composerStackRef}>
+              {!chrome.busy && session.transcript.changedFiles.length > 0 && (
+                <ChangedFilesPill
+                  files={session.transcript.changedFiles}
+                  onReview={() => openSessionReview()}
+                />
+              )}
               <QueuePanel
                 pending={chrome.queuePending}
                 onSteer={(id) => void session.send({ type: "steer", id })}
@@ -1659,6 +1655,28 @@ export function App() {
             </div>
           </main>
 
+          {session.jobsView && (
+            <div className="jobs-drawer-root">
+              <button
+                type="button"
+                className="jobs-drawer-backdrop"
+                aria-label="Dismiss jobs"
+                onClick={() => session.setJobsView(false)}
+              />
+              <div
+                className="jobs-drawer"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="jobs-drawer-title"
+              >
+                <JobsView
+                  jobs={chrome.jobs}
+                  onClose={() => session.setJobsView(false)}
+                />
+              </div>
+            </div>
+          )}
+
           {session.inspectorOpen && (
             <Inspector
               chrome={chrome}
@@ -1681,15 +1699,29 @@ export function App() {
             />
           )}
 
-          {/* Same surface as chat (inside content-inset / main-column), not a workspace rail */}
-          <WorkspaceDock
-            changedFiles={session.transcript.changedFiles}
-            cwd={cwd}
-            sessionOpen={session.inspectorOpen && !gitOpen}
-            gitOpen={gitOpen}
-            jobsOpen={session.jobsView}
-            onOpen={openWorkspaceDock}
-          />
+          {gitOpen && cwd && (
+            <GitView
+              cwd={cwd}
+              onClose={() => setGitOpen(false)}
+              showToast={session.showToast}
+            />
+          )}
+
+          {/* The environment card is the launcher for the side section. Once
+              Session or Jobs opens, hand the same edge over to that section
+              instead of stacking two competing floating surfaces. */}
+          {!session.inspectorOpen && !session.jobsView && !gitOpen && (
+            <WorkspaceDock
+              changedFiles={session.transcript.changedFiles}
+              cwd={cwd}
+              project={activeProject ? projectLabel(activeProject, projects) : projectName(cwd)}
+              branch={chrome.git?.branch ?? null}
+              sessionOpen={false}
+              gitOpen={gitOpen}
+              jobsOpen={false}
+              onOpen={openWorkspaceDock}
+            />
+          )}
 
           </div>
         </div>

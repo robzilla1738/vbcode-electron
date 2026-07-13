@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff  
-> **Updated:** 2026-07-12 (workspace dock, chats rail, turn changes, production polish)  
+> **Updated:** 2026-07-12 (unified end panels, chats rail, turn changes, production polish)
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
@@ -20,9 +20,11 @@ The shell has these primary surfaces:
    plan/permission/queue overlays.
 3. **Workspace dock** (right strip on the chat surface) — full-label Session,
    Changes, Git, Jobs, Files. Same `--bg` as the chat stage (no rail tint, no
-   divider). Hidden below ~960px; Jobs also via `/jobs`.
-4. **Session inspector** — floating panel for model/context/tasks/subagents and
-   Diff/File review of changed files (not a permanent right rail).
+   decorative divider). Hidden below ~960px; Jobs also via `/jobs`.
+4. **End panel** — one shared right-side section for Session, Changes, Git, and
+   Jobs. The active view replaces the previous view in the same geometry and
+   the main stage reserves the panel lane. Files and Local remain Finder
+   actions rather than in-app panels.
 5. **Turn changes card** — after the agent edits files, a quiet card above the
    composer lists paths with +/− and Review (opens the inspector).
 
@@ -31,8 +33,10 @@ Transcript output, approval cards, and the composer use the same centered
 edge-to-edge. Output may scroll behind the floating composer; continuous
 full-surface frost blurs that overlap. Approval cards stay opaque.
 
-The project rail and Session inspector are resizable on desktop with pointer
-and keyboard handles. Widths persist; narrow drawer layouts hide handles.
+The project rail and activity panels are responsive. The project rail and
+desktop-resizable end panel use pointer and keyboard handles where present;
+widths persist, and narrow layouts become edge drawers without changing the
+active chat or scroll position.
 
 ## Visual language
 
@@ -55,6 +59,8 @@ and keyboard handles. Widths persist; narrow drawer layouts hide handles.
   headings/lists/code use the matching data attributes.
 - Motion is property-scoped and tokenized. Respect `prefers-reduced-motion`.
 - Focus is `:focus-visible` only, using the two-layer `--focus-ring` token.
+- Section navigation uses spacing and selected fills; never add bright white
+  outline segments or moving white side lines to a selected section.
 - Scrollbars are overlay-style: transparent until the scroller is hovered or
   focused.
 
@@ -88,6 +94,15 @@ and keyboard handles. Widths persist; narrow drawer layouts hide handles.
   (`Toggle background jobs` — toggles), Files (Finder reveal).
 - No project “On …” header, no left border, no glass tint.
 - Hidden at `max-width: 960px` (Jobs still via `/jobs`).
+- Session, Changes, Git, and Jobs are mutually exclusive views in one shared
+  right-side activity lane. Opening one closes the previous active view instead
+  of replacing the whole workspace or jumping the conversation.
+- The main stage adds the activity rail width to its right inset while open.
+  User bubbles, output, approval cards, turn-changes, and the composer remain
+  fully visible beside it.
+- The activity header, width, shadow, close behavior, Escape handling, and open
+  motion are shared across all four views. Do not create a bespoke drawer for a
+  new dock item.
 
 ### Transcript
 
@@ -125,13 +140,17 @@ snippet. External links go through `ExternalLink` / host bridge.
 - Permission: human title, preview, once/session/project/deny (+ optional deny reason).
 - Plan: markdown, sources, assumptions, ungrounded warnings; Enter / Esc / ⌘Y.
 
-### Session and Jobs panels
+### Session, Changes, Git, and Jobs panels
 
-- Session inspector closed by default; open from dock Session/Changes,
-  turn-changes Review, panel-strip chips, or ⇧⌘I. Sending a message must not
-  reopen it.
-- Opening Session closes Jobs. Jobs drawer: backdrop dismiss, Escape, or dock
-  toggle again.
+- End panels are closed by default. Session opens from dock Session/Changes,
+  turn-changes Review, panel-strip chips, or ⇧⌘I. Git opens from the dock or
+  Git shortcut; Jobs opens from the dock or `/jobs`. Sending a message must not
+  reopen an end panel.
+- Opening Session, Changes, Git, or Jobs closes the previous end-panel view in
+  place. Backdrop dismiss, Escape, the close control, or the active dock toggle
+  returns to the unchanged chat surface.
+- Git’s branches/changes/history/remotes/pull-request content stays inside the
+  activity rail. It must not replace the project rail or main chat workspace.
 - Changed files: Diff/File modes, line gutters, Reveal in Finder.
 - Host fatal / boot error: primary **New session**, plus Retry and Choose
   another project.
@@ -160,7 +179,9 @@ snippet. External links go through `ExternalLink` / host bridge.
 | Source/article cards | `src/renderer/transcript/SourceList.tsx` |
 | Permission / plan / queue | `src/renderer/panels/LivePanels.tsx` |
 | Jobs | `src/renderer/panels/JobsView.tsx` |
-| Session inspector | `src/renderer/panels/Inspector.tsx` |
+| Session / Changes end panel | `src/renderer/panels/Inspector.tsx` |
+| Git end panel | `src/renderer/git/GitPanel.tsx` |
+| Jobs end panel | `src/renderer/panels/JobsView.tsx` |
 | Boot / fatal recovery | `src/renderer/layout/WelcomeGate.tsx` |
 | Catalogs | `src/renderer/pickers/CatalogModal.tsx` |
 | Settings + instructions mount | `src/renderer/settings/SettingsPanel.tsx` |
@@ -183,5 +204,5 @@ For visual changes, use `tools/ui-preview` scenarios (`chat`, `docs`, `table`,
 `attachments`, `settings`, `git`, `splash`, …). Screenshots corroborate; they
 do not replace code-level verification.
 
-See [PARITY.md](./PARITY.md), [VERIFICATION.md](./VERIFICATION.md), and
-[ACCEPTANCE.md](./ACCEPTANCE.md).
+See [design-system.md](./design-system.md), [PARITY.md](./PARITY.md),
+[VERIFICATION.md](./VERIFICATION.md), and [ACCEPTANCE.md](./ACCEPTANCE.md).

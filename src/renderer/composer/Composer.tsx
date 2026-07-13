@@ -878,7 +878,7 @@ export function Composer({
         ? createPortal(
             <div
               id="composer-slash-menu"
-              className="slash-menu slash-menu-portal popover-surface"
+              className={`slash-menu slash-menu-portal slash-menu-${palette.mode === "command" ? "command" : "values"} popover-surface`}
               ref={menuRef}
               role="listbox"
               aria-label="Slash commands"

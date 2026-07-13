@@ -79,7 +79,7 @@ export function WelcomeGate({
           </header>
 
           <main
-            className="gate"
+            className={`gate${booting ? " is-booting" : ""}`}
             id="main-content"
             aria-busy={booting || undefined}
             aria-labelledby="gate-title"
@@ -193,7 +193,7 @@ export function SessionBoot({ cwd }: { cwd: string }) {
   const label = folderLabel(cwd);
   return (
     <div
-      className="session-boot"
+      className="session-boot session-boot-loading"
       role="status"
       aria-busy="true"
       aria-live="polite"

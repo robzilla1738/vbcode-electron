@@ -14,7 +14,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 4. **`/clear` / `/new`:** abort if busy → `clearSessionLocal()` (transcript + overlays + `suppressAfterClear`) → forward slash to engine.
 5. Prefer porting pure modules from `vibe-codr/packages/tui` (`reducer`, `slash`, `modes`, `density`, `file-fuzzy`, `commands-catalog`) over rewriting behavior.
 6. Development host resolution must reject a compiled `vibecodr-engine-host` when runtime source under the sibling checkout is newer, then fall back to Bun source execution. This prevents stale host behavior from being reported as a generic renderer failure.
-7. **Workspace dock stays on the chat surface** (`var(--bg)` inside `content-inset` / `main-column`). Do not reintroduce a separate rail tint or topbar duplicates of Session/Changes/Git/Jobs/Files.
+7. **Workspace dock stays on the chat surface** (`var(--bg)` inside `content-inset` / `main-column`). Session, Changes, Git, and Jobs open in one mutually exclusive right-side activity lane; the main column reserves that lane instead of letting panels cover chat. Do not reintroduce a separate rail tint, decorative white section lines, or topbar duplicates of Session/Changes/Git/Jobs/Files.
 
 ## Key paths
 
@@ -86,11 +86,19 @@ cd ~/Code/vibe-codr && bun run build:macos-bridge
   - Changed files: turn card + Diff/File review + Reveal.
   - Desktop rails resize with pointer/keyboard and persisted widths.
   - Workspace dock: Session / Changes / Git / Jobs / Files on the chat surface.
+  - End-panel geometry: Session / Changes / Git / Jobs share the same right-side
+    activity rail; switching views must not replace the chat workspace or change
+    the conversation scroll position. Local and Files are Finder actions.
   - Custom Instructions stay mounted (hidden) across settings section switches.
 
 ## When changing UI presentation (design system)
 
-All renderer styling lives in `src/renderer/styles.css`, token-first. Rules:
+All renderer styling lives in `src/renderer/styles.css`, token-first. The
+canonical visual reference is [design-system.md](./design-system.md). Keep it,
+`UI.md`, `README.md`, `VERIFICATION.md`, and the relevant parity/acceptance rows
+current whenever layout, styling, or interaction contracts change.
+
+Rules:
 
 1. **No literal hex outside `:root` fallbacks.** Every color is `var(--token)`
    or a `color-mix(in oklab, var(--token) …)` derivation so all TUI themes and

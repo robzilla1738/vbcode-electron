@@ -58,6 +58,12 @@
   --elev-overlay: var(--shadow-menu), var(--edge-highlight);
   --elev-modal: var(--shadow-modal), var(--edge-highlight);
   --elev-strip: none;
+  /* Frost tiers: lighter for the transcript veil, stronger only for floating
+     surfaces where depth and separation are doing real work. */
+  --blur-veil: 12px;
+  --blur-surface: 16px;
+  --blur-overlay: 18px;
+  --blur-saturation: 1.06;
   --card-bg: color-mix(in oklab, var(--surface-subtle) 58%, var(--bg));
   --drawer-bg: var(--elevated);
   --bubble-user-bg: color-mix(in oklab, var(--elevated) 98%, var(--panel));
@@ -110,13 +116,18 @@
   --rail-title-h: 48px;
   --project-rail-w: clamp(260px, 24vw, 320px);
   --rail-icon-size: 16px;
-  --workspace-dock-w: 132px;
+  --workspace-dock-w: 288px;
   --activity-rail-w: clamp(280px, 26vw, 340px);
   --content-max: 100%;
   /* Conversation column — transcript + panels + jobs. Composer uses --composer-max. */
   --column-max: 52rem;
   --column-inset: var(--space-xl);
-  --reading-max: var(--composer-max);
+  /* Transcript framing is wider than the composer on desktop so long answers
+     do not sit against the window edge. Narrow layouts inherit the column inset. */
+  --transcript-inset: var(--space-2xl);
+  /* The transcript can breathe wider than the composer. Keep prose readable,
+     but let sources, tables, charts, and code use the full output measure. */
+  --reading-max: 130ch;
   --composer-clearance: 184px;
   /* Composer is intentionally tighter/taller than the transcript column */
   --composer-max: 40rem;
@@ -149,6 +160,7 @@
   --shadow-float: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 30%, transparent), 0 8px 24px color-mix(in oklab, var(--shadow-ink) 36%, transparent);
   --shadow-menu: 0 1px 3px color-mix(in oklab, var(--shadow-ink) 28%, transparent), 0 12px 32px color-mix(in oklab, var(--shadow-ink) 34%, transparent);
   --shadow-modal: 0 4px 14px color-mix(in oklab, var(--shadow-ink) 34%, transparent), 0 28px 68px color-mix(in oklab, var(--shadow-ink) 46%, transparent);
+  --shadow-dock: 0 2px 4px color-mix(in oklab, var(--shadow-ink) 22%, transparent), 0 16px 36px color-mix(in oklab, var(--shadow-ink) 34%, transparent);
   --shadow-drawer: 16px 0 40px color-mix(in oklab, var(--shadow-ink) 34%, transparent);
   --shadow-drawer-end: -16px 0 40px color-mix(in oklab, var(--shadow-ink) 34%, transparent);
   --shadow-composer: 0 8px 28px color-mix(in oklab, var(--shadow-ink) 16%, transparent);
@@ -174,6 +186,10 @@ html[data-scheme="light"] {
   --text-secondary: color-mix(in oklab, var(--assistant) 58%, var(--muted));
   --text-subtle: color-mix(in oklab, var(--muted) 90%, var(--assistant) 10%);
   --edge-highlight: inset 0 1px 0 color-mix(in oklab, var(--edge-lit) 78%, transparent);
+  --blur-veil: 10px;
+  --blur-surface: 14px;
+  --blur-overlay: 18px;
+  --blur-saturation: 1.04;
   --card-bg: var(--elevated);
   --drawer-bg: var(--elevated);
   --bubble-user-bg: var(--elevated);
@@ -189,6 +205,7 @@ html[data-scheme="light"] {
   --shadow-float: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 6%, transparent), 0 10px 28px color-mix(in oklab, var(--shadow-ink) 10%, transparent);
   --shadow-menu: 0 1px 2px color-mix(in oklab, var(--shadow-ink) 6%, transparent), 0 12px 32px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
   --shadow-modal: 0 4px 14px color-mix(in oklab, var(--shadow-ink) 10%, transparent), 0 24px 64px color-mix(in oklab, var(--shadow-ink) 16%, transparent);
+  --shadow-dock: 0 2px 4px color-mix(in oklab, var(--shadow-ink) 7%, transparent), 0 16px 36px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
   --shadow-drawer: 16px 0 40px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
   --shadow-drawer-end: -16px 0 40px color-mix(in oklab, var(--shadow-ink) 12%, transparent);
   --shadow-composer: 0 2px 4px color-mix(in oklab, var(--shadow-ink) 5%, transparent), 0 10px 28px color-mix(in oklab, var(--shadow-ink) 9%, transparent);
@@ -269,7 +286,7 @@ button:disabled, input:disabled, textarea:disabled {
 
 /* Press feedback for primary/chip actions only — tiny icon controls opt out
    so dense toolbars don't twitch (I60). */
-button:active:not(:disabled):not(.icon-button):not(.composer-ghost):not(.copy-btn):not(.assistant-action):not(.keys-close):not(.catalog-close):not(.catalog-search-clear):not(.session-more):not(.turn-fold):not(.queue-action) {
+button:active:not(:disabled):not(.icon-button):not(.composer-ghost):not(.copy-btn):not(.assistant-action):not(.keys-close):not(.catalog-close):not(.catalog-search-clear):not(.project-more):not(.session-more):not(.turn-fold):not(.queue-action) {
   transform: translateY(var(--press-offset));
   transition-duration: var(--dur-press);
 }
@@ -821,7 +838,12 @@ html[data-platform="darwin"] .rail-chrome {
 .rail-actions {
   display: grid;
   gap: var(--space-2xs);
-  padding: var(--space-xs) var(--space-sm) var(--space-md);
+  padding: var(--space-xs) var(--space-base) var(--space-md);
+}
+
+.rail-primary-actions {
+  padding-top: var(--space-xs);
+  padding-bottom: var(--space-sm);
 }
 
 .rail-action {
@@ -829,8 +851,8 @@ html[data-platform="darwin"] .rail-chrome {
   grid-template-columns: var(--rail-icon-size) minmax(0, 1fr);
   min-height: 34px;
   align-items: center;
-  gap: var(--space-sm);
-  padding: 0 var(--space-base);
+  gap: var(--space-xs);
+  padding: 0;
   border-radius: var(--radius-md);
   color: var(--muted);
   font-size: var(--text-ui);
@@ -910,7 +932,7 @@ html[data-platform="darwin"] .rail-chrome {
   min-height: 26px;
   margin-top: var(--space-sm);
   /* No bottom pad — section body sits tight under the header. */
-  padding: 0 var(--space-sm) 0 var(--space-2xs);
+  padding: 0 var(--space-base);
 }
 
 .rail-section-head:first-of-type {
@@ -927,12 +949,12 @@ html[data-platform="darwin"] .rail-chrome {
 .rail-section-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   flex: 1;
   min-width: 0;
   min-height: 26px;
   margin: 0;
-  padding: 0 var(--space-2xs) 0 var(--space-xs);
+  padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--muted);
@@ -987,7 +1009,7 @@ html[data-platform="darwin"] .rail-chrome {
 }
 
 .rail-section-body {
-  padding: 0 0 var(--space-xs);
+  padding: 0 var(--space-base) var(--space-xs);
 }
 
 .rail-inline-actions {
@@ -1026,11 +1048,11 @@ html[data-platform="darwin"] .rail-chrome {
 
 /* Chats: same session row grammar as project sessions (no extra icon column). */
 .session-list.is-flat {
-  padding: 0 var(--space-2xs);
+  padding: 0;
 }
 
 .session-row.session-row-flat {
-  padding-left: var(--space-sm);
+  padding-left: var(--space-md);
 }
 
 .project-list {
@@ -1044,7 +1066,9 @@ html[data-platform="darwin"] .rail-chrome {
   padding-right: var(--space-base);
 }
 
-.project-group + .project-group { margin-top: var(--space-xs); }
+/* Project rows are the rail's primary scan path: keep a small, deliberate
+   separation without making each folder feel like a separate card. */
+.project-group + .project-group { margin-top: var(--space-2xs); }
 
 .project-heading-row {
   position: relative;
@@ -1056,11 +1080,11 @@ html[data-platform="darwin"] .rail-chrome {
 .project-heading {
   display: grid;
   width: 100%;
-  min-height: 34px;
+  min-height: 30px;
   grid-template-columns: var(--rail-icon-size) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-xs);
-  padding: 0 var(--space-sm);
+  padding: 0;
   border-radius: var(--radius-md);
   color: color-mix(in oklab, var(--assistant) 86%, var(--muted));
   text-align: left;
@@ -1526,6 +1550,21 @@ html[data-platform="darwin"] .rail-action:hover:not(.primary):not(:focus-visible
   background: transparent;
 }
 
+/* The Environment launcher is visually floating but still owns a real lane.
+   Reserve that lane in the chat surface so right-aligned user turns and the
+   composer never render underneath the card. The dock is hidden below 960px,
+   so the responsive rule naturally restores the full-width chat surface. */
+.content-inset:has(.workspace-dock) .main-column {
+  padding-right: calc(var(--workspace-dock-w) + var(--space-lg));
+}
+
+/* Every right-side workspace view owns the same lane. Keeping the lane in the
+   layout, instead of floating over the transcript, prevents user turns and
+   the composer from being hidden underneath a panel. */
+.content-inset.end-panel-open .main-column {
+  padding-right: calc(var(--activity-rail-w) + var(--space-lg));
+}
+
 html.glass .main-column,
 html.electron-transparent .main-column { background: transparent; }
 
@@ -1552,12 +1591,12 @@ html.electron-transparent .main-column { background: transparent; }
   pointer-events: none;
   background: linear-gradient(
     to top,
-    color-mix(in oklab, var(--bg) 58%, transparent) 0%,
+    color-mix(in oklab, var(--bg) 88%, var(--shadow-ink) 12%) 0%,
     color-mix(in oklab, var(--bg) 18%, transparent) 55%,
     transparent 100%
   );
-  backdrop-filter: blur(12px) saturate(1.06);
-  -webkit-backdrop-filter: blur(12px) saturate(1.06);
+  backdrop-filter: blur(var(--blur-veil)) saturate(var(--blur-saturation));
+  -webkit-backdrop-filter: blur(var(--blur-veil)) saturate(var(--blur-saturation));
   -webkit-mask-image: linear-gradient(
     to top,
     black 0%,
@@ -1577,12 +1616,12 @@ html.electron-transparent .main-column { background: transparent; }
 html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   background: linear-gradient(
     to top,
-    color-mix(in oklab, var(--bg) 64%, transparent) 0%,
+    color-mix(in oklab, var(--bg) 96%, var(--shadow-ink) 4%) 0%,
     color-mix(in oklab, var(--bg) 22%, transparent) 55%,
     transparent 100%
   );
-  backdrop-filter: blur(10px) saturate(1.04);
-  -webkit-backdrop-filter: blur(10px) saturate(1.04);
+  backdrop-filter: blur(var(--blur-veil)) saturate(var(--blur-saturation));
+  -webkit-backdrop-filter: blur(var(--blur-veil)) saturate(var(--blur-saturation));
 }
 
 .chat-column.is-empty {
@@ -1625,14 +1664,14 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--space-md) var(--column-inset) calc(var(--composer-clearance) + var(--space-md));
+  padding: var(--space-md) var(--transcript-inset) calc(var(--composer-clearance) + var(--space-md));
   scroll-padding-bottom: calc(var(--composer-clearance) + var(--space-md));
 }
 
 .transcript:has(> .splash) {
   display: flex;
   flex-direction: column;
-  padding: 0 var(--column-inset) var(--composer-clearance);
+  padding: 0 var(--transcript-inset) var(--composer-clearance);
 }
 
 .transcript:has(> .splash) > .splash { flex: 0 0 auto; min-height: 0; }
@@ -1641,8 +1680,8 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   display: flex;
   width: min(100%, var(--reading-max));
   flex-direction: column;
-  /* Turn-to-turn: enough separation without a sparse void */
-  gap: var(--space-lg);
+  /* Keep turns distinct, but do not strand the answer below its user turn. */
+  gap: var(--space-md);
   margin: 0 auto;
   padding-bottom: var(--space-base);
 }
@@ -1654,16 +1693,16 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
   display: flex;
   flex-direction: column;
   /* User → activity → answer: tight stack, not equal air gaps */
-  gap: var(--space-sm);
+  gap: var(--space-xs);
 }
 
 /* ── User bubble — click the message to fold the turn ───────────────────── */
 
 .block-user-row {
   display: flex;
-  width: 100%;
-  max-width: 100%;
-  margin-left: auto;
+  width: min(100%, var(--composer-max));
+  max-width: var(--composer-max);
+  margin-inline: auto;
   align-self: flex-end;
   align-items: flex-end;
   justify-content: flex-end;
@@ -1750,41 +1789,51 @@ html[data-scheme="light"] .chat-column:not(.is-empty)::after {
 
 .block-assistant {
   position: relative;
-  width: min(100%, 72ch);
+  width: min(100%, 68ch);
   max-width: 100%;
-  margin: 0;
+  margin: 0 auto;
   padding: 2px 0 0;
   color: var(--assistant);
   font-family: var(--font-sans);
   font-size: var(--text-prose);
   font-weight: var(--weight-regular);
-  line-height: var(--leading-prose);
+  line-height: 1.58;
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   text-rendering: optimizeLegibility;
 }
 
+/* Structured output benefits from a wider canvas than prose. This keeps the
+   answer readable while preventing tables, source cards, charts, and code from
+   becoming a narrow column stranded in the middle of a large desktop window. */
+.block-assistant:has(.source-list),
+.block-assistant:has([data-streamdown="table-wrapper"]),
+.block-assistant:has([data-streamdown="code-block"]),
+.block-assistant:has(.rich-block) {
+  width: min(100%, var(--reading-max));
+}
+
 /* After tools/thinking, give the answer a little more room to breathe */
 .thinking-group + .block-assistant,
 .tool-row + .block-assistant {
-  margin-top: var(--space-xs);
-  padding-top: var(--space-2xs);
+  margin-top: var(--space-2xs);
+  padding-top: 0;
 }
 
 .block-assistant .md { white-space: normal; }
 html[data-scheme="light"] .block-assistant { color: var(--assistant); }
 
 .block-assistant .md {
-  line-height: 1.65;
+  line-height: 1.58;
 }
 
 .block-assistant .md p,
 .block-assistant .md ul,
 .block-assistant .md ol,
 .block-assistant .md blockquote {
-  margin-top: 0.65em;
-  margin-bottom: 0.65em;
+  margin-top: 0.55em;
+  margin-bottom: 0.55em;
 }
 
 .block-assistant .md > :first-child { margin-top: 0; }
@@ -1802,8 +1851,8 @@ html[data-scheme="light"] .block-assistant { color: var(--assistant); }
 .md > :first-child { margin-top: 0; }
 .md > :last-child { margin-bottom: 0; }
 
-.md p, .md ul, .md ol, .md blockquote { margin: 0.65em 0; }
-.md p + ul, .md p + ol, .md ul + p, .md ol + p { margin-top: 0.45em; }
+.md p, .md ul, .md ol, .md blockquote { margin: 0.55em 0; }
+.md p + ul, .md p + ol, .md ul + p, .md ol + p { margin-top: 0.35em; }
 
 /* Streamdown ships Tailwind list-inside utilities — force outside so nested
    definition lists (bold label → detail lines) keep a clean hanging indent. */
@@ -1825,7 +1874,7 @@ html[data-scheme="light"] .block-assistant { color: var(--assistant); }
   color: inherit;
 }
 .md li + li,
-.md [data-streamdown="list-item"] + [data-streamdown="list-item"] { margin-top: 0.48em; }
+.md [data-streamdown="list-item"] + [data-streamdown="list-item"] { margin-top: 0.35em; }
 .md li > p { margin: 0.35em 0; }
 .md li > ul,
 .md li > ol,
@@ -1852,7 +1901,7 @@ html[data-scheme="light"] .block-assistant { color: var(--assistant); }
 .md [data-streamdown="heading-4"],
 .md [data-streamdown="heading-5"],
 .md [data-streamdown="heading-6"] {
-  margin: 1.4em 0 0.5em;
+  margin: 1.2em 0 0.45em;
   color: var(--heading);
   font-family: var(--font-sans);
   font-weight: var(--weight-semibold);
@@ -2704,11 +2753,29 @@ html[data-scheme="light"] .md pre {
   white-space: pre-wrap;
 }
 
+/* Informational milestones are part of the activity trail, not interruptive
+   alerts. Keep warnings/errors card-like, but let checkpoints read as quiet
+   inline status so they do not outrank the answer that follows. */
+.notice.info {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-subtle);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-caption);
+  line-height: var(--leading-ui);
+}
+
 .source-list {
   display: flex;
   flex-direction: column;
   list-style: none;
-  gap: 12px;
+  gap: var(--space-sm);
   margin: 0.85em 0;
   padding: 0;
   color: var(--muted);
@@ -2726,9 +2793,9 @@ html[data-scheme="light"] .md pre {
   display: grid;
   grid-template-columns: 2.25ch minmax(0, 1fr);
   align-items: start;
-  gap: 2px var(--space-sm);
+  gap: 4px var(--space-md);
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--space-base) var(--space-md);
   border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
   border-radius: var(--radius-lg);
   background: color-mix(in oklab, var(--surface-subtle) 42%, transparent);
@@ -3008,18 +3075,25 @@ html[data-scheme="light"] .md pre {
 }
 
 .panels {
-  position: relative;
+  position: absolute;
+  right: 0;
+  bottom: calc(var(--composer-clearance) + var(--space-sm));
+  left: 0;
   z-index: var(--z-composer);
   display: flex;
   width: min(calc(100% - 2 * var(--column-inset)), var(--composer-max));
   max-width: var(--composer-max);
-  max-height: min(52%, calc(100% - var(--composer-clearance)));
-  flex: 0 1 auto;
+  max-height: calc(100% - var(--composer-clearance) - var(--space-xl));
+  min-height: 0;
+  flex: none;
   flex-direction: column;
   gap: var(--space-sm);
-  margin: 0 auto calc(var(--composer-clearance) + var(--space-sm));
+  margin: 0 auto;
   padding: 0 0 var(--space-sm);
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .panels:empty, .panels:not(:has(*)) { display: none; padding: 0; margin: 0; }
@@ -3101,6 +3175,73 @@ html[data-scheme="light"] .md pre {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Compact post-turn review affordance. It sits above the composer so changed
+   files remain discoverable without turning the input area into a second card. */
+.changed-files-pill {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: min(100%, 360px);
+  min-height: 30px;
+  padding: 0 9px 0 8px;
+  border: 1px solid color-mix(in oklab, var(--border) 34%, transparent);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  background: color-mix(in oklab, var(--elevated) 92%, var(--bg));
+  box-shadow: var(--elev-rest);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), transform var(--dur-press);
+  animation: surface-enter var(--dur-standard) var(--ease-enter);
+}
+
+.changed-files-pill:hover,
+.changed-files-pill:focus-visible {
+  color: var(--assistant);
+  border-color: color-mix(in oklab, var(--border) 58%, transparent);
+  background: color-mix(in oklab, var(--elevated) 96%, var(--surface));
+}
+
+.changed-files-pill:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--elev-rest);
+}
+
+.changed-files-pill:active { transform: translateY(var(--press-offset)); }
+
+.changed-files-pill-icon {
+  display: inline-flex;
+  color: var(--text-subtle);
+}
+
+.changed-files-pill:hover .changed-files-pill-icon,
+.changed-files-pill:focus-visible .changed-files-pill-icon { color: var(--assistant); }
+
+.changed-files-pill-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed-files-pill-stats {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.changed-files-pill > svg:last-child {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
 }
 
 /* ── Turn changes card (post-agent file review) ─────────────────────────── */
@@ -3242,51 +3383,110 @@ html[data-scheme="light"] .md pre {
   background: color-mix(in oklab, var(--surface) 40%, transparent);
 }
 
-/* ── Workspace dock (right strip on chat surface — same --bg as content-inset) ─ */
+/* ── Workspace dock (floating environment card on the chat surface) ──────── */
 
 .workspace-dock {
+  position: absolute;
+  z-index: var(--z-drawer);
+  /* .main-column already begins below the topbar; adding --topbar-h here
+     double-offsets the card and leaves an awkward dead zone above it. */
+  top: var(--space-sm);
+  right: var(--space-md);
   display: flex;
-  flex: 0 0 var(--workspace-dock-w);
   flex-direction: column;
-  width: var(--workspace-dock-w);
-  min-width: var(--workspace-dock-w);
-  min-height: 0;
-  /* Match chat stage exactly — never rail/panel/transparent-over-glass. */
-  border: 0;
-  background: var(--bg);
-  z-index: var(--z-raised);
+  width: min(var(--workspace-dock-w), calc(100% - 2 * var(--space-md)));
+  max-height: calc(100% - 2 * var(--space-sm));
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 34%, transparent);
+  border-radius: var(--radius-xl);
+  background: var(--drawer-bg);
+  box-shadow: var(--shadow-dock);
+  animation: workspace-dock-enter var(--dur-standard) var(--ease-enter);
+}
+
+@keyframes workspace-dock-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 html.glass .workspace-dock,
 html.electron-transparent .workspace-dock {
-  background: var(--bg);
+  border-color: color-mix(in oklab, var(--border) 28%, transparent);
+  background: color-mix(in oklab, var(--elevated) 92%, transparent);
+  backdrop-filter: blur(var(--blur-overlay));
+  -webkit-backdrop-filter: blur(var(--blur-overlay));
 }
 
-/* Inspector floats over chat, not over the dock labels. */
-.main-column:has(.workspace-dock) .activity-rail {
-  right: calc(var(--workspace-dock-w) + var(--space-md));
+.workspace-dock-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md) var(--space-xs);
+}
+
+.workspace-dock-header-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.workspace-dock-eyebrow,
+.workspace-dock-section-label {
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-ui);
+}
+
+.workspace-dock-eyebrow {
+  letter-spacing: 0.01em;
+}
+
+.workspace-dock-project {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--assistant);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace-dock-nav {
   display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 1px;
+  flex: 0 1 auto;
   min-height: 0;
-  padding: var(--space-sm) var(--space-xs) var(--space-md);
-  overflow-y: auto;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: 0 var(--space-xs) var(--space-xs);
+  /* This is a short control cluster, not a second document surface. The
+     transcript owns scrolling and keeps its scrollbar at the window edge. */
+  overflow: visible;
+}
+
+.workspace-dock-section-label {
+  margin: var(--space-xs) var(--space-xs) var(--space-2xs);
+}
+
+.workspace-dock-divider {
+  height: 1px;
+  margin: var(--space-xs) var(--space-xs) var(--space-2xs);
+  background: color-mix(in oklab, var(--border) 26%, transparent);
 }
 
 .workspace-dock-row {
+  position: relative;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  min-height: 32px;
-  padding: 0 8px;
+  min-height: var(--space-lg);
+  padding: 0 var(--space-sm);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: color-mix(in oklab, var(--muted) 88%, var(--assistant));
   background: transparent;
   font-family: var(--font-sans);
@@ -3305,7 +3505,10 @@ html.electron-transparent .workspace-dock {
 
 .workspace-dock-row:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
+  /* Section controls use a quiet state change instead of a bright focus
+     outline that reads like a border around the card. */
+  box-shadow: none;
+  background: color-mix(in oklab, var(--surface) 58%, transparent);
 }
 
 .workspace-dock-row.is-active {
@@ -3346,8 +3549,10 @@ html.electron-transparent .workspace-dock {
 .workspace-dock-meta {
   display: inline-flex;
   gap: 6px;
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
   font-variant-numeric: tabular-nums;
 }
 
@@ -3356,8 +3561,8 @@ html.electron-transparent .workspace-dock {
     display: none;
   }
 
-  .main-column:has(.workspace-dock) .activity-rail {
-    right: var(--space-md);
+  .content-inset:has(.workspace-dock) .main-column {
+    padding-right: 0;
   }
 }
 
@@ -3913,7 +4118,7 @@ html.electron-transparent .workspace-dock {
   border: 1px solid color-mix(in oklab, var(--border) 36%, transparent);
   border-radius: calc(var(--radius-xl) + var(--space-xs));
   background: var(--elevated);
-  box-shadow: var(--elev-rest), var(--edge-highlight);
+  box-shadow: var(--elev-rest);
 }
 
 html.glass .composer-queue-tray,
@@ -3921,17 +4126,17 @@ html.electron-transparent .composer-queue-tray {
   border-color: color-mix(in oklab, var(--border) 28%, transparent);
   background: color-mix(in oklab, var(--elevated) 64%, transparent);
   box-shadow: var(--elev-rest), inset 0 1px 0 color-mix(in oklab, var(--edge-lit) 7%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
 }
 
 html[data-scheme="light"].glass .composer-queue-tray,
 html[data-scheme="light"].electron-transparent .composer-queue-tray {
   border-color: color-mix(in oklab, var(--border) 40%, transparent);
   background: color-mix(in oklab, var(--elevated) 88%, transparent);
-  box-shadow: var(--elev-rest), var(--edge-highlight);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--elev-rest);
+  backdrop-filter: blur(var(--blur-surface));
+  -webkit-backdrop-filter: blur(var(--blur-surface));
 }
 
 .spinner {
@@ -4088,8 +4293,8 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   border-radius: var(--radius-lg);
   color: var(--assistant);
   background: color-mix(in oklab, var(--elevated) 92%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--blur-veil));
+  -webkit-backdrop-filter: blur(var(--blur-veil));
 }
 
 .composer-drop-overlay > span:last-child {
@@ -4130,8 +4335,8 @@ html[data-scheme="light"].electron-transparent .composer-queue-tray {
   /* Continuous coverage is intentional: the transcript must not remain
      readable through the top edge of the floating input. */
   background: color-mix(in oklab, var(--elevated) 68%, transparent);
-  backdrop-filter: blur(16px) saturate(1.06);
-  -webkit-backdrop-filter: blur(16px) saturate(1.06);
+  backdrop-filter: blur(var(--blur-surface)) saturate(var(--blur-saturation));
+  -webkit-backdrop-filter: blur(var(--blur-surface)) saturate(var(--blur-saturation));
 }
 
 html.glass .composer-wrap,
@@ -4147,8 +4352,8 @@ html[data-scheme="light"] .composer-wrap {
 
 html[data-scheme="light"] .composer-wrap::before {
   background: color-mix(in oklab, var(--elevated) 78%, transparent);
-  backdrop-filter: blur(14px) saturate(1.04);
-  -webkit-backdrop-filter: blur(14px) saturate(1.04);
+  backdrop-filter: blur(var(--blur-surface)) saturate(var(--blur-saturation));
+  -webkit-backdrop-filter: blur(var(--blur-surface)) saturate(var(--blur-saturation));
 }
 
 html[data-scheme="light"].glass .composer-wrap,
@@ -4830,10 +5035,10 @@ html.electron-transparent .composer-wrap:focus-within {
 
 .slash-menu-header {
   justify-content: space-between;
-  padding: 10px var(--space-base) 8px;
-  color: var(--muted);
+  padding: 8px var(--space-md) 6px;
+  color: var(--text-subtle);
   font-family: var(--font-sans);
-  font-size: var(--text-ui);
+  font-size: var(--text-caption);
   font-weight: var(--weight-medium);
   letter-spacing: 0;
   line-height: var(--leading-ui);
@@ -4850,14 +5055,19 @@ html.electron-transparent .composer-wrap:focus-within {
 }
 
 .slash-menu-body {
-  padding: 6px;
+  padding: 6px 8px;
 }
+
+/* The slash trigger already tells the user what surface they opened. Keep
+   command mode focused on the choices, like a native command palette. Value
+   pickers retain their small context header (e.g. /model → options). */
+.slash-menu-command .slash-menu-header { display: none; }
 
 .slash-menu-footer {
   flex-wrap: wrap;
   justify-content: flex-start;
   gap: var(--space-sm);
-  padding: 8px var(--space-md);
+  padding: 7px var(--space-md);
 }
 
 .slash-menu-footer .action-kbd { margin-left: 0; }
@@ -4866,10 +5076,10 @@ html.electron-transparent .composer-wrap:focus-within {
 .slash-item {
   display: flex;
   width: 100%;
-  min-height: 38px;
+  min-height: 34px;
   align-items: center;
-  gap: var(--space-sm);
-  padding: 7px 10px;
+  gap: 10px;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-align: left;
@@ -4887,9 +5097,17 @@ html.electron-transparent .composer-wrap:focus-within {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--sel-fg) 16%, transparent);
 }
 
-.slash-item-copy { display: grid; min-width: 0; flex: 1 1 auto; gap: 2px; }
+.slash-item-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 10px;
+}
 
 .slash-item .name {
+  flex: 0 1 auto;
+  max-width: 46%;
   min-width: 0;
   overflow: hidden;
   color: inherit;
@@ -4902,12 +5120,14 @@ html.electron-transparent .composer-wrap:focus-within {
 }
 
 .slash-item .desc {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   color: var(--text-subtle);
   font-family: var(--font-sans);
-  font-size: var(--text-caption);
+  font-size: var(--text-ui);
   font-weight: 400;
+  line-height: var(--leading-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -4950,10 +5170,11 @@ html.electron-transparent .composer-wrap:focus-within {
 .activity-rail {
   position: absolute;
   z-index: var(--z-drawer);
-  /* The rail is positioned inside .main-column, already below the topbar. */
+  /* Side sections own the same edge as the environment launcher. The
+     launcher is handed off when one opens, so these surfaces never stack. */
   top: var(--space-sm);
   right: var(--space-md);
-  bottom: var(--space-md);
+  bottom: var(--space-sm);
   display: flex;
   width: min(var(--activity-rail-w), calc(100% - 2 * var(--space-md)));
   min-width: 0;
@@ -4966,7 +5187,7 @@ html.electron-transparent .composer-wrap:focus-within {
   border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
   border-radius: var(--radius-xl);
   background: var(--drawer-bg);
-  box-shadow: var(--elev-modal);
+  box-shadow: var(--shadow-dock);
   opacity: 1;
   transform: translateX(0);
   transition:
@@ -4992,8 +5213,8 @@ html.glass .activity-rail,
 html.electron-transparent .activity-rail {
   background: color-mix(in oklab, var(--elevated) 88%, transparent);
   border-color: color-mix(in oklab, var(--border) 34%, transparent);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(var(--blur-overlay));
+  -webkit-backdrop-filter: blur(var(--blur-overlay));
 }
 
 html[data-scheme="light"].glass .activity-rail,
@@ -5042,7 +5263,7 @@ html[data-scheme="light"].electron-transparent .activity-rail {
   gap: var(--space-md);
   margin: 0;
   padding: var(--space-md) var(--space-base) var(--space-sm);
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
+  border-bottom: 0;
   background: var(--drawer-bg);
 }
 
@@ -5532,21 +5753,24 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 .jobs-drawer-root {
   position: absolute;
-  z-index: var(--z-overlay);
+  z-index: var(--z-drawer);
   inset: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  align-items: flex-end;
+  justify-content: flex-start;
   pointer-events: none;
 }
 
 .jobs-drawer-backdrop {
+  display: block;
   position: absolute;
   inset: 0;
   margin: 0;
   padding: 0;
   border: 0;
-  background: color-mix(in oklab, var(--bg) 52%, transparent);
+  /* The desktop drawer shares the Session panel's quiet, non-dimming entry. */
+  background: transparent;
   cursor: pointer;
   pointer-events: auto;
   animation: jobs-backdrop-in var(--dur-fast) var(--ease-enter);
@@ -5558,20 +5782,24 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .jobs-drawer {
-  position: relative;
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-md);
+  bottom: var(--space-sm);
   z-index: var(--z-raised);
   display: flex;
-  width: min(calc(100% - 2 * var(--column-inset)), var(--column-max));
-  max-height: min(74%, 42rem);
+  width: min(var(--activity-rail-w), calc(100% - 2 * var(--space-md)));
+  height: auto;
+  max-height: none;
   flex-direction: column;
-  margin: 0 auto var(--space-sm);
+  margin: 0;
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--border) 36%, transparent);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   background: var(--drawer-bg);
-  box-shadow: var(--elev-modal);
+  box-shadow: var(--shadow-dock);
   pointer-events: auto;
-  animation: surface-enter var(--dur-standard) var(--ease-enter);
+  animation: inspector-enter var(--dur-standard) var(--ease-enter);
 }
 
 .jobs-view {
@@ -5588,8 +5816,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   align-items: flex-start;
   gap: var(--space-xs);
   margin: 0 0 var(--space-md);
-  padding: 0 0 var(--space-sm);
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
+  padding: 0;
 }
 
 .jobs-heading-copy { flex: 1 1 auto; min-width: 0; }
@@ -6025,6 +6252,19 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   text-align: center;
 }
 
+/* Cold-start boot is a short transition, not a destination. Keep the message
+   compact so the app does not feel like it replaced the workspace with a
+   blocking splash screen while the host is coming online. */
+.gate.is-booting {
+  justify-content: flex-start;
+  padding-top: clamp(24px, 10vh, 96px);
+}
+
+.gate.is-booting .gate-inner { gap: var(--space-md); }
+.gate.is-booting .gate-copy { gap: var(--space-2xs); }
+.gate.is-booting .gate-copy h1 { font-size: var(--text-title); }
+.gate.is-booting .gate-copy p { font-size: var(--text-caption); }
+
 .gate-inner {
   display: flex;
   width: min(100%, 28rem);
@@ -6172,34 +6412,72 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .session-boot {
+  position: absolute;
+  z-index: var(--z-float);
+  top: 0;
+  right: 0;
+  left: 0;
   display: flex;
-  flex: 1; min-height: 0;
-  align-items: center; justify-content: center;
-  padding: var(--space-xl) var(--space-lg);
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-md) var(--column-inset);
+  pointer-events: none;
 }
 
 .session-boot-inner {
   display: flex;
   width: min(100%, var(--column-max));
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: var(--space-lg);
-  text-align: center;
+  gap: var(--space-sm);
+  padding: 9px var(--space-md);
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--elevated) 92%, var(--bg));
+  box-shadow: var(--shadow-menu);
+  text-align: left;
 }
 
-.session-boot-copy { display: grid; gap: var(--space-xs); justify-items: center; }
+.session-boot-copy { display: grid; gap: 1px; min-width: 0; }
 
 .session-boot-copy h1 {
   margin: 0;
   color: var(--assistant);
-  font-size: clamp(22px, 2.6vw, 28px);
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: var(--text-ui);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
 }
 
-.session-boot-copy p { margin: 0; color: var(--muted); font-size: var(--text-ui); line-height: 1.5; }
+.session-boot-copy p { margin: 0; color: var(--text-subtle); font-size: var(--text-caption); line-height: 1.35; }
 
-.session-boot .gate-spinner { width: 18px; height: 18px; }
+.session-boot .gate-spinner { width: 15px; height: 15px; flex: 0 0 auto; }
+
+/* Errors remain a real recovery surface with clickable actions, unlike the
+   passive loading strip above. */
+.session-boot-error {
+  position: relative;
+  z-index: auto;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  padding: var(--space-xl) var(--space-lg);
+  pointer-events: auto;
+}
+
+.session-boot-error .session-boot-inner {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: center;
+}
+
+.session-boot-error .session-boot-copy { justify-items: center; gap: var(--space-xs); }
+.session-boot-error .session-boot-copy h1 { font-size: clamp(22px, 2.6vw, 28px); letter-spacing: -0.03em; }
+.session-boot-error .session-boot-copy p { font-size: var(--text-ui); line-height: 1.5; }
 
 /* ── Catalog popover ────────────────────────────────────────────────────── */
 
@@ -6586,6 +6864,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 @media (max-width: 900px) {
   :root {
     --column-inset: 16px;
+    --transcript-inset: var(--column-inset);
     --drawer-start-w: min(320px, calc(100vw - 48px));
   }
 
@@ -6611,10 +6890,12 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     display: block;
   }
 
-  .panels, .context-line {
+  .context-line {
     position: relative;
     z-index: var(--z-composer);
   }
+
+  .panels { z-index: var(--z-composer); }
 
   .composer-stack {
     position: absolute;
@@ -6626,7 +6907,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     --drawer-end-w: min(100%, 360px);
   }
 
-  .inspector-rail, .activity-rail {
+  .inspector-rail, .activity-rail, .jobs-drawer {
     position: absolute;
     z-index: var(--z-drawer);
     top: 0; right: 0; bottom: 0;
@@ -6641,10 +6922,26 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     -webkit-backdrop-filter: none;
   }
 
+  .jobs-drawer {
+    left: auto;
+    height: auto;
+    margin: 0;
+  }
+
+  .content-inset.end-panel-open .main-column {
+    padding-right: 0;
+  }
+
+  .jobs-drawer-backdrop {
+    background: color-mix(in oklab, var(--bg) 52%, transparent);
+  }
+
   html.glass .inspector-rail,
   html.glass .activity-rail,
+  html.glass .jobs-drawer,
   html.electron-transparent .inspector-rail,
-  html.electron-transparent .activity-rail {
+  html.electron-transparent .activity-rail,
+  html.electron-transparent .jobs-drawer {
     background: color-mix(in oklab, var(--bg) 98%, transparent);
   }
 
@@ -6660,7 +6957,10 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 @media (max-width: 640px) {
-  :root { --column-inset: var(--space-sm); }
+  :root {
+    --column-inset: var(--space-sm);
+    --transcript-inset: var(--column-inset);
+  }
 
   .topbar { padding-right: 8px; }
   .transcript {
@@ -6678,7 +6978,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
     flex-wrap: wrap;
     row-gap: 6px;
   }
-  .activity-rail, .inspector-rail {
+  .activity-rail, .inspector-rail, .jobs-drawer {
     width: min(100%, 100vw);
     flex-basis: min(100%, 100vw);
   }
@@ -7004,7 +7304,85 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 /* The sidebar reuses .project-rail styling; these additions style the
    settings-specific nav list and the git status display inside the rail. */
 .settings-rail {
-  /* Ensure the rail fills height and the nav scrolls */
+  --settings-rail-w: clamp(270px, 23vw, 304px);
+  width: var(--settings-rail-w);
+  flex-basis: var(--settings-rail-w);
+  background: color-mix(in oklab, var(--rail) 92%, var(--bg));
+}
+
+.settings-back {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-2xs);
+  margin: 0 var(--space-base) var(--space-sm);
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+
+.settings-back:hover { color: var(--assistant); }
+.settings-back:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.settings-search {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 32px;
+  margin: 0 var(--space-sm) var(--space-sm);
+  padding: 0 var(--space-sm);
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface) 30%, transparent);
+  color: var(--text-subtle);
+  transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.settings-search:focus-within {
+  border-color: color-mix(in oklab, var(--border-active) 64%, transparent);
+  background: color-mix(in oklab, var(--surface) 50%, transparent);
+  box-shadow: var(--focus-ring);
+}
+
+.settings-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--assistant);
+  font: inherit;
+  font-size: var(--text-caption);
+}
+
+.settings-search input::placeholder { color: var(--text-subtle); }
+
+.settings-nav-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 0 var(--space-base) var(--space-2xs);
+}
+
+.settings-nav-heading .rail-section-label { margin: 0; }
+
+.settings-scope-hint {
+  overflow: hidden;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-nav-list {
@@ -7012,17 +7390,37 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  gap: 1px;
-  padding: 0 var(--space-2xs) var(--space-base);
+  gap: 0;
+  padding: 0 var(--space-xs) var(--space-base);
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.settings-nav-group + .settings-nav-group {
+  margin-top: var(--space-sm);
+}
+
+.settings-nav-group-label {
+  margin: 0;
+  padding: var(--space-2xs) var(--space-xs) var(--space-2xs);
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
+  line-height: 1.2;
 }
 
 .settings-nav-item {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-xs);
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -7038,7 +7436,16 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 }
 
 .settings-nav-item.active {
-  background: color-mix(in oklab, var(--surface) 60%, transparent);
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  color: var(--assistant);
+}
+
+.settings-nav-item:focus-visible {
+  /* Keep section focus legible through color and surface only. Section
+     navigation should never grow a bright outline or border. */
+  outline: none;
+  box-shadow: none;
+  background: color-mix(in oklab, var(--surface) 58%, transparent);
   color: var(--assistant);
 }
 
@@ -7062,6 +7469,25 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.settings-nav-empty {
+  margin: var(--space-sm) var(--space-sm);
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: 1.4;
+}
+
+/* Git's quick actions are text-only. Remove the reserved icon column so their
+   labels share the same left edge as the Git title and section navigation. */
+.git-rail-actions {
+  padding-inline: var(--space-base);
+}
+
+.git-rail-actions .rail-action {
+  grid-template-columns: minmax(0, 1fr);
+  padding-inline: 0;
 }
 
 /* Git status display in the rail */
@@ -7093,12 +7519,14 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-base);
-  padding: var(--space-md) var(--space-lg) var(--space-sm);
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 14%, transparent);
+  padding: 28px clamp(24px, 5vw, 56px) 20px;
+  border-bottom: 0;
 }
 
 .settings-form-header-copy {
   min-width: 0;
+  width: min(100%, 960px);
+  margin-inline: auto;
 }
 
 .settings-form-title {
@@ -7125,10 +7553,15 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  gap: var(--space-md);
-  padding: var(--space-base) var(--space-lg) var(--space-xl);
+  gap: 0;
+  padding: 28px clamp(24px, 5vw, 56px) 56px;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.settings-form-scroll > * {
+  width: min(100%, 960px);
+  margin-inline: auto;
 }
 
 .settings-loading,
@@ -7162,10 +7595,17 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 /* ── Form controls ─────────────────────────────────────────────────────── */
 
 .setting-field {
-  display: flex;
-  gap: var(--space-base);
-  margin-bottom: var(--space-base);
+  display: grid;
+  grid-template-columns: minmax(220px, 0.82fr) minmax(280px, 1.18fr);
+  gap: clamp(20px, 4vw, 56px);
+  align-items: start;
+  padding: 16px 0;
+  margin: 0;
+  border-bottom: 0;
 }
+
+.setting-field:first-child { padding-top: 0; }
+.setting-field:last-child { border-bottom: 0; }
 
 .setting-field-label {
   display: flex;
@@ -7205,7 +7645,8 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 .setting-select,
 .setting-textarea {
   width: 100%;
-  padding: 6px 10px;
+  min-height: 36px;
+  padding: 7px 11px;
   border: 1px solid color-mix(in oklab, var(--border) 40%, transparent);
   border-radius: var(--radius-sm);
   background: color-mix(in oklab, var(--bg) 50%, transparent);
@@ -7245,7 +7686,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 .setting-textarea {
   resize: vertical;
-  min-height: 60px;
+  min-height: 84px;
   line-height: var(--leading-prose);
 }
 
@@ -7344,27 +7785,30 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
 
 /* Section card */
 .setting-section {
-  margin-bottom: var(--space-md);
+  margin-bottom: 48px;
 }
 
 .setting-section-header {
-  margin-bottom: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  margin-bottom: 0;
+  border-bottom: 0;
 }
 
 .setting-section-title {
   margin: 0;
   color: var(--assistant);
   font-family: var(--font-sans);
-  font-size: var(--text-title);
+  font-size: 17px;
   font-weight: var(--weight-semibold);
   letter-spacing: -0.02em;
 }
 
 .setting-section-desc {
   margin: var(--space-2xs) 0 0;
+  max-width: 68ch;
   color: var(--text-subtle);
   font-family: var(--font-sans);
-  font-size: var(--text-caption);
+  font-size: var(--text-ui);
   line-height: 1.35;
 }
 
@@ -7500,8 +7944,11 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
-  padding: var(--space-xs) var(--space-lg);
-  border-top: 1px solid color-mix(in oklab, var(--border) 18%, transparent);
+  min-height: 56px;
+  padding: var(--space-sm) clamp(24px, 5vw, 56px);
+  border-top: 0;
+  background: color-mix(in oklab, var(--bg) 94%, var(--surface));
+  box-shadow: 0 -10px 24px color-mix(in oklab, var(--shadow-ink) 10%, transparent);
 }
 
 .settings-save-status {
@@ -7562,7 +8009,7 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   cursor: not-allowed;
 }
 
-/* ── Rail footer (settings + git buttons) ──────────────────────────────── */
+/* ── Rail footer (app settings) ────────────────────────────────────────── */
 
 .rail-footer {
   display: flex;
@@ -8097,18 +8544,112 @@ html.electron-transparent .sidebar-heading-row { background: color-mix(in oklab,
   font-weight: var(--weight-semibold);
 }
 
+/* Git shares the same right-side surface as Session and Jobs. The tabs are a
+   quiet vertical switcher; the active state is a surface shift, never a line. */
+.git-activity-rail {
+  min-height: 0;
+}
+
+.git-drawer-heading {
+  position: static;
+  flex: 0 0 auto;
+}
+
+.git-drawer-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-xs);
+  padding: 0 var(--space-base) var(--space-sm);
+}
+
+.git-drawer-actions .button {
+  min-width: 0;
+  min-height: 30px;
+  padding-inline: var(--space-xs);
+  font-size: var(--text-caption);
+}
+
+.git-drawer-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--space-sm) var(--space-sm);
+}
+
+.git-drawer-tab {
+  display: flex;
+  min-width: 0;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: 0 var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
+.git-drawer-tab:hover,
+.git-drawer-tab:focus-visible,
+.git-drawer-tab.is-active {
+  color: var(--assistant);
+  background: color-mix(in oklab, var(--surface) 62%, transparent);
+}
+
+.git-drawer-tab:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.git-drawer-content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.git-drawer-content .settings-form-scroll {
+  width: 100%;
+  min-width: 0;
+  padding: 0 var(--space-base) var(--space-lg);
+}
+
+.git-drawer-content .settings-form-scroll > * {
+  width: 100%;
+  min-width: 0;
+  margin-inline: 0;
+}
+
+.git-drawer-content .settings-section {
+  min-width: 0;
+}
+
 /* ── Responsive: settings/git form fields ─────────────────────────────── */
 
 @media (max-width: 900px) {
   .setting-field {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     gap: var(--space-xs);
   }
 
   .setting-field-label,
   .setting-field-control {
-    flex: 1 1 100%;
+    width: 100%;
   }
+
+  .settings-form-header { padding-inline: 24px; }
+  .settings-form-scroll { padding-inline: 24px; }
 
   .setting-perm-rule {
     grid-template-columns: 1fr 1fr;

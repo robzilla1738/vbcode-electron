@@ -5,15 +5,49 @@
 
 import { useMemo, useState } from "react";
 import {
+  changedFilesTotals,
   changedFilesHeading,
   fileBasename,
   fileParentDir,
   sortChangedFilesForDisplay,
 } from "../../shared/changed-files";
 import type { ChangedFile } from "../../shared/reducer";
-import { IconFile } from "../icons";
+import { IconChevron, IconDiff, IconFile } from "../icons";
 
 const PREVIEW_LIMIT = 6;
+
+/** Small post-turn entry point above the composer. The inspector owns the
+ * detailed file list and diff preview; this pill only summarizes the work. */
+export function ChangedFilesPill({
+  files,
+  onReview,
+}: {
+  files: ChangedFile[];
+  onReview: () => void;
+}) {
+  if (files.length === 0) return null;
+  const totals = changedFilesTotals(files);
+  const noun = totals.count === 1 ? "file" : "files";
+  return (
+    <button
+      type="button"
+      className="changed-files-pill"
+      onClick={onReview}
+      title="Review changed files and diffs"
+      aria-label={`Review ${totals.count} changed ${noun}: plus ${totals.added}, minus ${totals.removed}`}
+    >
+      <span className="changed-files-pill-icon" aria-hidden>
+        <IconDiff size={13} />
+      </span>
+      <span className="changed-files-pill-label">{totals.count} {noun} changed</span>
+      <span className="changed-files-pill-stats" aria-hidden>
+        <span className="diff-add-count">+{totals.added}</span>
+        <span className="diff-del-count">−{totals.removed}</span>
+      </span>
+      <IconChevron size={13} />
+    </button>
+  );
+}
 
 export function TurnChangesCard({
   files,

@@ -24,6 +24,7 @@ import { isEngineSnapshot, isRenderableUIEvent } from "../../shared/runtime-guar
 import { getTheme } from "../../shared/themes";
 import { Trail, turnWindowStart, windowStartIndex } from "../../shared/trail";
 import type { EngineSnapshot } from "../../shared/types";
+import { stripVisionRelayContext } from "../../shared/vision-display";
 import { applyPalette } from "../theme/applyPalette";
 import { RequestGate } from "./request-gate";
 import { initialChrome, reduceChrome } from "./session-state";
@@ -222,7 +223,11 @@ export function useSession(cwd: string | null) {
         case "user-message":
           flushDeltas();
           landReasoning();
-          dispatchTranscript({ type: "user", text: event.text });
+          // The engine may append vision-relay captions to the downstream
+          // prompt for a text-only model. Keep that transport context internal;
+          // the user should see the message they wrote, not an implementation
+          // detail about the assisting model.
+          dispatchTranscript({ type: "user", text: stripVisionRelayContext(event.text) });
           break;
         case "plan-presented":
           // Finalize the streaming assistant reply before the plan card appears
@@ -474,8 +479,9 @@ export function useSession(cwd: string | null) {
         window.clearTimeout(flushTimer.current);
         flushTimer.current = null;
       }
-      dispatchChrome({ type: "reset", cwd: opts.cwd });
-      dispatchTranscript({ type: "reset" });
+      // Keep the current conversation visible while the replacement host
+      // starts. The shell owns the transition surface; clearing here made a
+      // sub-second engine handoff look like a blank, blocking screen.
       try {
         localStorage.setItem("vibe.lastCwd", opts.cwd);
       } catch {
@@ -505,6 +511,11 @@ export function useSession(cwd: string | null) {
       const snap: EngineSnapshot = snapRes.value;
       activeSessionId.current = snap.sessionId;
       lastSnap.current = snap;
+      // Commit the new session atomically after bootstrap + snapshot succeed.
+      // Until this point the previous transcript remains visible behind the
+      // compact boot status, so switching chats feels continuous.
+      dispatchChrome({ type: "reset", cwd: opts.cwd });
+      dispatchTranscript({ type: "reset" });
       dispatchChrome({ type: "seed", snap, cwd: opts.cwd });
       const context = bootstrapContext.current as {
         usedTokens: number;

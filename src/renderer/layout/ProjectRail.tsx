@@ -22,7 +22,6 @@ import {
   IconSearch,
   IconSettings,
   IconSidebar,
-  IconGitBranch,
 } from "../icons";
 import { SidebarResizeHandle } from "./SidebarResizeHandle";
 
@@ -65,9 +64,7 @@ export function ProjectRail({
   onDeleteSession,
   onArchiveSession,
   onOpenSettings,
-  onOpenGit,
   settingsActive,
-  gitActive,
 }: {
   projects: ProjectSummary[];
   /** Absolute path of the one-off chats workspace (`~/.vibe/chats`). */
@@ -91,9 +88,7 @@ export function ProjectRail({
   onDeleteSession: (cwd: string, id: string) => Promise<boolean>;
   onArchiveSession: (cwd: string, id: string) => Promise<boolean>;
   onOpenSettings: () => void;
-  onOpenGit: () => void;
   settingsActive: boolean;
-  gitActive: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -373,6 +368,29 @@ export function ProjectRail({
           title={searchIsOpen ? "Close project search" : "Search projects"}
         >
           <IconSearch size={14} />
+        </button>
+      </div>
+
+      <div className="rail-actions rail-primary-actions" aria-label="Primary actions">
+        <button
+          type="button"
+          className="rail-action"
+          onClick={onNewChat}
+          disabled={busy}
+          title={busy ? busyTitle : "Start a new chat"}
+        >
+          <IconPlus size={15} />
+          <span>New chat</span>
+        </button>
+        <button
+          type="button"
+          className="rail-action"
+          onClick={onOpenProject}
+          disabled={busy}
+          title={busy ? busyProjectTitle : "Open a project folder"}
+        >
+          <IconFolderOpen size={15} />
+          <span>Open project</span>
         </button>
       </div>
 
@@ -733,23 +751,6 @@ export function ProjectRail({
       </div>
 
       <div className="rail-footer" aria-label="App panels">
-        <button
-          type="button"
-          className={`rail-footer-btn${gitActive ? " active" : ""}`}
-          onClick={onOpenGit}
-          disabled={!activeCwd || inChats}
-          aria-pressed={gitActive}
-          title={
-            inChats
-              ? "Git is available in project folders"
-              : activeCwd
-                ? "Git branches and remotes"
-                : "Open a project first"
-          }
-        >
-          <IconGitBranch size={15} />
-          <span>Git</span>
-        </button>
         <button
           type="button"
           className={`rail-footer-btn${settingsActive ? " active" : ""}`}

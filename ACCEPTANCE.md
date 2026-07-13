@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-12 (workspace dock, chats rail, turn changes, instructions dirty, 171 unit + 10 e2e)
+> Last updated: 2026-07-12 (unified end panels, chats rail, turn changes, instructions dirty, 174 unit + 10 e2e)
 > Status: implementation complete; automated publication gates are green on 2026-07-12
 
 ## Summary
@@ -49,8 +49,8 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | A24 | P0 | Files | At mentions and drop attachments | `@` detects the active query, fuzzy-ranks project files like the CLI, inserts the selection, and handles empty/error results. Finder drag/drop accepts images and files, resolves native Electron paths or `file://`/plain-text fallbacks, previews images, and supports removal. | test: mention/fuzzy parity; e2e: README selection; preview: `attachments`; manual: Finder image/file drop | pass |
 | A25 | P0 | Files | Clipboard images | Cmd-V writes a clipboard image through main/preload and inserts a usable `.vibe/clipboard` mention; failures preserve the draft. | e2e: native clipboard image creates and inserts project-relative path | pass |
 | A26 | P0 | Editor | External compose | Cmd-G round-trips the draft through `$VISUAL`/`$EDITOR`; empty or nonzero exits preserve the original draft and focus. | test:`editor-compose.test.ts`; e2e: replacement + focus restoration | pass |
-| A27 | P0 | Jobs | Jobs view | `/jobs` toggles a navigable view with accurate status and safe localhost links; Escape returns to the transcript. | e2e: empty and active jobs, localhost link, Escape | pass |
-| A28 | P0 | Inspector | Context, review, and checkpoints | Inspector exposes context, changed files, Diff/File review with line gutters and Reveal, checkpoints with undo/redo commands, and DAG/task state without duplicating engine state; subagent activity is represented by compact non-expandable status rows. Opened from workspace dock Session/Changes, turn-changes Review, or ⇧⌘I — not auto on send. | e2e: checkpoint, DAG, static subagent rows, Escape; preview: `git`/`inspector` | pass |
+| A27 | P0 | Jobs | Jobs end panel | `/jobs` opens the shared right-side activity lane with accurate status and safe localhost links; Escape, backdrop, close, or the dock toggle returns to the unchanged transcript. | e2e: empty and active jobs, localhost link, Escape | pass |
+| A28 | P0 | Inspector | Context, review, and checkpoints | The shared end panel exposes context, changed files, Diff/File review with line gutters and Reveal, checkpoints with undo/redo commands, and DAG/task state without duplicating engine state; subagent activity is represented by compact non-expandable status rows. Session/Changes, Git, and Jobs use the same lane and geometry; opening one replaces the prior view without a full-workspace jump. | e2e: checkpoint, DAG, static subagent rows, Escape; preview: `git`/`inspector` | pass |
 | A29 | P0 | Status | Session telemetry | Header/composer show model, mode, goal phase/round, git state, changed lines, context pressure, tokens, cost, queue, and working state from snapshots/events. | test: chrome/event reducers; manual: live session status comparison | pass |
 | A30 | P0 | Themes | CLI theme semantics | Every CLI theme/accent maps semantic roles, updates from engine events, marks the current value, and drives native control color scheme. | test: theme registry/scheme; manual: light and dark theme sweep | pass |
 | A31 | P0 | Keyboard | Reachability | All essential CLI-equivalent actions are keyboard reachable with documented shortcuts and deterministic priority when states overlap. | test: key help/parsers; e2e: dialogs, cards, Escape, editor, composer | pass |
@@ -59,10 +59,10 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 | A34 | P0 | Quality | Source parity guard | Pure modules ported from TUI have drift-detection coverage or shared fixtures so upstream changes cannot silently break parity. | script: source parity audit; test: shared behavioral vectors | pass |
 | A35 | P0 | Quality | Verification gates | Lint, unit tests, source parity, typecheck, production build, bundle budget, bridge smoke, and focused UI smoke are documented and must pass before release. | script:`npm run verify && npm run smoke:bridge && npm run test:e2e` | pass |
 | A36 | P0 | Packaging | Standalone app | Packaged app includes/resolves the engine host without `VIBE_CODR_ROOT`, launches, opens a project, runs a turn, and shuts down cleanly. | script:`npm run pack && npm run smoke:packaged` | pass |
-| A37 | P1 | Layout | Desktop composition and resizing | Rail, edge-to-edge transcript pane, composer, approval panels, and activity surfaces preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints; output and composer share the reading measure. Desktop rails resize by pointer or keyboard, persist their widths, and become drawer-safe on narrow layouts. | review: responsive shell CSS; e2e: 200% zoom reachability; manual: drag and keyboard rail handles | pass |
+| A37 | P1 | Layout | Desktop composition and resizing | Rail, edge-to-edge transcript pane, composer, approval panels, and the shared end-panel lane preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints; output and composer share the reading measure, and the activity lane is reserved rather than occluding chat. Desktop rails resize by pointer or keyboard, persist their widths, and become drawer-safe on narrow layouts. | review: responsive shell CSS; e2e: 200% zoom reachability; manual: drag and keyboard rail/activity handles | pass |
 | A38 | P1 | Typography | Dense readability | Prose, labels, metadata, and controls use a uniform sans system with normal tracking; monospace is reserved for real code (fences, tool/diff/job output, wordmark). Source cards and memory notices have readable hierarchy. | review: locked tokens + Streamdown Shiki code blocks; preview: `settings`/`git` | pass |
 | A39 | P1 | Interaction | Motion and feedback | Hover, focus, open/close, streaming, folding, and spinner feedback are restrained, interruptible, and reduced-motion aware. | design lint; e2e: focus/working states; review: reduced-motion CSS | pass |
-| A40 | P1 | Polish | Native desktop finish | Chrome tint, continuous full-surface frosted composer + bottom veil, backgroundless white Copy/Edit icons, optically sized macOS app icon, portal menus, dialogs, overlay scrollbars, truncation, source cards, and empty/error copy feel intentional while preserving theme semantics. | design lint + renderer code audit | pass |
+| A40 | P1 | Polish | Native desktop finish | Chrome tint, continuous full-surface frosted composer + bottom veil, backgroundless white Copy/Edit icons, optically sized macOS app icon, portal menus, dialogs, overlay scrollbars, truncation, source cards, shared end-panel geometry, no decorative section divider lines, and empty/error copy feel intentional while preserving theme semantics. | design lint + renderer code audit | pass |
 
 ## Audit log
 
@@ -89,6 +89,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 
 | 2026-07-12 | Codex | 36/36 | 4/4 | Production hardening: atomic config writes (temp+rename), per-path write serialization, deep-diff settings save (clear-values fix), NumberInput NaN guard, pre-write config validation (URLs/enums/numerics), first-run onboarding wizard (33-provider catalog ported from CLI), React ErrorBoundary, dev-mode CSP relaxation, application menu (macOS roles + app actions), theme list fix (was completely wrong — midnight/solarized/github don't exist), git commit --amend arg construction bug fix, menu IPC listener leak fix, settings parity gaps closed (structuredMaxAttempts, maxArtifactBytes, build.recon, gate.checks, plan gate, pricing, contextWindow, matchExact), accent preset swatches, curated provider dropdown, dead code removed. 140 unit tests, 10 E2E, 31/31 UI preview scenarios, all gates green. |
 | 2026-07-12 | Grok | 36/36 | 4/4 | Shell product pass: Projects+Chats collapsible rail (+ only), seamless workspace dock (Session/Changes/Git/Jobs/Files), turn-changes card + Diff/File review, thinking/transcript spacing, user actions under bubble, Instructions dirty keep-mount, fatal New session recovery, git commit msg clear-on-success. 171 unit tests, 10/10 E2E, verify + smoke:bridge green; docs fully synced. |
+| 2026-07-12 | Codex | 36/36 | 4/4 | Unified end-panel pass: Session, Changes, Git, and Jobs now share one right-side lane with reserved chat space, stable open/close geometry, and no full-workspace Git jump. Documentation and the canonical design system were reconciled with the live tokens and panel behavior. 174 unit tests, lint, source parity, typecheck, build, bundle budget, and diff checks pass. |
 
 ## Sign-off
 
@@ -99,7 +100,7 @@ Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine use
 **Current verification snapshot (2026-07-12):**
 
 ```text
-npm test                         # 171/171 pass
+npm test                         # 174/174 pass
 npm run lint                     # clean
 npm run typecheck                # pass
 npm run build                    # pass

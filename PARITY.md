@@ -271,7 +271,7 @@ npm run dev
 - [x] Composer: dense full-surface frost with continuous blur + chat-column veil; focus ring; status row; mode dropdown; context gauge; tokenized user bubble (`--bubble-user-*`)
 - [x] Transcript: compact aligned tool/thinking rows, readable tool bodies, thinking opacity token, code block 10px radius with bottom border header, diff 2.5px accent, structured source cards
 - [x] Menus: slash/mention quiet surface-enter, sentence-case compact typography, keyboard containment, catalog grouping (favorites via localStorage + recent 8 + provider buckets, Free badge, clear ×)
-- [x] Session panel (Inspector): sole session side view; closed by default; explicit topbar toggle; user can close; LiveSidebar removed
+- [x] Session panel (Inspector): shared Session/Changes end-panel view; closed by default; explicit dock/topbar toggle; user can close; LiveSidebar removed
 - [x] Rails: active session uses surface highlight only; project row radius 7px, topbar 14px semibold, Session panel border 22% + blur 12px sticky header, meta-block tighter
 - [x] Secondary: restrained cards, single Stop + Esc interrupt language, jobs drawer, earlier/jump controls, compact toast, memory notice, and source/article cards
 - [x] Model pill bordered 18% + hover 68%, transcript gap 28px/10px, code 12.5px
@@ -298,7 +298,8 @@ npm run dev
 - [x] Project rail actions are hover/focus revealed, portal-mounted, and
   overlaid inside rows without a permanent action-column gutter.
 - [x] Session inspector is explicit-toggle only; sending a message does not
-  reopen it.
+  reopen it. Session/Changes/Git/Jobs share one mutually exclusive end-panel
+  lane without replacing the chat workspace.
 - [x] Approval panels and transcript output share the composer measure.
 - [x] User turns fold from the message itself without a persistent arrow.
 - [x] Memory notices use a quiet `Memory · N notes` disclosure with an
@@ -386,8 +387,8 @@ npm run dev
   per-server enable/disable, timeout, inline add form
 - [x] Permission rules editor: tool/match/action with add/remove
 - [x] Hooks editor: 8 lifecycle events, shell command or URL, async toggle
-- [x] Full-workspace git view: left rail shows branch status + quick actions +
-  tab navigation; center shows the active tab content
+- [x] Git view stays on the chat surface in the shared right-side activity rail;
+  the main column reserves its width and the project rail remains stable
 - [x] Git tabs: Branches (create/switch/delete), Changes (stage/unstage/commit/
   amend), History (recent commits), Remotes (URLs + host/owner/repo),
   Pull Requests (list/create via gh CLI)
@@ -395,7 +396,7 @@ npm run dev
 - [x] GitHub PR workflow: list PRs, create PR (title/body/base/draft), open in
   browser, gh CLI availability check
 - [x] Settings & Git icons at the bottom of the project rail (rail-footer),
-  not in the chat-area topbar
+  not in the chat-area topbar; Git opens the shared end-panel lane
 - [x] Keyboard shortcuts: ⌘, for settings, ⌘⇧B for git; Esc closes either view
 - [x] Slash commands: /settings, /config, /git, /branches
 - [x] Preview scenarios: ?scenario=settings and ?scenario=git
@@ -486,3 +487,22 @@ npm run dev
   left a dangling `-m` that took `--amend` as its message value
 - [x] 140 unit tests, 10 e2e tests, lint, typecheck, build, bundle, source
   parity all green; 31 UI preview scenarios all render correctly
+
+## Unified end panels and design-system documentation (2026-07-12)
+
+- [x] Session, Changes, Git, and Jobs use one mutually exclusive right-side
+  activity lane with shared width, header, shadow, close behavior, Escape
+  handling, and open/replace geometry.
+- [x] Opening an end-panel view reserves `--activity-rail-w` in the main stage;
+  user messages, transcript output, approvals, turn-changes, and composer stay
+  visible rather than moving behind or underneath the panel.
+- [x] Git no longer replaces the full workspace. Its Branches, Changes,
+  History, Remotes, and Pull Requests content renders inside the activity rail.
+- [x] Local and Files remain Finder actions; `/jobs` remains available when the
+  workspace dock is hidden on narrow layouts.
+- [x] Decorative white section outlines and moving white selection lines remain
+  prohibited; section state uses spacing, fill, and keyboard-only focus rings.
+- [x] `design-system.md` documents the live color, type, spacing, radius, blur,
+  shadow, motion, breakpoint, panel, and accessibility contracts.
+- [x] Current local gate: 174 unit tests, lint, typecheck, build, bundle budget,
+  source parity (19 pairs), and `git diff --check` pass.

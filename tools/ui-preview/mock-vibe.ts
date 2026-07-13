@@ -453,7 +453,6 @@ async function busyTurn(): Promise<void> {
 
   emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_recon", objective: "Recon existing webhook handler structure", status: "completed", attempts: 1, durationMs: 4200 });
   emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_impl", objective: "Add idempotency guard to invoice handler", status: "running" });
-  emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_verify", objective: "Replay fixture stream and diff ledger rows", status: "pending" });
   emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_skip", objective: "Migrate legacy Stripe events (already handled)", status: "skipped" });
   emit({ type: "orchestration-task", sessionId: SID, taskId: "dag_fail", objective: "Run chaos replay with corrupted payload", status: "failed", attempts: 3, durationMs: 8100 });
   await sleep(20);

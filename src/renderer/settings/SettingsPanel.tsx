@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CONFIG_SECTIONS, type ConfigScope, type VibeConfig } from "../../shared/config-schema";
 import { buildConfigPatch } from "../../shared/config-diff";
 import { mayReloadSettingsContext } from "../../shared/settings-load-guard";
-import { IconClose, IconSidebar } from "../icons";
+import { IconChevronLeft, IconClose, IconSearch, IconSidebar } from "../icons";
 import { ModelsSection } from "./sections/ModelsSection";
 import { ProvidersSection } from "./sections/ProvidersSection";
 import { McpSection } from "./sections/McpSection";
@@ -33,6 +33,13 @@ import { InstructionsSection } from "./sections/InstructionsSection";
 import { AdvancedSection } from "./sections/AdvancedSection";
 
 export type SectionId = (typeof CONFIG_SECTIONS)[number]["id"];
+
+const SETTINGS_GROUPS: ReadonlyArray<{ label: string; ids: readonly SectionId[] }> = [
+  { label: "Core", ids: ["models", "providers", "mcp", "permissions"] },
+  { label: "Agent", ids: ["appearance", "behavior", "subagents", "build"] },
+  { label: "Runtime", ids: ["memory", "search", "compaction", "budget", "hooks"] },
+  { label: "Project", ids: ["instructions", "advanced"] },
+];
 
 interface SettingsState {
   config: VibeConfig;
@@ -67,6 +74,22 @@ function SettingsSidebar({
   cwd: string | null;
   onClose: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const sectionsById = useMemo(() => new Map(CONFIG_SECTIONS.map((section) => [section.id, section])), []);
+  const visibleGroups = useMemo(
+    () => SETTINGS_GROUPS
+      .map((group) => ({
+        ...group,
+        sections: group.ids
+          .map((id) => sectionsById.get(id))
+          .filter((section): section is (typeof CONFIG_SECTIONS)[number] => Boolean(section))
+          .filter((section) => !normalizedQuery || `${section.label} ${section.description}`.toLowerCase().includes(normalizedQuery)),
+      }))
+      .filter((group) => group.sections.length > 0),
+    [normalizedQuery, sectionsById],
+  );
+
   return (
     <aside
       id="project-rail"
@@ -83,6 +106,22 @@ function SettingsSidebar({
         <h1 className="rail-product-name">Settings</h1>
       </div>
 
+      <button type="button" className="settings-back no-drag" onClick={onClose}>
+        <IconChevronLeft size={14} />
+        <span>Back to app</span>
+      </button>
+
+      <label className="settings-search no-drag">
+        <IconSearch size={14} />
+        <span className="sr-only">Search settings</span>
+        <input
+          type="search"
+          value={query}
+          placeholder="Search settings…"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
+
       <div className="rail-actions settings-scope-row">
         <div className="settings-scope-toggle settings-scope-toggle-full" role="tablist" aria-label="Config scope">
           <button type="button" role="tab" aria-selected={scope === "global"} className={`settings-scope-btn settings-scope-btn-grow${scope === "global" ? " active" : ""}`} onClick={() => onScopeChange("global")}>Global</button>
@@ -90,14 +129,23 @@ function SettingsSidebar({
         </div>
       </div>
 
-      <h2 className="rail-section-label">Sections</h2>
+      <div className="settings-nav-heading">
+        <h2 className="rail-section-label">Sections</h2>
+        <span className="settings-scope-hint">{scope === "global" ? "Every project" : cwd ? "This project" : "Project unavailable"}</span>
+      </div>
       <nav className="settings-nav-list" aria-label="Settings sections">
-        {CONFIG_SECTIONS.map((section) => (
-          <button key={section.id} type="button" className={`settings-nav-item${activeSection === section.id ? " active" : ""}`} onClick={() => onSelectSection(section.id)}>
-            <span className="settings-nav-label">{section.label}</span>
-            <span className="settings-nav-desc">{section.description}</span>
-          </button>
+        {visibleGroups.map((group) => (
+          <div className="settings-nav-group" key={group.label}>
+            <h3 className="settings-nav-group-label">{group.label}</h3>
+            {group.sections.map((section) => (
+              <button key={section.id} type="button" className={`settings-nav-item${activeSection === section.id ? " active" : ""}`} onClick={() => onSelectSection(section.id)}>
+                <span className="settings-nav-label">{section.label}</span>
+                <span className="settings-nav-desc">{section.description}</span>
+              </button>
+            ))}
+          </div>
         ))}
+        {visibleGroups.length === 0 && <p className="settings-nav-empty">No settings match “{query}”.</p>}
       </nav>
     </aside>
   );

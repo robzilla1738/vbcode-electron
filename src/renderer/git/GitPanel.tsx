@@ -1,12 +1,8 @@
 /**
- * Git view — full-workspace git integration for branch management and PRs.
+ * Git view — a right-side workspace section for branch management and PRs.
  *
- * When active, this replaces the normal workspace layout:
- *   Left rail  → git tabs (Branches, Changes, History, Remotes, PRs) + quick actions
- *   Center     → scrollable content for the active tab
- *
- * All git operations spawn `git` directly from the main process — the engine
- * is never involved. GitHub PR actions use the `gh` CLI when available.
+ * The conversation stays mounted while this section opens, matching Session,
+ * Changes, and Jobs. Git operations still run directly in the main process.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -99,7 +95,7 @@ export function GitSidebar({
       )}
 
       {/* Quick actions */}
-      <div className="rail-actions">
+      <div className="rail-actions git-rail-actions">
         <button type="button" className="rail-action" disabled={busy} onClick={() => onAction(() => window.vibe.gitFetch({ cwd }))}>
           <span>Fetch</span>
         </button>
@@ -111,7 +107,9 @@ export function GitSidebar({
         </button>
       </div>
 
-      <h2 className="rail-section-label">Sections</h2>
+      <div className="settings-nav-heading">
+        <h2 className="rail-section-label">Sections</h2>
+      </div>
       <nav className="settings-nav-list" aria-label="Git sections">
         {TABS.map((tab) => (
           <button
@@ -234,51 +232,71 @@ export function GitView({
     return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [onClose]);
 
-  const activeMeta = TABS.find((t) => t.id === tab);
-
   return (
-    <>
-      <GitSidebar
-        status={status}
-        cwd={cwd}
-        loading={loading}
-        activeTab={tab}
-        onSelectTab={setTab}
-        busy={busy}
-        onAction={runOp}
-        onClose={onClose}
-      />
-      <div className="content-inset">
-        <header className="topbar">
-          <div className="topbar-leading">
-            <h1 className="topbar-title">
-              <span className="topbar-project">Git</span>
-              <span className="topbar-separator" aria-hidden>/</span>
-              <span className="topbar-session">{activeMeta?.label}</span>
-            </h1>
-          </div>
-          <div className="topbar-actions no-drag">
-            <button type="button" className="icon-button" onClick={onClose} aria-label="Close git panel" title="Close (Esc)">
-              <IconClose size={16} />
-            </button>
-          </div>
-        </header>
-        <div className="main-column settings-main" id="main-content">
-          <GitContent
-            status={status}
-            tab={tab}
-            cwd={cwd}
-            busy={busy}
-            runOp={runOp}
-            loading={loading}
-            error={error}
-            onRetry={refresh}
-            ghAvailable={ghAvailable}
-            showToast={showToast}
-          />
+    <aside
+      className="activity-rail git-activity-rail"
+      aria-label="Git workspace"
+      aria-labelledby="git-drawer-title"
+    >
+      <header className="sidebar-heading-row git-drawer-heading">
+        <div className="sidebar-heading-copy">
+          <p className="sidebar-eyebrow">Workspace</p>
+          <h2 id="git-drawer-title" className="sidebar-heading-title">Git</h2>
+          <p className="sidebar-heading-sub">
+            {status
+              ? `${status.branch}${status.clean ? " · clean" : ` · ${status.entries.length} changed`}`
+              : "Branches, changes, and history"}
+          </p>
         </div>
+        <button
+          type="button"
+          className="icon-button sidebar-close"
+          onClick={onClose}
+          aria-label="Close git panel"
+          title="Close git panel"
+        >
+          <IconClose size={14} />
+        </button>
+      </header>
+
+      <div className="git-drawer-actions" aria-label="Git actions">
+        <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitFetch({ cwd }))}>Fetch</button>
+        <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitPull({ cwd }))}>Pull</button>
+        <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitPush({ cwd }))}>Push</button>
       </div>
-    </>
+
+      <nav className="git-drawer-tabs" aria-label="Git sections">
+        {TABS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`git-drawer-tab${tab === item.id ? " is-active" : ""}`}
+            onClick={() => setTab(item.id)}
+            aria-current={tab === item.id ? "page" : undefined}
+          >
+            <span>{item.label}</span>
+            {item.id === "changes" && status && status.entries.length > 0 ? (
+              <span className="git-tab-count">{status.entries.length}</span>
+            ) : null}
+          </button>
+        ))}
+      </nav>
+
+      <div className="git-drawer-content">
+        <GitContent
+          status={status}
+          tab={tab}
+          cwd={cwd}
+          busy={busy}
+          runOp={runOp}
+          loading={loading}
+          error={error}
+          onRetry={refresh}
+          ghAvailable={ghAvailable}
+          showToast={showToast}
+        />
+      </div>
+    </aside>
   );
 }
 
