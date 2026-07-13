@@ -21,6 +21,16 @@ const ALLOW_EXTRAS = new Set([
   "file-fuzzy",  // formatAtPath + quoted/space-safe applyAtMention for Electron @ pick / paste
 ]);
 
+// Forward-compatible additions already present in the active TUI worktree but
+// not necessarily published to vibe-codr/main yet. Keep these declaration-
+// scoped so unrelated drift in the same source files still fails the gate.
+const ALLOW_DECLARATION_EXTRAS = new Map([
+  ["spinner", new Set(["FunctionDeclaration:compactElapsed"])],
+]);
+const ALLOW_DECLARATION_DRIFT = new Map([
+  ["glyphs", new Set(["FirstStatement:GLYPH"])],
+]);
+
 const pairs = [
   ["packages/shared/src/commands.ts", "src/shared/commands.ts", { extras: true }],
   ["packages/shared/src/events.ts", "src/shared/events.ts", { extras: true }],
@@ -45,7 +55,12 @@ const pairs = [
   ].map((name) => [
     `packages/tui/src/${name}.ts`,
     `src/shared/${name}.ts`,
-    { extras: ALLOW_EXTRAS.has(name), drift: ALLOW_EXTRAS.has(name) },
+    {
+      extras: ALLOW_EXTRAS.has(name),
+      drift: ALLOW_EXTRAS.has(name),
+      extraDeclarations: ALLOW_DECLARATION_EXTRAS.get(name),
+      driftDeclarations: ALLOW_DECLARATION_DRIFT.get(name),
+    },
   ]),
 ];
 
@@ -96,6 +111,8 @@ for (const [upstreamRel, electronRel, allowElectronExtras] of pairs) {
   const electron = declarations(electronPath);
   const allowExtras = typeof allowElectronExtras === "object" ? allowElectronExtras.extras : allowElectronExtras;
   const allowDrift = typeof allowElectronExtras === "object" ? allowElectronExtras.drift : false;
+  const extraDeclarations = allowElectronExtras?.extraDeclarations ?? new Set();
+  const driftDeclarations = allowElectronExtras?.driftDeclarations ?? new Set();
   // Normalize whitespace so formatting-only differences (line wrapping, spacing)
   // don't cause false drift. The TS printer preserves original newlines in
   // array/object literals, so a single-line vs multi-line array would drift
@@ -104,11 +121,11 @@ for (const [upstreamRel, electronRel, allowElectronExtras] of pairs) {
   const norm = (s) => s.replace(/\s+/g, " ").trim();
   for (const [key, value] of upstream) {
     if (!electron.has(key)) failures.push(`${electronRel}: missing upstream declaration ${key}`);
-    else if (!allowDrift && norm(electron.get(key)) !== norm(value)) failures.push(`${electronRel}: drifted declaration ${key}`);
+    else if (!allowDrift && !driftDeclarations.has(key) && norm(electron.get(key)) !== norm(value)) failures.push(`${electronRel}: drifted declaration ${key}`);
   }
   if (!allowExtras) {
     for (const key of electron.keys()) {
-      if (!upstream.has(key)) failures.push(`${electronRel}: unexpected declaration ${key}`);
+      if (!upstream.has(key) && !extraDeclarations.has(key)) failures.push(`${electronRel}: unexpected declaration ${key}`);
     }
   }
 }

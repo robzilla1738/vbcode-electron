@@ -365,6 +365,9 @@ npm run dev
 - [x] Source parity script: `ALLOW_EXTRAS` set with `{ extras, drift }` flags for
   reducer/density/tool-icons/themes/protocol; whitespace normalization for
   formatting-only drift
+- [x] Forward-compatible parity allowances are declaration-scoped: only
+  `spinner.compactElapsed` and the additive `GLYPH` expansion may precede the
+  corresponding `vibe-codr/main` revision; unrelated file drift still fails
 - [x] Formatting in markdown-blocks, rich-blocks, spinner synced to match
   upstream TUI exactly (import paths only difference)
 - [x] 2 new unit tests: subagent-started in-place update + fresh-id append
