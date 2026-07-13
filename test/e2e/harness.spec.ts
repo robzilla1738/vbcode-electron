@@ -215,7 +215,7 @@ test("attaches files, pastes images, and round-trips through the external editor
     return { empty: clipboard.readImage().isEmpty(), text: clipboard.readText() };
   }, icon);
   expect(clipboardState).toEqual({ empty: false, text: "" });
-  await composer.press("Meta+V");
+  await composer.press(process.platform === "darwin" ? "Meta+V" : "Control+V");
   await expect(composer).toHaveValue(/@\.vibe\/clipboard\/vibe-clip-.*\.png/);
   expect(existsSync(join(projectDir, ".vibe", "clipboard"))).toBe(true);
 
