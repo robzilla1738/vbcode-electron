@@ -13,7 +13,7 @@ import {
 import { sortChangedFilesForDisplay } from "../shared/changed-files";
 import { commandsExpectBusy } from "../shared/command-busy";
 import { densityLabel, nextDensity } from "../shared/density";
-import { projectLabel } from "../shared/project-index";
+import { isChatsCwd, projectLabel, terminalCwdForWorkspace } from "../shared/project-index";
 import type { ProjectSummary } from "../shared/protocol";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
 import { lineToCommands, routePendingPermLine } from "../shared/slash";
@@ -64,6 +64,9 @@ const TerminalPanel = lazy(() =>
 const GitView = lazy(() =>
   import("./git/GitPanel").then((module) => ({ default: module.GitView })),
 );
+const ChangesView = lazy(() =>
+  import("./panels/ChangesView").then((module) => ({ default: module.ChangesView })),
+);
 
 function pickerMatchesDraft(picker: Picker, draft: string, modelTarget: "main" | "sub"): boolean {
   if (!picker) return false;
@@ -112,6 +115,7 @@ export function App() {
   const pickerRetryRef = useRef<(() => void) | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [chatsCwd, setChatsCwd] = useState<string | null>(null);
+  const [homeCwd, setHomeCwd] = useState<string | null>(null);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -145,6 +149,8 @@ export function App() {
           ? "terminal"
           : null;
   const endPanelOpen = activeEndPanel !== null;
+  const terminalCwd = cwd ? terminalCwdForWorkspace(cwd, chatsCwd, homeCwd) : null;
+  const terminalScope = cwd && chatsCwd && isChatsCwd(cwd, chatsCwd) ? "chat" : "project";
   const showToastRef = useRef(session.showToast);
   showToastRef.current = session.showToast;
 
@@ -346,16 +352,17 @@ export function App() {
   }, [gitOpen, session, terminalOpen]);
 
   // Preview harness: auto-open a panel when a `vibe-preview-open-panel` event
-  // is dispatched (used by `npm run ui:preview ?scenario=settings|git`).
+  // is dispatched (used by `npm run ui:preview ?scenario=settings|git|changes`).
   useEffect(() => {
     const onOpenPanel = (event: Event) => {
       const detail = (event as CustomEvent<string>).detail;
       if (detail === "settings") openSettings();
       if (detail === "git") openGit();
+      if (detail === "changes") openWorkspaceDock("changes");
     };
     window.addEventListener("vibe-preview-open-panel", onOpenPanel);
     return () => window.removeEventListener("vibe-preview-open-panel", onOpenPanel);
-  }, [openSettings, openGit]);
+  }, [openSettings, openGit, openWorkspaceDock]);
 
   // Global keyboard shortcuts for settings (⌘,) and git (⌘ShiftB) panels.
   useEffect(() => {
@@ -618,6 +625,9 @@ export function App() {
   useEffect(() => {
     void window.vibe.ensureChatsDir().then(setChatsCwd).catch(() => {
       /* path optional until first chat */
+    });
+    void window.vibe.getPath("home").then(setHomeCwd).catch(() => {
+      /* terminal waits for a safe context-specific cwd */
     });
   }, []);
 
@@ -1557,6 +1567,7 @@ export function App() {
               <>
                 {session.transcript.blocks.length > 0 ? (
                   <TranscriptView
+                    sessionId={chrome.sessionId}
                     turns={session.turns}
                     busy={chrome.busy}
                     hiddenCount={session.hiddenCount}
@@ -1585,6 +1596,14 @@ export function App() {
                     onShowEarlier={session.revealEarlier}
                     onRevealTurnItems={session.revealTurnItems}
                     followSignal={followSignal}
+                    footerAccessory={
+                      !chrome.busy && session.transcript.changedFiles.length > 0 ? (
+                        <ChangedFilesPill
+                          files={session.transcript.changedFiles}
+                          onReview={() => openWorkspaceDock("changes")}
+                        />
+                      ) : undefined
+                    }
                   />
                 ) : (
                   <div className="transcript">
@@ -1606,6 +1625,7 @@ export function App() {
               </div>
             ) : (
               <TranscriptView
+                sessionId={chrome.sessionId}
                 turns={session.turns}
                 busy={chrome.busy}
                 hiddenCount={session.hiddenCount}
@@ -1634,6 +1654,14 @@ export function App() {
                 onShowEarlier={session.revealEarlier}
                 onRevealTurnItems={session.revealTurnItems}
                 followSignal={followSignal}
+                footerAccessory={
+                  !chrome.busy && session.transcript.changedFiles.length > 0 ? (
+                    <ChangedFilesPill
+                      files={session.transcript.changedFiles}
+                      onReview={() => openWorkspaceDock("changes")}
+                    />
+                  ) : undefined
+                }
               />
             )}
 
@@ -1716,12 +1744,6 @@ export function App() {
 
             {!(session.booting || (session.bootError && !session.ready)) && (
             <div className="composer-stack" id="composer" ref={composerStackRef}>
-              {!chrome.busy && session.transcript.changedFiles.length > 0 && (
-                <ChangedFilesPill
-                  files={session.transcript.changedFiles}
-                  onReview={() => openWorkspaceDock("changes")}
-                />
-              )}
               <QueuePanel
                 pending={chrome.queuePending}
                 onSteer={(id) => void session.send({ type: "steer", id })}
@@ -1849,7 +1871,33 @@ export function App() {
                 </section>
               )}
 
-              {session.inspectorOpen && (
+              {session.inspectorOpen && inspectorTool === "changes" && (
+                <Suspense
+                  fallback={(
+                    <section className="activity-rail changes-activity-rail" aria-label="Loading changes review" />
+                  )}
+                >
+                  <ChangesView
+                    key={`changes:${inspectorFocusPath ?? ""}`}
+                    files={session.transcript.changedFiles}
+                    cwd={cwd}
+                    focusPath={inspectorFocusPath}
+                    onClose={() => {
+                      setInspectorFocusPath(null);
+                      session.setInspectorOpen(false);
+                    }}
+                    onRevealFile={(path) => {
+                      if (!cwd) return;
+                      const resolvedPath = path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)
+                        ? path
+                        : `${cwd}/${path}`;
+                      void window.vibe.showItem(resolvedPath);
+                    }}
+                  />
+                </Suspense>
+              )}
+
+              {session.inspectorOpen && inspectorTool === "session" && (
                 <Inspector
                   key={`${inspectorTool}:${inspectorFocusPath ?? ""}`}
                   chrome={chrome}
@@ -1889,17 +1937,18 @@ export function App() {
                 </Suspense>
               )}
 
-              {terminalOpen && cwd && (
+              {terminalOpen && terminalCwd && (
                 <Suspense
                   fallback={(
                     <section
                       className="activity-rail terminal-activity-rail"
-                      aria-label="Loading project terminal"
+                      aria-label="Loading terminal"
                     />
                   )}
                 >
                   <TerminalPanel
-                    cwd={cwd}
+                    cwd={terminalCwd}
+                    scope={terminalScope}
                     onClose={() => setTerminalOpen(false)}
                   />
                 </Suspense>
@@ -1910,12 +1959,12 @@ export function App() {
           {endPanelOpen && (
             <SidebarResizeHandle
               side="end"
-              cssVar="--activity-rail-w"
-              defaultWidth={320}
-              min={280}
-              max={520}
-              storageKey="vibe.activity-rail-width"
-              label="Resize activity sidebar"
+              cssVar={activeEndPanel === "changes" ? "--changes-rail-w" : "--activity-rail-w"}
+              defaultWidth={activeEndPanel === "changes" ? 620 : 320}
+              min={activeEndPanel === "changes" ? 440 : 280}
+              max={activeEndPanel === "changes" ? 800 : 520}
+              storageKey={activeEndPanel === "changes" ? "vibe.changes-rail-width" : "vibe.activity-rail-width"}
+              label={activeEndPanel === "changes" ? "Resize changes sidebar" : "Resize activity sidebar"}
             />
           )}
         </div>

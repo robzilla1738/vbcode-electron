@@ -18,16 +18,17 @@ npm run ui:shots -- tools/ui-preview/shots
 Scenarios: `welcome`, `splash` (quiet empty home + composer), `chat`, `table`,
 `docs`, `sources`, `busy`, `permission`, `plan`, `gate`, `mode`, `queue`,
 `onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`, `attachments`,
-`jobs`, `inspector`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot`,
+`jobs`, `inspector`, `changes`, `toast`, `density-quiet`, `density-verbose`, `ctx-hot`,
 `settings`, `git` — plus `&theme=<name>` for any registered TUI theme (e.g.
 `?scenario=chat&theme=opencode`). Shots also capture `busy-narrow`, `busy-wide`,
 `light`, and `theme-opencode`. `attachments` previews the dropped-image and
 file-reference composer state, including Finder-style URI path fallback. The
-`inspector` scenario exercises the Session panel and changed-file review flow;
+`inspector` exercises Session, while `changes` opens the expanded master-detail
+changed-files review with grouped navigation, totals, and Diff/File content;
 `settings` remains a full-workspace tool; `git` and `inspector` exercise the
 right-side activity surface. Live app chrome (not fully mirrored in every mock
 scenario) also includes the workspace dock, shared Session/Changes/Git/Terminal/Jobs
-activity sidebar, and turn-changes card — prefer `npm run dev` or E2E when
+activity sidebar, and changed-files footer chip — prefer `npm run dev` or E2E when
 checking panel switching, persistent native PTY behavior, reserved chat space,
 or native Finder actions.
 

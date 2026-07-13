@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { IconCheck, IconCopy } from "./icons";
 
 async function writeClipboard(text: string): Promise<void> {
+  if (typeof window !== "undefined" && window.vibe?.writeClipboardText) {
+    const result = await window.vibe.writeClipboardText(text);
+    if (!result.ok) throw new Error(result.error);
+    return;
+  }
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
     return;

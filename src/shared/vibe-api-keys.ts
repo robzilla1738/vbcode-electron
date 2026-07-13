@@ -29,6 +29,7 @@ export const VIBE_API_KEYS = [
   "getPathForFile",
   "listFiles",
   "pasteClipboard",
+  "writeClipboardText",
   "globalConfigPath",
   "readConfig",
   "writeConfig",

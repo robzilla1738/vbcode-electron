@@ -63,7 +63,8 @@ describe("workspace dock design contract", () => {
     expect(styles).toMatch(/\.activity-sidebar\s*\{[\s\S]*?border-left:/);
     expect(styles).toMatch(/\.activity-sidebar\s*\{[\s\S]*?border-radius: 0;/);
     expect(styles).toMatch(/\.activity-sidebar\s*\{[\s\S]*?box-shadow: none;/);
-    expect(appSource).toContain('label="Resize activity sidebar"');
+    expect(appSource).toContain('"Resize activity sidebar"');
+    expect(appSource).toContain('"Resize changes sidebar"');
     expect(appSource).not.toContain("jobs-drawer-root");
     expect(appSource).not.toContain("jobs-drawer-backdrop");
     expect(appSource).not.toContain("jobs-drawer");

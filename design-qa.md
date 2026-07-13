@@ -43,3 +43,22 @@ The source and preview contain different transcript copy, so the comparison is l
 - [x] Focused tests and live browser check
 
 final result: passed
+
+## Editing workspace follow-up — 2026-07-13
+
+- Engine-authored review/gate continuations use compact context rows instead of
+  user bubbles; assistant Copy routes through trusted native clipboard IPC.
+- Changed files use a dedicated wider master-detail sidebar with persistent
+  Diff/File mode, grouped navigation, totals, churn, copy, Reveal, and compact
+  stacking. Its footer chip sits beside Jump to latest.
+- Session switches preserve the active Session/Changes/Git/Terminal/Jobs view
+  and restore transcript position; contextual terminals use project root or the
+  user's home for Chats.
+- Long plan approvals keep the review body bounded and their uniform action row
+  visible. Loading rings rotate, rail icons align to one optical size, and
+  supporting text uses the shared sans/color system.
+- The Environment dock now has equal top/right inset and a tokenized quiet-grey
+  fill inside its rounded hairline. Focused preview measurements confirmed
+  16/16px desktop and 8/8px compact insets.
+
+final follow-up result: passed

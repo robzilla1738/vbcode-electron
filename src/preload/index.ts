@@ -89,6 +89,7 @@ export interface VibeApi {
     | { kind: "none" }
     | { kind: "error"; error: string }
   >;
+  writeClipboardText(text: string): Promise<{ ok: true } | { ok: false; error: string }>;
   globalConfigPath(): Promise<string>;
 
   // ── Config (settings) ────────────────────────────────────────────────
@@ -164,6 +165,7 @@ const api: VibeApi = {
   showItem: (path) => ipcRenderer.invoke("shell:showItem", path),
   readTextFile: (opts) => ipcRenderer.invoke("fs:readTextFile", opts),
   pasteClipboard: (cwd) => ipcRenderer.invoke("clipboard:paste", { cwd }),
+  writeClipboardText: (text) => ipcRenderer.invoke("clipboard:writeText", { text }),
   composeInEditor: (draft) => ipcRenderer.invoke("editor:compose", draft),
   getPath: (name) => ipcRenderer.invoke("app:getPath", name),
   getPathForFile: (file) => webUtils.getPathForFile(file),

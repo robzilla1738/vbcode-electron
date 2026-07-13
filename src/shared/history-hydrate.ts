@@ -41,7 +41,17 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
         .filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text)
         .join("\n");
-      if (text) s = reduceTranscript(s, { type: "user", text: stripVisionRelayContext(text), timestamp: msg.createdAt });
+      if (text) {
+        const origin = msg.metadata?.origin === "engine" ? "engine" : undefined;
+        const label = typeof msg.metadata?.label === "string" ? msg.metadata.label : undefined;
+        s = reduceTranscript(s, {
+          type: "user",
+          text: stripVisionRelayContext(text),
+          timestamp: msg.createdAt,
+          ...(origin ? { origin } : {}),
+          ...(label ? { label } : {}),
+        });
+      }
     } else if (msg.role === "assistant" || msg.role === "tool") {
       for (const part of msg.parts) {
         if (msg.role === "assistant" && part.type === "text" && part.text) {

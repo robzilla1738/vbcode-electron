@@ -7,7 +7,15 @@ import type { GitInfo, GoalRunInfo, JobInfo, Mode, QueuedItem, SessionUsage, Tas
  */
 export type UIEvent =
   | { type: "session-start"; sessionId: string; model: string; mode: Mode }
-  | { type: "user-message"; sessionId: string; text: string }
+  | {
+      type: "user-message";
+      sessionId: string;
+      text: string;
+      /** Who authored the prompt. Omitted by older hosts and treated as `user`. */
+      origin?: "user" | "engine";
+      /** Compact UI label for an engine-authored continuation. */
+      label?: string;
+    }
   | {
       type: "assistant-text-delta";
       sessionId: string;

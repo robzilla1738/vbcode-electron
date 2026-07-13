@@ -3,7 +3,7 @@ import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import * as pty from "node-pty";
-import { isAllowedCwd } from "../shared/cwd-allowlist";
+import { isAllowedTerminalCwd } from "../shared/cwd-allowlist";
 import type {
   TerminalCommandResult,
   TerminalEvent,
@@ -36,8 +36,8 @@ export class TerminalManager {
   constructor(private readonly emit: (event: TerminalEvent) => void) {}
 
   open(request: TerminalOpenRequest): TerminalOpenResult {
-    if (!request || typeof request.cwd !== "string" || !isAllowedCwd(request.cwd)) {
-      return { ok: false, error: "Terminal is limited to the active project" };
+    if (!request || typeof request.cwd !== "string" || !isAllowedTerminalCwd(request.cwd)) {
+      return { ok: false, error: "Terminal is limited to the active project or home directory" };
     }
     const cwd = resolve(request.cwd);
     if (!this.isDirectory(cwd)) {

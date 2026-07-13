@@ -10,11 +10,16 @@ import { collapsedHint, toolDurationLabel } from "../../shared/reducer";
 import { isScrollAnchored } from "../../shared/scroll-anchor";
 import { parseSearchResults } from "../../shared/sources";
 import { CopyButton } from "../CopyButton";
-import { IconChevron, IconRename } from "../icons";
+import { IconCheck, IconChevron, IconContinue, IconRename } from "../icons";
 import { StatusDot } from "../primitives";
 import { isSubagentTool, stripToolGlyph, ToolGlyph } from "../tool-glyph";
 import { MarkdownView } from "./MarkdownView";
 import { SourceList } from "./SourceList";
+
+/** Keep each session's reading position while the app remains open. A fresh
+ * launch intentionally starts at the latest content instead of restoring a
+ * potentially stale offset from disk. */
+const sessionScrollPositions = new Map<string, number>();
 
 /** JS smooth-scroll must honor the OS reduced-motion setting (I19/P04); CSS
  *  `scroll-behavior: smooth` is already disabled by the media query, but
@@ -52,6 +57,31 @@ function multilineNotice(text: string): { summary: string; detail: string } | nu
   const [summary = "", ...rest] = text.split("\n");
   const detail = rest.join("\n").trim();
   return summary.trim() && detail ? { summary: summary.trim(), detail } : null;
+}
+
+function gateStatusNotice(text: string): { tone: "success" | "warning" | "neutral"; label: string; meta: string } | null {
+  const match = /^Gate:\s*(GREEN|RED|UNVERIFIED|ABORTED)(?:\s+—\s+(.+))?$/i.exec(text.trim());
+  if (!match) return null;
+  const outcome = match[1]!.toUpperCase();
+  return {
+    tone: outcome === "GREEN" ? "success" : outcome === "RED" ? "warning" : "neutral",
+    label: outcome === "GREEN" ? "Checks passed" : outcome === "RED" ? "Checks failed" : `Checks ${outcome.toLowerCase()}`,
+    meta: (match[2] ?? "").replace(/\s*✓/g, "").trim(),
+  };
+}
+
+function visualStatusNotice(text: string): {
+  consoleErrors: number;
+  deadControls: number;
+  detail: string;
+} | null {
+  const match = /^Visual check:\s*rendered OK,\s*(\d+)\s+console errors?,\s*(\d+)\s+dead controls?:?\s*(?:\n([\s\S]+))?$/i.exec(text.trim());
+  if (!match) return null;
+  return {
+    consoleErrors: Number(match[1]),
+    deadControls: Number(match[2]),
+    detail: (match[3] ?? "").trim(),
+  };
 }
 
 function DiffBody({ lines }: { lines: string[] }) {
@@ -305,6 +335,47 @@ const BlockView = memo(function BlockView({
       {
         const memory = memoryNotice(block.text);
         if (!memory) {
+          const gate = gateStatusNotice(block.text);
+          if (gate) {
+            return (
+              <div className={`status-notice is-${gate.tone}`} role="status">
+                <span className="status-notice-mark" aria-hidden>
+                  {gate.tone === "success" ? <IconCheck size={12} strokeWidth={2.2} /> : null}
+                </span>
+                <span className="status-notice-label">{gate.label}</span>
+                {gate.meta ? <span className="status-notice-meta">{gate.meta}</span> : null}
+              </div>
+            );
+          }
+          const visual = visualStatusNotice(block.text);
+          if (visual) {
+            const hasIssues = visual.consoleErrors > 0 || visual.deadControls > 0;
+            const meta = `Rendered · ${visual.consoleErrors} console ${visual.consoleErrors === 1 ? "error" : "errors"} · ${visual.deadControls} dead ${visual.deadControls === 1 ? "control" : "controls"}`;
+            if (!visual.detail) {
+              return (
+                <div className={`status-notice is-${hasIssues ? "warning" : "success"}`} role="status">
+                  <span className="status-notice-mark" aria-hidden>
+                    {!hasIssues ? <IconCheck size={12} strokeWidth={2.2} /> : null}
+                  </span>
+                  <span className="status-notice-label">Visual check</span>
+                  <span className="status-notice-meta">{meta}</span>
+                </div>
+              );
+            }
+            return (
+              <details className={`status-notice status-notice-details is-${hasIssues ? "warning" : "success"}`} role="status">
+                <summary className="status-notice-summary">
+                  <span className="status-notice-mark" aria-hidden>
+                    {!hasIssues ? <IconCheck size={12} strokeWidth={2.2} /> : null}
+                  </span>
+                  <span className="status-notice-label">Visual check</span>
+                  <span className="status-notice-meta">{meta}</span>
+                  <span className="status-notice-chevron" aria-hidden><IconChevron size={12} /></span>
+                </summary>
+                <div className="status-notice-detail">{visual.detail}</div>
+              </details>
+            );
+          }
           const warning = block.level === "warn" ? multilineNotice(block.text) : null;
           if (warning) {
             return (
@@ -350,6 +421,7 @@ const BlockView = memo(function BlockView({
 });
 
 export function TranscriptView({
+  sessionId,
   turns,
   busy,
   hiddenCount,
@@ -364,7 +436,9 @@ export function TranscriptView({
   onShowEarlier,
   onRevealTurnItems,
   followSignal,
+  footerAccessory,
 }: {
+  sessionId: string;
   turns: Turn[];
   busy: boolean;
   hiddenCount: number;
@@ -383,8 +457,10 @@ export function TranscriptView({
   onShowEarlier: () => void;
   onRevealTurnItems: (turnKey: number, hidden: number) => void;
   followSignal: number;
+  footerAccessory?: ReactNode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const restoringSessionRef = useRef(false);
   const [anchored, setAnchored] = useState(true);
   const [now, setNow] = useState(Date.now());
   const hasLiveTool = turns.some((turn) =>
@@ -410,12 +486,27 @@ export function TranscriptView({
   }, [followSignal]);
 
   useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element || !sessionId) return;
+    restoringSessionRef.current = true;
+    const savedTop = sessionScrollPositions.get(sessionId);
+    element.scrollTop = savedTop ?? element.scrollHeight;
+    setAnchored(savedTop == null || isScrollAnchored(element));
+    const frame = window.requestAnimationFrame(() => {
+      restoringSessionRef.current = false;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [sessionId]);
+
+  useLayoutEffect(() => {
+    if (restoringSessionRef.current) return;
     if (anchored) scrollToLatest("auto");
   }, [turns, foldedTurns, density, anchored]);
 
   const handleScroll = () => {
     const element = scrollRef.current;
     if (!element) return;
+    if (sessionId) sessionScrollPositions.set(sessionId, element.scrollTop);
     setAnchored(isScrollAnchored(element));
   };
 
@@ -485,9 +576,30 @@ export function TranscriptView({
               index += 1;
             }
             return (
-              <section className="turn" key={turn.key} aria-label={turn.user ? "Conversation turn" : "Assistant activity"}>
+              <section
+                className="turn"
+                key={turn.key}
+                aria-label={
+                  turn.user?.origin === "engine"
+                    ? "Automatic follow-up turn"
+                    : turn.user
+                      ? "Conversation turn"
+                      : "Assistant activity"
+                }
+              >
                 <div className="turn-content" id={`turn-items-${turn.key}`}>
-                  {turn.user && (
+                  {turn.user?.origin === "engine" ? (
+                    <details className="block-automation">
+                      <summary className="block-automation-summary">
+                        <span className="block-automation-mark" aria-hidden>
+                          <IconContinue size={13} />
+                        </span>
+                        <span>{turn.user.label ?? "Automatic follow-up"}</span>
+                        <span className="block-automation-hint">Engine context</span>
+                      </summary>
+                      <div className="block-automation-text">{turn.user.text}</div>
+                    </details>
+                  ) : turn.user ? (
                     <div className="block-user-row">
                       <div className="block-user-stack">
                         <div
@@ -530,7 +642,7 @@ export function TranscriptView({
                         </div>
                       </div>
                     </div>
-                  )}
+                  ) : null}
                   {!folded && itemWindow.hidden > 0 && (
                     <button
                       type="button"
@@ -548,18 +660,23 @@ export function TranscriptView({
           })}
         </div>
       </div>
-      {!anchored && (
-        <button
-          type="button"
-          className="jump-latest"
-          onClick={() => {
-            setAnchored(true);
-            scrollToLatest("smooth");
-          }}
-          aria-label="Jump to latest messages"
-        >
-          Jump to latest
-        </button>
+      {(!anchored || footerAccessory) && (
+        <div className="transcript-footer-actions">
+          {footerAccessory}
+          {!anchored && (
+            <button
+              type="button"
+              className="jump-latest"
+              onClick={() => {
+                setAnchored(true);
+                scrollToLatest("smooth");
+              }}
+              aria-label="Jump to latest messages"
+            >
+              Jump to latest
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

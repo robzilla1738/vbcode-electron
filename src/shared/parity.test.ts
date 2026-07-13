@@ -19,6 +19,7 @@ import {
   partitionProjects,
   projectLabel,
   relativeSessionTime,
+  terminalCwdForWorkspace,
 } from "./project-index";
 import { isScrollAnchored } from "./scroll-anchor";
 import { externalHref, parseSearchResults, parseSources } from "./sources";
@@ -423,6 +424,15 @@ describe("project rail", () => {
     expect(filterChatSessions(chatSessions(chats), "quick")).toHaveLength(1);
     expect(filterChatSessions(chatSessions(chats), "nope")).toHaveLength(0);
     expect(partitionProjects(projects, chatsRoot).chats).toBeNull();
+  });
+
+  it("opens chat terminals at home and project terminals at the project root", () => {
+    const chatsRoot = "/Users/rob/.vibe/chats";
+    expect(terminalCwdForWorkspace(chatsRoot, chatsRoot, "/Users/rob")).toBe("/Users/rob");
+    expect(terminalCwdForWorkspace("/work/alpha/app", chatsRoot, "/Users/rob")).toBe(
+      "/work/alpha/app",
+    );
+    expect(terminalCwdForWorkspace(chatsRoot, null, "/Users/rob")).toBeNull();
   });
 });
 

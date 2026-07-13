@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CwdAllowlist, globalVibeRoots } from "./cwd-allowlist";
+import { CwdAllowlist, globalVibeRoots, isAllowedTerminalCwd } from "./cwd-allowlist";
 import { resolve } from "node:path";
 
 describe("CwdAllowlist", () => {
@@ -26,5 +26,12 @@ describe("CwdAllowlist", () => {
     const list = new CwdAllowlist(["/proj"]);
     expect(list.allows("")).toBe(false);
     expect(list.allows("/etc")).toBe(false);
+  });
+
+  it("allows only the exact home directory as the terminal-specific exception", () => {
+    const home = "/Users/rob";
+    expect(isAllowedTerminalCwd(home, home)).toBe(true);
+    expect(isAllowedTerminalCwd(`${home}/Desktop`, home)).toBe(false);
+    expect(isAllowedTerminalCwd("/etc", home)).toBe(false);
   });
 });

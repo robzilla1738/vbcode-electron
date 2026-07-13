@@ -6,7 +6,7 @@ macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/v
 
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
-**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project + chats rail, seamless right workspace dock (Session / Changes / Git / Terminal / Jobs / Files), quiet empty home, terminal themes/accents, resizable sidebars, turn-changes card + Diff/File review, and one structural activity sidebar for Session / Changes / Git / Terminal / Jobs.
+**Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project + chats rail, seamless right workspace dock (Session / Changes / Git / Terminal / Jobs / Files), quiet empty home, terminal themes/accents, resizable sidebars, changed-files chip + master-detail Diff/File review, and one structural activity sidebar for Session / Changes / Git / Terminal / Jobs.
 
 Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmacos) (SwiftUI). This repo is the Electron equivalent.
 
@@ -23,7 +23,7 @@ Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmaco
 |-------|------|------|
 | Renderer | `src/renderer/` | Transcript, composer, activity sidebar, terminal view, attachments, permissions, plan, themes, review |
 | Preload | `src/preload/` | `window.vibe` bridge API, including terminal IPC and native dropped-file path resolution |
-| Main | `src/main/` | Host spawn, NDJSON, persistent project PTYs, folder picker, clipboard image, `@` file walk |
+| Main | `src/main/` | Host spawn, NDJSON, persistent contextual PTYs, folder picker, bounded clipboard I/O, `@` file walk |
 | Shared UI logic | `src/shared/` | Ported from `@vibe/tui`: reducer, slash, themes, modes, file-fuzzy |
 | Engine host | vibe-codr `packages/macos-bridge` | In-process Engine over stdio |
 
@@ -125,9 +125,11 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 
 - Content max ~130ch; transcript prose, tool output, approval panels, and the composer share the `--composer-max: 40rem` reading measure
 - **Left rail:** collapsible Projects + Chats sections; section **+** only (add project / new chat); Git & Settings in the footer
-- **Right workspace dock:** full-label Session / Changes / Git / Terminal / Jobs / Files on the same `var(--bg)` as chat (no decorative divider or project header); compact below ~960px
+- **Right workspace dock:** full-label Session / Changes / Git / Terminal / Jobs / Files in an equally inset, quietly grey rounded enclosure on the chat surface; compact below ~960px
 - **Shared activity sidebar:** Session, Changes, Git, Terminal, and Jobs open in one full-height, edge-attached right pane with a persistent top switcher, shared headers, divider, resize handle, and responsive drawer behavior. It is a structural sibling of chat, never a floating card or overlay on desktop. Files remains a Finder reveal.
-- **Persistent project terminal:** each opened project PTY lives in the main process. Closing Terminal or switching sidebar views detaches the renderer without stopping commands; reopening reconnects with bounded buffered output.
+- **Persistent contextual terminal:** project sessions open at the project root;
+  Chats open at the user's home. Each effective-cwd PTY lives in the main process,
+  so closing Terminal or switching views preserves commands and buffered output.
 - **Deferred terminal runtime:** xterm is code-split and loaded only when the
   Terminal activity view first opens, preserving the chat startup bundle.
 - **Cross-platform CI install:** macOS-only Liquid Glass is optional, so Linux
@@ -165,9 +167,10 @@ quiet surface (no brain icon). Subagent rows show status without expandable
 detail. User turns fold by clicking the message. Source/article results use
 structured cards. Dropped images and files render as removable attachment chips
 and submit as project-aware `@` references. Finder drops use native path
-resolution with `file://` URI fallbacks. The Session inspector offers
-changed-file review with Diff/File modes and Reveal; a turn-changes card above
-the composer links into the same review. Light scheme keeps edge-lit elevation
+resolution with `file://` URI fallbacks. Changes opens a wider master-detail
+review workspace with searchable grouped files, aggregate and per-file stats,
+previous/next navigation, Diff/File modes, copy, and Reveal; the footer
+changed-files chip links into it. Light scheme keeps edge-lit elevation
 and soft frost on floating chrome; `/accent` remaps selection and focus tokens
 together. The complete token, layout, elevation, typography, panel, and
 responsive contract lives in [design-system.md](./design-system.md).
@@ -251,7 +254,7 @@ Shell-owned surfaces:
 - Multi-project + Chats rail (collapsible sections, + add project / new chat, resume, filter; Continue Latest via ⇧⌘N)
 - Workspace dock: Session / Changes / Git / Terminal / Jobs / Files on the chat surface;
   Session, Changes, Git, Terminal, and Jobs share one mutually exclusive right-side lane
-- Turn-changes card after file edits; Session inspector Diff/File review + Reveal
+- Changed-files chip after edits, sharing one row with Jump to latest; dedicated searchable master-detail Changes review
 - Jobs activity view with live auto-follow output, localhost links, and copy
 - Anchored streaming with intentional scroll disengagement and Jump to latest
 - `@` fuzzy attach, clipboard image paste, external editor
@@ -270,6 +273,7 @@ Shell-owned surfaces:
 - Memory notice: quiet `Memory · N notes` disclosure with click-to-expand note details
 - Sources/articles: numbered reading cards with title, domain, and snippet hierarchy
 - User turns: click or keyboard-activate the message to collapse/expand; actions under the bubble
+- Engine-owned gate/review/verification continuations: compact expandable context rows, visually distinct from user messages and without user Copy/Edit actions
 - Lucide icons across chrome, composer, and tool-row glyphs
 - Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, narrow busy/idle live status (transcript is not live), hover/focus copy and edit icons with keyboard focus (touch keeps them visible), busy-disabled rail labels, skip links to conversation/composer/projects/session panel, catalog focus trap
 - App icon: `assets/icon.png` → `npm run build:icon` → `assets/icon.icns` for packaged builds; the master includes macOS-style optical safe-area padding, and the unpackaged macOS dock uses the PNG via `app.dock.setIcon`
@@ -285,7 +289,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **289 unit tests**, **12 Electron E2E scenarios**, 19 source
+Current baseline: **294 unit tests**, **12 Electron E2E scenarios**, 19 source
 parity pairs, 40 top-level config fields, Biome, typecheck, production build,
 and renderer bundle budget pass in the current checkout. CI runs `verify` +
 coverage floors + bridge smoke + E2E on Linux and unsigned pack smoke on macOS;

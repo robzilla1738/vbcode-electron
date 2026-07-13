@@ -1,7 +1,7 @@
 # CLI ↔ Electron parity checklist
 
 Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated:
-`npm test` (289 unit tests), `npm run test:e2e` (12 scenarios),
+`npm test` (294 unit tests), `npm run test:e2e` (12 scenarios),
 `npm run verify:source-parity` (19 declaration pairs),
 `npm run verify:config-shape` (40 top-level engine fields), and CI
 coverage/bridge/packaged-host gates.
@@ -91,7 +91,7 @@ reason to weaken either guard.
 - [x] Multi-project + Chats rail with collapsible sections, section +, titles, resume/filter; Continue Latest via ⇧⌘N / menu
 - [x] Project/session rename, archive, and delete menus with in-app confirmation; project menus escape rail clipping
 - [x] Workspace dock (Session / Changes / Git / Terminal / Jobs / Files) on chat surface; no topbar duplicates
-- [x] Turn-changes card after file edits; dock Changes opens inspector review
+- [x] Changed-files chip after edits; dock Changes opens the dedicated master-detail review
 - [x] Host fatal / boot error: primary New session recovery
 - [x] `/jobs` drawer: live auto-follow terminal (full outputTail, stick-to-bottom, jump-to-latest); Close without Esc chip; quiet status/link chips
 - [x] `@` fuzzy file attach (TUI `file-fuzzy` ranking)
@@ -107,6 +107,9 @@ reason to weaken either guard.
 - [x] Inspector (⇧⌘I / dock Session): dynamic session/file title, shared activity sections,
   changed-file Diff/File review with line gutters, in-panel file preview +
   Reveal, checkpoints undo/redo; subagent rows remain static and non-expandable
+- [x] Changes uses a dedicated persisted-width master-detail workspace with
+  searchable directory groups, aggregate/per-file stats, churn balance,
+  previous/next navigation, Diff/File modes, copy, and Reveal; compact drawers stack.
 - [x] Project rail + Session inspector: pointer and Arrow/Home/End keyboard resizing,
   persisted widths, and hidden handles in narrow drawer layouts
 - [x] Settings Custom Instructions stay mounted across section switches (dirty drafts preserved)
@@ -171,6 +174,7 @@ npm run dev
 - [x] flushDeltas before tool-finish and file-changed (TUI enqueue→landPending parity)
 - [x] Source parity check covers themes, glyphs, wordmark (19 pairs)
 - [x] Session chrome state tests: mode/plan dismissal, user-message reset, subagent-activity guard
+- [x] Session bootstrap preserves the active workspace tool and restores transcript scroll per session instead of resetting the editing view
 
 ## Additional parity items (session 3)
 
@@ -269,7 +273,7 @@ npm run dev
 - [x] GFM tables: Streamdown 2.5 wrapper is flex (no float); scroll on the table shell; fixed layout so prose columns don’t clip or hog width
 - [x] Streamdown markdown hierarchy: `[data-streamdown="strong"]` / headings / nested lists / inline-code tokens; nested detail on `--text-secondary`
 - [x] SourceList cards: heading titles (not `.md a` blue), quiet domain, 2-line snippet clamp, light hairline cards
-- [x] Plan approval body renders as markdown in the chat column; sources/assumptions as quiet footers; Accept / Keep / YOLO row
+- [x] Plan approval body renders as bounded scrolling markdown with sources/assumptions; fixed title and equal-width Accept / Keep / YOLO footer remain visible above the composer
 - [x] `selectModeAction` unit coverage + Shiki theme registry coverage
 
 ## Sleek modern Codex alternative — opencode-inspired polish (session 7)
@@ -308,7 +312,10 @@ npm run dev
   reopen it. Session/Changes/Git/Terminal/Jobs share one mutually exclusive,
   edge-attached activity sidebar without replacing the chat workspace.
 - [x] Approval panels and transcript output share the composer measure.
+- [x] Jump to latest and the changed-files chip share one footer action row.
 - [x] User turns fold from the message itself without a persistent arrow.
+- [x] Engine-owned gate/review/verification continuations retain turn boundaries
+  but render as compact expandable context rows, never as user-authored bubbles.
 - [x] Memory notices use a quiet `Memory · N notes` disclosure with an
   expandable note list; no emoji or decorative brain/sparkle glyph is used.
 - [x] Source/article results use numbered cards with title, domain, and snippet
@@ -501,13 +508,16 @@ npm run dev
 ## Unified activity sidebar and design-system documentation (2026-07-13)
 
 - [x] Session, Changes, Git, Terminal, and Jobs use one mutually exclusive,
-  full-height right activity sidebar with shared width, header, hairline divider,
-  close behavior, Escape handling, persisted resizing, and open/replace geometry.
+  full-height right activity sidebar with shared hairline geometry, close behavior,
+  Escape handling, and persisted resizing. Changes keeps a wider review-specific
+  width while remaining in that same structural lane.
 - [x] The sidebar keeps all five view switches visible at the top. Project PTYs
   remain main-owned and continue running across Terminal close/view switches,
   then reconnect with bounded replay output.
+- [x] Terminal cwd follows context: project sessions use the project root, while
+  one-off Chats use the user's home directory rather than `~/.vibe/chats`.
 - [x] The activity sidebar is a structural grid column, not an inset floating
-  card; user messages, transcript output, approvals, turn-changes, and composer
+  card; user messages, transcript output, approvals, changed-files footer, and composer
   stay visible beside it.
 - [x] Git no longer replaces the full workspace. Its Branches, Changes,
   History, Remotes, and Pull Requests content renders inside the activity rail.
@@ -517,6 +527,6 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current release gate: 289 unit tests, 12 e2e scenarios, lint, typecheck,
+- [x] Current release gate: 294 unit tests, 12 e2e scenarios, lint, typecheck,
   build, bundle budget, source parity (19 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.

@@ -53,7 +53,11 @@ because its section navigation and form content require the larger canvas.
 Its compact top switcher is persistent while the lane is open. The five views
 use equal-width quiet text tabs with selected fill, optional Changes/Jobs counts,
 and no bright selection line. Terminal's PTY is owned by the main process per
-project; closing or switching its renderer view never terminates the shell.
+effective cwd; projects use their root and Chats use the user's home directory.
+Closing or switching its renderer view never terminates the shell.
+Changes may use a wider persisted review measure inside the same structural lane:
+its master-detail layout keeps the searchable grouped file navigator beside the
+active Diff/File surface, then stacks them inside the compact drawer.
 
 ### Layout measures
 
@@ -65,6 +69,7 @@ These values are the current production tokens in `src/renderer/styles.css`:
 | `--workspace-lane-w` | `clamp(280px, 26vw, 340px)` | Shared reserved lane for dock and activity sidebar |
 | `--workspace-dock-w` | `clamp(208px, 18vw, 232px)` | Compact upper-right launcher |
 | `--activity-rail-w` | `var(--workspace-lane-w)` | Shared Session/Changes/Git/Terminal/Jobs sidebar |
+| `--changes-rail-w` | `clamp(520px, 42vw, 680px)` | Dedicated master-detail Changes review width |
 | `--column-max` | `52rem` | Transcript, approvals, and composer column |
 | `--composer-max` | `40rem` | Composer and approval measure |
 | `--reading-max` | `130ch` | Wider transcript content measure |
@@ -269,10 +274,13 @@ Disabled controls reduce contrast and interaction without shifting layout.
 Panels must remain predictable:
 
 - The workspace dock and activity sidebar use the same row order and edge alignment.
-- The workspace dock is a compact `--bg` navigation surface with one quiet
-  hairline, no rail tint, and no floating shadow. Its compact icon-strip form
-  keeps the same enclosure so it remains legible over the reclaimed chat area.
+- The workspace dock is a compact `--surface-subtle` navigation surface with
+  equal top/side inset, one quiet hairline, and no floating shadow. Its compact
+  icon-strip form keeps the same enclosure so it remains legible over the
+  reclaimed chat area.
 - Session, Changes, Git, Terminal, and Jobs are mutually exclusive in the activity sidebar.
+- Session handoffs preserve the active activity view and each session's reading
+  position; replacing conversation data must not reset the surrounding workspace.
 - Active-turn state stays in the composer/project row; do not add a redundant
   floating Running card. Density acknowledgements remain silent and verbose
   warnings collapse into quiet disclosures.
@@ -280,6 +288,8 @@ Panels must remain predictable:
 - The composer stays anchored while transcript scroll changes.
 - The user bubble, assistant output, approval cards, and composer align to the
   same readable measure.
+- Long plan approvals scroll only their review body. Their title and equal-width
+  decision footer stay fixed, with one `--space-xs` gap before the composer.
 - Menus are portal-mounted and trigger-anchored; they flip when near an edge.
 - No section uses a bright white “selected outline” or moving side line.
 
@@ -290,10 +300,11 @@ Panels must remain predictable:
 | Project rail | `src/renderer/layout/ProjectRail.tsx` | Collapsible Projects/Chats, stable icon/text columns, portal menus, persisted resize |
 | Workspace dock | `src/renderer/layout/WorkspaceDock.tsx` | Chat-surface navigation for Session/Changes/Git/Terminal/Jobs/Files |
 | Activity sidebar | `src/renderer/layout/ActivitySidebar.tsx`, `src/renderer/panels/Inspector.tsx`, `src/renderer/panels/TerminalPanel.tsx`, `src/renderer/panels/JobsView.tsx`, `src/renderer/git/GitPanel.tsx` | Persistent five-view switcher; full-height edge-attached geometry, shared header/divider/resize behavior; content never occludes chat |
-| Project terminal | `src/main/terminal-manager.ts`, `src/renderer/panels/TerminalPanel.tsx` | Main-owned project PTY, bounded replay, detach/reconnect across sidebar close and view switches |
-| Transcript | `src/renderer/transcript/TranscriptView.tsx` | Plain streaming text, finalized Streamdown hierarchy, anchored scrolling, foldable user turns |
+| Contextual terminal | `src/main/terminal-manager.ts`, `src/renderer/panels/TerminalPanel.tsx` | Main-owned PTY at project root or user home for Chats, bounded replay, detach/reconnect across sidebar close and view switches |
+| Transcript | `src/renderer/transcript/TranscriptView.tsx` | Plain streaming text, finalized Streamdown hierarchy, anchored scrolling, foldable user turns; engine-authored continuations use compact expandable context rows, while gate and visual-check results use structured status rows |
 | Composer | `src/renderer/composer/Composer.tsx` | Floating, continuously frosted, attachment-aware, keyboard-contained menus |
-| Turn changes | `src/renderer/panels/TurnChangesCard.tsx` | Compact file summary above composer; Review opens the same diff surface |
+| Changes review | `src/renderer/panels/ChangesView.tsx`, `DiffPreview.tsx` | Searchable grouped file navigator, totals/churn balance, persistent Diff/File review, navigation, copy, and Reveal |
+| Changed-files footer | `src/renderer/panels/TurnChangesCard.tsx` | Compact file summary beside Jump to latest; Review opens Changes |
 | Settings | `src/renderer/settings/SettingsPanel.tsx` | Full-workspace section navigation, engine-shape-validated saved config, mounted Instructions draft |
 | Git | `src/renderer/git/GitPanel.tsx` | Full Git content inside the shared right-side activity rail |
 | Icons | `src/renderer/icons.tsx`, `src/renderer/tool-glyph.tsx` | Lucide stroke wrappers with stable sizing and labels |

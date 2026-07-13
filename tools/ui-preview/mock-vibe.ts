@@ -24,6 +24,7 @@
  *   mention     — `@` file-mention popover open
  *   jobs        — background jobs view
  *   inspector   — session inspector rail open
+ *   changes     — expanded master-detail changed-files review
  *   toast       — finished chat with a toast banner
  *   density-quiet / density-verbose — details density cue in composer
  *   ctx-hot     — high context % (topbar warn chip at laptop width)
@@ -631,6 +632,31 @@ async function runTimeline(): Promise<void> {
       await sleep(80);
       document.querySelector<HTMLButtonElement>('[aria-label="Show session panel"]')?.click();
       break;
+    case "changes":
+      await chatTurn();
+      emit({
+        type: "file-changed",
+        sessionId: SID,
+        toolCallId: "tc_theme_provider",
+        path: "src/app/theme/ThemeProvider.tsx",
+        action: "edit",
+        diff: "@@ -8,3 +8,6 @@\n export function ThemeProvider() {\n+  const preferred = matchMedia(\"(prefers-color-scheme: dark)\");\n+  const resolved = theme === \"system\" ? preferred.matches : theme === \"dark\";\n   return <ThemeContext.Provider value={{ theme, setTheme }}>\n",
+        added: 2,
+        removed: 0,
+      });
+      emit({
+        type: "file-changed",
+        sessionId: SID,
+        toolCallId: "tc_tokens",
+        path: "src/app/theme/tokens.css",
+        action: "edit",
+        diff: "@@ -20,2 +20,7 @@\n :root { --surface: white; }\n+\n+[data-theme=\"dark\"] {\n+  --surface: #121212;\n+  --text: #f2f2f2;\n+}\n",
+        added: 5,
+        removed: 0,
+      });
+      await sleep(80);
+      window.dispatchEvent(new CustomEvent("vibe-preview-open-panel", { detail: "changes" }));
+      break;
     case "toast":
       await chatTurn();
       window.dispatchEvent(
@@ -743,6 +769,10 @@ const mock = {
     return FILES.filter((f) => f.toLowerCase().includes(q)).slice(0, 8);
   },
   pasteClipboard: async () => ({ kind: "none" as const }),
+  writeClipboardText: async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    return { ok: true as const };
+  },
   globalConfigPath: async () => "/Users/rob/.config/vibe-codr/config.json",
 
   // Config mocks
@@ -879,7 +909,7 @@ const REQUIRED_VIBE_KEYS = [
   "deleteProject", "renameSession", "deleteSession", "archiveSession", "stop",
   "quit", "onEvent", "onReady", "onFatal", "onMenuAction", "openProject",
   "ensureChatsDir", "openExternal", "showItem", "readTextFile", "composeInEditor",
-  "getPath", "getPathForFile", "listFiles", "pasteClipboard", "globalConfigPath",
+  "getPath", "getPathForFile", "listFiles", "pasteClipboard", "writeClipboardText", "globalConfigPath",
   "readConfig", "writeConfig", "projectConfigPath", "readMemory", "writeMemory",
   "gitStatus", "gitCreateBranch", "gitCheckout", "gitDeleteBranch", "gitStage",
   "gitUnstage", "gitCommit", "gitMerge", "gitPush", "gitPull", "gitFetch",

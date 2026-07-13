@@ -69,3 +69,9 @@ export function assertAllowedCwd(cwd: string, label = "cwd"): void {
 export function isAllowedCwd(cwd: string): boolean {
   return projectCwdAllowlist.allows(cwd);
 }
+
+/** Terminal additionally permits the exact user home used by one-off Chats. */
+export function isAllowedTerminalCwd(cwd: string, home = homedir()): boolean {
+  if (typeof cwd !== "string" || !cwd) return false;
+  return resolve(cwd) === resolve(home) || projectCwdAllowlist.allows(cwd, home);
+}

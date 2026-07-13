@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff  
-> **Updated:** 2026-07-13 (edge-attached activity sidebar and project terminal)
+> **Updated:** 2026-07-13 (editing-view persistence, contextual terminal, and master-detail Changes review)
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
@@ -16,19 +16,22 @@ The shell has these primary surfaces:
 1. **Project rail** (left) — collapsible **Projects** and **Chats** sections,
    search, session/project menus, Git/Settings footer.
 2. **Main stage** — topbar (project/session title), transcript (user bubbles,
-   assistant prose, tools, thinking, notices, sources), floating composer,
-   plan/permission/queue overlays.
+   compact expandable engine-follow-up context, assistant prose, tools, thinking,
+   structured gate/visual-check statuses, notices, sources), floating composer,
+   plan/permission/queue overlays, and a single footer action row for changed files
+   plus Jump to latest.
 3. **Workspace dock** (right strip on the chat surface) — flat full-label list:
-   Session, Changes, Git, Terminal, Jobs, Files. Same `--bg` as the chat stage (no rail
-   tint, no decorative section dividers or Local/Commit/Compare noise). It
+   Session, Changes, Git, Terminal, Jobs, Files. Its equally inset rounded
+   `--surface-subtle` enclosure has no shadow, section dividers, or
+   Local/Commit/Compare noise. It
    switches to compact icon navigation below ~960px; Jobs is also available via
    `/jobs`.
 4. **Activity sidebar** — one full-height, edge-attached right pane for Session,
    Changes, Git, Terminal, and Jobs. The active view replaces the previous view
    in the same structural grid column. Files remains a Finder reveal rather
    than an in-app panel.
-5. **Turn changes card** — after the agent edits files, a quiet card above the
-   composer lists paths with +/− and Review (opens the inspector).
+5. **Changed-files footer chip** — after edits, a compact summary shares the
+   transcript footer row with Jump to latest and opens the Changes workspace.
 
 Transcript output, approval cards, and the composer use the same centered
 `--composer-max: 40rem` measure. The central chat pane fills its workspace
@@ -89,8 +92,9 @@ without changing the active chat or scroll position.
 
 ### Workspace dock
 
-- Lives **inside** the main column / content stage so it shares `var(--bg)` with
-  chat (not a workspace-level sibling with a different fill).
+- Lives **inside** the main column / content stage, inset equally from the top
+  and side. Its rounded enclosure uses `var(--surface-subtle)` for a quiet grey
+  separation from chat without becoming a separate workspace rail.
 - Rows only: Session (`Show session panel`), Changes, Git, Terminal, Jobs
   (`Toggle background jobs` — toggles), Files (Finder reveal). Git may show the
   short branch name in the label; +/− meta appears on Changes when files exist.
@@ -148,23 +152,30 @@ snippet. External links go through `ExternalLink` / host bridge.
 
 - Composer measure; sit above composer clearance.
 - Permission: human title, preview, once/session/project/deny (+ optional deny reason).
-- Plan: markdown, sources, assumptions, ungrounded warnings; Enter / Esc / ⌘Y.
+- Plan: fixed title and approval footer around one bounded scroll region for
+  markdown, sources, assumptions, and ungrounded warnings; Enter / Esc / ⌘Y.
+  The footer remains visible and sits 8px above the plan-revision composer.
 
 ### Session, Changes, Git, Terminal, and Jobs panels
 
 - The wide Environment dock is a compact hairline navigation surface on
   `--bg`, without a rail tint or floating shadow. At the compact breakpoint it
   becomes a small enclosed icon strip rather than disappearing.
-- Activity views are closed by default. Session opens from dock Session/Changes,
-  turn-changes Review, panel-strip chips, or ⇧⌘I. Git opens from the dock or
+- Activity views are closed by default. Session opens from dock Session or ⇧⌘I;
+  Changes opens from the dock or changed-files footer chip. Git opens from the dock or
   Git shortcut; Jobs opens from the dock or `/jobs`. Sending a message must not
   reopen the activity sidebar.
 - Opening Session, Changes, Git, Terminal, or Jobs closes the previous view in
   place. Escape, the close control, or the active dock toggle returns to the
   unchanged chat surface; a dismiss scrim is added only in compact drawer mode.
-- Terminal view close/switch detaches only xterm rendering. The project PTY
-  continues in the main process, keeps bounded replay output, and reconnects
-  when Terminal is selected again; app shutdown remains the lifecycle boundary.
+- Switching or resuming sessions changes conversation data without closing or
+  changing the active Session/Changes/Git/Terminal/Jobs view. Changes keeps its
+  Diff/File mode, and transcript scroll positions are restored per session.
+- Terminal view close/switch detaches only xterm rendering. Project sessions
+  open shells at the project root; one-off Chats open at the user's home instead
+  of the internal `~/.vibe/chats` session store. Each effective-cwd PTY continues
+  in the main process, keeps bounded replay output, and reconnects when Terminal
+  is selected again; app shutdown remains the lifecycle boundary.
 - All activity tabs, headers, labels, and supporting paths use the shared app
   sans stack and tokenized type scale. The xterm grid intentionally uses
   `--font-mono` at 12.5px with neutral letter spacing and a 1.35 line height so
@@ -172,7 +183,10 @@ snippet. External links go through `ExternalLink` / host bridge.
   weight, color, and spacing rather than inconsistent font sizes.
 - Git’s branches/changes/history/remotes/pull-request content stays inside the
   activity rail. It must not replace the project rail or main chat workspace.
-- Changed files: Diff/File modes, line gutters, Reveal in Finder.
+- Changes is a dedicated master-detail review workspace: searchable directory
+  groups stay visible beside the selected file, with aggregate/per-file stats,
+  churn balance, previous/next navigation, Diff/File modes, line gutters, copy,
+  and Reveal in Finder. It stacks navigator above review in compact drawers.
 - Host fatal / boot error: primary **New session**, plus Retry and Choose
   another project.
 
@@ -200,7 +214,7 @@ snippet. External links go through `ExternalLink` / host bridge.
 | Native dropped-file paths | `src/preload/index.ts` (`webUtils.getPathForFile`) |
 | Project rail | `src/renderer/layout/ProjectRail.tsx` |
 | Workspace dock | `src/renderer/layout/WorkspaceDock.tsx` |
-| Turn changes card | `src/renderer/panels/TurnChangesCard.tsx` |
+| Changed-files footer chip | `src/renderer/panels/TurnChangesCard.tsx` |
 | Diff display helpers | `src/shared/diff-view.ts`, `changed-files.ts` |
 | Rail resizing | `src/renderer/layout/SidebarResizeHandle.tsx` |
 | Transcript and folding | `src/renderer/transcript/TranscriptView.tsx` |
@@ -208,7 +222,8 @@ snippet. External links go through `ExternalLink` / host bridge.
 | Permission / plan / queue | `src/renderer/panels/LivePanels.tsx` |
 | Jobs | `src/renderer/panels/JobsView.tsx` |
 | Shared activity sidebar | `src/renderer/layout/ActivitySidebar.tsx` |
-| Session / Changes views | `src/renderer/panels/Inspector.tsx` |
+| Session view | `src/renderer/panels/Inspector.tsx` |
+| Changes review | `src/renderer/panels/ChangesView.tsx`, `src/renderer/panels/DiffPreview.tsx` |
 | Git view | `src/renderer/git/GitPanel.tsx` |
 | Jobs view | `src/renderer/panels/JobsView.tsx` |
 | Terminal renderer + PTY owner | `src/renderer/panels/TerminalPanel.tsx`, `src/main/terminal-manager.ts` |

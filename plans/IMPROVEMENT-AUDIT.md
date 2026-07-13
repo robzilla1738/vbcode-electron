@@ -238,3 +238,11 @@ virtualization polish or engine protocol coordination; neither is release debt.
 ---
 
 *End of backlog. Prefer this file over historical residual prose.*
+
+## 2026-07-13 editing-workspace closeout
+
+The subsequent UI batch did not reopen the host-hardening backlog. It added a
+trusted bounded clipboard write IPC, a terminal-only exact-home cwd exception
+for Chats, explicit engine/user transcript origins, session view/scroll
+preservation, and the dedicated Changes review. The exact-home exception does
+not broaden Git, config, or general filesystem IPC permissions.

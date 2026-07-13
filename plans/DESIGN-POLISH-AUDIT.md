@@ -48,9 +48,9 @@ Prioritize **P0 token bugs → focus/motion grammar → contract alignment → s
 - **Direction:** Pick one primary grammar and document it: either (A) section `+` only (strict UI.md), or (B) one quiet primary row set — but not both Open project entry points. Align `UI.md`, rail JSX, and shots.
 
 ### D-02 · Workspace dock still reads as a floating card, not chat surface
-- **Status:** Complete — user review selected a compact `--bg` hairline enclosure with no tint or floating shadow; it remains chat-surface navigation rather than a competing activity panel.
+- **Status:** Complete — final user review selected an equally inset compact `--surface-subtle` hairline enclosure with no floating shadow; it remains chat-surface navigation rather than a competing full-height rail.
 - **Severity:** inconsistency
-- **Where:** `.workspace-dock` in `src/renderer/styles.css` (~3422); `src/renderer/layout/WorkspaceDock.tsx`; AGENTS.md / UI.md (“same `--bg` as chat… no rail tint”)
+- **Where:** `.workspace-dock` in `src/renderer/styles.css`; `src/renderer/layout/WorkspaceDock.tsx`; AGENTS.md / UI.md (chat-surface enclosure, equal inset, no full-height rail tint)
 - **Issue:** Dock uses `--drawer-bg`, border, `--shadow-dock`, and glass blur — same elevation family as the activity end panel. Contract text wants the dock *on* the chat surface without a separate rail fill. Visually it competes with Session/Git/Jobs panels rather than reading as stage-local navigation.
 - **Direction:** Soften dock to chat-stage grammar (transparent/`var(--bg)`, hairline or no shadow, no glass stack) while keeping row hover/selected fills. Keep end panels as the elevated “open tool” layer.
 
@@ -188,7 +188,7 @@ Prioritize **P0 token bugs → focus/motion grammar → contract alignment → s
 - **Direction:** Opt-in class (e.g. `.pressable`) for primary/chip actions only.
 
 ### D-20 · Hover-reveal utility actions (copy/edit)
-- **Status:** Complete — shared `.hover-reveal` behavior covers pointer, `:focus-within`, and always-visible touch paths.
+- **Status:** Complete — shared `.hover-reveal` behavior covers pointer, `:focus-within`, and always-visible touch paths; assistant Copy uses trusted native clipboard IPC with explicit failure state.
 - **Severity:** a11y / polish
 - **Where:** `@media (hover: hover)` on `.assistant-actions`, tool/plan copy, queue actions
 - **Issue:** Opacity 0 until hover/focus-within — good for calm UI; keyboard path relies on focus-within. Fine if focus rings always show; easy to regress. Touch forces visible (good).
@@ -294,7 +294,7 @@ Prioritize **P0 token bugs → focus/motion grammar → contract alignment → s
 - **Direction:** Keep global; delete redundant locals; audit JS motion paths.
 
 ### D-34 · Status spinners: engine-pulse vs spin
-- **Status:** Complete — row-level work uses the quiet pulse; rotation is reserved for blocking boot/load states.
+- **Status:** Complete — loading rings rotate continuously; non-loading active rows retain the quiet engine pulse, and reduced motion preserves state without travel.
 - **Severity:** polish
 - **Where:** `.status-dot-active` uses `spin`; job running uses `engine-pulse`
 - **Issue:** Two busy languages (rotate ring vs opacity pulse).
@@ -447,7 +447,7 @@ Prioritize **P0 token bugs → focus/motion grammar → contract alignment → s
 # 10. Component-specific notes
 
 ### D-53 · Turn changes card is quiet (good); Review affordance easy to miss
-- **Status:** Complete — the review pill is explicitly above the veil and uses secondary text contrast with tokenized padding.
+- **Status:** Complete — the compact changed-files pill shares the transcript footer row with Jump to latest and opens the dedicated Changes workspace above the composer veil.
 - **Severity:** polish
 - **Where:** `TurnChangesCard`, chat shots
 - **Issue:** Pill “Changed files · N · Review” is calm; after long turns it sits above composer under veil.
@@ -461,7 +461,7 @@ Prioritize **P0 token bugs → focus/motion grammar → contract alignment → s
 - **Direction:** Preserve one wordmark and scale it rather than substituting a second brand treatment.
 
 ### D-55 · Preview shots and mock chrome are stale
-- **Status:** Complete for live code; image recapture intentionally skipped per the user’s explicit instruction not to work in screenshots. The preview mock now follows the live dock/topbar contracts.
+- **Status:** Complete for live code; image recapture intentionally skipped per the user’s explicit instruction not to over-test. The preview mock follows the live dock/topbar contracts and includes the master-detail `changes` scenario.
 - **Severity:** inconsistency (tooling)
 - **Where:** `tools/ui-preview/shots/*` (dated Jul 11–12); many frames show topbar **Jobs / Session**, rail **New session / Open project / Continue latest**
 - **Issue:** Live `App.tsx` topbar has no Jobs/Session actions; rail is New chat + Open project; dock is the workspace launcher. Shots mis-train visual QA.

@@ -14,7 +14,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 4. **`/clear` / `/new`:** abort if busy → `clearSessionLocal()` (transcript + overlays + `suppressAfterClear`) → forward slash to engine.
 5. Prefer porting pure modules from `vibe-codr/packages/tui` (`reducer`, `slash`, `modes`, `density`, `file-fuzzy`, `commands-catalog`) over rewriting behavior.
 6. Development host resolution must reject a compiled `vibecodr-engine-host` when runtime source under the sibling checkout is newer, then fall back to Bun source execution. This prevents stale host behavior from being reported as a generic renderer failure.
-7. **Workspace dock stays on the chat surface** (`var(--bg)` inside `content-inset` / `main-column`). Session, Changes, Git, Terminal, and Jobs open in one mutually exclusive, edge-attached right-side activity sidebar; the main column reserves that column instead of letting panels cover chat. Do not reintroduce a separate rail tint, floating desktop panels, decorative white section lines, or topbar duplicates of Session/Changes/Git/Terminal/Jobs/Files.
+7. **Workspace dock stays on the chat surface** (equal top/side inset with a quiet `var(--surface-subtle)` rounded enclosure inside `content-inset` / `main-column`). Session, Changes, Git, Terminal, and Jobs open in one mutually exclusive, edge-attached right-side activity sidebar; the main column reserves that column instead of letting panels cover chat. Do not reintroduce a full-height rail tint, floating desktop panels, decorative white section lines, or topbar duplicates of Session/Changes/Git/Terminal/Jobs/Files.
 
 ## Key paths
 
@@ -31,8 +31,8 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 | Project rail (Projects + Chats) | `src/renderer/layout/ProjectRail.tsx`, `src/shared/project-index.ts` |
 | Workspace dock | `src/renderer/layout/WorkspaceDock.tsx` |
 | Activity sidebar | `src/renderer/layout/ActivitySidebar.tsx`; view bodies in `src/renderer/panels/` and `src/renderer/git/GitPanel.tsx` |
-| Persistent project terminal | `src/main/terminal-manager.ts`, `src/renderer/panels/TerminalPanel.tsx`, `src/shared/terminal.ts` |
-| Turn changes card | `src/renderer/panels/TurnChangesCard.tsx` |
+| Persistent contextual terminal | `src/main/terminal-manager.ts`, `src/renderer/panels/TerminalPanel.tsx`, `src/shared/terminal.ts`, `src/shared/project-index.ts` |
+| Changed-files footer chip | `src/renderer/panels/TurnChangesCard.tsx` |
 | Changed files / diff view | `src/shared/changed-files.ts`, `diff-view.ts` |
 | Resizable rails | `src/renderer/layout/SidebarResizeHandle.tsx` |
 | Session review | `src/renderer/panels/Inspector.tsx` |
@@ -63,7 +63,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 
 ```bash
 npm run dev            # launch Electron
-npm test               # unit tests (Vitest; 289 at the current baseline)
+npm test               # unit tests (Vitest; 294 at the current baseline)
 npm run test:coverage  # coverage floors (shared + bridge)
 npm run typecheck
 npm run verify         # lint + unit + source/config parity + typecheck + build + bundle
@@ -92,14 +92,15 @@ cd ~/Code/vibe-codr && bun run build:macos-bridge
   - Project menus: rename/archive/delete; subagent rows are static status summaries.
   - User turns fold from the message itself; **user Copy/Edit/time sit under the bubble**; assistant Copy stays below assistant output.
   - Finder drops resolve native paths with URI/plain-text fallback.
-  - Changed files: turn card + Diff/File review + Reveal.
+  - Changed files: footer chip beside Jump to latest + dedicated master-detail Diff/File review + Reveal.
   - Desktop rails resize with pointer/keyboard and persisted widths.
   - Workspace dock: Session / Changes / Git / Terminal / Jobs / Files on the chat surface.
   - Activity sidebar geometry: Session / Changes / Git / Terminal / Jobs share
     one edge-attached right-side column; switching views must not replace the chat
     workspace or change the conversation scroll position. Files is the Finder reveal action.
-  - Terminal close/switch detaches the renderer only. The main-owned project PTY
-    and bounded replay buffer survive until app shutdown.
+  - Terminal close/switch detaches the renderer only. The main-owned PTY and
+    bounded replay buffer survive until app shutdown; projects use their root,
+    while Chats use the user's home directory.
   - Custom Instructions stay mounted (hidden) across settings section switches.
 
 ## When changing UI presentation (design system)

@@ -62,4 +62,22 @@ describe("hydrateFromHistory", () => {
     expect(state.blocks.some((b) => b.kind === "user" && b.text === "hello")).toBe(true);
     expect(state.blocks.some((b) => b.kind === "assistant" && b.text.includes("hi"))).toBe(true);
   });
+
+  it("preserves engine-authored follow-up attribution on resume", () => {
+    const state = hydrateFromHistory([
+      {
+        id: "internal-1",
+        role: "user",
+        createdAt: 1,
+        parts: [{ type: "text", text: "Fix the flagged review issues." }],
+        metadata: { origin: "engine", label: "Automatic review follow-up" },
+      },
+    ]);
+
+    expect(state.blocks[0]).toMatchObject({
+      kind: "user",
+      origin: "engine",
+      label: "Automatic review follow-up",
+    });
+  });
 });

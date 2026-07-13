@@ -345,7 +345,7 @@ export function ProjectRail({
     >
       <div className="rail-chrome">
         <button type="button" className="icon-button rail-chrome-toggle no-drag" onClick={onClose} aria-label="Hide project rail">
-          <IconSidebar size={15} />
+          <IconSidebar size={14} />
         </button>
       </div>
 
@@ -417,7 +417,7 @@ export function ProjectRail({
             aria-controls="rail-projects-body"
             onClick={() => setProjectsOpen((v) => !v)}
           >
-            <IconChevron open={showProjectsBody} size={12} />
+            <IconChevron open={showProjectsBody} size={14} />
             <span className="rail-section-label">Projects</span>
           </button>
           <button
@@ -485,7 +485,7 @@ export function ProjectRail({
                     </span>
                     <span className="project-name">{projectLabel(project, projects)}</span>
                     <span className="project-heading-meta">
-                      <IconChevron open={isExpanded} size={13} />
+                      <IconChevron open={isExpanded} size={14} />
                     </span>
                   </button>
                   <div className="project-row-actions">
@@ -632,7 +632,7 @@ export function ProjectRail({
             aria-controls="rail-chats-body"
             onClick={() => setChatsOpen((v) => !v)}
           >
-            <IconChevron open={showChatsBody} size={12} />
+            <IconChevron open={showChatsBody} size={14} />
             <span className="rail-section-label">Chats</span>
           </button>
           <button

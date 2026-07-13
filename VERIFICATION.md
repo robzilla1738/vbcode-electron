@@ -18,7 +18,7 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (**289** tests as of 2026-07-13), Playwright Electron E2E
+Expect: Vitest green (**294** tests as of 2026-07-13), Playwright Electron E2E
 green (**12** scenarios), all 19 upstream source pairs aligned, Biome and `tsc`
 clean, all 40 engine config fields represented, electron-vite build and
 renderer/host bundle budget OK, and smoke prints
@@ -86,13 +86,18 @@ files in Diff/File mode, metadata uses the primary sans font, and rail resize
 handles respond to pointer and keyboard input. Confirm the right workspace dock
 matches the chat background (no decorative divider/project header), Projects/Chats
 headers collapse, and user-message actions appear under the bubble on hover.
+Confirm the Environment dock has equal top/right inset and a quiet grey fill
+inside its rounded hairline in both full-label and compact icon layouts.
 Open Session, Changes, Git, Terminal, and Jobs in turn. Each must use the same
 full-height edge-attached sidebar with one left divider, no outer radius/shadow,
-and no desktop scrim; resizing any view must persist for the others. Confirm the
+and no desktop scrim. Session/Git/Terminal/Jobs share a persisted width; Changes
+uses its own persisted wider review width. Confirm the
 five-item top switcher stays visible, chat remains mounted and unobscured, and
 compact widths use an end drawer. In Terminal, start a delayed command, switch
 to Session, then return to Terminal: the command must keep running and its output
 must replay. Close/reopen Terminal and verify the same PTY remains. Files reveals Finder.
+Open Terminal from a project and confirm `pwd` is that project root. Then open a
+Chats session and confirm `pwd` is the user's home directory, not `~/.vibe/chats`.
 Confirm terminal chrome uses the app sans stack while the xterm grid uses the
 compact mono stack with neutral tracking, even cell spacing, and a thin cursor.
 Resize through narrow and wide layouts and confirm the same stylized ASCII Vibe
@@ -123,13 +128,17 @@ npm run dev
 
 1. Open a project (or confirm last-cwd restore).
 2. Confirm projects and titled sessions load; switch projects and resume one session.
+   Keep Changes open in File mode while switching sessions, then return: the
+   activity view/mode and each session's transcript position must be preserved.
 3. Submit a short prompt — stream text + tools; the project rail spinner appears
    only on the active listed session while AI is working, spins continuously,
    and disappears at idle.
 4. Scroll upward during streaming — output must stop following; Jump to latest restores it.
 5. Shift+Tab through PLAN → AGENT → YOLO.
 6. Trigger a permission (e.g. bash) — y / a / n / ⌘P.
-7. `/plan …` then present_plan — Enter / Esc / ⌘Y.
+7. `/plan …` then present_plan — Enter / Esc / ⌘Y. With a long plan, confirm
+   the review body scrolls while the title and equal-width action footer remain
+   visible directly above the composer.
 8. Catalogs (TUI-faithful):
    - Type `/model clau` — live filter opens; Tab toggles main ⇄ sub; current marked.
    - `/providers` → configured provider prefills `/model id/`; unconfigured prefills `/model key id `.
@@ -143,8 +152,12 @@ npm run dev
     below ~960px; `/jobs` still works).
 11. Click a user message to fold/unfold its turn; confirm no persistent arrow is rendered;
     hover the bubble — Copy/Edit/time appear **under** it (not beside).
+    Trigger an automatic review-fix continuation; confirm its prompt appears as a collapsed
+    `Automatic review follow-up` context row, not a user bubble, and has no Copy/Edit actions.
 12. Confirm approval panels and output align to the composer width; inspect source
-    cards, the collapsed `Memory · N notes` row, and its expanded note list.
+    cards, the collapsed `Memory · N notes` row, and its expanded note list. Scroll
+    away from the bottom after edits and confirm Jump to latest sits beside the
+    changed-files chip, not above it.
 13. Expand a Thinking group — compact steps, no brain icon, one surface per open
     thought; tool rows stay expandable for output.
 14. Approve a permission request for a background `npm run dev`; confirm the job starts, the host remains healthy, and the session does not show a generic host-exited failure.
@@ -156,11 +169,15 @@ npm run dev
     submit references the project-aware paths.
 19. Drop the same Finder file twice; confirm only one chip is retained and the
     duplicate toast appears only for the second drop.
-20. Open Session from the dock, select a changed file, switch Diff/File, use Reveal,
-    switch to Git and Jobs, and drag the project rail and activity-panel handles;
-    verify keyboard Arrow/Home/End resizing and width persistence after reopening.
-21. After an agent edit turn, confirm the turn-changes card and dock Changes meta;
-    open Review and land on Diff mode.
+20. Open Changes from the dock. Confirm the pane expands without covering chat;
+    searchable directory groups remain visible beside the selected file; totals,
+    churn bar, per-file stats, hunk count, and index are correct. Switch Diff/File,
+    copy/reveal, navigate previous/next, resize and reopen, then verify the compact
+    drawer stacks the navigator above review without losing selection.
+21. Switch through Session, Git, Terminal, and Jobs, then drag the project rail
+    and activity-panel handles; verify keyboard Arrow/Home/End resizing and width
+    persistence after reopening. After another edit, the footer chip and dock
+    Changes count must update and open the highest-churn file in Diff mode.
 22. Kill/fatal the host (or `fixture:fatal` in e2e) — **New session** recovers;
     Settings → Instructions: switch sections without losing unsaved VIBE.md text.
 

@@ -132,7 +132,7 @@ describe("design polish audit deliverable", () => {
     expect(text).toContain("workspace-dock");
     expect(dock).toContain('className="workspace-dock"');
     expect(styles).toContain(".workspace-dock");
-    expect(styles).toMatch(/\.workspace-dock\s*\{[^}]*border:\s*1px solid[^}]*background:\s*var\(--bg\);[^}]*box-shadow:\s*none;/s);
+    expect(styles).toMatch(/\.workspace-dock\s*\{[^}]*top:\s*var\(--space-base\);[^}]*right:\s*var\(--space-base\);[^}]*border:\s*1px solid[^}]*background:\s*var\(--surface-subtle\);[^}]*box-shadow:\s*none;/s);
     expect(styles).not.toContain("--shadow-dock");
     expect(styles).not.toContain("--glass-shell-bg");
     expect(styles).toContain("background: var(--glass-overlay-bg)");

@@ -284,7 +284,12 @@ export function useSession(cwd: string | null) {
           // prompt for a text-only model. Keep that transport context internal;
           // the user should see the message they wrote, not an implementation
           // detail about the assisting model.
-          dispatchTranscript({ type: "user", text: stripVisionRelayContext(event.text) });
+          dispatchTranscript({
+            type: "user",
+            text: stripVisionRelayContext(event.text),
+            ...(event.origin ? { origin: event.origin } : {}),
+            ...(event.label ? { label: event.label } : {}),
+          });
           break;
         case "plan-presented":
           // Finalize the streaming assistant reply before the plan card appears
@@ -538,11 +543,9 @@ export function useSession(cwd: string | null) {
       setBooting(true);
       setBootError(null);
       setReady(false);
-      setJobsView(false);
       setFoldedTurns(new Set());
       setRevealTurns(0);
       setRevealedTurnItems(new Map());
-      setInspectorOpen(false);
       suppressAfterClear.current = false;
       lastSnap.current = null;
       deltaBuf.current = "";

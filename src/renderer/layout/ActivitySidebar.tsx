@@ -46,7 +46,12 @@ export function ActivitySidebar({
   }, [onClose]);
 
   return (
-    <aside ref={sidebarRef} className="activity-sidebar" aria-label="Workspace tools">
+    <aside
+      ref={sidebarRef}
+      className="activity-sidebar"
+      data-active={active}
+      aria-label="Workspace tools"
+    >
       <nav className="activity-sidebar-tabs" aria-label="Activity sidebar views">
         {TABS.map((tab) => {
           const count = tab.target === "changes"

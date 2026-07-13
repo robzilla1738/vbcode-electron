@@ -21,7 +21,15 @@ function terminalFontFromTokens(): string {
   return value || 'ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace';
 }
 
-export function TerminalPanel({ cwd, onClose }: { cwd: string; onClose: () => void }) {
+export function TerminalPanel({
+  cwd,
+  scope,
+  onClose,
+}: {
+  cwd: string;
+  scope: "chat" | "project";
+  onClose: () => void;
+}) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [restartNonce, setRestartNonce] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +142,7 @@ export function TerminalPanel({ cwd, onClose }: { cwd: string; onClose: () => vo
     <section className="activity-rail terminal-activity-rail" aria-labelledby="terminal-panel-title">
       <header className="sidebar-heading-row terminal-panel-header">
         <div className="sidebar-heading-copy">
-          <p className="sidebar-eyebrow">Project terminal</p>
+          <p className="sidebar-eyebrow">{scope === "chat" ? "Home terminal" : "Project terminal"}</p>
           <h2 id="terminal-panel-title" className="sidebar-heading-title">Terminal</h2>
           <p className="sidebar-heading-sub terminal-panel-subtitle" title={cwd}>{cwd}</p>
         </div>
@@ -149,7 +157,11 @@ export function TerminalPanel({ cwd, onClose }: { cwd: string; onClose: () => vo
           </button>
         </div>
       </header>
-      <div ref={surfaceRef} className="terminal-surface" aria-label="Project terminal" />
+      <div
+        ref={surfaceRef}
+        className="terminal-surface"
+        aria-label={scope === "chat" ? "Home terminal" : "Project terminal"}
+      />
       {error ? <p className="terminal-panel-error" role="alert">{error}</p> : null}
       {exit ? <p className="terminal-panel-status">Process exited with code {exit.code}. Restart to open a new shell.</p> : null}
     </section>

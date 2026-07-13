@@ -22,6 +22,20 @@ export function isChatsCwd(cwd: string, chatsRoot: string): boolean {
   return normalizeCwd(cwd) === normalizeCwd(chatsRoot);
 }
 
+/**
+ * Resolve the shell directory without leaking the internal Chats session store
+ * into the terminal. Project terminals stay rooted at their project; one-off
+ * Chats open at the user's home directory.
+ */
+export function terminalCwdForWorkspace(
+  cwd: string,
+  chatsRoot: string | null,
+  home: string | null,
+): string | null {
+  if (!chatsRoot || !home) return null;
+  return isChatsCwd(cwd, chatsRoot) ? home : cwd;
+}
+
 export function isChatsProject(project: ProjectSummary, chatsRoot: string): boolean {
   return isChatsCwd(project.cwd, chatsRoot);
 }

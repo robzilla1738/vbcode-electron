@@ -17,7 +17,14 @@ import { isDensityChangeNotice } from "./density";
  * the block currently being mutated re-renders. `id` is a stable click handle.
  */
 export type Block =
-  | { kind: "user"; id: number; text: string; timestamp: number }
+  | {
+      kind: "user";
+      id: number;
+      text: string;
+      timestamp: number;
+      origin?: "user" | "engine";
+      label?: string;
+    }
   | { kind: "assistant"; id: number; text: string; streaming: boolean; gap: boolean; timestamp: number }
   | {
       kind: "tool";
@@ -129,7 +136,13 @@ export function initialTranscript(): TranscriptState {
 /** Transcript-affecting actions. app.tsx maps engine UIEvents (and its own
  * coalesced deltas + click toggles) onto these. */
 export type TranscriptAction =
-  | { type: "user"; text: string; timestamp?: number }
+  | {
+      type: "user";
+      text: string;
+      timestamp?: number;
+      origin?: "user" | "engine";
+      label?: string;
+    }
   /** A coalesced batch of streamed assistant text (app.tsx buffers per frame). */
   | { type: "delta"; text: string; timestamp?: number }
   /** Land the streaming reply: flip `streaming` off so <markdown> closes fences. */
@@ -176,7 +189,17 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       const f = finalizeActive(s);
       return {
         ...f,
-        blocks: [...f.blocks, { kind: "user", id: f.nextId, text: a.text, timestamp: a.timestamp ?? Date.now() }],
+        blocks: [
+          ...f.blocks,
+          {
+            kind: "user",
+            id: f.nextId,
+            text: a.text,
+            timestamp: a.timestamp ?? Date.now(),
+            ...(a.origin ? { origin: a.origin } : {}),
+            ...(a.label ? { label: a.label } : {}),
+          },
+        ],
         nextId: f.nextId + 1,
         // A new turn starts with clean per-turn call maps.
         toolByCallId: {},

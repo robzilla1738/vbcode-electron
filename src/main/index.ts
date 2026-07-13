@@ -489,6 +489,30 @@ function registerIpc(): void {
     },
   );
 
+  ipcMain.handle("clipboard:writeText", (event, opts?: { text?: string }) => {
+    assertTrustedIpc(event);
+    const text = opts?.text;
+    if (typeof text !== "string") {
+      return { ok: false as const, error: "Invalid clipboard text" };
+    }
+    const CLIPBOARD_TEXT_MAX = 2 * 1024 * 1024;
+    if (Buffer.byteLength(text, "utf8") > CLIPBOARD_TEXT_MAX) {
+      return {
+        ok: false as const,
+        error: `Clipboard text exceeds ${CLIPBOARD_TEXT_MAX} bytes`,
+      };
+    }
+    try {
+      clipboard.writeText(text);
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+
   ipcMain.handle("editor:compose", async (event, draft: string) => {
     assertTrustedIpc(event);
     if (typeof draft !== "string") return { ok: false, reason: "failed" as const, error: "Invalid editor draft" };

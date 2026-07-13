@@ -259,52 +259,52 @@ export function PlanCard({
   return (
     <div className="card plan" role="region" aria-labelledby="plan-card-title">
       <header className="card-head">
-        <p className="card-eyebrow">Plan</p>
-        <h3 id="plan-card-title">Plan approval</h3>
-        <p className="perm-detail">Review the plan, then accept or send feedback below.</p>
+        <h3 id="plan-card-title">Review plan</h3>
       </header>
 
-      {plan.ungrounded && (
-        <div className="notice warn" role="status">
-          This plan was presented without the research the request called for.
-        </div>
-      )}
+      <div className="plan-review-scroll">
+        {plan.ungrounded && (
+          <div className="notice warn" role="status">
+            This plan was presented without the research the request called for.
+          </div>
+        )}
 
-      <div className="plan-text has-copy">
-        {plan.text ? <CopyButton text={plan.text} label="Copy plan" /> : null}
-        <div className="md">
-          <MarkdownView>{plan.text}</MarkdownView>
+        <div className="plan-text has-copy">
+          {plan.text ? <CopyButton text={plan.text} label="Copy plan" /> : null}
+          <div className="md">
+            <MarkdownView>{plan.text}</MarkdownView>
+          </div>
         </div>
+
+        {hasEvidence ? (
+          <div className="plan-evidence-stack">
+            {plan.sources && plan.sources.length > 0 ? (
+              <div className="plan-evidence">
+                <h4>Sources</h4>
+                <ol className="plan-sources">
+                  {plan.sources.map((source) => (
+                    <li key={source.url}>
+                      <ExternalLink href={source.url}>
+                        {source.title || source.url}
+                      </ExternalLink>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
+            {plan.assumptions && plan.assumptions.length > 0 ? (
+              <div className="plan-evidence assumptions">
+                <h4>Assumptions to verify</h4>
+                <ul>
+                  {plan.assumptions.map((assumption, index) => (
+                    <li key={index}>{assumption}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-
-      {hasEvidence ? (
-        <div className="plan-evidence-stack">
-          {plan.sources && plan.sources.length > 0 ? (
-            <div className="plan-evidence">
-              <h4>Sources</h4>
-              <ol className="plan-sources">
-                {plan.sources.map((source) => (
-                  <li key={source.url}>
-                    <ExternalLink href={source.url}>
-                      {source.title || source.url}
-                    </ExternalLink>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ) : null}
-          {plan.assumptions && plan.assumptions.length > 0 ? (
-            <div className="plan-evidence assumptions">
-              <h4>Assumptions to verify</h4>
-              <ul>
-                {plan.assumptions.map((assumption, index) => (
-                  <li key={index}>{assumption}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
       <div className="card-actions plan-actions">
         <button
@@ -313,7 +313,8 @@ export function PlanCard({
           onClick={onAccept}
           aria-keyshortcuts="Enter"
         >
-          Accept <ActionKbd>Enter</ActionKbd>
+          <span className="action-label">Accept</span>
+          <ActionKbd>Enter</ActionKbd>
         </button>
         <button
           type="button"
@@ -326,10 +327,8 @@ export function PlanCard({
               : "Keep planning without accepting"
           }
         >
-          Keep planning <ActionKbd>Esc</ActionKbd>
-          {hasDraft ? (
-            <span className="action-hint-inline">clears draft first</span>
-          ) : null}
+          <span className="action-label">{hasDraft ? "Clear feedback" : "Keep planning"}</span>
+          <ActionKbd>Esc</ActionKbd>
         </button>
         <span className="card-actions-sep" aria-hidden />
         <button
@@ -339,9 +338,9 @@ export function PlanCard({
           aria-keyshortcuts="Meta+y"
           title="Accept the plan and auto-approve all future tool calls this turn"
         >
-          Accept + auto-approve <ActionKbd>⌘Y</ActionKbd>
+          <span className="action-label">Accept + auto-approve</span>
+          <ActionKbd>⌘Y</ActionKbd>
         </button>
-        <span className="action-hint">Type below to revise</span>
       </div>
     </div>
   );
