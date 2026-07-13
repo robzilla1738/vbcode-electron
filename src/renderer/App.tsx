@@ -1115,11 +1115,17 @@ export function App() {
         return;
       }
 
-      // Permission y/a/n when empty draft (even in textarea)
+      // Permission y/a/n when empty draft (even in composer). Deny reason field is
+      // free-text: N there types "n"; Enter confirms. Second N confirms when focus
+      // stays on the Deny button (PermissionCard keeps focus there after open).
+      const inPermDenyReason =
+        target?.closest?.(".perm-deny-reason") != null
+        || target?.getAttribute?.("aria-label") === "Optional reason for denying";
       if (
         emptyDraft &&
         session.chrome.perms[0] &&
         (!inInput || inComposer) &&
+        !inPermDenyReason &&
         !e.metaKey &&
         !e.ctrlKey &&
         !e.altKey
@@ -1136,7 +1142,8 @@ export function App() {
         }
         if (e.key === "n" || e.key === "N") {
           e.preventDefault();
-          // Two-step deny: first N opens reason field; second confirms (PermissionCard).
+          // Two-step deny: first N opens reason UI; second N (focus on Deny button)
+          // confirms via PermissionCard denyKick / button keydown.
           setPermDenyKick((n) => n + 1);
           return;
         }

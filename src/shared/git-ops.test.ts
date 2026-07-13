@@ -11,6 +11,7 @@ import {
   deleteBranch,
   mergeBranch,
   pushBranch,
+  buildPushArgs,
   commit,
 } from "./git-ops";
 
@@ -225,17 +226,31 @@ describe("git-ops", () => {
       }
     });
 
-    itGit("pushBranch force uses --force-with-lease (not bare --force)", async () => {
-      // Without a remote, push fails — but stderr/args path must not use raw --force.
-      // Spy by running with force against a dead remote and checking the error is lease-shaped
-      // or generic remote failure, never "unknown option".
+    it("buildPushArgs force uses --force-with-lease (not bare --force)", () => {
+      // Pure argv assertion — would fail if force:true ever emitted bare --force.
+      const lease = buildPushArgs({ force: true });
+      expect(lease).toContain("--force-with-lease");
+      expect(lease).not.toContain("--force");
+      expect(lease).toEqual(["push", "--force-with-lease", "origin"]);
+
+      const unsafe = buildPushArgs({ forceUnsafe: true, remote: "origin", branch: "main" });
+      expect(unsafe).toContain("--force");
+      expect(unsafe).not.toContain("--force-with-lease");
+      expect(unsafe).toEqual(["push", "--force", "origin", "main"]);
+
+      const normal = buildPushArgs({ setUpstream: true, branch: "feature/x" });
+      expect(normal).toEqual(["push", "-u", "origin", "feature/x"]);
+      expect(normal).not.toContain("--force");
+      expect(normal).not.toContain("--force-with-lease");
+    });
+
+    itGit("pushBranch force path still reaches git (integration)", async () => {
       const dir = await makeRepo();
       try {
         await runGit(dir, ["remote", "add", "origin", "https://example.invalid/repo.git"]);
+        // buildPushArgs already asserts argv; this proves pushBranch wires it to runGit.
         const res = await pushBranch(dir, { force: true });
-        // Expect failure (no network/remote) but not ref/argv rejection from our layer
         expect(res.stderr).not.toMatch(/must not start with/);
-        // forceUnsafe would also fail similarly; ensure force:true still builds a command
         expect(res.ok).toBe(false);
       } finally {
         await rm(dir, { recursive: true, force: true });

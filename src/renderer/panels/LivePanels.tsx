@@ -30,6 +30,7 @@ export function PermissionCard({
   denyKick?: number;
 }) {
   const onceRef = useRef<HTMLButtonElement>(null);
+  const denyBtnRef = useRef<HTMLButtonElement>(null);
   const denyInputRef = useRef<HTMLInputElement>(null);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [denyReason, setDenyReason] = useState("");
@@ -47,24 +48,31 @@ export function PermissionCard({
     lastDenyKick.current = denyKick;
   }, [perm.id]); // eslint-disable-line react-hooks/exhaustive-deps -- only reset on new perm
 
+  // After opening deny, keep focus on the Deny *button* (not the text field) so a
+  // second N still hits the App keyboard path / button handler. Users Tab into
+  // the reason field to type free text; Enter there confirms.
   useEffect(() => {
     if (!denyOpen) return;
-    denyInputRef.current?.focus({ preventScroll: true });
+    denyBtnRef.current?.focus({ preventScroll: true });
   }, [denyOpen]);
 
-  // Global N (App keyboard) mirrors the card's two-step Deny affordance.
+  const confirmDeny = () => {
+    onDecide("deny", denyReason.trim() || denyInputRef.current?.value.trim() || undefined);
+  };
+
+  // Global N kicks from App (first opens, second confirms) when focus is not in
+  // a free-text reason field. When focus *is* in the reason field, N types "n"
+  // and Enter confirms — handled on the input below.
   useEffect(() => {
     if (denyKick <= lastDenyKick.current) return;
     lastDenyKick.current = denyKick;
     setDenyOpen((open) => {
       if (!open) return true;
-      // Second N while deny is open: confirm (reason read from ref-updated state below).
-      queueMicrotask(() => {
-        onDecide("deny", denyInputRef.current?.value.trim() || undefined);
-      });
+      queueMicrotask(() => confirmDeny());
       return open;
     });
-  }, [denyKick, onDecide]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to kicks
+  }, [denyKick]);
 
   const preview = permissionPreview(perm.toolName, perm.input);
   let payload = "";
@@ -88,7 +96,7 @@ export function PermissionCard({
       setDenyOpen(true);
       return;
     }
-    onDecide("deny", denyReason.trim() || undefined);
+    confirmDeny();
   };
 
   return (
@@ -172,8 +180,18 @@ export function PermissionCard({
         </button>
         <button
           type="button"
+          ref={denyBtnRef}
           className="chip danger"
           onClick={submitDeny}
+          onKeyDown={(event) => {
+            // Second N while Deny is focused confirms without depending on App
+            // (App only routes N when focus is not a free-text input).
+            if (denyOpen && (event.key === "n" || event.key === "N") && !event.metaKey && !event.ctrlKey && !event.altKey) {
+              event.preventDefault();
+              event.stopPropagation();
+              confirmDeny();
+            }
+          }}
           aria-keyshortcuts="n"
           aria-expanded={denyOpen}
         >
@@ -192,13 +210,13 @@ export function PermissionCard({
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                onDecide("deny", denyReason.trim() || undefined);
+                confirmDeny();
               } else if (event.key === "Escape") {
                 event.preventDefault();
                 event.stopPropagation();
                 setDenyOpen(false);
                 setDenyReason("");
-                onceRef.current?.focus({ preventScroll: true });
+                denyBtnRef.current?.focus({ preventScroll: true });
               }
             }}
             placeholder="Why deny? Optional — press Enter to confirm"

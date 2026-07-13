@@ -542,25 +542,20 @@ export async function mergeBranch(
   };
 }
 
-export async function pushBranch(
-  cwd: string,
-  opts: {
-    remote?: string;
-    branch?: string;
-    setUpstream?: boolean;
-    /** Prefer --force-with-lease (default when force). Set forceUnsafe for true --force. */
-    force?: boolean;
-    forceUnsafe?: boolean;
-  },
-): Promise<GitResult> {
-  let remote: string;
-  let branch: string | undefined;
-  try {
-    remote = assertGitRemote(opts.remote ?? "origin");
-    branch = opts.branch ? assertGitRef(opts.branch, "branch") : undefined;
-  } catch (err) {
-    return refError(err);
-  }
+/**
+ * Build `git push` argv (pure). Exported so tests assert force-with-lease
+ * without a network remote — bare `--force` must not appear for `force: true`.
+ */
+export function buildPushArgs(opts: {
+  remote?: string;
+  branch?: string;
+  setUpstream?: boolean;
+  /** Prefer --force-with-lease (default when force). Set forceUnsafe for true --force. */
+  force?: boolean;
+  forceUnsafe?: boolean;
+}): string[] {
+  const remote = assertGitRemote(opts.remote ?? "origin");
+  const branch = opts.branch ? assertGitRef(opts.branch, "branch") : undefined;
   const args = ["push"];
   if (opts.setUpstream) args.push("-u");
   if (opts.force || opts.forceUnsafe) {
@@ -569,7 +564,27 @@ export async function pushBranch(
   }
   args.push(remote);
   if (branch) args.push(branch);
+  return args;
+}
+
+export async function pushBranch(
+  cwd: string,
+  opts: {
+    remote?: string;
+    branch?: string;
+    setUpstream?: boolean;
+    force?: boolean;
+    forceUnsafe?: boolean;
+  },
+): Promise<GitResult> {
+  let args: string[];
+  try {
+    args = buildPushArgs(opts);
+  } catch (err) {
+    return refError(err);
+  }
   const res = await runGit(cwd, args);
+  const remote = opts.remote ?? "origin";
   return {
     ok: res.ok,
     stdout: res.stdout,
