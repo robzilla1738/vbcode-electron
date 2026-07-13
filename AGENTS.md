@@ -88,7 +88,7 @@ cd ~/Code/vibe-codr && bun run build:macos-bridge
   - Workspace dock: Session / Changes / Git / Jobs / Files on the chat surface.
   - End-panel geometry: Session / Changes / Git / Jobs share the same right-side
     activity rail; switching views must not replace the chat workspace or change
-    the conversation scroll position. Local and Files are Finder actions.
+    the conversation scroll position. Files is the Finder reveal action.
   - Custom Instructions stay mounted (hidden) across settings section switches.
 
 ## When changing UI presentation (design system)

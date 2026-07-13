@@ -121,7 +121,7 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 - Content max ~130ch; transcript prose, tool output, approval panels, and the composer share the `--composer-max: 40rem` reading measure
 - **Left rail:** collapsible Projects + Chats sections; section **+** only (add project / new chat); Git & Settings in the footer
 - **Right workspace dock:** full-label Session / Changes / Git / Jobs / Files on the same `var(--bg)` as chat (no decorative divider or project header); hidden below ~960px
-- **Shared end-panel lane:** Session, Changes, Git, and Jobs open fluidly in one right-side section; the main stage reserves its width so transcript, user bubbles, and composer never sit underneath it. Files and Local remain Finder actions.
+- **Shared end-panel lane:** Session, Changes, Git, and Jobs open fluidly in one right-side section; the main stage reserves its width so transcript, user bubbles, and composer never sit underneath it. Files remains a Finder reveal (not an in-app panel).
 - Project rail and end panels resize or become drawers at responsive breakpoints; widths persist where resizing is available
 - Projects and session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 16 palettes as OpenTUI); accents via `/accent`
@@ -265,7 +265,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes: **[AG
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **174 unit tests**, **10 Electron E2E scenarios**, 19 source
+Current baseline: **226 unit tests**, **10 Electron E2E scenarios**, 19 source
 parity pairs, Biome, typecheck, production build, and renderer bundle budget
 pass in the current checkout. Bridge smoke and E2E are separate release gates;
 run them when the sibling host and packaged/runtime environment are available.

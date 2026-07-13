@@ -498,11 +498,11 @@ npm run dev
   visible rather than moving behind or underneath the panel.
 - [x] Git no longer replaces the full workspace. Its Branches, Changes,
   History, Remotes, and Pull Requests content renders inside the activity rail.
-- [x] Local and Files remain Finder actions; `/jobs` remains available when the
+- [x] Files remains a Finder reveal; `/jobs` remains available when the
   workspace dock is hidden on narrow layouts.
 - [x] Decorative white section outlines and moving white selection lines remain
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current local gate: 174 unit tests, lint, typecheck, build, bundle budget,
+- [x] Current local gate: 226 unit tests, lint, typecheck, build, bundle budget,
   source parity (19 pairs), and `git diff --check` pass.

@@ -16,10 +16,11 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (currently **174** tests), Playwright Electron E2E green
+Expect: Vitest green (currently **226** tests), Playwright Electron E2E green
 (**10** scenarios), all 19 upstream source pairs aligned, Biome and `tsc` clean,
 electron-vite build and renderer bundle budget OK, and smoke prints `ready` +
-`snapshot ok`. `npm run verify` runs the non-E2E subset as one gate.
+`snapshot ok`. `npm run verify` runs the non-E2E subset as one gate;
+`npm run verify:fast` is lint + unit + typecheck; `npm run verify:ci` adds E2E.
 
 The source-parity command compares against the live sibling checkout selected
 by `VIBE_CODR_ROOT` or `~/Code/vibe-codr`. Keep that checkout on the revision
@@ -56,7 +57,7 @@ matches the chat background (no decorative divider/project header), Projects/Cha
 headers collapse, and user-message actions appear under the bubble on hover.
 Open Session, Changes, Git, and Jobs in turn; each must use the same right-side
 activity lane, reserve space in the main stage, preserve the conversation
-position, and close without a full-workspace jump. Local and Files should open
+position, and close without a full-workspace jump. Files should open
 Finder actions rather than an in-app replacement view.
 
 ## Packaged app

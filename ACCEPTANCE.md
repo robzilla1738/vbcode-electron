@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-12 (unified end panels, chats rail, turn changes, instructions dirty, 174 unit + 10 e2e)
+> Last updated: 2026-07-13 (design dock contract, shell lifecycle/session/git hardening, 226 unit + 10 e2e)
 > Status: implementation complete; automated publication gates are green on 2026-07-12
 
 ## Summary
@@ -108,10 +108,12 @@ Prefer `npm run verify` + CI for automated gates; do not treat frozen unit/e2e c
 - [x] No P0 row is `visual-only`
 - [x] Verification commands were run (list below)
 
-**Current verification snapshot (2026-07-12):**
+| 2026-07-13 | Grok | 36/36 | 4/4 | Shell hardening + design direction: host lifecycle (dispose/reap/single-instance), session Trail/handoff/busy optimism, git ref safety + force-with-lease, host-resolver tests, long-session stream/markdown bounds, quiet dock contract (Session/Changes/Git/Jobs/Files only). 226 unit tests, typecheck green. |
+
+**Current verification snapshot (2026-07-13):**
 
 ```text
-npm test                         # 174/174 pass
+npm test                         # 226/226 pass
 npm run lint                     # clean
 npm run typecheck                # pass
 npm run build                    # pass
