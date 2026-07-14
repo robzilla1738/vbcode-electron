@@ -80,9 +80,17 @@ jobs:
           test -n "$DMG_PATH"
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
           spctl --assess --type execute --verbose=2 "$APP_PATH"
-          spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG_PATH"
           xcrun stapler validate "$APP_PATH"
           xcrun stapler validate "$DMG_PATH"
+          MOUNT_POINT="$(mktemp -d)"
+          cleanup_mount() {
+            hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
+            rmdir "$MOUNT_POINT" >/dev/null 2>&1 || true
+          }
+          trap cleanup_mount EXIT
+          hdiutil attach -readonly -nobrowse -mountpoint "$MOUNT_POINT" "$DMG_PATH"
+          codesign --verify --deep --strict --verbose=2 "$MOUNT_POINT/Vibe Codr.app"
+          spctl --assess --type execute --verbose=2 "$MOUNT_POINT/Vibe Codr.app"
       - name: Stage macOS installer and update feed
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
