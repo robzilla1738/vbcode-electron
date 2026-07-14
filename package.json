@@ -4,7 +4,7 @@
   "private": true,
   "author": "robzilla1738",
   "license": "MIT",
-  "description": "Electron shell for vibe-codr — OpenTUI-faithful UI over the NDJSON engine host",
+  "description": "Local-first AI coding workspace with multi-provider agents, project tools, Git, terminal, and approvals",
   "homepage": "https://github.com/robzilla1738/vbcode-electron",
   "repository": {
     "type": "git",
@@ -40,7 +40,9 @@
     "pack:win": "npm run copy-host && npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false --config.forceCodeSigning=false",
     "dist": "npm run dist:mac",
     "dist:mac": "npm run copy-host && npm run build && electron-builder --mac --arm64",
-    "dist:win": "npm run copy-host && npm run build && electron-builder --win nsis --x64",
+    "dist:win": "npm run dist:win:store",
+    "dist:win:store": "npm run copy-host && npm run build && electron-builder --win appx --x64 --config.forceCodeSigning=false",
+    "prepare:win:store": "pwsh -NoProfile -File scripts/prepare-store-upload.ps1",
     "copy-host": "node scripts/copy-engine-host.mjs",
     "smoke:bridge": "node scripts/smoke-bridge.mjs",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
@@ -103,20 +105,24 @@
       "executableName": "Vibe Codr",
       "target": [
         {
-          "target": "nsis",
+          "target": "appx",
           "arch": [
             "x64"
           ]
         }
       ]
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Vibe Codr",
-      "deleteAppDataOnUninstall": false
+    "appx": {
+      "applicationId": "VibeCodr",
+      "identityName": "VibeCodr.VibeCodr",
+      "publisher": "CN=932FDDA8-8293-47F3-BD92-AC3AA21D32CD",
+      "publisherDisplayName": "Vibe Codr",
+      "displayName": "Vibe Codr",
+      "backgroundColor": "#13161B",
+      "showNameOnTiles": true,
+      "languages": [
+        "en-US"
+      ]
     },
     "icon": "assets/icon.icns",
     "files": [

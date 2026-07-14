@@ -129,3 +129,7 @@ jobs:
         env:
           VIBE_CODR_ROOT: ""
         run: npm run smoke:packaged
+      - name: Build and validate Microsoft Store package
+        env:
+          VIBE_CODR_ROOT: ${{ github.workspace }}\vibe-codr
+        run: npm run dist:win && npm run prepare:win:store

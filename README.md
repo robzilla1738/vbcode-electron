@@ -6,6 +6,8 @@ macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/v
 
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
+**Privacy:** [PRIVACY.md](./PRIVACY.md)
+
 **Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project + chats rail, seamless right workspace dock (Session / Changes / Git / Terminal / Jobs / Files), quiet empty home, terminal themes/accents, resizable sidebars, changed-files chip + master-detail Diff/File review, and one structural activity sidebar for Session / Changes / Git / Terminal / Jobs.
 
 Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmacos) (SwiftUI). This repo is the Electron equivalent.
@@ -113,7 +115,8 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 | `npm run pack` / `pack:mac` | Explicitly unsigned macOS dir build for local/CI smoke |
 | `npm run pack:win` | Explicitly unsigned Windows x64 dir build for CI smoke |
 | `npm run dist` / `dist:mac` | Hardened macOS arm64 `.dmg` (release workflow signs and notarizes) |
-| `npm run dist:win` | Signed Windows x64 NSIS installer in the release workflow |
+| `npm run dist:win` / `dist:win:store` | Windows x64 AppX/MSIX package for Microsoft Store certification |
+| `npm run prepare:win:store` | Validate the Store package and create the `.appxupload` submission bundle (Windows only) |
 
 ## Layout
 
@@ -277,9 +280,9 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   unused permission strings (camera/mic/Bluetooth) stripped in `after-pack`
 - **Release integrity**: CI and release jobs pin third-party actions by commit
   SHA and build a native host from the commit in `ENGINE_COMMIT`; version tags
-  must produce both a signed/notarized arm64 app/DMG and a signed Windows x64
-  NSIS installer before one GitHub Release is published with SHA-256 checksums;
-  production packaging is fail-closed when a signing identity is unavailable
+  must produce both a signed/notarized arm64 app/DMG and a validated Windows x64
+  AppX/MSIX Store upload before the GitHub Release is published with a SHA-256
+  checksum; Microsoft signs the Windows package during Store certification
 
 ## Features (shell)
 
