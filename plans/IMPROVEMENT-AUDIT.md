@@ -310,7 +310,7 @@ virtualization polish or engine protocol coordination; neither is release debt.
 # 11. How verification was done
 
 1. One-item-at-a-time implementation with unit tests on real exports.  
-2. Full `npm test` (463) + coverage floors + lint + `npm run typecheck`.
+2. Full `npm test` (466) + coverage floors + lint + `npm run typecheck`.
 3. Structural audit test + vibe-api-keys + busy/path/stream caps.  
 4. CI/release YAML parsed; actions and engine commit pinned.
 5. Clean locked-engine archive passed source/config parity, native host build,

@@ -12,7 +12,11 @@ import { join } from "node:path";
 const cwd = process.argv[2] || process.cwd();
 const root =
   process.env.VIBE_CODR_ROOT || join(homedir(), "Code", "vibe-codr");
-const bin = join(root, "dist", "vibecodr-engine-host");
+const bin = join(
+  root,
+  "dist",
+  process.platform === "win32" ? "vibecodr-engine-host.exe" : "vibecodr-engine-host",
+);
 if (!existsSync(bin)) {
   console.error("missing host:", bin);
   process.exit(1);

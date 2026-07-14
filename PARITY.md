@@ -1,7 +1,7 @@
 # CLI ↔ Electron parity checklist
 
 Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated:
-`npm test` (463 unit tests), `npm run test:e2e` (12 scenarios),
+`npm test` (466 unit tests), `npm run test:e2e` (12 scenarios),
 `npm run verify:source-parity` (19 declaration pairs),
 `npm run verify:config-shape` (40 top-level engine fields), and CI
 coverage/bridge/packaged-host gates.
@@ -135,10 +135,10 @@ whose HEAD equals the lock before it will embed a rebuilt host.
 - [x] Read-only `listProjects` host index keeps session storage out of Electron
 - [x] Bridge smoke: `npm run smoke:bridge`
 - [x] Packaged renderer runs sandboxed with a CommonJS preload bridge
-- [x] Packaged app prefers its release-matched bundled host over developer checkouts
+- [x] Packaged macOS and Windows apps prefer their release-matched native bundled host over developer checkouts
 - [x] Custom macOS app icon with optical safe-area padding; restrictive ATS; no unused hardware permission descriptions
 - [ ] Full interactive GUI smoke of every slash against live paid models (manual)
-- [x] Standalone packaged-app smoke without `VIBE_CODR_ROOT`: bundled host
+- [x] Standalone macOS/Windows packaged-app smoke without `VIBE_CODR_ROOT`: bundled host
   boots, restores the project, applies a command, and leaves no orphan process
 
 ## Intentional non-parity
@@ -226,7 +226,7 @@ npm run dev
 - [x] Session mutation ids reject traversal/path components; missing delete/archive return failure
 - [x] Host-level mutation and malformed/pre-bootstrap RPC coverage
 - [x] Pure chrome/session state machine extracted from transport lifecycle
-- [x] Biome lint, renderer bundle budget, Linux CI, and macOS packaged smoke gates
+- [x] Biome lint, renderer bundle budget, Linux CI, and macOS/Windows packaged smoke gates
 - [x] E2E session rename/archive/delete, fatal-host recovery, narrow layout, and reduced motion
 
 ## DAG status, accessibility, and StrictMode fix (session 5)
@@ -577,7 +577,7 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current release gate: 463 unit tests, 12 e2e scenarios, lint, typecheck,
+- [x] Current release gate: 466 unit tests, 12 e2e scenarios, lint, typecheck,
   build, bundle budget, source parity (19 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.
 

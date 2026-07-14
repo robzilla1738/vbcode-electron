@@ -35,8 +35,12 @@
     "verify:bundle": "node scripts/check-bundle-size.mjs",
     "ui:preview": "vite --config tools/ui-preview/vite.config.ts",
     "ui:shots": "node tools/ui-preview/shoot.mjs",
-    "pack": "npm run copy-host && npm run build && electron-builder --mac --dir --config.mac.identity=null --config.mac.hardenedRuntime=false",
-    "dist": "npm run copy-host && npm run build && electron-builder --mac",
+    "pack": "npm run pack:mac",
+    "pack:mac": "npm run copy-host && npm run build && electron-builder --mac --dir --config.mac.identity=null --config.mac.hardenedRuntime=false",
+    "pack:win": "npm run copy-host && npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false",
+    "dist": "npm run dist:mac",
+    "dist:mac": "npm run copy-host && npm run build && electron-builder --mac --arm64",
+    "dist:win": "npm run copy-host && npm run build && electron-builder --win nsis --x64",
     "copy-host": "node scripts/copy-engine-host.mjs",
     "smoke:bridge": "node scripts/smoke-bridge.mjs",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
@@ -70,8 +74,9 @@
     "vitest": "^3.1.4"
   },
   "build": {
-    "appId": "com.vibecodr.electron",
+    "appId": "com.vibecodr.desktop",
     "productName": "Vibe Codr",
+    "artifactName": "Vibe-Codr-${version}-${os}-${arch}.${ext}",
     "afterPack": "./scripts/after-pack.mjs",
     "directories": {
       "output": "release"
@@ -92,6 +97,26 @@
         }
       }
     },
+    "win": {
+      "icon": "assets/icon.png",
+      "executableName": "Vibe Codr",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Vibe Codr",
+      "deleteAppDataOnUninstall": false
+    },
     "icon": "assets/icon.icns",
     "files": [
       "out/**/*",
@@ -99,8 +124,11 @@
     ],
     "extraResources": [
       {
-        "from": "resources/vibecodr-engine-host",
-        "to": "vibecodr-engine-host"
+        "from": "resources",
+        "to": ".",
+        "filter": [
+          "vibecodr-engine-host*"
+        ]
       }
     ]
   }

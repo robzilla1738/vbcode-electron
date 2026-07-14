@@ -20,6 +20,8 @@ export interface HostResolverDeps {
   isPackaged: boolean;
   resourcesPath: string | null;
   appPath: string;
+  /** Runtime platform; injectable so packaged Windows resolution is testable. */
+  platform?: NodeJS.Platform;
   /** Override wall clock for mtime cache TTL tests. */
   now?: () => number;
 }
@@ -52,8 +54,15 @@ const DEFAULT_DEPS = (): HostResolverDeps => ({
       return process.cwd();
     }
   })(),
+  platform: process.platform,
   now: () => Date.now(),
 });
+
+function hostBinaryName(deps: Pick<HostResolverDeps, "platform">): string {
+  return (deps.platform ?? process.platform) === "win32"
+    ? "vibecodr-engine-host.exe"
+    : "vibecodr-engine-host";
+}
 
 function conventionalRoots(home: string): string[] {
   return [
@@ -132,15 +141,14 @@ export function newestSourceMtime(root: string, deps: HostResolverDeps = DEFAULT
 
 function whichBun(deps: HostResolverDeps): string | null {
   const home = deps.homedir();
-  const candidates = [
-    join(home, ".bun", "bin", "bun"),
-    "/opt/homebrew/bin/bun",
-    "/usr/local/bin/bun",
-  ];
+  const windows = (deps.platform ?? process.platform) === "win32";
+  const executable = windows ? "bun.exe" : "bun";
+  const candidates = [join(home, ".bun", "bin", executable)];
+  if (!windows) candidates.push("/opt/homebrew/bin/bun", "/usr/local/bin/bun");
   // Also honor PATH entries (GUI apps often still have a usable PATH in tests).
-  const pathDirs = (deps.env.PATH ?? "").split(":").filter(Boolean);
+  const pathDirs = (deps.env.PATH ?? "").split(windows ? ";" : ":").filter(Boolean);
   for (const dir of pathDirs) {
-    candidates.push(join(dir, "bun"));
+    candidates.push(join(dir, executable));
   }
   const seen = new Set<string>();
   for (const c of candidates) {
@@ -152,7 +160,7 @@ function whichBun(deps: HostResolverDeps): string | null {
 }
 
 function tryCompiledHost(root: string, deps: HostResolverDeps): HostLaunch | null {
-  const bin = join(root, "dist", "vibecodr-engine-host");
+  const bin = join(root, "dist", hostBinaryName(deps));
   if (!deps.existsSync(bin)) return null;
   try {
     const binaryMtime = deps.statSync(bin).mtimeMs;
@@ -187,8 +195,9 @@ function tryRoot(root: string, deps: HostResolverDeps): HostLaunch | null {
 }
 
 function bundledHost(deps: HostResolverDeps): HostLaunch | null {
+  const binaryName = hostBinaryName(deps);
   if (deps.resourcesPath) {
-    const bin = join(deps.resourcesPath, "vibecodr-engine-host");
+    const bin = join(deps.resourcesPath, binaryName);
     if (deps.existsSync(bin)) {
       return {
         executable: bin,
@@ -199,7 +208,7 @@ function bundledHost(deps: HostResolverDeps): HostLaunch | null {
     }
   }
   // Dev: resources/ next to project root
-  const devBin = join(deps.appPath, "resources", "vibecodr-engine-host");
+  const devBin = join(deps.appPath, "resources", binaryName);
   if (deps.existsSync(devBin)) {
     return {
       executable: devBin,
@@ -245,17 +254,18 @@ export function resolveHostLaunch(deps: HostResolverDeps = DEFAULT_DEPS()): Host
 }
 
 /** PATH enrichment so GUI-launched hosts find bun/git/node. */
-export function enrichedEnv(deps?: Pick<HostResolverDeps, "homedir" | "env">): NodeJS.ProcessEnv {
+export function enrichedEnv(
+  deps?: Pick<HostResolverDeps, "homedir" | "env" | "platform">,
+): NodeJS.ProcessEnv {
   const home = (deps?.homedir ?? homedir)();
   const env = deps?.env ?? process.env;
-  const extras = [
-    join(home, ".bun", "bin"),
-    "/opt/homebrew/bin",
-    "/usr/local/bin",
-    "/usr/bin",
-    "/bin",
-  ].join(":");
-  const path = env.PATH ? `${extras}:${env.PATH}` : extras;
+  const windows = (deps?.platform ?? process.platform) === "win32";
+  const separator = windows ? ";" : ":";
+  const extraEntries = windows
+    ? [join(home, ".bun", "bin")]
+    : [join(home, ".bun", "bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+  const extras = extraEntries.join(separator);
+  const path = env.PATH ? `${extras}${separator}${env.PATH}` : extras;
   return {
     ...env,
     HOME: env.HOME ?? home,

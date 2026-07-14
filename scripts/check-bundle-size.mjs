@@ -39,6 +39,7 @@ const hostCandidates = [
   resolve("resources/vibecodr-engine-host"),
   resolve("release/mac-arm64/Vibe Codr.app/Contents/Resources/vibecodr-engine-host"),
   resolve("release/mac/Vibe Codr.app/Contents/Resources/vibecodr-engine-host"),
+  resolve("release/win-unpacked/resources/vibecodr-engine-host.exe"),
 ];
 const hostBudget = 120 * 1024 * 1024; // 120 MiB — fail if a huge accidental binary is shipped
 for (const host of hostCandidates) {

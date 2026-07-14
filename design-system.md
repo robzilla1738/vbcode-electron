@@ -9,7 +9,7 @@
 
 ## Product character
 
-Vibe Codr is a macOS-first Electron presentation shell for the `vibe-codr`
+Vibe Codr is a native-feeling macOS and Windows Electron presentation shell for the `vibe-codr`
 engine. The interface is a quiet, dense workspace for building, reviewing, and
 debugging software. It should feel precise and calm under long-running agent
 work: strong hierarchy, low visual noise, predictable surfaces, and immediate

@@ -84,9 +84,9 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 
 ### Host resolution order
 
-1. `$VIBE_CODR_ROOT/dist/vibecodr-engine-host` when fresh against the runtime source tree (otherwise Bun source under that root)
+1. `$VIBE_CODR_ROOT/dist/vibecodr-engine-host` (`.exe` on Windows) when fresh against the runtime source tree (otherwise Bun source under that root)
 2. `~/Code/vibe-codr` (and conventional siblings)
-3. Bundled `resources/vibecodr-engine-host` (after `npm run copy-host` / pack)
+3. Bundled `resources/vibecodr-engine-host` (`.exe` on Windows; after `npm run copy-host` / pack)
 
 ## Scripts
 
@@ -110,8 +110,10 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 | `npm run smoke:bridge` | NDJSON bootstrap → snapshot → shutdown |
 | `npm run smoke:packaged` | Packaged app smoke without developer host fallback |
 | `npm run copy-host` | Copy host binary into `resources/` (freshness + arch checks) |
-| `npm run pack` | Explicitly unsigned macOS dir build for local/CI smoke |
-| `npm run dist` | Hardened macOS `.dmg` / distributable (release workflow signs and notarizes) |
+| `npm run pack` / `pack:mac` | Explicitly unsigned macOS dir build for local/CI smoke |
+| `npm run pack:win` | Explicitly unsigned Windows x64 dir build for CI smoke |
+| `npm run dist` / `dist:mac` | Hardened macOS arm64 `.dmg` (release workflow signs and notarizes) |
+| `npm run dist:win` | Signed Windows x64 NSIS installer in the release workflow |
 
 ## Layout
 
@@ -274,9 +276,9 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
 - **ATS**: `NSAllowsArbitraryLoads=false`, `NSAllowsLocalNetworking=true`;
   unused permission strings (camera/mic/Bluetooth) stripped in `after-pack`
 - **Release integrity**: CI and release jobs pin third-party actions by commit
-  SHA and build the host from the commit in `ENGINE_COMMIT`; version tags run the
-  full gate, sign and notarize the hardened arm64 app/DMG, validate Gatekeeper
-  and stapling, and publish a SHA-256 checksum
+  SHA and build a native host from the commit in `ENGINE_COMMIT`; version tags
+  must produce both a signed/notarized arm64 app/DMG and a signed Windows x64
+  NSIS installer before one GitHub Release is published with SHA-256 checksums
 
 ## Features (shell)
 
@@ -325,12 +327,13 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **463 unit tests**, **12 Electron E2E scenarios**, 19 source
+Current baseline: **466 unit tests**, **12 Electron E2E scenarios**, 20 source
 parity pairs, 40 top-level config fields, Biome, typecheck, production build,
 and renderer bundle budget pass in the current checkout. Settings, Terminal,
 Git, and Changes are isolated from the initial renderer chunk. CI runs `verify` +
-coverage floors + bridge smoke + E2E on Linux and unsigned pack smoke on macOS;
-the tag workflow signs, notarizes, verifies, and publishes public artifacts.
+coverage floors + bridge smoke + E2E on Linux and unsigned native-host pack
+smokes on macOS and Windows; the tag workflow signs, notarizes, verifies, and
+publishes both platform artifacts as one release.
 Prefer live `npm test` counts over frozen numbers in prose. The deterministic preview matrix covers
 attachments, settings, Git, Session review, light mode, and alternate themes.
 Hardening backlog: [plans/IMPROVEMENT-AUDIT.md](./plans/IMPROVEMENT-AUDIT.md).

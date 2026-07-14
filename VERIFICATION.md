@@ -19,7 +19,7 @@ npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
 Expect: the current Vitest suite green, Playwright Electron E2E
-green (**12** scenarios), all 19 upstream source pairs aligned, Biome and `tsc`
+green (**12** scenarios), all 20 upstream source pairs aligned, Biome and `tsc`
 clean, all 40 engine config fields represented, electron-vite build and
 renderer/host bundle budget OK, and smoke prints
 `ready` + `snapshot ok` and a structurally valid project-list response (which
@@ -54,15 +54,16 @@ and loaded only after a Darwin platform check; Linux CI must typecheck, build,
 and run the Electron harness without installing that native module.
 
 GitHub CI (`.github/workflows/ci.yml`) runs `verify`, coverage floors,
-`smoke:bridge`, and Electron E2E on Linux, plus an explicitly unsigned
-bundled-host smoke on macOS. A `v<package-version>` tag triggers
-`.github/workflows/release.yml`, which runs the full gate against the locked
-engine, signs and notarizes the hardened arm64 app/DMG, validates Gatekeeper and
-stapling, emits `SHA256SUMS`, and publishes the GitHub release. The protected
-`release` environment must provide the Apple signing certificate and App Store
-Connect API secrets: `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`,
-`APPLE_API_KEY_P8` (the `.p8` contents), `APPLE_API_KEY_ID`, and
-`APPLE_API_ISSUER`. Local crash breadcrumbs remain enabled without upload.
+`smoke:bridge`, and Electron E2E on Linux, plus explicitly unsigned native-host
+packaged smokes on macOS and Windows. A `v<package-version>` tag triggers
+`.github/workflows/release.yml`, which gates publication on both platform jobs:
+it signs and notarizes the hardened arm64 app/DMG, validates Gatekeeper and
+stapling, builds a signed Windows x64 NSIS installer, emits one `SHA256SUMS`,
+and publishes both artifacts in one GitHub release. The protected `release`
+environment must provide `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`,
+`APPLE_API_KEY_P8` (the `.p8` contents), `APPLE_API_KEY_ID`,
+`APPLE_API_ISSUER`, `WIN_CSC_LINK`, and `WIN_CSC_KEY_PASSWORD`. Local crash
+breadcrumbs remain enabled without upload.
 
 ## UI preview (renderer-only, no engine)
 
@@ -127,20 +128,26 @@ Codr wordmark remains visible rather than switching to a plain text fallback.
 
 ```bash
 npm run build:icon   # assets/icon.png → assets/icon.icns
-npm run pack
+npm run pack         # macOS
+npm run smoke:packaged
+# On Windows:
+npm run pack:win
 npm run smoke:packaged
 ```
 
 `pack` is intentionally unsigned and disables hardened runtime only for local/CI
 launch proof; public artifacts use the signed/notarized release path. Verify
-`release/mac-arm64/Vibe Codr.app` launches with the renderer sandbox enabled,
+`release/mac-arm64/Vibe Codr.app` (or `release/win-unpacked/Vibe Codr.exe`)
+launches with the renderer sandbox enabled,
 uses `Contents/Resources/vibecodr-engine-host`, shows the optically padded VC
 app icon at a comparable size to neighboring macOS icons in Dock/Finder, and
 does not require `VIBE_CODR_ROOT`. The smoke grants its fixture through the
 native Open Project path; renderer `localStorage` is not treated as a cwd
 capability. Its final plist must keep
 `NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth
-permission strings.
+permission strings. On Windows, confirm the NSIS installer is Authenticode
+signed, installs for the chosen directory, creates the requested shortcuts,
+launches with the bundled `.exe` host, and uninstalls without deleting user data.
 
 ## Manual (dev window)
 

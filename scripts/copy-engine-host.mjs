@@ -20,7 +20,8 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const destDir = join(root, "resources");
-const dest = join(destDir, "vibecodr-engine-host");
+const binaryName = process.platform === "win32" ? "vibecodr-engine-host.exe" : "vibecodr-engine-host";
+const dest = join(destDir, binaryName);
 const engineCommit = readFileSync(join(root, "ENGINE_COMMIT"), "utf8").trim();
 if (!/^[0-9a-f]{40}$/i.test(engineCommit)) {
   console.error("Refusing to pack: ENGINE_COMMIT must contain a 40-character git commit");
@@ -91,9 +92,9 @@ function engineRootForBinary(binPath) {
 }
 
 const candidates = [
-  process.env.VIBE_CODR_ROOT && join(process.env.VIBE_CODR_ROOT, "dist", "vibecodr-engine-host"),
-  join(homedir(), "Code", "vibe-codr", "dist", "vibecodr-engine-host"),
-  join(homedir(), "code", "vibe-codr", "dist", "vibecodr-engine-host"),
+  process.env.VIBE_CODR_ROOT && join(process.env.VIBE_CODR_ROOT, "dist", binaryName),
+  join(homedir(), "Code", "vibe-codr", "dist", binaryName),
+  join(homedir(), "code", "vibe-codr", "dist", binaryName),
 ].filter(Boolean);
 
 const src = candidates.find((p) => p && existsSync(p));
@@ -182,5 +183,5 @@ if (process.platform === "darwin") {
 
 mkdirSync(destDir, { recursive: true });
 copyFileSync(src, dest);
-chmodSync(dest, 0o755);
+if (process.platform !== "win32") chmodSync(dest, 0o755);
 console.log(`Copied ${src} → ${dest} (fresh vs sources @ ${engineRoot})`);

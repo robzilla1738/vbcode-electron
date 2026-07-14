@@ -15,8 +15,9 @@ Rows marked `pass` below may still rely on **review** or **manual** verification
 - Settings write / Git mutation / Finder multi-drop / onboarding first-run are not fully covered by Playwright e2e (unit + preview + review cover most; dock mutual exclusivity has a hermetic e2e case).
 - Visual regression screenshots (`ui:shots`) fail on capture errors but are not pixel-diff gated in CI.
 - Executing public signing/notarization requires the protected release
-  environment's Apple credentials; the tag workflow and verification steps are
-  implemented (see VERIFICATION.md). Local crashReporter is on without upload.
+  environment's Apple and Windows signing credentials; the two-platform tag
+  workflow and verification steps are implemented (see VERIFICATION.md). Local
+  crashReporter is on without upload.
 - Engine-adjacent: edit-message resubmit protocol, host protocol version
   handshake, and snapshot-native full diff map if history lacks tool inputs.
 
@@ -72,8 +73,8 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | A32 | P0 | Accessibility | Desktop accessibility | Controls have names, focus indicators, semantic roles, reduced-motion support, AA contrast, and work at 200% zoom without lost actions. | e2e: role-based controls, flat focus state, 200% zoom; review: reduced-motion CSS | pass |
 | A33 | P0 | Resilience | Empty/error/narrow states | First run, no sessions, no catalog results, RPC errors, host disconnect, long text, and narrow window states remain understandable and recoverable. | test: bridge/error cases; e2e: empty jobs + 200% zoom; review: empty/error surfaces | pass |
 | A34 | P0 | Quality | Source parity guard | Pure modules ported from TUI have drift-detection coverage or shared fixtures so upstream changes cannot silently break parity. | script: source parity audit; test: shared behavioral vectors | pass |
-| A35 | P0 | Quality | Verification gates | Lint, unit tests, source/config parity, typecheck, production build, bundle budget, coverage, bridge smoke, Electron E2E, and packaged-host smoke are documented and must pass before release. | script:`npm run verify:ci && npm run pack && npm run smoke:packaged` | pass |
-| A36 | P0 | Packaging | Standalone app | Packaged app includes/resolves the engine host without `VIBE_CODR_ROOT`, launches, opens a project, runs a turn, and shuts down cleanly. | script:`npm run pack && npm run smoke:packaged` | pass |
+| A35 | P0 | Quality | Verification gates | Lint, unit tests, source/config parity, typecheck, production build, bundle budget, coverage, bridge smoke, Electron E2E, and native packaged-host smokes are documented and must pass before release. | script:`npm run verify:ci`; CI:`pack:mac` + `pack:win` smokes | pass |
+| A36 | P0 | Packaging | Standalone app | macOS arm64 and Windows x64 packages include/resolve their native engine host without `VIBE_CODR_ROOT`, launch, open a project, run a turn, and shut down cleanly. | CI:`pack:mac`/`pack:win` + `smoke:packaged`; release signing gates | pass |
 | A37 | P1 | Layout | Desktop composition and resizing | Rail, edge-to-edge transcript pane, composer, approval panels, and the shared activity sidebar preserve the CLI information hierarchy at wide, 140ch, and narrow breakpoints; output and composer share the reading measure, and the activity column is reserved rather than occluding chat. Desktop rails resize by pointer or keyboard, persist their widths, and become drawer-safe on narrow layouts. | review: responsive shell CSS; e2e: 200% zoom reachability; manual: drag and keyboard rail/activity handles | pass |
 | A38 | P1 | Typography | Dense readability | Prose, labels, metadata, and controls use a uniform sans system with normal tracking; monospace is reserved for real code (terminal grids, fences, tool/diff/job output, wordmark). Source cards and memory notices have readable hierarchy. | review: locked tokens + Streamdown Shiki code blocks; preview: `settings`/`git` | pass |
 | A39 | P1 | Interaction | Motion and feedback | Hover, focus, open/close, streaming, folding, and spinner feedback are restrained and interruptible. Loading rings rotate continuously; reduced motion removes nonessential travel while preserving an understandable loading state. | design lint; e2e: focus/working states; review: reduced-motion CSS | pass |
@@ -125,12 +126,12 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 **Current verification snapshot (2026-07-14):**
 
 ```text
-npm test                         # 463/463 pass
+npm test                         # 466/466 pass
 npm run test:coverage            # floors on shared + bridge modules
 npm run lint                     # clean
 npm run typecheck                # pass
 npm run test:e2e                 # 12 scenarios (incl. persistent terminal + dock exclusivity)
-npm run verify:source-parity     # pass (19 source pairs)
+npm run verify:source-parity     # pass (20 source pairs)
 npm run verify:config-shape      # pass (40 top-level fields)
 npm run verify:bundle            # pass
 npm run verify                   # pass

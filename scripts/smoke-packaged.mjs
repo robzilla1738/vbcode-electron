@@ -5,12 +5,30 @@ import { _electron as electron } from "playwright";
 
 const root = resolve(import.meta.dirname, "..");
 const releaseRoot = join(root, "release");
-const macDirs = (await readdir(releaseRoot, { withFileTypes: true }))
-  .filter((entry) => entry.isDirectory() && entry.name.startsWith("mac"));
-const preferredDir = process.arch === "arm64" ? "mac-arm64" : "mac";
-const macDir = macDirs.find((entry) => entry.name === preferredDir) ?? macDirs[0];
-if (!macDir) throw new Error("Packaged macOS application directory not found");
-const executablePath = join(releaseRoot, macDir.name, "Vibe Codr.app", "Contents", "MacOS", "Vibe Codr");
+const releaseDirs = (await readdir(releaseRoot, { withFileTypes: true })).filter((entry) =>
+  entry.isDirectory(),
+);
+let executablePath;
+if (process.platform === "win32") {
+  const winDir = releaseDirs.find((entry) => entry.name === "win-unpacked");
+  if (!winDir) throw new Error("Packaged Windows application directory not found");
+  executablePath = join(releaseRoot, winDir.name, "Vibe Codr.exe");
+} else if (process.platform === "darwin") {
+  const macDirs = releaseDirs.filter((entry) => entry.name.startsWith("mac"));
+  const preferredDir = process.arch === "arm64" ? "mac-arm64" : "mac";
+  const macDir = macDirs.find((entry) => entry.name === preferredDir) ?? macDirs[0];
+  if (!macDir) throw new Error("Packaged macOS application directory not found");
+  executablePath = join(
+    releaseRoot,
+    macDir.name,
+    "Vibe Codr.app",
+    "Contents",
+    "MacOS",
+    "Vibe Codr",
+  );
+} else {
+  throw new Error(`Packaged smoke is not configured for ${process.platform}`);
+}
 const project = join(root, "test", "fixtures", "project");
 const userData = await mkdtemp(join(tmpdir(), "vibecodr-packaged-"));
 const env = { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: "true" };
@@ -47,13 +65,17 @@ try {
   // Other developer sessions may still hold a host — only fail if our executable left a
   // process that still references this smoke userData path (best-effort; ignore errors).
   try {
-    const { execSync } = await import("node:child_process");
-    const out = execSync("pgrep -fl vibecodr-engine-host || true", { encoding: "utf8" });
-    if (out.includes(userData)) {
-      console.error("Orphan engine host still references smoke userData after app close:\n", out);
-      process.exitCode = 1;
+    if (process.platform === "win32") {
+      process.stdout.write("packaged smoke ok: Windows process closed cleanly\n");
     } else {
-      process.stdout.write("packaged smoke ok: no host orphan tied to smoke userData\n");
+      const { execSync } = await import("node:child_process");
+      const out = execSync("pgrep -fl vibecodr-engine-host || true", { encoding: "utf8" });
+      if (out.includes(userData)) {
+        console.error("Orphan engine host still references smoke userData after app close:\n", out);
+        process.exitCode = 1;
+      } else {
+        process.stdout.write("packaged smoke ok: no host orphan tied to smoke userData\n");
+      }
     }
   } catch {
     /* pgrep may be unavailable — non-fatal */

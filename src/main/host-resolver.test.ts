@@ -38,6 +38,7 @@ function baseDeps(overrides: Partial<HostResolverDeps> & { files?: Record<string
     isPackaged: false,
     resourcesPath: null,
     appPath: "/app",
+    platform: "linux",
     now: () => 1_000_000,
     ...overrides,
     // keep files helper out of the deps object
@@ -111,6 +112,20 @@ describe("resolveHostLaunch", () => {
     const launch = resolveHostLaunch(deps);
     expect(launch.description).toContain("bundled");
     expect(launch.executable).toBe("/App/Contents/Resources/vibecodr-engine-host");
+  });
+
+  it("uses the .exe host bundled in a packaged Windows app", () => {
+    const deps = baseDeps({
+      isPackaged: true,
+      platform: "win32",
+      resourcesPath: "/resources",
+      files: {
+        "/resources/vibecodr-engine-host.exe": { mtimeMs: 1 },
+      },
+    });
+    const launch = resolveHostLaunch(deps);
+    expect(launch.executable).toBe("/resources/vibecodr-engine-host.exe");
+    expect(launch.description).toContain("bundled");
   });
 
   it("throws clearly when VIBE_CODR_ROOT is set but unusable", () => {
