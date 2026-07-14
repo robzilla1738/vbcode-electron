@@ -39,7 +39,7 @@
     "pack:mac": "npm run copy-host && npm run build && electron-builder --mac --dir --config.mac.identity=null --config.mac.hardenedRuntime=false --config.forceCodeSigning=false",
     "pack:win": "npm run copy-host && npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false --config.forceCodeSigning=false",
     "dist": "npm run dist:mac",
-    "dist:mac": "npm run copy-host && npm run build && electron-builder --mac --arm64",
+    "dist:mac": "npm run copy-host && npm run build && electron-builder --mac --arm64 --publish never",
     "dist:win": "npm run dist:win:store",
     "dist:win:store": "npm run copy-host && npm run build && electron-builder --win appx --x64 --config.forceCodeSigning=false --publish never",
     "prepare:win:store": "pwsh -NoProfile -File scripts/prepare-store-upload.ps1",

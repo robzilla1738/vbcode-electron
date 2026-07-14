@@ -135,7 +135,14 @@ jobs:
       - name: Verify Windows source and runtime
         env:
           VIBE_CODR_ROOT: ${{ github.workspace }}\vibe-codr
-        run: npm run verify && npm run smoke:bridge
+        run: >-
+          npm run lint &&
+          npm run verify:source-parity &&
+          npm run verify:config-shape &&
+          npm run typecheck &&
+          npm run build &&
+          npm run verify:bundle &&
+          npm run smoke:bridge
       - name: Build and smoke unsigned Windows bundle
         env:
           VIBE_CODR_ROOT: ${{ github.workspace }}\vibe-codr
