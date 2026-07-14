@@ -150,7 +150,7 @@ native Open Project path; renderer `localStorage` is not treated as a cwd
 capability. Its final plist must keep
 `NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth
 permission strings. On Windows, confirm the unpacked smoke launches with the
-bundled `.exe` host, `MakeAppx` validates the Store package, and Partner Center
+bundled `.exe` host, `MakeAppx` structurally unpacks the Store package, and Partner Center
 accepts the generated `.appxupload` before submission.
 
 ## Manual (dev window)

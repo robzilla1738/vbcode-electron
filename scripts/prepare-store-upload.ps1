@@ -18,9 +18,25 @@ if ($null -eq $makeAppx) {
   throw "MakeAppx.exe was not found in PATH or the Windows 10 SDK"
 }
 
-& $makeAppx.FullName validate /p $packages[0].FullName
-if ($LASTEXITCODE -ne 0) {
-  throw "MakeAppx validation failed for $($packages[0].Name)"
+$validationDirectory = Join-Path ([System.IO.Path]::GetTempPath()) "vibe-codr-appx-$([guid]::NewGuid())"
+try {
+  & $makeAppx.FullName unpack /p $packages[0].FullName /d $validationDirectory /o
+  if ($LASTEXITCODE -ne 0) {
+    throw "MakeAppx could not unpack $($packages[0].Name)"
+  }
+
+  $requiredPackageFiles = @(
+    "AppxManifest.xml",
+    "app\Vibe Codr.exe",
+    "app\resources\vibecodr-engine-host.exe"
+  )
+  foreach ($requiredPackageFile in $requiredPackageFiles) {
+    if (-not (Test-Path (Join-Path $validationDirectory $requiredPackageFile) -PathType Leaf)) {
+      throw "Store package is missing required file: $requiredPackageFile"
+    }
+  }
+} finally {
+  Remove-Item $validationDirectory -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $version = (Get-Content (Join-Path $PSScriptRoot "..\package.json") -Raw | ConvertFrom-Json).version
