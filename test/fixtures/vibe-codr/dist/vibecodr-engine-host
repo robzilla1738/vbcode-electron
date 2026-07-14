@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const sessionId = "fixture-session";
 let mode = "execute";
 let approvalMode = "ask";
 let theme = "default";
-let currentCwd = process.cwd();
+// The real host reads its persisted project index before bootstrap. Seed the
+// fixture with its saved project so cold-start recents exercise that contract.
+let currentCwd = resolve(dirname(fileURLToPath(import.meta.url)), "../../project");
 let savedSessions = [
   { id: sessionId, title: "Fixture session", model: "fixture/model", mode: "execute", goal: null, createdAt: 1, updatedAt: 3 },
   { id: "saved-one", title: "Saved one", model: "fixture/model", mode: "execute", goal: null, createdAt: 1, updatedAt: 2 },

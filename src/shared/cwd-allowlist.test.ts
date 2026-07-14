@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CwdAllowlist,
@@ -5,13 +8,14 @@ import {
   isAllowedTerminalCwd,
   pathIsInsideRoot,
 } from "./cwd-allowlist";
-import { resolve } from "node:path";
 
 describe("CwdAllowlist", () => {
   it("accepts exact registered roots and their children", () => {
     const list = new CwdAllowlist(["/Users/rob/Code/acme"]);
     expect(list.has("/Users/rob/Code/acme")).toBe(true);
     expect(list.has("/Users/rob/Code/acme/src")).toBe(true);
+    expect(list.hasExact("/Users/rob/Code/acme")).toBe(true);
+    expect(list.hasExact("/Users/rob/Code/acme/src")).toBe(false);
     expect(list.has("/Users/rob/Code/other")).toBe(false);
   });
 
@@ -47,5 +51,22 @@ describe("CwdAllowlist", () => {
     expect(isAllowedRevealPath(`${clips}/image.png`, clips, list)).toBe(true);
     expect(isAllowedRevealPath("/private/tmp/other/image.png", clips, list)).toBe(false);
     expect(isAllowedRevealPath("/Users/rob/Documents/private.txt", clips, list)).toBe(false);
+  });
+
+  it("does not authorize a symlinked child that resolves outside the project", () => {
+    const base = mkdtempSync(join(tmpdir(), "vibe-cwd-"));
+    try {
+      const project = join(base, "project");
+      const outside = join(base, "outside");
+      mkdirSync(project);
+      mkdirSync(outside);
+      const link = join(project, "outside-link");
+      symlinkSync(outside, link, "dir");
+      const list = new CwdAllowlist([project]);
+      expect(list.has(project)).toBe(true);
+      expect(list.has(link)).toBe(false);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 });

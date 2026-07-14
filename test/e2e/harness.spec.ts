@@ -25,8 +25,11 @@ test.beforeAll(async () => {
     },
   });
   page = await app.firstWindow();
-  await page.evaluate((cwd) => localStorage.setItem("vibe.lastCwd", cwd), projectDir);
-  await page.reload();
+  // Enter through the main-authorized recent-project capability. Renderer
+  // storage is intentionally only a restore hint and must not self-authorize a
+  // filesystem root.
+  await expect(page.getByRole("list", { name: "Recent projects" })).toBeVisible();
+  await page.getByRole("button", { name: /^project/ }).click();
   await expect(page.getByRole("textbox", { name: "Task message" })).toBeVisible();
 });
 
@@ -184,12 +187,16 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await page.getByRole("button", { name: "Toggle background jobs" }).click();
   await expect(page.getByText("npm run dev")).toBeVisible();
   await expect(page.getByRole("link", { name: "http://localhost:4310" })).toBeVisible();
-  await page.getByRole("button", { name: "Session", exact: true }).click();
+  await page.getByRole("button", { name: "Close jobs" }).click();
+  await page.getByRole("button", { name: "Review subagent details" }).click();
   await expect(page.locator(".sidebar-line").filter({ hasText: "Before fixture change" })).toBeVisible();
   await expect(page.getByText(/Run fixture child/)).toBeVisible();
   const subagents = page.locator("#session-panel .sidebar-section").filter({ hasText: "Subagents" }).last();
-  await expect(subagents.getByText("Review the fixture", { exact: true })).toBeVisible();
-  await expect(subagents.locator("button")).toHaveCount(0);
+  await expect(subagents.getByTitle("Review the fixture", { exact: true })).toBeVisible();
+  const subagent = subagents.locator("details.subagent-detail").filter({ hasText: "Review the fixture" });
+  await subagent.locator("summary").click();
+  await expect(subagent.getByText("review complete", { exact: true })).toBeVisible();
+  await expect(subagent.getByRole("button", { name: "Copy result from Review the fixture" })).toBeVisible();
   await expect(page.locator("#session-panel .inspector-stream")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("region", { name: "Session", exact: true })).toBeHidden();
@@ -240,7 +247,9 @@ test("opens live model, provider, agent, skill, and MCP catalogs", async () => {
     ["/mcp", "fixture-mcp"],
   ] as const) {
     await composer.fill(command);
-    await expect(page.getByText(expected, { exact: false }).first()).toBeVisible();
+    const catalog = page.getByRole("dialog");
+    await expect(catalog).toBeVisible();
+    await expect(catalog.getByText(expected, { exact: false }).first()).toBeVisible();
     await page.keyboard.press("Escape");
   }
 });

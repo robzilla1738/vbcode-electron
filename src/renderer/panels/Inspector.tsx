@@ -29,6 +29,7 @@ export function Inspector({
   changedFiles,
   cwd,
   focusPath = null,
+  focusSection = null,
   onClose,
   onUndo,
   onRedo,
@@ -39,6 +40,8 @@ export function Inspector({
   cwd: string | null;
   /** When set (e.g. from turn card / dock), jump straight into file review. */
   focusPath?: string | null;
+  /** When set by a live activity pill, reveal that session section immediately. */
+  focusSection?: "subagents" | null;
   onClose: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -66,6 +69,7 @@ export function Inspector({
     ? chrome.checkpoints[chrome.checkpoints.length - 1]!.label
     : null;
   const rootRef = useRef<HTMLElement>(null);
+  const focusedSectionRef = useRef<"subagents" | null>(null);
 
   // Focus trap only when the inspector is a modal drawer (≤ compact) — when
   // docked it behaves as a side panel and should not capture Tab (I49).
@@ -86,11 +90,16 @@ export function Inspector({
     const focusable = (): HTMLElement[] =>
       Array.from(
         root.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), summary, [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ),
       ).filter((el) => {
         const style = window.getComputedStyle(el);
-        return style.visibility !== "hidden" && style.display !== "none";
+        const closedDetails = el.closest("details:not([open])");
+        const visibleClosedSummary = closedDetails?.querySelector(":scope > summary") === el;
+        return style.visibility !== "hidden"
+          && style.display !== "none"
+          && (!closedDetails || visibleClosedSummary)
+          && el.getClientRects().length > 0;
       });
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -171,6 +180,23 @@ export function Inspector({
       setReviewMode("diff");
     }
   }, [focusPath, changedFiles]);
+
+  useEffect(() => {
+    if (focusSection !== "subagents") {
+      focusedSectionRef.current = null;
+      return;
+    }
+    if (focusedSectionRef.current === "subagents" || chrome.subagents.length === 0) return;
+    focusedSectionRef.current = "subagents";
+    const frame = window.requestAnimationFrame(() => {
+      const section = rootRef.current?.querySelector<HTMLElement>(
+        '[data-inspector-section="subagents"]',
+      );
+      section?.scrollIntoView({ block: "start" });
+      section?.querySelector<HTMLElement>("summary")?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusSection, chrome.subagents.length]);
 
   // Clear stale preview when the file leaves the changed set.
   useEffect(() => {

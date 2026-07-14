@@ -69,6 +69,17 @@ export interface GitFullStatus extends GitStatusResult {
   recentCommits: GitCommitInfo[];
 }
 
+export type GitFileDiffResult =
+  | { ok: true; available: false }
+  | {
+      ok: true;
+      available: true;
+      diff: string;
+      added: number;
+      removed: number;
+    }
+  | { ok: false; error: string };
+
 // ── Operation request/result types ───────────────────────────────────────
 
 export interface GitCreateBranchRequest {

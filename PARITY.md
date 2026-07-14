@@ -1,19 +1,18 @@
 # CLI ↔ Electron parity checklist
 
 Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated:
-`npm test` (311 unit tests), `npm run test:e2e` (12 scenarios),
+`npm test` (360 unit tests), `npm run test:e2e` (12 scenarios),
 `npm run verify:source-parity` (19 declaration pairs),
 `npm run verify:config-shape` (40 top-level engine fields), and CI
 coverage/bridge/packaged-host gates.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
-The parity scripts compare declaration/config ASTs with the checkout selected
-by `VIBE_CODR_ROOT` or `~/Code/vibe-codr`. CI and public releases fetch the
-exact revision in `ENGINE_COMMIT`; use a clean archive of that revision for
-local release proof. A local sibling checkout can legitimately be ahead or
-carry provider/protocol changes; that state is a release attention item, not a
-reason to weaken either guard.
+The parity scripts compare declaration/config ASTs with the exact revision in
+`ENGINE_COMMIT`, read from the repository selected by `VIBE_CODR_ROOT` or
+`~/Code/vibe-codr`. A local sibling checkout may be ahead or dirty without
+changing that contract. Packaging separately requires a clean runtime checkout
+whose HEAD equals the lock before it will embed a rebuilt host.
 
 ## Automated (unit)
 
@@ -40,7 +39,10 @@ reason to weaken either guard.
 - [x] Open project → engine bootstrap → wait for `ready` → snapshot
 - [x] Last-cwd restore on launch; a workspace is persisted only after bootstrap
   and snapshot validation succeed
-- [x] Resume hydrates transcript from `snapshot.history`
+- [x] Resume restores structured thinking/tool/output history through the host's
+  authoritative session record, falls back to `snapshot.history` with older
+  hosts, and reuses an exact bounded IndexedDB presentation cache when the
+  authoritative conversation signature still matches
 - [x] Submit prompt → streaming assistant text + tool rows
 - [x] `busy` held until `engine-idle` (not per-turn idle)
 - [x] Reasoning → compact grouped Thinking disclosure with collapsed thought rows; ⌘T toggles
@@ -108,7 +110,8 @@ reason to weaken either guard.
 - [x] Composer status: model · changed +/− · ctx% (hot ≥80%) · tokens · cost · queue · working
 - [x] Inspector (⇧⌘I / dock Session): dynamic session/file title, shared activity sections,
   changed-file Diff/File review with line gutters, in-panel file preview +
-  Reveal, checkpoints undo/redo; subagent rows remain static and non-expandable
+  Reveal, checkpoints undo/redo; the live Subagents pill focuses expandable
+  child details with task, activity, elapsed time, result, and Copy
 - [x] Changes uses a dedicated persisted-width master-detail workspace with
   searchable directory groups, aggregate/per-file stats, churn balance,
   previous/next navigation, Diff/File modes, copy, and Reveal; compact drawers stack.
@@ -125,8 +128,9 @@ reason to weaken either guard.
 - [x] Host resolution: fresh compiled dist → Bun source fallback when runtime sources are newer → bundled resources
 - [x] `npm run copy-host` / `npm run pack` copies host
 - [x] Ready timeout 45s, RPC timeout 20s
-- [x] Bounded NDJSON transport: 32 MiB output-line ceiling, 8 MiB inbound-message
-  ceiling, and a 32 MiB stdin backlog ceiling behind stream backpressure
+- [x] Bounded NDJSON transport: 32 MiB output-line ceiling, 900 kB safe
+  inbound-message ceiling below the host's 1 MB parser limit, and a 32 MiB
+  stdin backlog ceiling behind stream backpressure
 - [x] Read-only `listProjects` host index keeps session storage out of Electron
 - [x] Bridge smoke: `npm run smoke:bridge`
 - [x] Packaged renderer runs sandboxed with a CommonJS preload bridge
@@ -147,10 +151,9 @@ reason to weaken either guard.
   refresh works, but first authorization remains out-of-band in the engine)
 - Job-kill UI (none in TUI)
 - Interactive orchestration DAG graph (list only; TUI ignores the event)
-- Subagent detail drill-in (Electron intentionally renders compact static status rows with spinner/check completion state)
 - Full-window Liquid Glass replacing CLI theme surfaces (glass tints chrome only; palettes still drive semantic roles)
 - Permission/Plan button labels use human verbs with `<kbd>` hints (TUI key chords still work)
-- Electron transcript output, approval panels, and composer share `--composer-max: 40rem`; composer uses a taller resting input (`--composer-input-min: 44px`)
+- Electron prose, tool activity, notices, approval panels, and composer share the font-independent `--transcript-measure: 40rem`; composer uses a taller resting input (`--composer-input-min: 44px`)
 - TUI select-to-copy auto-clipboard toast (Electron uses native selection + Cmd/Ctrl+C)
 - TUI `/mouse` capture (palette lists it; Electron UI ignores `mouse-changed`)
 - Width-fitted footer key-hint bands (Electron uses composer metrics + `/keys` help)
@@ -238,7 +241,8 @@ npm run dev
 - [x] WelcomeGate: aria-busy, aria-labelledby, aria-live, focus primary action button
 - [x] LivePanels (permission/plan cards): role=region, aria-labelledby, aria-keyshortcuts; permission card autofocuses primary action, plan keeps composer focus for revise/steer
 - [x] JobsView: role=region, article elements, aria-label on status/output, keyboard-focusable output pre
-- [x] Inspector: h2 heading, aria-labels on file rows and static subagent status rows; no expandable subagent stream
+- [x] Inspector: h2 heading, aria-labels on file rows, and keyboard-accessible
+  subagent disclosures with focused pill navigation and bounded result output
 - [x] ProjectRail: h2 heading, aria-controls, role=group, first menu item focus on open
 - [x] Splash: section with aria-labelledby and quiet empty-state copy; no suggestion controls
 - [x] Busy cue: composer Stop + elapsed; sr-only busy/idle live status; Esc via keyboard / Stop title
@@ -271,7 +275,7 @@ npm run dev
 
 - [x] Empty-home: invariant stylized ASCII wordmark, quiet tagline, centered composer, no automatic suggestions; fluid container-relative scaling; WelcomeGate + SessionBoot shared boot copy; recent projects on cold start
 - [x] ProjectRail: active session surface highlight (no accent bar/dot); always-on search; measured context menus; archive confirm; topbar brand when rail closed
-- [x] Composer: shared transcript/approval/composer measure (`--composer-max: 40rem`), taller resting input (`--composer-input-min: 44px`); queue is one card above the composer (flat list, hover steer/dequeue)
+- [x] Composer: shared transcript/activity/notice/approval/composer measure (`--transcript-measure: 40rem`), taller resting input (`--composer-input-min: 44px`); queue is one card above the composer (flat list, hover steer/dequeue)
 - [x] Mode dropdown Plan / Agent / Yolo (`selectModeAction`); Shift+Tab still cycles; plan-pending guard unchanged
 - [x] Lucide stroke icons for chrome + composer; tool-row glyphs via renderer `tool-glyph.tsx` (shared unicode `toolIcon` labels unchanged)
 - [x] Sans UI chrome; mono reserved for real code (terminal grids, fences, tool/diff/job bodies, wordmark, rich charts)
@@ -524,9 +528,13 @@ npm run dev
   width while remaining in that same structural lane.
 - [x] The sidebar keeps all five view switches visible at the top. Project PTYs
   remain main-owned and continue running across Terminal close/view switches,
-  then reconnect with bounded replay output.
+  then reconnect with bounded replay output. Interactive login shells and stale
+  session recovery prevent a dead PTY id from stranding the terminal renderer.
 - [x] Terminal cwd follows context: project sessions use the project root, while
   one-off Chats use the user's home directory rather than `~/.vibe/chats`.
+- [x] Changes resolves authoritative per-file Git patches from nested repositories,
+  combines staged/unstaged work against HEAD, and renders untracked files as
+  proper `/dev/null` unified diffs while retaining engine diff fallback.
 - [x] The activity sidebar is a structural grid column, not an inset floating
   card; user messages, transcript output, approvals, changed-files footer, and composer
   stay visible beside it.
@@ -538,6 +546,31 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current release gate: 311 unit tests, 12 e2e scenarios, lint, typecheck,
+- [x] Current release gate: 360 unit tests, 12 e2e scenarios, lint, typecheck,
   build, bundle budget, source parity (19 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.
+
+## Production safety closeout (2026-07-13)
+
+- [x] Cold-start project discovery uses a short-lived pre-bootstrap host and
+  authorizes only absolute existing roots from the engine's persisted project
+  registry. The host launch cwd and renderer persistence are never treated as
+  cwd capabilities.
+- [x] Project config, VIBE.md, and clipboard writes reject symlink escapes;
+  config and key/value editors reject prototype-pollution keys instead of
+  silently accepting a write that changes shape.
+- [x] Settings sections and MCP/provider editors remain mounted while hidden,
+  preserving drafts across navigation. Saves stay bound to the scope/cwd that
+  was loaded, invalid drafts block Save, and clearing absent optional nested
+  fields no longer creates phantom empty objects.
+- [x] Assistant/user/reasoning/plan/subagent/orchestration payloads, composer
+  drafts/attachments, changed-file diffs, editor round trips, host transport,
+  subprocess output, and terminal replay all have explicit ceilings with
+  visible omission markers where user-visible content is shortened.
+- [x] Application accelerators no longer conflict with transcript folding or
+  Session Inspector. Git remote metadata strips embedded HTTP credentials and
+  secret query values before renderer exposure; Git and `gh` subprocesses have
+  TERM/KILL escalation plus a hard settlement deadline.
+- [x] Source/config parity reads the exact locked engine commit. Packaging
+  refuses a mismatched HEAD or dirty engine build input—including dependency
+  manifests and the lockfile—before copying the host.

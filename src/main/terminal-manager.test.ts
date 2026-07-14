@@ -47,6 +47,13 @@ describe("TerminalManager persistence", () => {
     const first = manager.open({ cwd: process.cwd(), cols: 80, rows: 24 });
     expect(first).toMatchObject({ ok: true, reused: false, replay: "", sequence: 0 });
     if (!first.ok) throw new Error(first.error);
+    if (process.platform !== "win32") {
+      expect(spawnMock).toHaveBeenCalledWith(
+        expect.any(String),
+        ["-i", "-l"],
+        expect.objectContaining({ cwd: process.cwd() }),
+      );
+    }
 
     pty.emitData("first\r\n");
     pty.emitData("second\r\n");
@@ -68,5 +75,29 @@ describe("TerminalManager persistence", () => {
 
     manager.dispose();
     expect(pty.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it("forgets an exited PTY so the renderer can reopen a fresh shell", () => {
+    const firstPty = fakePty();
+    const secondPty = fakePty();
+    spawnMock.mockReturnValueOnce(firstPty).mockReturnValueOnce(secondPty);
+    const events: TerminalEvent[] = [];
+    const manager = new TerminalManager((event) => events.push(event));
+
+    const first = manager.open({ cwd: process.cwd(), cols: 80, rows: 24 });
+    if (!first.ok) throw new Error(first.error);
+    firstPty.emitExit(0, 0);
+    expect(manager.write(first.id, "pwd\r")).toEqual({
+      ok: false,
+      error: "Terminal session is no longer open",
+    });
+    expect(events.at(-1)).toEqual({ type: "exit", id: first.id, exitCode: 0, signal: 0 });
+
+    const reopened = manager.open({ cwd: process.cwd(), cols: 80, rows: 24 });
+    expect(reopened).toMatchObject({ ok: true, reused: false });
+    if (!reopened.ok) throw new Error(reopened.error);
+    expect(reopened.id).not.toBe(first.id);
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+    manager.dispose();
   });
 });

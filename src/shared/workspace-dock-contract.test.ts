@@ -43,6 +43,9 @@ describe("workspace dock design contract", () => {
     // Exactly one Files / Finder row (aria + title may both mention reveal)
     expect((source.match(/ariaLabel="Reveal project in Finder"/g) ?? []).length).toBe(1);
     expect((source.match(/onOpen\("files"\)/g) ?? []).length).toBe(1);
+    for (const target of ["session", "changes", "git", "terminal", "jobs", "files"]) {
+      expect((source.match(new RegExp(`onOpen\\("${target}"\\)`, "g")) ?? []).length).toBe(1);
+    }
     // No section divider chrome
     expect(source).not.toContain("workspace-dock-divider");
     expect(source).not.toContain("workspace-dock-section-label");
@@ -78,5 +81,19 @@ describe("workspace dock design contract", () => {
     expect(terminalSource).toContain('getPropertyValue("--font-mono")');
     expect(terminalSource).toContain("fontFamily: terminalFontFromTokens()");
     expect(terminalSource).toContain("letterSpacing: 0");
+  });
+
+  it("keeps the reserved dock lane on the same continuous chat-stage veil", () => {
+    expect(styles).toMatch(
+      /\.content-inset:has\(> \.workspace-dock\) \.chat-column:not\(\.is-empty\)::after\s*\{[\s\S]*?inset-inline-end:\s*calc\(-1 \* \(var\(--workspace-dock-w\) \+ var\(--space-lg\)\)\);/,
+    );
+  });
+
+  it("keeps compact dock and drawer controls outside Electron drag regions", () => {
+    expect(styles).toMatch(/\.workspace-dock\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;[\s\S]*?pointer-events:\s*auto;/);
+    expect(styles).toMatch(/\.workspace-dock-row\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;[\s\S]*?touch-action:\s*manipulation;/);
+    expect(styles).toMatch(/@media \(max-width: 960px\)[\s\S]*?grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\);/);
+    expect(styles).toMatch(/@media \(max-width: 960px\)[\s\S]*?\.workspace-dock-row\s*\{[\s\S]*?min-height:\s*44px;/);
+    expect(styles).toMatch(/\.activity-sidebar\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;/);
   });
 });

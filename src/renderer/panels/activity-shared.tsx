@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import type { SessionChrome } from "../hooks/useSession";
-import { firstLine, truncate } from "../../shared/reducer";
+import { firstLine, truncate, type Subagent } from "../../shared/reducer";
 import { hasUnfinishedTasks, windowTasks } from "../../shared/task-window";
-import { IconCheck } from "../icons";
+import { CopyButton } from "../CopyButton";
+import { IconCheck, IconChevron } from "../icons";
+import { MarkdownView } from "../transcript/MarkdownView";
 
 export function MetaRow({
   label,
@@ -113,6 +116,65 @@ export function subagentLabel(prompt: string | undefined, id: string): string {
   return firstLine(prompt) ?? truncate(id, 12);
 }
 
+function formatSubagentElapsed(elapsedMs: number | undefined): string | null {
+  if (elapsedMs === undefined) return null;
+  const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}m ${remainder.toString().padStart(2, "0")}s`;
+}
+
+function SubagentDetailRow({ subagent, now }: { subagent: Subagent; now: number }) {
+  const [open, setOpen] = useState(subagent.status === "running");
+  const label = subagentLabel(subagent.prompt, subagent.id);
+  const elapsed = formatSubagentElapsed(
+    subagent.elapsedMs ??
+      (subagent.startedAt !== undefined ? now - subagent.startedAt : undefined),
+  );
+
+  return (
+    <details
+      className={`subagent-detail${subagent.status === "running" ? " is-running" : " is-done"}`}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="subagent-detail-summary">
+        <IconChevron size={13} />
+        <StatusDot status={subagent.status === "running" ? "running" : "completed"} />
+        <span className="subagent-detail-title" title={subagent.prompt}>{label}</span>
+        <span className="subagent-detail-meta">
+          {subagent.status === "running" ? "Running" : "Done"}
+          {elapsed ? ` · ${elapsed}` : ""}
+        </span>
+      </summary>
+      {open ? <div className="subagent-detail-body">
+        <div className="subagent-detail-block">
+          <span className="subagent-detail-label">Task</span>
+          <p className="subagent-detail-prompt">{subagent.prompt}</p>
+        </div>
+        {subagent.status === "running" ? (
+          <div className="subagent-live-row" role="status" aria-live="polite">
+            <StatusDot status="running" />
+            <span>{subagent.activity || "Working…"}</span>
+          </div>
+        ) : null}
+        {subagent.result ? (
+          <div className="subagent-detail-block subagent-result-block">
+            <div className="subagent-result-head">
+              <span className="subagent-detail-label">Result</span>
+              <CopyButton text={subagent.result} label={`Copy result from ${label}`} />
+            </div>
+            <div className="subagent-result-content md">
+              <MarkdownView>{subagent.result}</MarkdownView>
+            </div>
+          </div>
+        ) : null}
+      </div> : null}
+    </details>
+  );
+}
+
 export function TasksSection({ tasks }: { tasks: SessionChrome["tasks"] }) {
   if (!hasUnfinishedTasks(tasks)) return null;
   const taskWindow = windowTasks(tasks, 8);
@@ -168,38 +230,33 @@ export function OrchestrationSection({
 
 export function SubagentsSection({
   subagents,
-  showActivity = false,
 }: {
   subagents: SessionChrome["subagents"];
-  showActivity?: boolean;
 }) {
+  const hasRunning = subagents.some((subagent) => subagent.status === "running");
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!hasRunning) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [hasRunning]);
+
   if (subagents.length === 0) return null;
+  const done = subagents.filter((subagent) => subagent.status === "done").length;
   return (
-    <div className="sidebar-section">
-      <h4>Subagents</h4>
-      {subagents.map((s) => {
-        const label = subagentLabel(s.prompt, s.id);
-        const body = (
-          <>
-            <div className="task-row subagent-tone">
-              <StatusDot status={s.status === "running" ? "running" : "completed"} />
-              <span>{label}</span>
-            </div>
-            {showActivity && (s.activity || s.result) ? (
-              <div className="sidebar-line">{s.activity || firstLine(s.result)}</div>
-            ) : null}
-          </>
-        );
-        return (
-          <div
-            key={s.id}
-            className="activity-static"
-            title={s.prompt}
-          >
-            {body}
-          </div>
-        );
-      })}
+    <div className="sidebar-section subagents-section" data-inspector-section="subagents">
+      <div className="sidebar-section-title-row">
+        <h4>Subagents</h4>
+        <span className="subagents-summary">
+          {hasRunning ? `${subagents.length - done} running` : `${done} complete`}
+        </span>
+      </div>
+      <div className="subagent-detail-list">
+        {subagents.map((subagent) => (
+          <SubagentDetailRow key={subagent.id} subagent={subagent} now={now} />
+        ))}
+      </div>
     </div>
   );
 }

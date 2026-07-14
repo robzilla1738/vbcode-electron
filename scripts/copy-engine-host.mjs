@@ -1,38 +1,61 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 /**
  * Copy vibecodr-engine-host into resources/ for packaging.
  * Fails if the binary is older than engine runtime sources (same freshness
  * rule as host-resolver) so packs cannot embed a stale host silently.
  */
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
-  chmodSync,
   readdirSync,
+  readFileSync,
   statSync,
 } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
-import { join, dirname, extname } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const destDir = join(root, "resources");
 const dest = join(destDir, "vibecodr-engine-host");
+const engineCommit = readFileSync(join(root, "ENGINE_COMMIT"), "utf8").trim();
+if (!/^[0-9a-f]{40}$/i.test(engineCommit)) {
+  console.error("Refusing to pack: ENGINE_COMMIT must contain a 40-character git commit");
+  process.exit(1);
+}
 
-const ENGINE_SOURCE_PATHS = [
+const ENGINE_BUILD_INPUT_PATHS = [
+  "bun.lock",
+  "package.json",
+  "tsconfig.base.json",
+  "packages/config/package.json",
+  "packages/config/tsconfig.json",
   "packages/config/src",
+  "packages/core/package.json",
+  "packages/core/tsconfig.json",
   "packages/core/src",
-  "packages/macos-bridge/src",
+  "packages/macos-bridge/package.json",
+  "packages/macos-bridge/tsconfig.json",
   "packages/macos-bridge/bin/engine-host.ts",
+  "packages/macos-bridge/src",
+  "packages/plugins/package.json",
+  "packages/plugins/tsconfig.json",
   "packages/plugins/src",
+  "packages/providers/package.json",
+  "packages/providers/tsconfig.json",
   "packages/providers/src",
+  "packages/shared/package.json",
+  "packages/shared/tsconfig.json",
   "packages/shared/src",
+  "packages/tools/package.json",
+  "packages/tools/tsconfig.json",
   "packages/tools/src",
 ];
 
-const SOURCE_EXTENSIONS = new Set([".json", ".ts", ".tsx"]);
+const SOURCE_EXTENSIONS = new Set([".json", ".lock", ".ts", ".tsx"]);
 
 function newestSourceMtime(engineRoot) {
   let newest = 0;
@@ -58,7 +81,7 @@ function newestSourceMtime(engineRoot) {
     }
     for (const child of children) visit(join(path, child));
   };
-  for (const rel of ENGINE_SOURCE_PATHS) visit(join(engineRoot, rel));
+  for (const rel of ENGINE_BUILD_INPUT_PATHS) visit(join(engineRoot, rel));
   return newest;
 }
 
@@ -82,6 +105,49 @@ if (!src) {
 }
 
 const engineRoot = engineRootForBinary(src);
+try {
+  const checkoutCommit = execFileSync(
+    "git",
+    ["-C", engineRoot, "rev-parse", "HEAD"],
+    { encoding: "utf8" },
+  ).trim();
+  if (checkoutCommit !== engineCommit) {
+    console.error(
+      `Refusing to pack engine ${checkoutCommit}; vbcode-electron locks ${engineCommit}.\n` +
+        `Check out ENGINE_COMMIT in ${engineRoot}, rebuild the host, and retry.`,
+    );
+    process.exit(1);
+  }
+  const dirtyRuntime = execFileSync(
+    "git",
+    [
+      "-C",
+      engineRoot,
+      "status",
+      "--porcelain",
+      "--untracked-files=all",
+      "--",
+      ...ENGINE_BUILD_INPUT_PATHS,
+    ],
+    { encoding: "utf8", maxBuffer: 4 * 1024 * 1024 },
+  ).trim();
+  if (dirtyRuntime) {
+    console.error(
+      `Refusing to pack a runtime-dirty engine checkout at ${engineRoot}:\n${dirtyRuntime}\n` +
+        "Commit the engine changes, update ENGINE_COMMIT, and rebuild the host.",
+    );
+    process.exit(1);
+  }
+} catch (error) {
+  if (typeof error === "object" && error !== null && "status" in error && error.status === 1) {
+    process.exit(1);
+  }
+  console.error(
+    `Refusing to pack: could not verify locked engine checkout at ${engineRoot}: ` +
+      `${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exit(1);
+}
 const binaryMtime = statSync(src).mtimeMs;
 const sourceMtime = newestSourceMtime(engineRoot);
 if (sourceMtime > binaryMtime) {

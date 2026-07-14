@@ -18,6 +18,11 @@ describe("key-value line editors", () => {
     expect(parseKeyValueLines("A=1\nA=2", "=")).toMatchObject({ ok: false });
   });
 
+  it("rejects prototype-mutating record keys", () => {
+    expect(parseKeyValueLines("__proto__=polluted", "=")).toMatchObject({ ok: false });
+    expect(parseKeyValueLines("constructor: value", ":")).toMatchObject({ ok: false });
+  });
+
   it("formats headers with readable spacing", () => {
     expect(formatKeyValueLines({ Authorization: "Bearer token" }, ":"))
       .toBe("Authorization: Bearer token");

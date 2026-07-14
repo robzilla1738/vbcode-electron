@@ -16,6 +16,29 @@ export interface DiffViewLine {
 }
 
 const HUNK_RE = /^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/;
+const OMITTED_DIFF_RE = /^…(?:\s+\d+\s+earlier diff (?:lines|characters) omitted\s+…|\()/;
+
+function isCompactEngineDiff(value: string): boolean {
+  const lines = value.split("\n").filter((line) => line.length > 0);
+  return lines.some((line) => line.startsWith("+") || line.startsWith("-"))
+    && lines.every(
+      (line) =>
+        line.startsWith("+")
+        || line.startsWith("-")
+        || line.startsWith(" ")
+        || line.startsWith("\\")
+        || line === "…"
+        || OMITTED_DIFF_RE.test(line),
+    );
+}
+
+export function isUnifiedDiff(value: string | undefined | null): value is string {
+  if (!value) return false;
+  return /^diff --git /m.test(value)
+    || /^@@\s+-\d+(?:,\d+)?\s+\+\d+(?:,\d+)?\s+@@/m.test(value)
+    || /^--- .+\n\+\+\+ /m.test(value)
+    || isCompactEngineDiff(value);
+}
 
 /**
  * Classify a single unified-diff line. Order matters: file headers that start
@@ -37,6 +60,7 @@ export function classifyDiffLine(line: string): DiffLineKind {
     return "header";
   }
   if (line.startsWith("\\")) return "meta"; // "\ No newline at end of file"
+  if (line === "…" || OMITTED_DIFF_RE.test(line)) return "meta";
   if (line.startsWith("+")) return "add";
   if (line.startsWith("-")) return "del";
   // Context lines usually start with a space; bare lines are treated as context.
@@ -48,7 +72,7 @@ export function classifyDiffLine(line: string): DiffLineKind {
  * Empty or missing body returns [].
  */
 export function parseUnifiedDiff(diff: string | undefined | null): DiffViewLine[] {
-  if (!diff) return [];
+  if (!isUnifiedDiff(diff)) return [];
   // Preserve trailing empty line only if the source ends with \n\n; split keeps
   // a final empty element when the string ends with \n — drop a single trailing empty.
   const raw = diff.split("\n");
@@ -57,7 +81,11 @@ export function parseUnifiedDiff(diff: string | undefined | null): DiffViewLine[
   const out: DiffViewLine[] = [];
   let oldNo = 0;
   let newNo = 0;
-  let inHunk = false;
+  let inHunk = isCompactEngineDiff(diff);
+  if (inHunk) {
+    oldNo = 1;
+    newNo = 1;
+  }
 
   for (const text of raw) {
     const kind = classifyDiffLine(text);

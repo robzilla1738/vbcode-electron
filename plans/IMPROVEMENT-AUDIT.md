@@ -1,7 +1,7 @@
 # vbcode-electron — verified improvement backlog (post-implementation)
 
 **Date:** 2026-07-13  
-**Commit base audited:** `66bf96f`
+**Commit base audited:** `9239c45`
 **Implementation pass:** exhaustive production-user hardening (this working tree)
 **Scope:** Electron presentation shell only (main · preload · renderer · shared · scripts/tests/docs)
 
@@ -35,6 +35,17 @@ the public-release pass:
 10. **Transport and renderer bounds** — v0.5.1 host protocol lines, inbound
     messages, backpressured stdin, reasoning, tool output, diffs, terminal
     replay, clipboard/file reads, and subprocess capture all have explicit caps.
+11. **Capability integrity** — cold-start project discovery comes from the
+    validated persisted registry returned by a pre-bootstrap host; its launch
+    cwd and persisted renderer cwd values cannot self-authorize; writable
+    project paths reject symlink traversal.
+12. **Draft and release integrity** — every Settings editor preserves hidden
+    drafts and pins save scope; prototype keys are rejected; parity reads the
+    exact engine lock; packaging rejects mismatched commits or dirty engine
+    build inputs, including dependency manifests and the lockfile.
+13. **Operational privacy** — Git remote credentials are removed before IPC,
+    and Git/`gh` commands have bounded capture, TERM/KILL escalation, and a hard
+    promise-settlement deadline.
 
 | Tier | Residual open | Status |
 |------|---------------|--------|
@@ -62,9 +73,9 @@ the public-release pass:
 |---------|----------|
 | P0 disposeForQuit bootstrap preemption | `engine-bridge.ts` preempts `startRequest`+waiters before schedule; test never-ready reaped &lt;5s |
 | P1 fs:readTextFile full-file read | `readTextFileCapped` + `path-safe` realpath (`capped-read.ts`, `path-safe.ts`) |
-| P1 symlink escape | `resolvePathInsideRoot` realpath containment |
+| P1 symlink escape | Read and writable-path realpath containment, including rejection of symlink components below project root |
 | P1 spawnGh unbounded | `stream-cap` in `git-ipc.ts` |
-| P2 arbitrary cwd | `cwd-allowlist` after **successful** bootstrap + dialog open + git/config/fs/clipboard |
+| P2 arbitrary cwd | Validated persisted project index + dialog/Chats capabilities; launch and renderer-persisted cwd values cannot self-authorize; git/config/fs/clipboard enforce `cwd-allowlist` |
 | P2 clipboard text uncapped | 2 MiB cap in `index.ts` |
 | P2 config/memory reads unbounded | size gates in `config-io.ts` |
 | P2 unreaped after SIGKILL | ownership retained if still alive (`stopCurrent`) |
@@ -85,14 +96,22 @@ the public-release pass:
 | P1 stdin/NDJSON unbounded memory | Per-message, queued-byte, and output-line ceilings; async drain failures become one fatal host lifecycle error |
 | P1 failed workspace poisons restore | Active cwd and `vibe.lastCwd` commit only after ready + validated snapshot |
 | P1 Settings save race | Submitted revision is snapshotted; edits made during save remain dirty for config and VIBE.md |
+| P1 Settings scope race | Saves remain bound to the loaded global/project scope and cwd; every section stays mounted while Settings is open |
 | P1 project self-trust | Trust toggle disabled in Project scope; copy accurately distinguishes filtered broad/code-bearing settings from preserved exact grants and deny/ask rules |
-| P1 MCP/provider draft loss | Draft-preserving key/value editors, duplicate guards, honest OAuth first-grant limitation |
+| P1 MCP/provider draft loss | Collapsed editors remain mounted; invalid key/value drafts block Save and Reset clears them deterministically |
+| P1 MCP/provider contract | Duplicate guards and honest OAuth first-grant limitation |
+| P2 phantom config objects | Semantic config diff avoids persisting `{}` when an absent optional nested field is cleared |
+| P1 prototype-key config input | Config read/write and key/value editors reject `__proto__`, `prototype`, and `constructor` recursively |
 | P2 LSP config surface gap | Per-language command, args, and enabled overrides exposed in Settings |
 | P2 renderer retained payload size | Newline-free reasoning, tool results, and diffs use rolling/tail caps |
+| P1 live-state aggregate growth | Explicit assistant/user/plan/source/assumption/subagent/orchestration/composer/attachment/diff ceilings with omission markers |
 | P2 onboarding permanence | Skip is renderer-session-only; provider/keyless/custom endpoint copy matches actual behavior |
 | P2 terminal lifecycle | Closing/switching detaches renderer only; main-owned PTY/replay survives until app shutdown |
 | P2 app menu gaps | New/Open/Continue, Settings/Git/Inspector/Terminal/Jobs, keys/docs/issues wired through one router |
-| P2 engine release drift | `ENGINE_COMMIT` locked to exact vibe-codr v0.5.1 tag commit; clean archive parity required |
+| P2 engine release drift | Parity uses `git show` at `ENGINE_COMMIT`; pack rejects mismatched HEAD or dirty runtime paths before embedding the host |
+| P2 Git remote credential exposure | HTTP credentials and secret-like query values redacted before remote metadata crosses IPC |
+| P2 Git/gh timeout hang | TERM→KILL escalation plus hard settlement deadline; late error/close events are idempotent |
+| P2 application shortcut collision | Native Open Project/DevTools bindings no longer conflict with transcript fold-all and Session Inspector |
 | P3 editor draft uncapped | 2 MiB reject before compose |
 | P1 preload↔mock contract | `vibe-api-keys.ts` + unit test + full mock key list |
 | P2 shell version surface | `getShellInfo` IPC + preload |
@@ -161,7 +180,7 @@ None. `getShellInfo` provides shell version + launch description. Host protocol 
 | Item | Label |
 |------|-------|
 | Edit message resubmit | **Engine-adjacent** (prefill-only intentional until protocol) |
-| Full list virtualization | Partially addressed via block retention cap + plain stream; true window virtualization is optional polish (D1) |
+| Full list virtualization | Block retention, progressive history reveal, and per-payload caps bound the current implementation; true window virtualization is optional polish (D1) |
 | Host auto-reconnect dual-host safe | Optional continuity (D2); manual New/Retry remains |
 
 ---
@@ -204,7 +223,10 @@ D1–D5 remain **options** beyond the residual fix list. Partial delivery: long-
 - Real-host e2e pin  
 
 ## Intentional non-goals
-OpenTUI grid, mouse capture, engine reimplementation, plugin install UI, job-kill, interactive DAG, subagent drill-in, full Liquid Glass themes.
+OpenTUI grid, mouse capture, engine reimplementation, plugin install UI,
+job-kill, interactive DAG editing, and full Liquid Glass themes. Read-only,
+bounded subagent drill-in is implemented in Session; mutating child control
+remains engine-owned.
 
 ## Deferred / credential-gated
 - Running the implemented public release workflow requires Apple credentials
@@ -247,7 +269,7 @@ virtualization polish or engine protocol coordination; neither is release debt.
 # 11. How verification was done
 
 1. One-item-at-a-time implementation with unit tests on real exports.  
-2. Full `npm test` (311) + coverage floors + lint + `npm run typecheck`.
+2. Full `npm test` (352) + coverage floors + lint + `npm run typecheck`.
 3. Structural audit test + vibe-api-keys + busy/path/stream caps.  
 4. CI/release YAML parsed; actions and engine commit pinned.
 5. Clean locked-engine archive passed source/config parity, native host build,

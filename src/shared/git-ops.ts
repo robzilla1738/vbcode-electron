@@ -7,12 +7,15 @@
  */
 
 import { spawn } from "node:child_process";
+import { realpath } from "node:fs/promises";
+import { dirname, join, relative } from "node:path";
 import type { Readable } from "node:stream";
 import { assertGitRef, assertGitRemote } from "./git-ref";
 import type {
   GitBranch,
   GitCommitInfo,
   GitFullStatus,
+  GitFileDiffResult,
   GitRemote,
   GitResult,
   GitStatusEntry,
@@ -41,6 +44,8 @@ export interface GitRunResult {
   ok: boolean;
   stdout: string;
   stderr: string;
+  exitCode: number | null;
+  truncated: boolean;
 }
 
 /** Spawn a git command in `cwd` and return trimmed streams + success. */
@@ -67,32 +72,68 @@ export async function runGit(cwd: string, args: string[]): Promise<GitRunResult>
     }) as unknown as SpawnedChild;
     const capture = createCaptureBuffers(GIT_MAX_CAPTURE_BYTES);
     let forceTimer: NodeJS.Timeout | null = null;
+    let hardTimer: NodeJS.Timeout | null = null;
+    let timedOut = false;
+    let settled = false;
+    const finish = (result: GitRunResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      resolve(result);
+    };
     const timer = setTimeout(() => {
+      timedOut = true;
       child.kill("SIGTERM");
-      forceTimer = setTimeout(() => child.kill("SIGKILL"), 2000);
+      forceTimer = setTimeout(() => {
+        child.kill("SIGKILL");
+        hardTimer = setTimeout(() => {
+          finish({
+            ok: false,
+            stdout: capture.stdout,
+            stderr: capture.stderr || "git command timed out",
+            exitCode: null,
+            truncated: capture.truncated,
+          });
+        }, 2_000);
+      }, 2_000);
     }, GIT_TIMEOUT_MS);
     const clearTimers = () => {
       clearTimeout(timer);
       if (forceTimer) clearTimeout(forceTimer);
+      if (hardTimer) clearTimeout(hardTimer);
     };
 
     child.stdout.on("data", (chunk: Buffer) => appendCapture(capture, "stdout", chunk));
     child.stderr.on("data", (chunk: Buffer) => appendCapture(capture, "stderr", chunk));
     child.on("error", (err: Error) => {
-      clearTimers();
-      resolve({ ok: false, stdout: capture.stdout, stderr: err.message });
+      finish({
+        ok: false,
+        stdout: capture.stdout,
+        stderr: err.message,
+        exitCode: null,
+        truncated: capture.truncated,
+      });
     });
     child.on("close", (code: number | null) => {
-      clearTimers();
       if (capture.truncated) {
-        resolve({
+        finish({
           ok: false,
           stdout: capture.stdout,
           stderr: captureOverflowError(capture, "git output"),
+          exitCode: code,
+          truncated: true,
         });
         return;
       }
-      resolve({ ok: code === 0, stdout: capture.stdout, stderr: capture.stderr });
+      finish({
+        ok: !timedOut && code === 0,
+        stdout: capture.stdout,
+        stderr: timedOut
+          ? capture.stderr || "git command timed out"
+          : capture.stderr,
+        exitCode: code,
+        truncated: false,
+      });
     });
   });
 }
@@ -101,6 +142,66 @@ export async function runGit(cwd: string, args: string[]): Promise<GitRunResult>
 export async function isGitRepo(cwd: string): Promise<boolean> {
   const res = await runGit(cwd, ["rev-parse", "--is-inside-work-tree"]);
   return res.ok && res.stdout.trim() === "true";
+}
+
+function diffLineCounts(diff: string): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+++ ") || line.startsWith("--- ")) continue;
+    if (line.startsWith("+")) added += 1;
+    else if (line.startsWith("-")) removed += 1;
+  }
+  return { added, removed };
+}
+
+/** Current HEAD-to-working-tree diff for one project-contained file. Finds a
+ * nested repository (common when an agent scaffolds inside the opened folder)
+ * and synthesizes a normal unified diff for untracked files. */
+export async function getWorkingTreeFileDiff(
+  target: string,
+): Promise<GitFileDiffResult> {
+  let existingAncestor = dirname(target);
+  let canonicalAncestor: string | null = null;
+  while (canonicalAncestor === null) {
+    canonicalAncestor = await realpath(existingAncestor).catch(() => null);
+    if (canonicalAncestor !== null) break;
+    const parent = dirname(existingAncestor);
+    if (parent === existingAncestor) return { ok: true, available: false };
+    existingAncestor = parent;
+  }
+  const location = canonicalAncestor;
+  const canonicalTarget = join(location, relative(existingAncestor, target));
+  const rootResult = await runGit(location, ["rev-parse", "--show-toplevel"]);
+  if (!rootResult.ok) return { ok: true, available: false };
+  const repoRoot = rootResult.stdout.trim();
+  const repoPath = relative(repoRoot, canonicalTarget);
+  if (!repoRoot || !repoPath || repoPath === ".." || repoPath.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)) {
+    return { ok: false, error: "Changed file is outside its Git repository" };
+  }
+
+  const [tracked, head] = await Promise.all([
+    runGit(repoRoot, ["ls-files", "--error-unmatch", "--", repoPath]),
+    runGit(repoRoot, ["rev-parse", "--verify", "HEAD"]),
+  ]);
+  const diff = tracked.ok && head.ok
+    ? await runGit(repoRoot, ["diff", "--no-ext-diff", "--no-color", "HEAD", "--", repoPath])
+    : await runGit(repoRoot, [
+        "diff",
+        "--no-ext-diff",
+        "--no-color",
+        "--no-index",
+        "--",
+        process.platform === "win32" ? "NUL" : "/dev/null",
+        canonicalTarget,
+      ]);
+
+  // `git diff --no-index` returns 1 when differences are present.
+  if (!diff.ok && (diff.exitCode !== 1 || diff.truncated)) {
+    return { ok: false, error: diff.stderr || "Could not read file diff" };
+  }
+  const counts = diffLineCounts(diff.stdout);
+  return { ok: true, available: true, diff: diff.stdout, ...counts };
 }
 
 function parseRemoteUrl(url: string): { host?: string; owner?: string; repo?: string } {
@@ -122,6 +223,31 @@ function parseRemoteUrl(url: string): { host?: string; owner?: string; repo?: st
   return {};
 }
 
+const SENSITIVE_REMOTE_QUERY_KEY = /(?:token|key|auth|password|passwd|secret|signature|credential)/i;
+
+/**
+ * Remote URLs are presentation metadata only; git mutations address the remote
+ * by name. Strip embedded URL credentials and redact secret-like query values
+ * before the object crosses into the renderer or lands in a screenshot/log.
+ * SCP-style SSH URLs contain a public username, not a credential, and are kept.
+ */
+export function redactRemoteUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.username = "";
+    parsed.password = "";
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (key.toLowerCase() === "sig" || SENSITIVE_REMOTE_QUERY_KEY.test(key)) {
+        parsed.searchParams.set(key, "[redacted]");
+      }
+    }
+    parsed.hash = "";
+    return parsed.href;
+  } catch {
+    return url;
+  }
+}
+
 export async function listRemotes(cwd: string): Promise<GitRemote[]> {
   const res = await runGit(cwd, ["remote", "-v"]);
   if (!res.ok) return [];
@@ -133,9 +259,9 @@ export async function listRemotes(cwd: string): Promise<GitRemote[]> {
     const name = m[1]!;
     if (seen.has(name)) continue;
     seen.add(name);
-    const url = m[2]!;
-    const parsed = parseRemoteUrl(url);
-    remotes.push({ name, url, ...parsed });
+    const rawUrl = m[2]!;
+    const parsed = parseRemoteUrl(rawUrl);
+    remotes.push({ name, url: redactRemoteUrl(rawUrl), ...parsed });
   }
   return remotes;
 }

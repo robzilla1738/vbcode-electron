@@ -28,6 +28,9 @@ export function InstructionsSection({
   dirtyRef.current = content !== original;
   contentRef.current = content;
   const prevCwdRef = useRef(cwd);
+  const prevOuterScopeRef = useRef(scope);
+  /** Context that produced `content`; cancelled navigation cannot retarget Save. */
+  const loadedContextRef = useRef<{ scope: ConfigScope; cwd?: string } | null>(null);
 
   const load = useCallback(async (loadScope: ConfigScope) => {
     const seq = ++loadSeq.current;
@@ -41,13 +44,15 @@ export function InstructionsSection({
       savedTimer.current = null;
     }
     try {
-      const res = await window.vibe.readMemory({ scope: loadScope, cwd: loadScope === "project" ? cwd ?? undefined : undefined });
+      const targetCwd = loadScope === "project" ? cwd ?? undefined : undefined;
+      const res = await window.vibe.readMemory({ scope: loadScope, cwd: targetCwd });
       if (seq !== loadSeq.current) return;
       if (!res.ok) { setLoadError(res.error); setLoading(false); return; }
       setContent(res.content);
       setOriginal(res.content);
       setPath(res.path);
       setExists(res.exists);
+      loadedContextRef.current = { scope: loadScope, cwd: targetCwd };
       setLoading(false);
     } catch (err) {
       if (seq !== loadSeq.current) return;
@@ -60,6 +65,13 @@ export function InstructionsSection({
   // `() => false` on unmount — SettingsFormArea keeps this section mounted
   // (hidden) across nav switches so drafts survive; SettingsView clears the
   // shell guard when the whole settings surface closes.
+  useEffect(() => {
+    if (prevOuterScopeRef.current === scope) return;
+    prevOuterScopeRef.current = scope;
+    // SettingsView already ran the combined config/instructions dirty guard.
+    setActiveScope(scope);
+  }, [scope]);
+
   useEffect(() => {
     onBindDirty?.(() => dirtyRef.current);
   }, [onBindDirty]);
@@ -99,7 +111,11 @@ export function InstructionsSection({
     setSaveError(null);
     setSaved(false);
     try {
-      const res = await window.vibe.writeMemory({ scope: activeScope, cwd: activeScope === "project" ? cwd ?? undefined : undefined, content: savedContent });
+      const target = loadedContextRef.current ?? {
+        scope: activeScope,
+        cwd: activeScope === "project" ? cwd ?? undefined : undefined,
+      };
+      const res = await window.vibe.writeMemory({ scope: target.scope, cwd: target.cwd, content: savedContent });
       if (seq !== loadSeq.current) return;
       if (!res.ok) { setSaveError(res.error); setSaving(false); return; }
       setOriginal(savedContent);

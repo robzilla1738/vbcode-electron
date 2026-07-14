@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyDiffLine, parseUnifiedDiff } from "./diff-view";
+import { classifyDiffLine, isUnifiedDiff, parseUnifiedDiff } from "./diff-view";
 
 describe("classifyDiffLine", () => {
   it("does not treat file headers as add/del", () => {
@@ -19,6 +19,12 @@ describe("classifyDiffLine", () => {
 });
 
 describe("parseUnifiedDiff", () => {
+  it("rejects current file contents that were mislabeled as a diff", () => {
+    const contents = 'import type { Metadata } from "next";\nexport default function Layout() {}';
+    expect(isUnifiedDiff(contents)).toBe(false);
+    expect(parseUnifiedDiff(contents)).toEqual([]);
+  });
+
   const sample = `diff --git a/src/a.ts b/src/a.ts
 index 111..222 100644
 --- a/src/a.ts
@@ -54,6 +60,34 @@ index 111..222 100644
   it("returns empty for missing/empty diff", () => {
     expect(parseUnifiedDiff(undefined)).toEqual([]);
     expect(parseUnifiedDiff("")).toEqual([]);
+  });
+
+  it("renders the engine's headerless compact diff format", () => {
+    const lines = parseUnifiedDiff(" context\n-old\n+new\n…\n+tail");
+    expect(lines.filter((line) => line.kind === "del")).toEqual([
+      expect.objectContaining({ oldNo: 2, newNo: null }),
+    ]);
+    expect(lines.filter((line) => line.kind === "add")).toEqual([
+      expect.objectContaining({ oldNo: null, newNo: 2 }),
+      expect.objectContaining({ oldNo: null, newNo: 3 }),
+    ]);
+  });
+
+  it("keeps bounded compact diffs with reducer omission markers reviewable", () => {
+    for (const marker of [
+      "… 27 earlier diff lines omitted …",
+      "… 4096 earlier diff characters omitted …",
+    ]) {
+      const diff = `${marker}\n context\n-old\n+new`;
+      expect(isUnifiedDiff(diff)).toBe(true);
+      expect(parseUnifiedDiff(diff)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: "meta", text: marker }),
+          expect.objectContaining({ kind: "del", text: "-old" }),
+          expect.objectContaining({ kind: "add", text: "+new" }),
+        ]),
+      );
+    }
   });
 
   it("never paints +++ / --- as green/red body rows", () => {

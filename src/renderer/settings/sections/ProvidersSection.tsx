@@ -4,7 +4,14 @@ import { PROVIDER_CHOICES } from "../../../shared/providers-catalog";
 import type { SectionProps } from "./types";
 import { KeyValueTextArea, SettingBadge, SettingField, SettingSection, TextInput } from "../FormControls";
 
-export function ProvidersSection({ config, scope, updateConfig, cwd }: SectionProps) {
+export function ProvidersSection({
+  config,
+  scope,
+  updateConfig,
+  cwd,
+  onInvalidDraftChange,
+  draftResetVersion = 0,
+}: SectionProps) {
   const providers = config.providers ?? {};
   const providerIds = Object.keys(providers);
   const providerOptions = Array.from(
@@ -63,8 +70,11 @@ export function ProvidersSection({ config, scope, updateConfig, cwd }: SectionPr
                   </button>
                   <button type="button" className="button danger" onClick={() => removeProvider(id)}>Remove</button>
                 </div>
-                {isExpanded && (
-                  <div className="setting-card-body">
+                <div
+                  className="setting-card-body"
+                  hidden={!isExpanded}
+                  aria-hidden={!isExpanded}
+                >
                     <SettingField label="API key" description="Provider API key. Env var (e.g. OPENAI_API_KEY) takes precedence.">
                       <TextInput
                         value={p.apiKey ?? ""}
@@ -104,12 +114,12 @@ export function ProvidersSection({ config, scope, updateConfig, cwd }: SectionPr
                         value={p.headers}
                         onChange={(headers) => updateProvider(id, { headers })}
                         separator=":"
-                        resetKey={`${scope}:${cwd ?? ""}:${id}:headers`}
+                        resetKey={`providers:${draftResetVersion}:${scope}:${cwd ?? ""}:${id}:headers`}
                         placeholder="X-Account-Id: 12345"
+                        onInvalidDraftChange={onInvalidDraftChange}
                       />
                     </SettingField>
-                  </div>
-                )}
+                </div>
               </div>
             );
           })}

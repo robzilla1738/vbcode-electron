@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 // We test the pure merge logic and the JSONC parsing helpers indirectly
 // through readConfigFile / writeConfigFile.
@@ -209,6 +209,28 @@ describe("config-io", () => {
       ).rejects.toThrow(/plain object/);
     });
 
+    it("rejects reserved record keys instead of silently dropping them", async () => {
+      const path = join(tmpDir, "config.json");
+      const patch = JSON.parse(
+        '{"providers":{"__proto__":{"apiKey":"secret"}}}',
+      ) as Record<string, unknown>;
+      await expect(writeConfigFile(path, patch)).rejects.toThrow(
+        /reserved key providers\.__proto__/,
+      );
+      expect(existsSync(path)).toBe(false);
+    });
+
+    it("refuses to load an on-disk config containing reserved record keys", async () => {
+      const path = join(tmpDir, "config.json");
+      await writeFile(
+        path,
+        '{"mcp":{"servers":{"constructor":{"command":"node"}}}}',
+      );
+      await expect(readConfigFile(path)).rejects.toThrow(
+        /reserved key mcp\.servers\.constructor/,
+      );
+    });
+
     it("writeConfigFileValidated rejects invalid merged config under the lock", async () => {
       const { writeConfigFileValidated } = await import("./config-io");
       const path = join(tmpDir, "validated.json");
@@ -220,6 +242,20 @@ describe("config-io", () => {
       expect(res.ok).toBe(false);
       if (!res.ok) expect(res.error).toMatch(/maxSteps/);
       // Must not have written an invalid file
+      expect(existsSync(path)).toBe(false);
+    });
+
+    it("writeConfigFileValidated reports reserved keys without writing", async () => {
+      const { writeConfigFileValidated } = await import("./config-io");
+      const path = join(tmpDir, "validated-reserved.json");
+      const patch = JSON.parse(
+        '{"pricing":{"prototype":{"input":1}}}',
+      ) as Record<string, unknown>;
+      const res = await writeConfigFileValidated(path, patch, () => []);
+      expect(res).toEqual({
+        ok: false,
+        error: "Config patch contains reserved key pricing.prototype",
+      });
       expect(existsSync(path)).toBe(false);
     });
 

@@ -1,31 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { lineToCommands, parsePermissionDecision, routePendingPermLine } from "./slash";
-import { reduceTranscript, initialTranscript, groupIntoTurns } from "./reducer";
-import { decodeOutbound, encodeInbound } from "./protocol";
-import { cycleModeAction, deriveUiMode, selectModeAction } from "./modes";
-import { getTheme, THEME_NAMES } from "./themes";
-import { isDensityChangeNotice, toolCollapsed, nextDensity } from "./density";
-import { seedChromeFromSessionStart } from "./chrome-seed";
-import { fuzzyPathScore, rankPaths, atMentionState, applyAtMention, formatAtPath } from "./file-fuzzy";
-import { formatKeysHelp, ESSENTIAL_KEYS } from "./keys-help";
-import { paletteState } from "./commands-catalog";
-import { hydrateFromHistory } from "./history-hydrate";
-import {
-  chatSessions,
-  chatsCwdFromHome,
-  filterChatSessions,
-  filterProjects,
-  isChatsCwd,
-  partitionProjects,
-  projectLabel,
-  relativeSessionTime,
-  terminalCwdForWorkspace,
-} from "./project-index";
-import { isScrollAnchored } from "./scroll-anchor";
-import { externalHref, parseSearchResults, parseSources } from "./sources";
-import { hasUnfinishedTasks, windowTasks } from "./task-window";
-import { paletteColorScheme } from "./theme-scheme";
-import { shikiThemeFor, shikiThemeId, shikiThemesCoverRegistry } from "./shiki-theme";
 import {
   agentCatalogOptions,
   agentsPickerQuery,
@@ -39,6 +12,38 @@ import {
   skillCatalogOptions,
   skillsPickerFilter,
 } from "./catalog-draft";
+import { seedChromeFromSessionStart } from "./chrome-seed";
+import { paletteState } from "./commands-catalog";
+import { isDensityChangeNotice, nextDensity, toolCollapsed } from "./density";
+import { applyAtMention, atMentionState, formatAtPath, fuzzyPathScore, rankPaths } from "./file-fuzzy";
+import { hydrateFromHistory } from "./history-hydrate";
+import { ESSENTIAL_KEYS, formatKeysHelp } from "./keys-help";
+import { cycleModeAction, deriveUiMode, selectModeAction } from "./modes";
+import {
+  chatSessions,
+  chatsCwdFromHome,
+  filterChatSessions,
+  filterProjects,
+  isChatsCwd,
+  partitionProjects,
+  projectLabel,
+  relativeSessionTime,
+  terminalCwdForWorkspace,
+} from "./project-index";
+import { decodeOutbound, encodeInbound } from "./protocol";
+import {
+  capChangedFileDiffs,
+  groupIntoTurns,
+  initialTranscript,
+  reduceTranscript,
+} from "./reducer";
+import { isScrollAnchored } from "./scroll-anchor";
+import { shikiThemeFor, shikiThemeId, shikiThemesCoverRegistry } from "./shiki-theme";
+import { lineToCommands, parsePermissionDecision, routePendingPermLine } from "./slash";
+import { externalHref, parseSearchResults, parseSources } from "./sources";
+import { hasUnfinishedTasks, windowTasks } from "./task-window";
+import { paletteColorScheme } from "./theme-scheme";
+import { getTheme, THEME_NAMES } from "./themes";
 import { turnWindowStart, windowStartIndex } from "./trail";
 
 describe("slash routing", () => {
@@ -106,6 +111,14 @@ describe("transcript reducer", () => {
     });
     expect(s.blocks[0]).toMatchObject({ kind: "tool", isDiff: true, done: true });
     expect(s.changedFiles).toEqual([{ path: "a.ts", added: 1, removed: 0, diff: "+x" }]);
+    s = reduceTranscript(s, {
+      type: "tool-finish",
+      toolCallId: "c1",
+      output: "edited",
+      isError: false,
+    });
+    expect(s.toolByCallId).toEqual({});
+    expect(s.suppressCallIds).toEqual({});
   });
 
   it("bounds newline-free tool output and file diffs", () => {
@@ -137,6 +150,20 @@ describe("transcript reducer", () => {
     });
     expect(s.changedFiles[0]?.diff?.length).toBeLessThan(1_050_000);
     expect(s.changedFiles[0]?.diff).toContain("earlier diff characters omitted");
+  });
+
+  it("keeps changed-file metadata while bounding total retained diff text", () => {
+    const files = capChangedFileDiffs(
+      [
+        { path: "old.ts", added: 1, removed: 0, diff: "12345" },
+        { path: "new.ts", added: 2, removed: 1, diff: "67890" },
+      ],
+      5,
+    );
+    expect(files).toEqual([
+      { path: "old.ts", added: 1, removed: 0 },
+      { path: "new.ts", added: 2, removed: 1, diff: "67890" },
+    ]);
   });
 });
 

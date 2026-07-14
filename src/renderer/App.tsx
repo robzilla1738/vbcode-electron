@@ -13,8 +13,18 @@ import {
 import { sortChangedFilesForDisplay } from "../shared/changed-files";
 import { commandsExpectBusy } from "../shared/command-busy";
 import { densityLabel, nextDensity } from "../shared/density";
-import { isChatsCwd, projectLabel, terminalCwdForWorkspace } from "../shared/project-index";
-import type { ProjectSummary } from "../shared/protocol";
+import {
+  isChatsCwd,
+  normalizeCwd,
+  projectLabel,
+  terminalCwdForWorkspace,
+} from "../shared/project-index";
+import {
+  encodedEngineCommandBytes,
+  HOST_INBOUND_SAFE_BYTES,
+  type EngineCommand,
+  type ProjectSummary,
+} from "../shared/protocol";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
 import { lineToCommands, routePendingPermLine } from "../shared/slash";
 import { classifySubmitLine } from "../shared/submit-routing";
@@ -54,6 +64,7 @@ import {
   StatusDot,
 } from "./primitives";
 import { TranscriptView } from "./transcript/TranscriptView";
+import { deleteTranscriptCache, deleteTranscriptCachesForCwd } from "./transcript-cache";
 
 type Picker = CatalogPickerState | null;
 
@@ -119,6 +130,8 @@ export function App() {
   const [chatsCwd, setChatsCwd] = useState<string | null>(null);
   const [homeCwd, setHomeCwd] = useState<string | null>(null);
   const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [initialProjectRestoreSettled, setInitialProjectRestoreSettled] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   /** "Skip for now" lasts only for this renderer session, not forever. */
@@ -136,12 +149,14 @@ export function App() {
   const [followSignal, setFollowSignal] = useState(0);
   /** When opening the Session panel from the turn card / dock, focus this path. */
   const [inspectorFocusPath, setInspectorFocusPath] = useState<string | null>(null);
+  const [inspectorFocusSection, setInspectorFocusSection] = useState<"subagents" | null>(null);
   const [inspectorTool, setInspectorTool] = useState<"session" | "changes">("session");
   const didRestoreProject = useRef(false);
   /** Bound by SettingsView while mounted — true when config form has unsaved edits. */
   const settingsDirtyRef = useRef<() => boolean>(() => false);
   const projectRefreshGate = useRef(new RequestGate());
   const composerStackRef = useRef<HTMLDivElement>(null);
+  const panelsRef = useRef<HTMLDivElement>(null);
   const session = useSession(cwd);
   const activeEndPanel: ActivitySidebarTarget | null = session.inspectorOpen
     ? inspectorTool
@@ -167,25 +182,33 @@ export function App() {
     });
   }, [session]);
 
-  // The composer overlays the transcript so output can continue to scroll
-  // underneath it. Keep the transcript's bottom clearance tied to the actual
-  // composer height, including multiline drafts and queued prompts.
+  // The composer and live panels overlay the transcript so output can continue
+  // to scroll underneath them. Track both heights: transcript padding follows
+  // the composer, while Jump to latest must sit above permission/plan/activity
+  // panels instead of covering them.
   useEffect(() => {
     const stack = composerStackRef.current;
+    const panels = panelsRef.current;
     const column = stack?.closest<HTMLElement>(".chat-column");
     if (!stack || !column || typeof ResizeObserver === "undefined") return;
 
-    const syncClearance = () => {
-      const height = Math.ceil(stack.getBoundingClientRect().height);
-      column.style.setProperty("--composer-clearance", `${height + 24}px`);
+    const syncClearances = () => {
+      const composerHeight = Math.ceil(stack.getBoundingClientRect().height);
+      const panelsHeight = panels
+        ? Math.ceil(panels.getBoundingClientRect().height)
+        : 0;
+      column.style.setProperty("--composer-clearance", `${composerHeight + 24}px`);
+      column.style.setProperty("--panels-clearance", `${panelsHeight}px`);
     };
 
-    syncClearance();
-    const observer = new ResizeObserver(syncClearance);
+    syncClearances();
+    const observer = new ResizeObserver(syncClearances);
     observer.observe(stack);
+    if (panels) observer.observe(panels);
     return () => {
       observer.disconnect();
       column.style.removeProperty("--composer-clearance");
+      column.style.removeProperty("--panels-clearance");
     };
   }, [session.booting, session.chrome.queuePending.length, session.transcript.blocks.length, picker]);
 
@@ -264,6 +287,7 @@ export function App() {
       setGitOpen(false);
       setTerminalOpen(false);
       setInspectorFocusPath(null);
+      setInspectorFocusSection(null);
       setInspectorTool("session");
       session.setInspectorOpen(true);
       return;
@@ -274,6 +298,7 @@ export function App() {
     session.setInspectorOpen((v) => {
       if (v) {
         setInspectorFocusPath(null);
+        setInspectorFocusSection(null);
       } else {
         setInspectorTool("session");
       }
@@ -282,13 +307,18 @@ export function App() {
   }, [settingsOpen, confirmLeaveSettings, session]);
 
   const openSessionReview = useCallback(
-    (path?: string, tool: "session" | "changes" = path ? "changes" : "session") => {
+    (
+      path?: string,
+      tool: "session" | "changes" = path ? "changes" : "session",
+      focusSection: "subagents" | null = null,
+    ) => {
       if (settingsOpen && !confirmLeaveSettings()) return;
       setSettingsOpen(false);
       setGitOpen(false);
       setTerminalOpen(false);
       session.setJobsView(false);
       setInspectorFocusPath(path ?? null);
+      setInspectorFocusSection(focusSection);
       setInspectorTool(tool);
       session.setInspectorOpen(true);
     },
@@ -350,6 +380,7 @@ export function App() {
   const closeActiveEndPanel = useCallback(() => {
     if (session.inspectorOpen) {
       setInspectorFocusPath(null);
+      setInspectorFocusSection(null);
       session.setInspectorOpen(false);
       return;
     }
@@ -417,22 +448,26 @@ export function App() {
     setModelTarget("main");
   }, []);
 
-  const refreshProjects = useCallback(async () => {
+  const refreshProjects = useCallback(async (): Promise<ProjectSummary[] | null> => {
     const request = projectRefreshGate.current.begin();
     setProjectsLoading(true);
     try {
       const res = await window.vibe.listProjects();
-      if (!projectRefreshGate.current.isCurrent(request)) return;
+      if (!projectRefreshGate.current.isCurrent(request)) return null;
       if (res.ok && isProjectSummaryArray(res.value)) {
         setProjects(res.value);
+        setProjectsLoaded(true);
         setProjectsError(null);
+        return res.value;
       } else {
         setProjectsError("Project history is unavailable.");
+        return null;
       }
     } catch {
       if (projectRefreshGate.current.isCurrent(request)) {
         setProjectsError("Project history is unavailable.");
       }
+      return null;
     } finally {
       if (projectRefreshGate.current.isCurrent(request)) setProjectsLoading(false);
     }
@@ -518,25 +553,43 @@ export function App() {
   useEffect(() => {
     if (didRestoreProject.current) return;
     didRestoreProject.current = true;
-    try {
-      const last = localStorage.getItem("vibe.lastCwd");
-      if (last) {
-        void openProjectAt(last);
-        return;
+    void (async () => {
+      try {
+        const recent = await refreshProjects();
+        let last: string | null = null;
+        try {
+          last = localStorage.getItem("vibe.lastCwd");
+        } catch {
+          /* ignore */
+        }
+        if (!last || !recent) return;
+        const normalized = normalizeCwd(last);
+        const authorized = recent.find((project) => normalizeCwd(project.cwd) === normalized);
+        if (authorized) {
+          await openProjectAt(authorized.cwd);
+          return;
+        }
+        // Remove a stale or forged restore hint only after the host index loaded
+        // successfully. Transient host failures must not erase useful recents.
+        try {
+          localStorage.removeItem("vibe.lastCwd");
+        } catch {
+          /* ignore */
+        }
+      } finally {
+        setInitialProjectRestoreSettled(true);
       }
-    } catch {
-      /* ignore */
-    }
-    void refreshProjects();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keep welcome-gate recents fresh when still on the cold-start screen.
   useEffect(() => {
+    if (!initialProjectRestoreSettled) return;
     if (cwd || session.booting) return;
-    if (projects.length > 0 || projectsLoading) return;
+    if (projectsLoaded || projectsLoading || projectsError) return;
     void refreshProjects();
-  }, [cwd, session.booting, projects.length, projectsLoading, refreshProjects]);
+  }, [cwd, initialProjectRestoreSettled, session.booting, projectsLoaded, projectsLoading, projectsError, refreshProjects]);
 
   const resumeSession = useCallback(
     async (projectCwd: string, id: string) => {
@@ -744,6 +797,7 @@ export function App() {
           session.showToast(res.error || "Delete project failed", "error");
           return false;
         }
+        await deleteTranscriptCachesForCwd(projectCwd);
         await refreshProjects();
         session.showToast("Project deleted");
         return true;
@@ -770,6 +824,7 @@ export function App() {
           session.showToast(res.error || `${mode === "delete" ? "Delete" : "Archive"} failed`, "error");
           return false;
         }
+        if (mode === "delete") await deleteTranscriptCache(projectCwd, id);
         await refreshProjects();
         session.showToast(mode === "delete" ? "Session deleted" : "Session archived");
         return true;
@@ -787,18 +842,32 @@ export function App() {
   /** Prevent double resolve-permission / resolve-plan from keyboard + card races. */
   const resolvingGate = useRef(false);
 
+  const commandFitsInboundLimit = useCallback(
+    (command: EngineCommand): boolean => {
+      if (encodedEngineCommandBytes(command) <= HOST_INBOUND_SAFE_BYTES) return true;
+      session.showToast(
+        "Message is too large to send safely. Shorten it or attach the content as a file.",
+        "error",
+      );
+      return false;
+    },
+    [session],
+  );
+
   const answerPerm = useCallback(
     async (decision: "once" | "always" | "always-project" | "deny", feedback?: string) => {
       const perm = session.chrome.perms[0];
       if (!perm || resolvingGate.current) return false;
+      const command: EngineCommand = {
+        type: "resolve-permission",
+        id: perm.id,
+        decision,
+        ...(feedback ? { feedback } : {}),
+      };
+      if (!commandFitsInboundLimit(command)) return false;
       resolvingGate.current = true;
       try {
-        const sent = await session.send({
-          type: "resolve-permission",
-          id: perm.id,
-          decision,
-          ...(feedback ? { feedback } : {}),
-        });
+        const sent = await session.send(command);
         if (!sent) return false;
         session.dispatchChrome({ type: "drop-perm", id: perm.id });
         // Do not synthesize an "allowed" transcript notice here. The IPC result
@@ -809,7 +878,7 @@ export function App() {
         resolvingGate.current = false;
       }
     },
-    [session],
+    [commandFitsInboundLimit, session],
   );
 
   const answerPlan = useCallback(
@@ -819,14 +888,16 @@ export function App() {
       approvals?: "auto",
     ) => {
       if (resolvingGate.current) return false;
+      const command: EngineCommand = {
+        type: "resolve-plan",
+        decision,
+        ...(edit ? { edit } : {}),
+        ...(approvals ? { approvals } : {}),
+      };
+      if (!commandFitsInboundLimit(command)) return false;
       resolvingGate.current = true;
       try {
-        const sent = await session.send({
-          type: "resolve-plan",
-          decision,
-          ...(edit ? { edit } : {}),
-          ...(approvals ? { approvals } : {}),
-        });
+        const sent = await session.send(command);
         if (!sent) return false;
         session.dispatchChrome({ type: "clear-plan" });
         // Accept/edit start real engine work — match commandsExpectBusy optimism.
@@ -838,7 +909,7 @@ export function App() {
         resolvingGate.current = false;
       }
     },
-    [session],
+    [commandFitsInboundLimit, session],
   );
 
   // Centralized catalog presenter (I42): keeps the popover open across
@@ -1095,6 +1166,7 @@ export function App() {
       }
 
       const commands = lineToCommands(trimmed);
+      if (!commands.every(commandFitsInboundLimit)) return false;
       // Only optimistically mark busy for commands that start real engine work.
       // Pure run-slash (theme/help/model) often never emits engine-idle.
       const expectBusy = commandsExpectBusy(commands);
@@ -1103,7 +1175,7 @@ export function App() {
       if (!sent && expectBusy) session.setBusy(false);
       return sent;
     },
-    [session, cwd, answerPerm, answerPlan, openModelsPicker, presentCatalog, openSettings, openGit, openWorkspaceDock],
+    [session, cwd, answerPerm, answerPlan, commandFitsInboundLimit, openModelsPicker, presentCatalog, openSettings, openGit, openWorkspaceDock],
   );
 
   // Live draft catalogs — open/update pickers while typing (TUI parity).
@@ -1758,7 +1830,7 @@ export function App() {
               />
             )}
 
-            <div className="panels">
+            <div className="panels" ref={panelsRef}>
               {showOnboarding && !chrome.perms[0] && !planPending && (
                 <OnboardingModal
                   providers={onboardingProviders}
@@ -1814,8 +1886,9 @@ export function App() {
                     <button
                       type="button"
                       className="panel-strip-chip"
-                      onClick={() => openSessionReview()}
-                      title="Open session panel for subagents"
+                      onClick={() => openSessionReview(undefined, "session", "subagents")}
+                      title="Review each subagent"
+                      aria-label="Review subagent details"
                     >
                       <StatusDot status={runningSubagents > 0 ? "active" : "done"} />
                       <span>
@@ -1993,8 +2066,10 @@ export function App() {
                   changedFiles={session.transcript.changedFiles}
                   cwd={cwd}
                   focusPath={inspectorFocusPath}
+                  focusSection={inspectorFocusSection}
                   onClose={() => {
                     setInspectorFocusPath(null);
+                    setInspectorFocusSection(null);
                     session.setInspectorOpen(false);
                   }}
                   onUndo={() => void session.send({ type: "run-slash", name: "undo", args: "" })}

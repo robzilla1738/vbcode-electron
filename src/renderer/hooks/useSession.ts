@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { shouldClearBusyOnSendFailure } from "../../shared/busy-on-send-failure";
 import type { EngineCommand } from "../../shared/commands";
 import type { UIEvent } from "../../shared/events";
 import { GLYPH } from "../../shared/glyphs";
@@ -12,23 +13,30 @@ import {
   type UiMode,
 } from "../../shared/modes";
 import { isUIEvent } from "../../shared/protocol";
+import { estimateJsonUtf8Bytes } from "../../shared/json-size";
 import {
+  ASSISTANT_OUTPUT_MAX_CHARS,
   firstLine,
   groupIntoTurns,
   initialTranscript,
+  REASONING_OUTPUT_MAX_CHARS,
   reduceTranscript,
-  truncate,
   type TranscriptAction,
   type TranscriptState,
+  truncate,
 } from "../../shared/reducer";
 import { isEngineSnapshot, isRenderableUIEvent } from "../../shared/runtime-guards";
+import { appendRollingText } from "../../shared/stream-cap";
 import { getTheme } from "../../shared/themes";
 import { Trail, turnWindowStart, windowStartIndex } from "../../shared/trail";
 import type { EngineSnapshot } from "../../shared/types";
 import { stripVisionRelayContext } from "../../shared/vision-display";
-import { shouldClearBusyOnSendFailure } from "../../shared/busy-on-send-failure";
-import { appendRollingText } from "../../shared/stream-cap";
 import { applyPalette } from "../theme/applyPalette";
+import {
+  loadTranscriptCache,
+  saveTranscriptCache,
+  transcriptConversationSignature,
+} from "../transcript-cache";
 import { RequestGate } from "./request-gate";
 import { initialChrome, reduceChrome } from "./session-state";
 
@@ -60,6 +68,8 @@ const TOAST_TTL: Record<ToastSeverity, number> = {
   error: 6000,
 };
 const TOAST_EXIT_MS = 140;
+const BOOTSTRAP_EVENT_LIMIT = 2_048;
+const BOOTSTRAP_EVENT_BYTES_LIMIT = 8 * 1024 * 1024;
 
 /** Events suppressed while the clear-gate is active (TUI parity:
  * clearScopedEventTypes). Stale stream/notice/subagent/checkpoint/verify
@@ -94,10 +104,6 @@ const TURN_ITEMS_STEP = 24;
 const TURN_ITEM_REVEAL_PAGE = TURN_ITEMS_STEP;
 /** Hard ceiling on retained transcript blocks (DOM window is separate). */
 const MAX_RETAINED_BLOCKS = 2_500;
-/** Reasoning is auxiliary UI detail; a newline-free or multi-hour stream must
- * never grow renderer memory without bound. Keep the newest ~256k characters. */
-const MAX_REASONING_CHARS = 256 * 1024;
-
 function reduceTxCapped(s: TranscriptState, a: TxAction): TranscriptState {
   const next = reduceTx(s, a);
   if (next.blocks.length <= MAX_RETAINED_BLOCKS) return next;
@@ -139,9 +145,13 @@ export function useSession(cwd: string | null) {
   const reasoningStarted = useRef<number | null>(null);
   const flushTimer = useRef<number | null>(null);
   const suppressAfterClear = useRef(false);
-  /** While true, drop all UI events except pre-seed context samples so a dying
-   * host cannot mutate the still-visible previous transcript mid-handoff. */
+  /** While true, buffer events from the replacement host so a dying old host
+   * cannot mutate the visible transcript and live replacement events survive
+   * the asynchronous snapshot/cache handoff. */
   const bootstrapHandoff = useRef(false);
+  const bootstrapEvents = useRef<Array<{ event: UIEvent; bytes: number }>>([]);
+  const bootstrapEventBytes = useRef(0);
+  const bootstrapEventsTruncated = useRef(false);
   const lastSnap = useRef<EngineSnapshot | null>(null);
   const trail = useRef(new Trail());
   const bootstrapGate = useRef(new RequestGate());
@@ -149,7 +159,6 @@ export function useSession(cwd: string | null) {
   const activeSessionId = useRef("");
   const toastTimer = useRef<number | null>(null);
   const toastExitTimer = useRef<number | null>(null);
-  const bootstrapContext = useRef<{ usedTokens: number; contextWindow: number } | null>(null);
   /** Always-current chrome.busy for send-failure busy policy (avoid stale closures). */
   const busyRef = useRef(chrome.busy);
   busyRef.current = chrome.busy;
@@ -227,27 +236,32 @@ export function useSession(cwd: string | null) {
       // Bootstrap handoff: never treat empty activeSessionId as "accept all".
       // Drop foreign/stale host traffic until snapshot commits the new id.
       if (bootstrapHandoff.current) {
-        if (event.type === "context-updated") {
-          bootstrapContext.current = {
-            usedTokens: event.usedTokens,
-            contextWindow: event.contextWindow,
-          };
+        // The host protocol bounds individual events. Bound the short-lived
+        // handoff queue as defense in depth while preserving its newest work.
+        // Context samples are also replayed: one can arrive while IndexedDB is
+        // loading, after the pre-seed snapshot sample has already been applied.
+        const bytes = estimateJsonUtf8Bytes(event, BOOTSTRAP_EVENT_BYTES_LIMIT);
+        if (bytes > BOOTSTRAP_EVENT_BYTES_LIMIT) {
+          bootstrapEventsTruncated.current = true;
+          return;
         }
+        while (
+          bootstrapEvents.current.length >= BOOTSTRAP_EVENT_LIMIT
+          || bootstrapEventBytes.current + bytes > BOOTSTRAP_EVENT_BYTES_LIMIT
+        ) {
+          const removed = bootstrapEvents.current.shift();
+          if (!removed) break;
+          bootstrapEventBytes.current -= removed.bytes;
+          bootstrapEventsTruncated.current = true;
+        }
+        bootstrapEvents.current.push({ event, bytes });
+        bootstrapEventBytes.current += bytes;
         return;
       }
       if ("sessionId" in event && activeSessionId.current && event.sessionId !== activeSessionId.current) return;
       // A throwing handler must not kill the event loop (TUI parity: try/catch
       // around the per-event switch that surfaces errors as transcript notices).
       try {
-
-      if (event.type === "context-updated") {
-        // The host starts its event pump before snapshot RPC completes. Keep the
-        // newest pre-seed context sample so snapshot seeding cannot erase it.
-        bootstrapContext.current = {
-          usedTokens: event.usedTokens,
-          contextWindow: event.contextWindow,
-        };
-      }
 
       // After /clear|/new, drop stale stream until the next user-message.
       // Stale events from the pre-clear turn are suppressed (streaming deltas,
@@ -312,7 +326,11 @@ export function useSession(cwd: string | null) {
           // Commit reasoning before the first answer token. Keep prior answer
           // chunks buffered so normal text streaming stays coalesced at 24ms.
           landReasoning();
-          deltaBuf.current += event.delta;
+          deltaBuf.current = appendRollingText(
+            deltaBuf.current,
+            event.delta,
+            ASSISTANT_OUTPUT_MAX_CHARS,
+          );
           if (flushTimer.current == null) {
             flushTimer.current = window.setTimeout(flushDeltas, 24);
           }
@@ -323,7 +341,7 @@ export function useSession(cwd: string | null) {
           reasoningBuf.current = appendRollingText(
             reasoningBuf.current,
             event.delta,
-            MAX_REASONING_CHARS,
+            REASONING_OUTPUT_MAX_CHARS,
           );
           // Append to the persistent trail (TUI parity: accumulates across bursts,
           // survives past turn end — reset only on the next user-message).
@@ -567,7 +585,9 @@ export function useSession(cwd: string | null) {
       // Keep the previous activeSessionId for any race that slips past the
       // handoff gate; never open the filter with "" (accept-all) during bootstrap.
       bootstrapHandoff.current = true;
-      bootstrapContext.current = null;
+      bootstrapEvents.current = [];
+      bootstrapEventBytes.current = 0;
+      bootstrapEventsTruncated.current = false;
       setBooting(true);
       setBootError(null);
       setReady(false);
@@ -594,6 +614,7 @@ export function useSession(cwd: string | null) {
       } catch (error) {
         if (!bootstrapGate.current.isCurrent(request)) return false;
         bootstrapHandoff.current = false;
+        bootstrapEvents.current = [];
         setBootError(error instanceof Error ? error.message : "Engine bootstrap failed");
         setBooting(false);
         return false;
@@ -601,6 +622,7 @@ export function useSession(cwd: string | null) {
       if (!bootstrapGate.current.isCurrent(request)) return false;
       if (!res.ok) {
         bootstrapHandoff.current = false;
+        bootstrapEvents.current = [];
         setBootError(res.error + (res.stderr ? `\n${res.stderr}` : ""));
         setBooting(false);
         return false;
@@ -611,6 +633,7 @@ export function useSession(cwd: string | null) {
       } catch (error) {
         if (!bootstrapGate.current.isCurrent(request)) return false;
         bootstrapHandoff.current = false;
+        bootstrapEvents.current = [];
         await window.vibe.stop().catch(() => undefined);
         setBootError(`Engine snapshot failed: ${error instanceof Error ? error.message : String(error)}`);
         setBooting(false);
@@ -619,6 +642,7 @@ export function useSession(cwd: string | null) {
       if (!bootstrapGate.current.isCurrent(request)) return false;
       if (!snapRes.ok) {
         bootstrapHandoff.current = false;
+        bootstrapEvents.current = [];
         await window.vibe.stop().catch(() => undefined);
         setBootError(`Engine snapshot failed: ${snapRes.error}`);
         setBooting(false);
@@ -626,6 +650,7 @@ export function useSession(cwd: string | null) {
       }
       if (!isEngineSnapshot(snapRes.value)) {
         bootstrapHandoff.current = false;
+        bootstrapEvents.current = [];
         await window.vibe.stop().catch(() => undefined);
         setBootError("Engine snapshot failed validation");
         setBooting(false);
@@ -633,7 +658,6 @@ export function useSession(cwd: string | null) {
       }
       const snap: EngineSnapshot = snapRes.value;
       activeSessionId.current = snap.sessionId;
-      bootstrapHandoff.current = false;
       lastSnap.current = snap;
       // Commit the new session atomically after bootstrap + snapshot succeed.
       // Until this point the previous transcript remains visible behind the
@@ -641,24 +665,41 @@ export function useSession(cwd: string | null) {
       dispatchChrome({ type: "reset", cwd: opts.cwd });
       dispatchTranscript({ type: "reset" });
       dispatchChrome({ type: "seed", snap, cwd: opts.cwd });
-      const context = bootstrapContext.current as {
-        usedTokens: number;
-        contextWindow: number;
-      } | null;
-      if (context) {
-        dispatchChrome({
-          type: "event",
-          event: {
-            type: "context-updated",
-            sessionId: snap.sessionId,
-            usedTokens: context.usedTokens,
-            contextWindow: context.contextWindow,
-          },
+      if (snap.history?.length) {
+        const hydrated = hydrateFromHistory(snap.history);
+        const cached = await loadTranscriptCache(opts.cwd, snap.sessionId);
+        if (!bootstrapGate.current.isCurrent(request)) return false;
+        dispatchTranscript({
+          type: "replace",
+          state:
+            cached
+              && transcriptConversationSignature(cached)
+                === transcriptConversationSignature(hydrated)
+              ? cached
+              : hydrated,
         });
       }
-      bootstrapContext.current = null;
-      if (snap.history?.length) {
-        dispatchTranscript({ type: "replace", state: hydrateFromHistory(snap.history) });
+      // Replacement is now authoritative. React reducer dispatches are ordered,
+      // so replay lands after reset/cache replacement and cannot be overwritten.
+      // UI events emitted by both the retiring and replacement hosts can be in
+      // flight during bootstrap. Every session-scoped replacement event carries
+      // the snapshot's id; unscoped and foreign-session traffic cannot be proven
+      // to belong to this host generation and must be discarded.
+      const queuedEvents = bootstrapEvents.current.filter(
+        ({ event }) => "sessionId" in event && event.sessionId === snap.sessionId,
+      ).map(({ event }) => event);
+      const eventsTruncated = bootstrapEventsTruncated.current;
+      bootstrapEvents.current = [];
+      bootstrapEventBytes.current = 0;
+      bootstrapEventsTruncated.current = false;
+      bootstrapHandoff.current = false;
+      for (const event of queuedEvents) handleEvent(event);
+      if (eventsTruncated) {
+        dispatchTranscript({
+          type: "notice",
+          text: "Some live output during session startup was omitted to keep memory bounded.",
+          level: "warn",
+        });
       }
       // Persist only a fully bootstrapped workspace. Saving before host ready
       // traps the next launch on a deleted/inaccessible path after a failed open.
@@ -671,7 +712,7 @@ export function useSession(cwd: string | null) {
       setBooting(false);
       return true;
     },
-    [],
+    [handleEvent],
   );
 
   useEffect(() => {
@@ -679,6 +720,7 @@ export function useSession(cwd: string | null) {
     const offFatal = window.vibe.onFatal((message) => {
       // Host death mid-bootstrap must reopen the event filter so Retry/New work.
       bootstrapHandoff.current = false;
+      bootstrapEvents.current = [];
       setBootError(message);
       setReady(false);
       setBooting(false);
@@ -692,6 +734,15 @@ export function useSession(cwd: string | null) {
       if (toastTimer.current != null) window.clearTimeout(toastTimer.current);
     };
   }, [handleEvent]);
+
+  useEffect(() => {
+    const sessionId = activeSessionId.current;
+    if (!ready || !cwd || !sessionId || chrome.busy) return;
+    const timer = window.setTimeout(() => {
+      void saveTranscriptCache(cwd, sessionId, transcript);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [chrome.busy, cwd, ready, transcript]);
 
   const cycleMode = useCallback(() => {
     if (modeTransitioning.current) return;

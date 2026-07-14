@@ -58,8 +58,16 @@ function diffValue(original: unknown, current: unknown): unknown {
   // Was present, now cleared → delete.
   if (origDefined && !currDefined) return null;
 
-  // Was absent, now set → set the entire value.
-  if (!origDefined && currDefined) return current;
+  // Was absent, now set. For a newly-created object, recurse against an empty
+  // object so transient `undefined` leaves do not turn a cleared form field
+  // into a meaningless persisted `{}` block.
+  if (!origDefined && currDefined) {
+    if (isPlainObject(current)) {
+      if (Object.keys(current).length === 0) return {};
+      return diffValue({}, current);
+    }
+    return current;
+  }
 
   // Both present — recurse into plain objects, compare everything else by value.
   if (isPlainObject(original) && isPlainObject(current)) {

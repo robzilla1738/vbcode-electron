@@ -121,12 +121,13 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 │ + Chats    │  Transcript / splash                     │ dock       │
 │ + filter   │  Plan · permissions · queue · spinner    │ Session    │
 │ Git·Settings│ Anchored composer + status + pickers    │ Changes /  │
-│            │  Turn-changes card (when files edited)   │ Git / Jobs  │
-│            │                                          │ Files      │
+│            │  Turn-changes card (when files edited)   │ Git /       │
+│            │                                          │ Terminal /  │
+│            │                                          │ Jobs / Files│
 └────────────┴──────────────────────────────────────────┴────────────┘
 ```
 
-- Content max ~130ch; transcript prose, tool output, approval panels, and the composer share the `--composer-max: 40rem` reading measure
+- Content max ~130ch; transcript prose, tool activity, notices, approval panels, and the composer share the font-independent `--transcript-measure: 40rem` reading measure
 - **Left rail:** collapsible Projects + Chats sections; section **+** only (add project / new chat); Git & Settings in the footer
 - **Right workspace dock:** full-label Session / Changes / Git / Terminal / Jobs / Files in an equally inset, quietly grey rounded enclosure on the chat surface; compact below ~960px
 - **Shared activity sidebar:** Session, Changes, Git, Terminal, and Jobs open in one full-height, edge-attached right pane with a persistent top switcher, shared headers, divider, resize handle, and responsive drawer behavior. It is a structural sibling of chat, never a floating card or overlay on desktop. Files remains a Finder reveal.
@@ -166,8 +167,9 @@ edge-attached activity sidebar without replacing the chat surface. Project/sessi
 toggle cleanly. User-message Copy/Edit/time actions sit **under** the bubble
 (trailing-aligned); assistant actions remain below the response. Tool/thinking
 rows stay compact under a `Thinking · N steps` group; open thoughts are one
-quiet surface (no brain icon). Subagent rows show status without expandable
-detail. User turns fold by clicking the message. Source/article results use
+quiet surface (no brain icon). The live Subagents pill jumps to an expandable
+per-agent review with task, activity, elapsed time, result, and Copy. User turns
+fold by clicking the message. Source/article results use
 structured cards. Dropped images and files render as removable attachment chips
 and submit as project-aware `@` references. Finder drops use native path
 resolution with `file://` URI fallbacks. Changes opens a wider master-detail
@@ -308,7 +310,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **311 unit tests**, **12 Electron E2E scenarios**, 19 source
+Current baseline: **360 unit tests**, **12 Electron E2E scenarios**, 19 source
 parity pairs, 40 top-level config fields, Biome, typecheck, production build,
 and renderer bundle budget pass in the current checkout. Settings, Terminal,
 Git, and Changes are isolated from the initial renderer chunk. CI runs `verify` +

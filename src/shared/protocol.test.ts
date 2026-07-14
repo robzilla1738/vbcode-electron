@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   decodeInbound,
   decodeOutbound,
+  encodedEngineCommandBytes,
+  HOST_INBOUND_SAFE_BYTES,
   listedEngineCommandTypes,
   listedUIEventTypes,
 } from "./protocol";
@@ -69,5 +71,14 @@ describe("NDJSON protocol runtime validation", () => {
     expect(commands).toContain("resolve-permission");
     expect(new Set(events).size).toBe(events.length);
     expect(new Set(commands).size).toBe(commands.length);
+  });
+
+  it("measures encoded command bytes against the host-safe ceiling", () => {
+    expect(encodedEngineCommandBytes({ type: "submit-prompt", text: "hello" }))
+      .toBeLessThan(HOST_INBOUND_SAFE_BYTES);
+    expect(encodedEngineCommandBytes({
+      type: "submit-prompt",
+      text: "😀".repeat(HOST_INBOUND_SAFE_BYTES),
+    })).toBeGreaterThan(HOST_INBOUND_SAFE_BYTES);
   });
 });

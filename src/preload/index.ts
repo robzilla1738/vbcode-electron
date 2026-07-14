@@ -17,6 +17,7 @@ import type {
   GitCreateBranchRequest,
   GitDeleteBranchRequest,
   GitFullStatus,
+  GitFileDiffResult,
   GitMergeRequest,
   GitPullRequest,
   GitPushRequest,
@@ -101,6 +102,7 @@ export interface VibeApi {
 
   // ── Git / GitHub ──────────────────────────────────────────────────────
   gitStatus(cwd: string): Promise<{ ok: true; status: GitFullStatus | null } | { ok: false; error: string }>;
+  gitFileDiff(opts: { cwd: string; path: string }): Promise<GitFileDiffResult>;
   gitCreateBranch(req: GitCreateBranchRequest): Promise<GitOperationResult>;
   gitCheckout(req: GitCheckoutRequest): Promise<GitOperationResult>;
   gitDeleteBranch(req: GitDeleteBranchRequest): Promise<GitOperationResult>;
@@ -180,6 +182,7 @@ const api: VibeApi = {
 
   // Git
   gitStatus: (cwd) => ipcRenderer.invoke("git:status", cwd),
+  gitFileDiff: (opts) => ipcRenderer.invoke("git:fileDiff", opts),
   gitCreateBranch: (req) => ipcRenderer.invoke("git:createBranch", req),
   gitCheckout: (req) => ipcRenderer.invoke("git:checkout", req),
   gitDeleteBranch: (req) => ipcRenderer.invoke("git:deleteBranch", req),

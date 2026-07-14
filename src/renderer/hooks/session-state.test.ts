@@ -226,3 +226,32 @@ describe("subagent-started deduplication", () => {
     expect(state.subagents[1]?.id).toBe("sub2");
   });
 });
+
+describe("large agent payload retention", () => {
+  it("caps plan and subagent result payloads with a visible omission marker", () => {
+    let state = initialChrome("/repo");
+    state = event(state, {
+      type: "plan-presented",
+      sessionId: "s",
+      plan: "p".repeat(2 * 1024 * 1024 + 100),
+    });
+    expect(state.plan?.text).toHaveLength(2 * 1024 * 1024);
+    expect(state.plan?.text).toContain("earlier content omitted");
+
+    state = event(state, {
+      type: "subagent-started",
+      sessionId: "s",
+      subagentId: "sub-large",
+      prompt: "review",
+    });
+    state = event(state, {
+      type: "subagent-finished",
+      sessionId: "s",
+      subagentId: "sub-large",
+      result: `old${"x".repeat(256 * 1024)}new`,
+    });
+    expect(state.subagents[0]?.result).toHaveLength(256 * 1024);
+    expect(state.subagents[0]?.result).toContain("earlier content omitted");
+    expect(state.subagents[0]?.result?.endsWith("new")).toBe(true);
+  });
+});

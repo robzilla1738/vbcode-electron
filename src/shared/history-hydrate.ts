@@ -70,12 +70,6 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
         } else if (part.type === "tool-result") {
           const meta = pendingTools.get(part.toolCallId);
           pendingTools.delete(part.toolCallId);
-          s = reduceTranscript(s, {
-            type: "tool-finish",
-            toolCallId: part.toolCallId,
-            output: part.output,
-            isError: !!part.isError,
-          });
           // Rebuild session changed-files map from edit/write tools so Changes
           // dock / Inspector are not empty after resume (shell-only; no diff body
           // unless the result string looks like a unified diff).
@@ -104,6 +98,14 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
               });
             }
           }
+          // Live file-changed precedes tool-finished and deliberately folds the
+          // edit into that call's row. Keep history hydration in the same order.
+          s = reduceTranscript(s, {
+            type: "tool-finish",
+            toolCallId: part.toolCallId,
+            output: part.output,
+            isError: !!part.isError,
+          });
         }
       }
     }

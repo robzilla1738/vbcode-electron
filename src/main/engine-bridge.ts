@@ -1,14 +1,15 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import type { EngineCommand } from "../shared/commands";
 import {
   decodeOutbound,
   encodeInbound,
+  HOST_INBOUND_SAFE_BYTES,
   type HostInbound,
   type RpcMethod,
 } from "../shared/protocol";
-import { enrichedEnv, resolveHostLaunch, type HostLaunch } from "./host-resolver";
 import { isRenderableUIEvent, isRpcResult } from "../shared/runtime-guards";
 import { StdinWriteQueue } from "../shared/stdin-write-queue";
+import { enrichedEnv, type HostLaunch, resolveHostLaunch } from "./host-resolver";
 
 const READY_TIMEOUT_MS = 45_000;
 const RPC_TIMEOUT_MS = 20_000;
@@ -18,7 +19,7 @@ const KILL_WAIT_MS = 1_000;
 /** Finalize budget during app quit — must be well under the overall quit budget. */
 const QUIT_FINALIZE_MS = 1_500;
 /** Commands may include bounded clipboard/file content; reject accidental giant sends. */
-const STDIN_MESSAGE_MAX_BYTES = 8 * 1024 * 1024;
+const STDIN_MESSAGE_MAX_BYTES = HOST_INBOUND_SAFE_BYTES;
 /** A snapshot can contain substantial history, but one line must never grow without bound. */
 const PROTOCOL_LINE_MAX_BYTES = 32 * 1024 * 1024;
 
@@ -112,7 +113,37 @@ export class EngineBridge {
     });
   }
 
-  private async startCurrent(opts: EngineStartOptions): Promise<string> {
+  /**
+   * Query the host-owned project index before an engine session exists.
+   *
+   * The macOS bridge intentionally supports `listProjects` before bootstrap so
+   * a fresh app can render recent workspaces. Keep that short-lived process
+   * lifecycle-owned: it is always shut down after the response and a later
+   * bootstrap starts a clean host.
+   */
+  listProjectsForIndex(): Promise<unknown> {
+    if (this.isReady) return this.rpc("listProjects");
+    const request = ++this.startRequest;
+    this.generation += 1;
+    this.failReady(new Error("Engine host stopped"));
+    this.failAllRpc(new Error("Engine host stopped"));
+    return this.schedule(async () => {
+      if (request !== this.startRequest) throw new Error("Engine host stopped");
+      if (this.hasOwnedChild()) await this.stopCurrent();
+      if (request !== this.startRequest) throw new Error("Engine host stopped");
+      const proc = this.spawnCurrent();
+      try {
+        return await this.rpcUnlocked("listProjects");
+      } finally {
+        // `lifecycle` prevents a later bootstrap from spawning until this
+        // cleanup completes. The identity guard avoids stopping unrelated work
+        // if the host exited while answering the RPC.
+        if (this.proc === proc) await this.stopCurrent();
+      }
+    });
+  }
+
+  private spawnCurrent(): ChildProcessWithoutNullStreams {
     // A second bootstrap can arrive while the prior host is still starting.
     // Always retire any existing child before spawning another; checking only
     // `didReady` leaks two hosts and lets both write into the same renderer.
@@ -252,6 +283,15 @@ export class EngineBridge {
       this.failReady(new Error(message));
       this.failAllRpc(new Error(message));
     });
+
+    return proc;
+  }
+
+  private async startCurrent(opts: EngineStartOptions): Promise<string> {
+    // A second bootstrap can arrive while the prior host is still starting.
+    // `start` serializes retirement before this method spawns the replacement.
+    const proc = this.spawnCurrent();
+    const generation = this.generation;
 
     try {
       this.write({

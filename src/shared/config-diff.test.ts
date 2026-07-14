@@ -84,4 +84,26 @@ describe("buildConfigPatch", () => {
     const current = { model: "a", subagent: { maxDepth: 3 } };
     expect(buildConfigPatch(original, current)).toEqual({ subagent: { maxDepth: 3 } });
   });
+
+  it("ignores newly-created objects whose leaves were cleared back to undefined", () => {
+    expect(
+      buildConfigPatch({}, { budget: { limitUSD: undefined } }),
+    ).toEqual({});
+  });
+
+  it("prunes cleared leaves while retaining defined values in a new object", () => {
+    expect(
+      buildConfigPatch(
+        {},
+        { budget: { limitUSD: undefined, onExceed: "stop" } },
+      ),
+    ).toEqual({ budget: { onExceed: "stop" } });
+  });
+
+  it("preserves explicitly added empty provider and OAuth objects", () => {
+    expect(buildConfigPatch({}, { providers: { custom: {} }, mcp: { oauth: {} } })).toEqual({
+      providers: { custom: {} },
+      mcp: { oauth: {} },
+    });
+  });
 });

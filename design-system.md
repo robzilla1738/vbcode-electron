@@ -71,7 +71,9 @@ These values are the current production tokens in `src/renderer/styles.css`:
 | `--activity-rail-w` | `var(--workspace-lane-w)` | Shared Session/Changes/Git/Terminal/Jobs sidebar |
 | `--changes-rail-w` | `clamp(520px, 42vw, 680px)` | Dedicated master-detail Changes review width |
 | `--column-max` | `52rem` | Transcript, approvals, and composer column |
-| `--composer-max` | `40rem` | Composer and approval measure |
+| `--transcript-measure` | `40rem` | Shared conversational output, approval, and composer measure |
+| `--prose-max` | `var(--transcript-measure)` | Assistant, activity, and notice alias |
+| `--composer-max` | `var(--transcript-measure)` | Composer and approval alias |
 | `--reading-max` | `130ch` | Wider transcript content measure |
 | `--transcript-inset` | `64px` | Desktop output side inset |
 | `--column-inset` | `48px` | Column framing and narrow fallback |
@@ -238,7 +240,9 @@ Blur tiers are `--blur-veil: 12px`, `--blur-surface: 16px`, and
 `18px`. Floating chrome consumes `--glass-float-bg` / `--glass-float-filter`;
 true menus and modals consume `--glass-overlay-bg` /
 `--glass-overlay-filter`. Structural shell and activity-lane surfaces remain
-opaque and never opt into backdrop blur. Saturation is `1.06` dark and `1.04`
+opaque and never opt into backdrop blur. The composer veil spans any reserved
+workspace-dock lane so its filter boundary cannot create a false sidebar tint.
+Saturation is `1.06` dark and `1.04`
 light. Use blur only on an
 elevated floating surface or intentional transcript veil. Never blur the text
 content itself.
@@ -254,8 +258,12 @@ The latest thinking group uses one restrained text shimmer while a turn is
 active (`--dur-thinking-shimmer: 1800ms`); completed groups remain static and
 the global reduced-motion rule collapses the effect. Assistant streaming stays
 in the normal sans prose flow with a thin inline caret—never a temporary mono
-code surface. Quiet informational notices align to the same `--prose-max`
-measure as assistant output.
+code surface. Assistant prose, activity groups, and every notice severity align
+to the font-independent `--transcript-measure`; compact labels cannot re-resolve
+the container width from their own font metrics. Transcript items use the shared
+`--transcript-flow-gap`; individual block margins must not accumulate into
+different spacing between otherwise equivalent rows. Compact transcript rows
+and footer actions share `--transcript-compact-row-h: 30px`.
 
 ## Focus and interaction states
 
@@ -276,8 +284,9 @@ Panels must remain predictable:
 - The workspace dock and activity sidebar use the same row order and edge alignment.
 - The workspace dock is a compact `--surface-subtle` navigation surface with
   equal top/side inset, one quiet hairline, and no floating shadow. Its compact
-  icon-strip form keeps the same enclosure so it remains legible over the
-  reclaimed chat area.
+  icon-grid form keeps the same enclosure, 44px targets, and explicit non-drag
+  hit testing so it remains legible and interactive over the reclaimed chat
+  area.
 - Session, Changes, Git, Terminal, and Jobs are mutually exclusive in the activity sidebar.
 - Session handoffs preserve the active activity view and each session's reading
   position; replacing conversation data must not reset the surrounding workspace.

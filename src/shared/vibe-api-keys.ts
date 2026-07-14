@@ -37,6 +37,7 @@ export const VIBE_API_KEYS = [
   "readMemory",
   "writeMemory",
   "gitStatus",
+  "gitFileDiff",
   "gitCreateBranch",
   "gitCheckout",
   "gitDeleteBranch",

@@ -6,13 +6,24 @@
  * per-frame flush timer; it delegates every state transition here.
  */
 
+import { isDensityChangeNotice } from "./density";
 import { GLYPH } from "./glyphs";
 import { truncateWidth } from "./markdown-blocks";
+import { appendRollingText } from "./stream-cap";
 import { isLongOutputTool, LONG_OUTPUT_COLLAPSE_LINES, toolLabel } from "./tool-icons";
-import { isDensityChangeNotice } from "./density";
 
 const TOOL_OUTPUT_MAX_CHARS = 512 * 1024;
 const FILE_DIFF_MAX_CHARS = 1024 * 1024;
+const USER_OUTPUT_MAX_CHARS = 2 * 1024 * 1024;
+const NOTICE_OUTPUT_MAX_CHARS = 128 * 1024;
+/** Bound a single model reply while keeping its newest, most actionable tail.
+ * The engine persists the authoritative history; this is the renderer's memory
+ * safety ceiling for both live streams and snapshot hydration. */
+export const ASSISTANT_OUTPUT_MAX_CHARS = 4 * 1024 * 1024;
+export const REASONING_OUTPUT_MAX_CHARS = 256 * 1024;
+/** Latest diffs remain reviewable without letting a long multi-file run retain
+ * one megabyte per path forever. Metadata/totals remain for every changed file. */
+export const CHANGED_FILE_DIFF_BUDGET_CHARS = 16 * 1024 * 1024;
 
 /** Keep the useful tail while bounding a single newline-free payload. */
 function capTextTail(value: string, maxChars: number, kind: string): string {
@@ -102,6 +113,32 @@ export interface ChangedFile {
   removed: number;
   /** Latest unified diff hunk, used by the docked review view. */
   diff?: string;
+}
+
+/** Keep newest file diffs inside a total character budget. Files without a
+ * retained diff still appear in Changes and can be opened in File view. */
+export function capChangedFileDiffs(
+  files: readonly ChangedFile[],
+  budgetChars = CHANGED_FILE_DIFF_BUDGET_CHARS,
+): ChangedFile[] {
+  let remaining = Math.max(0, budgetChars);
+  const kept = new Array<ChangedFile>(files.length);
+  for (let index = files.length - 1; index >= 0; index -= 1) {
+    const file = files[index]!;
+    const diff = file.diff;
+    if (!diff) {
+      kept[index] = file;
+      continue;
+    }
+    if (diff.length <= remaining) {
+      remaining -= diff.length;
+      kept[index] = file;
+    } else {
+      const { diff: _diff, ...metadata } = file;
+      kept[index] = metadata;
+    }
+  }
+  return kept;
 }
 
 export interface PendingPerm {
@@ -204,7 +241,7 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
           {
             kind: "user",
             id: f.nextId,
-            text: a.text,
+            text: appendRollingText("", a.text, USER_OUTPUT_MAX_CHARS),
             timestamp: a.timestamp ?? Date.now(),
             ...(a.origin ? { origin: a.origin } : {}),
             ...(a.label ? { label: a.label } : {}),
@@ -220,7 +257,14 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       const cur = s.blocks[s.activeAssistant];
       if (s.activeAssistant >= 0 && cur && cur.kind === "assistant") {
         const blocks = s.blocks.slice();
-        blocks[s.activeAssistant] = { ...cur, text: cur.text + a.text };
+        blocks[s.activeAssistant] = {
+          ...cur,
+          text: appendRollingText(
+            cur.text,
+            a.text,
+            ASSISTANT_OUTPUT_MAX_CHARS,
+          ),
+        };
         return { ...s, blocks };
       }
       // The first flushed delta opens a new block with a blank line above it.
@@ -229,7 +273,7 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
         {
           kind: "assistant" as const,
           id: s.nextId,
-          text: a.text,
+          text: appendRollingText("", a.text, ASSISTANT_OUTPUT_MAX_CHARS),
           streaming: true,
           gap: true,
           timestamp: a.timestamp ?? Date.now(),
@@ -288,8 +332,10 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       // Skip only the echo for the exact call whose diff we already folded.
       if (s.suppressCallIds[a.toolCallId]) {
         const suppressCallIds = { ...s.suppressCallIds };
+        const toolByCallId = { ...s.toolByCallId };
         delete suppressCallIds[a.toolCallId];
-        return { ...s, suppressCallIds };
+        delete toolByCallId[a.toolCallId];
+        return { ...s, suppressCallIds, toolByCallId };
       }
       const idx = s.toolByCallId[a.toolCallId];
       const toolByCallId = { ...s.toolByCallId };
@@ -343,7 +389,11 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       return { ...s, blocks, toolByCallId };
     }
     case "thinking": {
-      const text = a.text.trim();
+      const text = appendRollingText(
+        "",
+        a.text.trim(),
+        REASONING_OUTPUT_MAX_CHARS,
+      );
       if (!text) return s;
       const f = finalizeActive(s);
       return {
@@ -388,14 +438,20 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       const ci = s.changedFiles.findIndex((f) => f.path === a.path);
       let changedFiles: ChangedFile[];
       if (ci >= 0) {
-        changedFiles = s.changedFiles.slice();
-        const f = changedFiles[ci]!;
-        changedFiles[ci] = {
+        const f = s.changedFiles[ci]!;
+        const updated: ChangedFile = {
           path: f.path,
           added: f.added + a.added,
           removed: f.removed + a.removed,
           ...(storedDiff || f.diff ? { diff: storedDiff || f.diff } : {}),
         };
+        // Treat the latest edit as newest for the retained-diff budget. Display
+        // order is independently sorted by the Changes surfaces.
+        changedFiles = [
+          ...s.changedFiles.slice(0, ci),
+          ...s.changedFiles.slice(ci + 1),
+          updated,
+        ];
       } else {
         changedFiles = [
           ...s.changedFiles,
@@ -407,6 +463,7 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
           },
         ];
       }
+      changedFiles = capChangedFileDiffs(changedFiles);
       const fin = finalizeActive({ ...s, suppressCallIds, changedFiles });
       const idx = fin.toolByCallId[a.toolCallId];
       const target = idx == null ? undefined : fin.blocks[idx];
@@ -442,7 +499,15 @@ export function reduceTranscript(s: TranscriptState, a: TranscriptAction): Trans
       const f = finalizeActive(s);
       return {
         ...f,
-        blocks: [...f.blocks, { kind: "notice", id: f.nextId, text: a.text, level: a.level ?? "info" }],
+        blocks: [
+          ...f.blocks,
+          {
+            kind: "notice",
+            id: f.nextId,
+            text: appendRollingText("", a.text, NOTICE_OUTPUT_MAX_CHARS),
+            level: a.level ?? "info",
+          },
+        ],
         nextId: f.nextId + 1,
       };
     }

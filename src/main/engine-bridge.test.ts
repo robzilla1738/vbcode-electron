@@ -55,6 +55,44 @@ const snapshot = {
 };
 
 describe("EngineBridge lifecycle", () => {
+  it("loads the project index before bootstrap and reaps the temporary host", async () => {
+    let launches = 0;
+    const child = String.raw`
+      const readline = require("node:readline");
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        const msg = JSON.parse(line);
+        if (msg.op === "rpc" && msg.method === "listProjects") {
+          process.stdout.write(JSON.stringify({
+            type: "resp",
+            id: msg.id,
+            ok: true,
+            value: [{ cwd: ${JSON.stringify(process.cwd())}, name: "fixture", updatedAt: 1, sessions: [] }]
+          }) + "\n");
+        } else if (msg.op === "bootstrap") {
+          process.stdout.write(JSON.stringify({ type: "ready", sessionId: "after-index" }) + "\n");
+        } else if (msg.op === "shutdown") process.exit(0);
+      });
+    `;
+    const bridge = new EngineBridge({
+      resolveLaunch: () => {
+        launches += 1;
+        return fixture(child);
+      },
+      readyTimeoutMs: 5_000,
+      rpcTimeoutMs: 5_000,
+      stopTimeoutMs: 800,
+    });
+
+    await expect(bridge.listProjectsForIndex()).resolves.toEqual([
+      { cwd: process.cwd(), name: "fixture", updatedAt: 1, sessions: [] },
+    ]);
+    expect(bridge.isRunning).toBe(false);
+    await expect(bridge.start({ cwd: process.cwd() })).resolves.toBe("after-index");
+    expect(launches).toBe(2);
+    await bridge.stop();
+  });
+
   it("bootstraps, forwards events, resolves RPC, and shuts down", async () => {
     const child = String.raw`
       const readline = require("node:readline");

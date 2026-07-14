@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
-  runGit,
+  buildPushArgs,
+  checkoutBranch,
+  commit,
+  createBranch,
+  deleteBranch,
+  getFullStatus,
+  getWorkingTreeFileDiff,
   isGitRepo,
   listBranches,
-  getFullStatus,
-  stageFiles,
-  unstageFiles,
-  createBranch,
-  checkoutBranch,
-  deleteBranch,
   mergeBranch,
   pushBranch,
-  buildPushArgs,
-  commit,
+  redactRemoteUrl,
+  runGit,
+  stageFiles,
+  unstageFiles,
 } from "./git-ops";
 
 // These tests use a real git repo in a temp directory to verify the spawn
@@ -47,6 +49,36 @@ async function makeRepo(): Promise<string> {
 }
 
 describe("git-ops", () => {
+  describe("remote URL presentation", () => {
+    it("removes embedded credentials and redacts secret query values", () => {
+      expect(
+        redactRemoteUrl(
+          "https://oauth-user:super-secret@example.com/acme/repo.git?access_token=abc&sig=xyz&view=compact#fragment",
+        ),
+      ).toBe(
+        "https://example.com/acme/repo.git?access_token=%5Bredacted%5D&sig=%5Bredacted%5D&view=compact",
+      );
+    });
+
+    it("keeps public SSH and HTTPS remotes readable", () => {
+      expect(redactRemoteUrl("git@github.com:acme/repo.git")).toBe(
+        "git@github.com:acme/repo.git",
+      );
+      expect(redactRemoteUrl("https://github.com/acme/repo.git")).toBe(
+        "https://github.com/acme/repo.git",
+      );
+    });
+
+    it("redacts credentials for every URL-style Git transport", () => {
+      expect(
+        redactRemoteUrl("ssh://git:secret@example.com/acme/repo.git?token=abc"),
+      ).toBe("ssh://example.com/acme/repo.git?token=%5Bredacted%5D");
+      expect(
+        redactRemoteUrl("ftp://user:secret@example.com/acme/repo.git?signature=abc"),
+      ).toBe("ftp://example.com/acme/repo.git?signature=%5Bredacted%5D");
+    });
+  });
+
   describe("runGit", () => {
     itGit("returns ok for --version", async () => {
       const res = await runGit("/", ["--version"]);
@@ -76,6 +108,93 @@ describe("git-ops", () => {
         expect(await isGitRepo(dir)).toBe(false);
       } finally {
         await rm(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("getWorkingTreeFileDiff", () => {
+    itGit("returns real tracked and untracked diffs from a nested repository", async () => {
+      const parent = await mkdtemp(join(tmpdir(), "vibe-nested-git-test-"));
+      const repo = join(parent, "generated-app");
+      const { mkdir, writeFile } = await import("node:fs/promises");
+      await mkdir(repo);
+      await runGit(repo, ["init", "-q", "-b", "main"]);
+      await runGit(repo, ["config", "user.email", "test@test.com"]);
+      await runGit(repo, ["config", "user.name", "Test User"]);
+      await writeFile(join(repo, "tracked.ts"), "export const value = 1;\n");
+      await runGit(repo, ["add", "-A"]);
+      await runGit(repo, ["commit", "-q", "-m", "initial"]);
+      try {
+        await writeFile(join(repo, "tracked.ts"), "export const value = 2;\n");
+        await writeFile(join(repo, "new.ts"), "export const added = true;\n");
+
+        const tracked = await getWorkingTreeFileDiff(join(repo, "tracked.ts"));
+        expect(tracked.ok, tracked.ok ? "" : tracked.error).toBe(true);
+        expect(tracked).toMatchObject({ ok: true, available: true, added: 1, removed: 1 });
+        if (tracked.ok && tracked.available) {
+          expect(tracked.diff).toContain("-export const value = 1;");
+          expect(tracked.diff).toContain("+export const value = 2;");
+        }
+
+        const untracked = await getWorkingTreeFileDiff(join(repo, "new.ts"));
+        expect(untracked).toMatchObject({ ok: true, available: true, added: 1, removed: 0 });
+        if (untracked.ok && untracked.available) {
+          expect(untracked.diff).toContain("+export const added = true;");
+        }
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    });
+
+    itGit("accepts a no-index diff that also emits a benign Git warning", async () => {
+      const repo = await makeRepo();
+      const target = join(repo, "warning.txt");
+      const { writeFile } = await import("node:fs/promises");
+      try {
+        await runGit(repo, ["config", "core.autocrlf", "true"]);
+        await runGit(repo, ["config", "core.safecrlf", "warn"]);
+        await writeFile(target, "line one\nline two\n");
+        const result = await getWorkingTreeFileDiff(target);
+        expect(result.ok, result.ok ? "" : result.error).toBe(true);
+        if (result.ok && result.available) expect(result.diff).toContain("+line one");
+      } finally {
+        await rm(repo, { recursive: true, force: true });
+      }
+    });
+
+    itGit("rejects a no-index diff when captured output is truncated", async () => {
+      const repo = await makeRepo();
+      const target = join(repo, "oversized.txt");
+      const { writeFile } = await import("node:fs/promises");
+      try {
+        await writeFile(target, `${"x".repeat(10 * 1024 * 1024)}\n`);
+        const result = await getWorkingTreeFileDiff(target);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error).toContain("exceeded");
+      } finally {
+        await rm(repo, { recursive: true, force: true });
+      }
+    });
+
+    itGit("returns a tracked deletion diff after the containing directory is removed", async () => {
+      const repo = await makeRepo();
+      const { mkdir, writeFile } = await import("node:fs/promises");
+      const nested = join(repo, "removed", "nested");
+      const target = join(nested, "gone.ts");
+      try {
+        await mkdir(nested, { recursive: true });
+        await writeFile(target, "export const gone = true;\n");
+        await runGit(repo, ["add", "-A"]);
+        await runGit(repo, ["commit", "-q", "-m", "add nested file"]);
+        await rm(join(repo, "removed"), { recursive: true, force: true });
+
+        const deleted = await getWorkingTreeFileDiff(target);
+        expect(deleted).toMatchObject({ ok: true, available: true, added: 0, removed: 1 });
+        if (deleted.ok && deleted.available) {
+          expect(deleted.diff).toContain("-export const gone = true;");
+        }
+      } finally {
+        await rm(repo, { recursive: true, force: true });
       }
     });
   });

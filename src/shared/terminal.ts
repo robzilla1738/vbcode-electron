@@ -22,3 +22,11 @@ export type TerminalOpenResult =
   | { ok: false; error: string };
 
 export type TerminalCommandResult = { ok: true } | { ok: false; error: string };
+
+/** A stale renderer id can occur after a PTY exits between input/resize and its
+ * exit event. Reopen that cwd instead of leaving the terminal permanently dead. */
+export function terminalSessionNeedsReopen(error: string): boolean {
+  return error === "Terminal session is no longer open"
+    || error === "Terminal session exited before input could be written"
+    || error === "Terminal session exited before it could be resized";
+}

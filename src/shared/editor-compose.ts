@@ -10,7 +10,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -42,6 +42,22 @@ export interface EditorComposeDeps {
   removeFile?: (path: string) => Promise<void>;
 }
 
+/** Match the main-process IPC ceiling. An editor may replace the temp file
+ * with anything, so both stat-before-read and byte-after-read are required. */
+export const EDITOR_DRAFT_MAX_BYTES = 2 * 1024 * 1024;
+
+async function readEditorDraft(path: string): Promise<string> {
+  const file = await stat(path);
+  if (file.size > EDITOR_DRAFT_MAX_BYTES) {
+    throw new Error(`Editor draft exceeds ${EDITOR_DRAFT_MAX_BYTES} bytes`);
+  }
+  const content = await readFile(path, "utf8");
+  if (Buffer.byteLength(content, "utf8") > EDITOR_DRAFT_MAX_BYTES) {
+    throw new Error(`Editor draft exceeds ${EDITOR_DRAFT_MAX_BYTES} bytes`);
+  }
+  return content;
+}
+
 /**
  * Split an editor command line into the binary + its args (`"code -w"` →
  * `["code", "-w"]`). Whitespace-only splitting — good enough for the standard
@@ -67,7 +83,7 @@ export async function composeInEditor(deps: EditorComposeDeps): Promise<EditorCo
 
   const path = deps.outPath ?? join(tmpdir(), `vibe-compose-${randomUUID()}.md`);
   const write = deps.writeText ?? ((p, t) => writeFile(p, t, { encoding: "utf8", mode: 0o600 }));
-  const read = deps.readText ?? ((p) => readFile(p, "utf8"));
+  const read = deps.readText ?? readEditorDraft;
   const remove = deps.removeFile ?? ((p) => rm(p, { force: true }));
 
   // Honor the "never throws for the expected cases" contract: a failed temp
@@ -94,6 +110,10 @@ export async function composeInEditor(deps: EditorComposeDeps): Promise<EditorCo
   let contents: string;
   try {
     contents = await read(path);
+    // Keep injected/test readers under the same production contract.
+    if (Buffer.byteLength(contents, "utf8") > EDITOR_DRAFT_MAX_BYTES) {
+      throw new Error(`Editor draft exceeds ${EDITOR_DRAFT_MAX_BYTES} bytes`);
+    }
   } catch (err) {
     return { kind: "failed", reason: (err as Error).message };
   } finally {

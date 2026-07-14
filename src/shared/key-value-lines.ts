@@ -19,6 +19,9 @@ export function parseKeyValueLines(
     }
     const key = line.slice(0, delimiter).trim();
     if (!key) return { ok: false, error: `Line ${index + 1} needs a key` };
+    if (key === "__proto__" || key === "prototype" || key === "constructor") {
+      return { ok: false, error: `Line ${index + 1} uses a reserved key` };
+    }
     if (Object.hasOwn(value, key)) {
       return { ok: false, error: `Line ${index + 1} duplicates “${key}”` };
     }

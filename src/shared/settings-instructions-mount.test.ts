@@ -20,8 +20,10 @@ describe("settings instructions mount contract", () => {
   it("keeps InstructionsSection mounted while hidden on other sections", () => {
     expect(panelSrc).toMatch(/hidden=\{activeSection !== "instructions"\}/);
     expect(panelSrc).toMatch(/<InstructionsSection/);
-    // Must not only render instructions inside the exclusive switch.
-    expect(panelSrc).toMatch(/activeSection !== "instructions" \? renderConfigSection/);
+    // Config sections use the same mounted/hidden pattern rather than an
+    // exclusive render branch that would unmount local drafts.
+    expect(panelSrc).toContain('CONFIG_SECTIONS.filter(({ id }) => id !== "instructions").map');
+    expect(panelSrc).toContain("hidden={activeSection !== id}");
   });
 
   it("does not clear the dirty binder on InstructionsSection unmount", () => {
@@ -34,7 +36,7 @@ describe("settings instructions mount contract", () => {
   it("keeps edits made during an async save dirty", () => {
     expect(panelSrc).toContain("const savedConfig = state.config");
     expect(panelSrc).toContain("original: savedConfig");
-    expect(panelSrc).toContain("dirty: !configEqual(prev.config, savedConfig)");
+    expect(panelSrc).toContain("dirty: !configEqual(savedConfig, prev.config)");
     expect(panelSrc).not.toContain("original: prev.config, dirty: false");
     expect(instructionsSrc).toContain("const savedContent = content");
     expect(instructionsSrc).toContain("setOriginal(savedContent)");

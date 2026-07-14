@@ -1,19 +1,21 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { chmod, open as fsOpen, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { app, BrowserWindow, clipboard, crashReporter, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell } from "electron";
 import { readTextFileCapped } from "../shared/capped-read";
 import type { EngineCommand } from "../shared/commands";
-import { isAllowedCwd, isAllowedRevealPath, projectCwdAllowlist } from "../shared/cwd-allowlist";
-import { composeInEditor } from "../shared/editor-compose";
+import { isAllowedCwd, isAllowedProjectRoot, isAllowedRevealPath, projectCwdAllowlist } from "../shared/cwd-allowlist";
+import { composeInEditor, EDITOR_DRAFT_MAX_BYTES } from "../shared/editor-compose";
 import { listProjectFiles, rankPaths } from "../shared/file-fuzzy";
-import { resolvePathInsideRoot } from "../shared/path-safe";
+import { resolvePathInsideRoot, resolveWritablePathInsideRoot } from "../shared/path-safe";
 import { chatsCwdFromHome } from "../shared/project-index";
-import { TtlLruCache } from "../shared/ttl-lru-cache";
+import type { ProjectSummary } from "../shared/protocol";
 import { decodeInbound, type HostInbound, type RpcMethod } from "../shared/protocol";
+import { isProjectSummaryArray } from "../shared/runtime-guards";
+import { TtlLruCache } from "../shared/ttl-lru-cache";
 import { registerConfigIpc } from "./config-ipc";
 import { EngineBridge } from "./engine-bridge";
 import { registerGitIpc } from "./git-ipc";
@@ -28,6 +30,34 @@ const bridge = new EngineBridge();
 const LIST_FILES_CACHE_TTL_MS = 5_000;
 const listFilesCache = new TtlLruCache<string, string[]>(32, LIST_FILES_CACHE_TTL_MS);
 const clipboardTempRoot = join(tmpdir(), `vibe-clips-${process.pid}`);
+const PROJECT_INDEX_MUTATIONS = new Set<RpcMethod>([
+  "renameProject",
+  "archiveProject",
+  "deleteProject",
+  "renameSession",
+  "deleteSession",
+  "archiveSession",
+]);
+
+/**
+ * Treat the host project index as a capability source, but discard stale or
+ * malformed roots before exposing them to the renderer. The runtime guard
+ * validates the nested summary contract; this second gate ensures a project is
+ * an absolute directory that still exists on this machine.
+ */
+function authorizeProjectIndex(value: unknown): ProjectSummary[] {
+  if (!isProjectSummaryArray(value)) throw new Error("Engine returned an invalid project index");
+  const projects = value.filter((project) => {
+    if (!project.cwd || !isAbsolute(project.cwd)) return false;
+    try {
+      return statSync(project.cwd).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+  for (const project of projects) projectCwdAllowlist.add(project.cwd);
+  return projects;
+}
 
 function listProjectFilesCached(cwd: string): string[] {
   const now = Date.now();
@@ -184,7 +214,9 @@ function buildApplicationMenu(): void {
         },
         {
           label: "Open Project…",
-          accelerator: "CmdOrCtrl+O",
+          // Cmd/Ctrl+O belongs to the transcript's established fold-all
+          // contract. Keep project opening discoverable in the File menu
+          // without registering a competing native accelerator.
           click: () => sendToRenderer("menu:action", "openProject"),
         },
         {
@@ -219,7 +251,13 @@ function buildApplicationMenu(): void {
           ? [
               { role: "reload" as const },
               { role: "forceReload" as const },
-              { role: "toggleDevTools" as const },
+              {
+                role: "toggleDevTools" as const,
+                // Ctrl+Shift+I is the app's Session Inspector shortcut on
+                // Windows/Linux. Alt keeps DevTools available in development
+                // without making Electron choose between duplicate bindings.
+                accelerator: "CmdOrCtrl+Alt+I",
+              },
               { type: "separator" as const },
             ]
           : []),
@@ -404,6 +442,15 @@ function registerIpc(): void {
       if (message?.op !== "bootstrap") {
         return { ok: false as const, error: "Invalid bootstrap request" };
       }
+      // Renderer persistence is a restore hint, not a filesystem capability.
+      // Cwds are authorized only by the main-owned folder picker, Chats
+      // creation, or the validated host project index.
+      if (!isAllowedCwd(message.cwd)) {
+        return {
+          ok: false as const,
+          error: "Project is not authorized. Open it from Recent Projects or Open Project.",
+        };
+      }
       try {
         const sessionId = await bridge.start({
           cwd: message.cwd,
@@ -444,7 +491,18 @@ function registerIpc(): void {
     const message = inbound({ op: "rpc", id: 1, method, ...(params ? { params } : {}) });
     if (message?.op !== "rpc") return { ok: false as const, error: "Invalid RPC request" };
     try {
-      const value = await bridge.rpc(message.method, message.params);
+      if (PROJECT_INDEX_MUTATIONS.has(message.method)) {
+        const cwd = message.params?.cwd;
+        if (typeof cwd !== "string" || !isAllowedProjectRoot(cwd)) {
+          return {
+            ok: false as const,
+            error: "Project history changes are limited to opened or recent projects",
+          };
+        }
+      }
+      const value = message.method === "listProjects"
+        ? authorizeProjectIndex(await bridge.listProjectsForIndex())
+        : await bridge.rpc(message.method, message.params);
       return { ok: true as const, value };
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
@@ -511,17 +569,26 @@ function registerIpc(): void {
           if (opts?.cwd && !isAllowedCwd(opts.cwd)) {
             return { kind: "error" as const, error: "Clipboard write is limited to opened project roots" };
           }
-          const dir = opts?.cwd
-            ? join(opts.cwd, ".vibe", "clipboard")
-            : clipboardTempRoot;
+          const filename = `vibe-clip-${randomUUID()}.png`;
+          let dir = clipboardTempRoot;
+          let abs = join(dir, filename);
+          if (opts?.cwd) {
+            const relativePath = join(".vibe", "clipboard", filename);
+            const located = resolveWritablePathInsideRoot(opts.cwd, relativePath, {
+              existsSync,
+              lstatSync,
+              realpathSync,
+            });
+            if (!located.ok) return { kind: "error" as const, error: located.error };
+            abs = located.target;
+            dir = dirname(abs);
+          }
           await mkdir(dir, { recursive: true, mode: 0o700 });
           try {
             await chmod(dir, 0o700);
           } catch {
             /* best-effort on platforms without POSIX modes */
           }
-          const filename = `vibe-clip-${randomUUID()}.png`;
-          const abs = join(dir, filename);
           await writeFile(abs, png, { mode: 0o600 });
           const path = opts?.cwd ? join(".vibe", "clipboard", filename) : abs;
           return { kind: "image" as const, path };
@@ -572,7 +639,6 @@ function registerIpc(): void {
   ipcMain.handle("editor:compose", async (event, draft: string) => {
     assertTrustedIpc(event);
     if (typeof draft !== "string") return { ok: false, reason: "failed" as const, error: "Invalid editor draft" };
-    const EDITOR_DRAFT_MAX_BYTES = 2 * 1024 * 1024; // 2 MiB — reject extreme drafts before tmp write
     if (Buffer.byteLength(draft, "utf8") > EDITOR_DRAFT_MAX_BYTES) {
       return {
         ok: false,
@@ -684,6 +750,7 @@ function registerIpc(): void {
     } catch {
       /* best-effort on platforms without POSIX modes */
     }
+    projectCwdAllowlist.add(dir);
     return dir;
   });
 

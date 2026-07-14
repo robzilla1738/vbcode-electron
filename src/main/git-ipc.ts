@@ -7,8 +7,10 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import type { Readable } from "node:stream";
 import { ipcMain } from "electron";
+import { isAllowedCwd } from "../shared/cwd-allowlist";
 import {
   checkoutBranch,
   commit,
@@ -16,6 +18,7 @@ import {
   deleteBranch,
   fetchRemotes,
   getFullStatus,
+  getWorkingTreeFileDiff,
   isGitRepo,
   mergeBranch,
   pullBranch,
@@ -37,15 +40,15 @@ import type {
   GitPullRequest,
   GitPushRequest,
 } from "../shared/git-types";
-import { enrichedEnv } from "./host-resolver";
-import type { AssertTrustedIpc } from "./ipc-security";
+import { resolveWritablePathInsideRoot } from "../shared/path-safe";
 import {
   appendCapture,
   captureOverflowError,
   createCaptureBuffers,
   DEFAULT_CAPTURE_MAX_BYTES,
 } from "../shared/stream-cap";
-import { isAllowedCwd } from "../shared/cwd-allowlist";
+import { enrichedEnv } from "./host-resolver";
+import type { AssertTrustedIpc } from "./ipc-security";
 
 function rejectCwd(cwd: unknown): { ok: false; error: string } | null {
   if (typeof cwd !== "string" || !cwd) return { ok: false, error: "cwd required" };
@@ -70,31 +73,55 @@ function spawnGh(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: st
     }) as unknown as SpawnedChild;
     const capture = createCaptureBuffers(DEFAULT_CAPTURE_MAX_BYTES);
     let forceTimer: NodeJS.Timeout | null = null;
+    let hardTimer: NodeJS.Timeout | null = null;
+    let timedOut = false;
+    let settled = false;
+    const finish = (result: { ok: boolean; stdout: string; stderr: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      resolve(result);
+    };
     const timer = setTimeout(() => {
+      timedOut = true;
       child.kill("SIGTERM");
-      forceTimer = setTimeout(() => child.kill("SIGKILL"), 2000);
+      forceTimer = setTimeout(() => {
+        child.kill("SIGKILL");
+        hardTimer = setTimeout(() => {
+          finish({
+            ok: false,
+            stdout: capture.stdout,
+            stderr: capture.stderr || "gh command timed out",
+          });
+        }, 2_000);
+      }, 2_000);
     }, 30_000);
     const clearTimers = () => {
       clearTimeout(timer);
       if (forceTimer) clearTimeout(forceTimer);
+      if (hardTimer) clearTimeout(hardTimer);
     };
     child.stdout.on("data", (c: Buffer) => appendCapture(capture, "stdout", c));
     child.stderr.on("data", (c: Buffer) => appendCapture(capture, "stderr", c));
     child.on("error", () => {
-      clearTimers();
-      resolve({ ok: false, stdout: capture.stdout, stderr: "gh CLI not found" });
+      finish({ ok: false, stdout: capture.stdout, stderr: "gh CLI not found" });
     });
     child.on("close", (code: number | null) => {
-      clearTimers();
       if (capture.truncated) {
-        resolve({
+        finish({
           ok: false,
           stdout: capture.stdout,
           stderr: captureOverflowError(capture, "gh output"),
         });
         return;
       }
-      resolve({ ok: code === 0, stdout: capture.stdout, stderr: capture.stderr });
+      finish({
+        ok: !timedOut && code === 0,
+        stdout: capture.stdout,
+        stderr: timedOut
+          ? capture.stderr || "gh command timed out"
+          : capture.stderr,
+      });
     });
   });
 }
@@ -113,6 +140,22 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };
     }
+  });
+
+  ipcMain.handle("git:fileDiff", async (event, opts: { cwd: string; path: string }) => {
+    assertTrusted(event);
+    if (!opts || typeof opts.cwd !== "string" || typeof opts.path !== "string") {
+      return { ok: false as const, error: "Invalid request" };
+    }
+    const bad = rejectCwd(opts.cwd);
+    if (bad) return bad;
+    const located = resolveWritablePathInsideRoot(opts.cwd, opts.path, {
+      existsSync,
+      lstatSync,
+      realpathSync,
+    });
+    if (!located.ok) return { ok: false as const, error: located.error };
+    return getWorkingTreeFileDiff(located.target);
   });
 
   ipcMain.handle("git:createBranch", async (event, req: GitCreateBranchRequest) => {

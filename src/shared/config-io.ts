@@ -9,9 +9,9 @@
  */
 
 import { existsSync } from "node:fs";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { readFile, mkdir, writeFile, rename, rm } from "node:fs/promises";
 import type { ConfigScope, VibeConfig } from "./config-schema";
 
 /** Strip line and block comments (string-aware).
@@ -98,6 +98,43 @@ function stripSecurityNotices<T extends Record<string, unknown>>(value: T): T {
 
 const DANGEROUS_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 
+/**
+ * Find object keys that can mutate or shadow JavaScript prototypes. Config
+ * records use user-provided ids (provider, MCP server, model, language), so a
+ * denylisted key must be reported rather than silently disappearing during a
+ * safe merge. Arrays are traversed because hooks/permissions are structured
+ * data too. The WeakSet also makes this safe for direct callers that hand us a
+ * cyclic object, even though Electron IPC itself only supplies cloneable data.
+ */
+function dangerousConfigKeyPath(value: unknown): string | null {
+  const seen = new WeakSet<object>();
+  const visit = (current: unknown, path: string): string | null => {
+    if (typeof current !== "object" || current === null) return null;
+    if (seen.has(current)) return null;
+    seen.add(current);
+    if (Array.isArray(current)) {
+      for (let index = 0; index < current.length; index += 1) {
+        const found = visit(current[index], `${path}[${index}]`);
+        if (found) return found;
+      }
+      return null;
+    }
+    for (const [key, child] of Object.entries(current)) {
+      const childPath = path ? `${path}.${key}` : key;
+      if (DANGEROUS_KEYS.has(key)) return childPath;
+      const found = visit(child, childPath);
+      if (found) return found;
+    }
+    return null;
+  };
+  return visit(value, "");
+}
+
+function assertSafeConfigKeys(value: unknown, label: "Config" | "Config patch"): void {
+  const path = dangerousConfigKeyPath(value);
+  if (path) throw new Error(`${label} contains reserved key ${path}`);
+}
+
 /** Deep-merge for writes: `null` deletes, `undefined` is a no-op. */
 function mergeForWrite(
   base: Record<string, unknown>,
@@ -168,6 +205,7 @@ export async function readConfigFile(path: string): Promise<{ config: VibeConfig
   if (!isPlainObject(parsed)) {
     throw new Error(`Config at ${path} is not a JSON object — fix or remove it before opening Settings`);
   }
+  assertSafeConfigKeys(parsed, "Config");
   return { config: parsed as VibeConfig, raw };
 }
 
@@ -236,6 +274,7 @@ export async function writeConfigFile(
   if (!isPlainObject(patch)) {
     throw new Error("Config patch must be a plain object");
   }
+  assertSafeConfigKeys(patch, "Config patch");
   return scheduleWrite(path, async () => {
     let existing: Record<string, unknown> = {};
     if (existsSync(path)) {
@@ -268,6 +307,11 @@ export async function writeConfigFileValidated(
 ): Promise<{ ok: true; config: VibeConfig } | { ok: false; error: string }> {
   if (!isPlainObject(patch)) {
     return { ok: false, error: "Config patch must be a plain object" };
+  }
+  try {
+    assertSafeConfigKeys(patch, "Config patch");
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
   try {
     const result = await scheduleWrite(path, async () => {
@@ -369,6 +413,7 @@ export async function previewMergedConfig(
   if (!isPlainObject(patch)) {
     throw new Error("Config patch must be a plain object");
   }
+  assertSafeConfigKeys(patch, "Config patch");
   let existing: Record<string, unknown> = {};
   if (existsSync(path)) {
     const read = await readConfigFile(path);

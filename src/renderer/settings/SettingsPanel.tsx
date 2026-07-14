@@ -12,25 +12,25 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CONFIG_SECTIONS, type ConfigScope, type VibeConfig } from "../../shared/config-schema";
 import { buildConfigPatch } from "../../shared/config-diff";
+import { CONFIG_SECTIONS, type ConfigScope, type VibeConfig } from "../../shared/config-schema";
 import { mayReloadSettingsContext } from "../../shared/settings-load-guard";
 import { IconChevronLeft, IconClose, IconSearch, IconSidebar } from "../icons";
-import { ModelsSection } from "./sections/ModelsSection";
-import { ProvidersSection } from "./sections/ProvidersSection";
-import { McpSection } from "./sections/McpSection";
-import { PermissionsSection } from "./sections/PermissionsSection";
+import { AdvancedSection } from "./sections/AdvancedSection";
 import { AppearanceSection } from "./sections/AppearanceSection";
 import { BehaviorSection } from "./sections/BehaviorSection";
-import { SubagentsSection } from "./sections/SubagentsSection";
-import { BuildSection } from "./sections/BuildSection";
-import { MemorySection } from "./sections/MemorySection";
-import { SearchSection } from "./sections/SearchSection";
-import { CompactionSection } from "./sections/CompactionSection";
 import { BudgetSection } from "./sections/BudgetSection";
+import { BuildSection } from "./sections/BuildSection";
+import { CompactionSection } from "./sections/CompactionSection";
 import { HooksSection } from "./sections/HooksSection";
 import { InstructionsSection } from "./sections/InstructionsSection";
-import { AdvancedSection } from "./sections/AdvancedSection";
+import { McpSection } from "./sections/McpSection";
+import { MemorySection } from "./sections/MemorySection";
+import { ModelsSection } from "./sections/ModelsSection";
+import { PermissionsSection } from "./sections/PermissionsSection";
+import { ProvidersSection } from "./sections/ProvidersSection";
+import { SearchSection } from "./sections/SearchSection";
+import { SubagentsSection } from "./sections/SubagentsSection";
 
 export type SectionId = (typeof CONFIG_SECTIONS)[number]["id"];
 
@@ -53,8 +53,13 @@ interface SettingsState {
 
 const EMPTY_CONFIG: VibeConfig = {};
 
-function configEqual(a: VibeConfig, b: VibeConfig): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+function configEqual(original: VibeConfig, current: VibeConfig): boolean {
+  return Object.keys(
+    buildConfigPatch(
+      original as Record<string, unknown>,
+      current as Record<string, unknown>,
+    ),
+  ).length === 0;
 }
 
 // ── Sidebar ──────────────────────────────────────────────────────────────
@@ -178,15 +183,19 @@ function SettingsFormArea({
   const loadSeq = useRef(0);
   const dirtyRef = useRef(false);
   dirtyRef.current = state.dirty;
-  /** Instructions section dirty (only mounted when that section is active). */
+  /** Context that produced the in-memory config. Never save it to a newer cwd. */
+  const loadedContextRef = useRef<{ scope: ConfigScope; cwd?: string } | null>(null);
+  /** Instructions section dirty (kept mounted while settings is open). */
   const instructionsDirtyRef = useRef<() => boolean>(() => false);
+  const invalidDraftsRef = useRef<Set<string>>(new Set());
+  const [invalidDrafts, setInvalidDrafts] = useState<Set<string>>(() => new Set());
+  const [draftResetVersion, setDraftResetVersion] = useState(0);
   const prevCwdRef = useRef(cwd);
-  const prevScopeRef = useRef(scope);
   /** After an explicit discard confirm, the next load may proceed without re-prompting. */
   const discardAcceptedRef = useRef(false);
 
   const shellIsDirty = useCallback(
-    () => dirtyRef.current || instructionsDirtyRef.current(),
+    () => dirtyRef.current || instructionsDirtyRef.current() || invalidDraftsRef.current.size > 0,
     [],
   );
 
@@ -194,10 +203,12 @@ function SettingsFormArea({
     const seq = ++loadSeq.current;
     setState((prev) => ({ ...prev, loading: true, error: null, saving: false, saveError: null }));
     try {
-      const res = await window.vibe.readConfig({ scope: selectedScope, cwd: selectedScope === "project" ? cwd ?? undefined : undefined });
+      const targetCwd = selectedScope === "project" ? cwd ?? undefined : undefined;
+      const res = await window.vibe.readConfig({ scope: selectedScope, cwd: targetCwd });
       if (seq !== loadSeq.current) return;
       if (!res.ok) { setState((prev) => ({ ...prev, loading: false, error: res.error })); return; }
       const cfg = res.config ?? {};
+      loadedContextRef.current = { scope: selectedScope, cwd: targetCwd };
       setState({ config: cfg, original: cfg, dirty: false, loading: false, error: null, saving: false, saveError: null });
       discardAcceptedRef.current = false;
     } catch (err) {
@@ -214,8 +225,6 @@ function SettingsFormArea({
   useEffect(() => {
     const cwdChanged = prevCwdRef.current !== cwd;
     prevCwdRef.current = cwd;
-    prevScopeRef.current = scope;
-
     // Scope flips are confirmed in SettingsView.trySetScope before `scope` updates.
     // cwd flips (project switch) must not wipe dirty config — including global —
     // without a discard. App also gates open/resume when shellIsDirty().
@@ -253,10 +262,20 @@ function SettingsFormArea({
     instructionsDirtyRef.current = isDirty;
   }, []);
 
+  const reportInvalidDraft = useCallback((key: string, invalid: boolean) => {
+    setInvalidDrafts((current) => {
+      const next = new Set(current);
+      if (invalid) next.add(key);
+      else next.delete(key);
+      invalidDraftsRef.current = next;
+      return next;
+    });
+  }, []);
+
   const updateConfig = useCallback((patch: Partial<VibeConfig>) => {
     setState((prev) => {
       const next = { ...prev.config, ...patch };
-      return { ...prev, config: next, dirty: !configEqual(next, prev.original) };
+      return { ...prev, config: next, dirty: !configEqual(prev.original, next) };
     });
   }, []);
 
@@ -291,7 +310,7 @@ function SettingsFormArea({
       };
       const merged = deepMerge(current, patch as Record<string, unknown>);
       const next = { ...prev.config, [key]: merged };
-      return { ...prev, config: next, dirty: !configEqual(next, prev.original) };
+      return { ...prev, config: next, dirty: !configEqual(prev.original, next) };
     });
   }, []);
 
@@ -305,13 +324,17 @@ function SettingsFormArea({
         savedOriginal as Record<string, unknown>,
         savedConfig as Record<string, unknown>,
       );
-      const res = await window.vibe.writeConfig({ scope, cwd: scope === "project" ? cwd ?? undefined : undefined, patch });
+      const target = loadedContextRef.current ?? {
+        scope,
+        cwd: scope === "project" ? cwd ?? undefined : undefined,
+      };
+      const res = await window.vibe.writeConfig({ scope: target.scope, cwd: target.cwd, patch });
       if (seq !== loadSeq.current) return;
       if (!res.ok) { setState((prev) => ({ ...prev, saving: false, saveError: res.error })); return; }
       setState((prev) => ({
         ...prev,
         original: savedConfig,
-        dirty: !configEqual(prev.config, savedConfig),
+        dirty: !configEqual(savedConfig, prev.config),
         saving: false,
         saveError: null,
       }));
@@ -324,6 +347,7 @@ function SettingsFormArea({
 
   const resetConfig = useCallback(() => {
     setState((prev) => ({ ...prev, config: prev.original, dirty: false, saveError: null }));
+    setDraftResetVersion((version) => version + 1);
   }, []);
 
   useEffect(() => {
@@ -338,10 +362,21 @@ function SettingsFormArea({
     return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [requestClose]);
 
-  const sectionProps = useMemo(() => ({ config: state.config, scope, updateConfig, updateNested, cwd }), [state.config, scope, updateConfig, updateNested, cwd]);
+  const sectionProps = useMemo(() => ({
+    config: state.config,
+    scope,
+    updateConfig,
+    updateNested,
+    cwd,
+    onInvalidDraftChange: reportInvalidDraft,
+    draftResetVersion,
+  }), [state.config, scope, updateConfig, updateNested, cwd, reportInvalidDraft, draftResetVersion]);
 
-  const renderConfigSection = () => {
-    switch (activeSection) {
+  // Keep every section mounted while Settings is open. Besides VIBE.md, MCP
+  // env/header editors and add-new rows carry legitimate local draft state that
+  // must survive a quick section switch.
+  const renderConfigSection = (id: SectionId) => {
+    switch (id) {
       case "models": return <ModelsSection {...sectionProps} />;
       case "providers": return <ProvidersSection {...sectionProps} />;
       case "mcp": return <McpSection {...sectionProps} />;
@@ -356,9 +391,7 @@ function SettingsFormArea({
       case "budget": return <BudgetSection {...sectionProps} />;
       case "hooks": return <HooksSection {...sectionProps} />;
       case "advanced": return <AdvancedSection {...sectionProps} />;
-      case "instructions":
-        // Instructions stays mounted below so drafts survive nav switches.
-        return null;
+      case "instructions": return null;
       default: return null;
     }
   };
@@ -396,7 +429,11 @@ function SettingsFormArea({
             >
               <InstructionsSection {...sectionProps} onBindDirty={bindInstructionsDirty} />
             </div>
-            {activeSection !== "instructions" ? renderConfigSection() : null}
+            {CONFIG_SECTIONS.filter(({ id }) => id !== "instructions").map(({ id }) => (
+              <div key={id} hidden={activeSection !== id} aria-hidden={activeSection !== id}>
+                {renderConfigSection(id)}
+              </div>
+            ))}
             {state.saveError && <div className="settings-save-error" role="alert">Save failed: {state.saveError}</div>}
           </>
         )}
@@ -405,13 +442,15 @@ function SettingsFormArea({
       {!state.loading && !state.error && activeSection !== "instructions" && (
         <div className="settings-save-bar">
           <div className="settings-save-status">
-            {state.dirty
+            {invalidDrafts.size > 0
+              ? <span className="settings-dirty-indicator">Fix invalid draft fields before saving</span>
+              : state.dirty
               ? <span className="settings-dirty-indicator">Unsaved changes</span>
               : <span className="settings-clean-indicator">All changes saved</span>}
           </div>
           <div className="settings-save-actions">
-            <button type="button" className="button" onClick={resetConfig} disabled={!state.dirty || state.saving}>Reset</button>
-            <button type="button" className="button primary" onClick={() => void saveConfig()} disabled={!state.dirty || state.saving}>
+            <button type="button" className="button" onClick={resetConfig} disabled={(!state.dirty && invalidDrafts.size === 0) || state.saving}>Reset</button>
+            <button type="button" className="button primary" onClick={() => void saveConfig()} disabled={!state.dirty || state.saving || invalidDrafts.size > 0}>
               {state.saving ? "Saving…" : "Save"}
             </button>
           </div>

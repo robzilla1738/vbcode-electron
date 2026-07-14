@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { composeInEditor, parseEditorCommand, type EditorComposeDeps } from "./editor-compose";
+import {
+  composeInEditor,
+  EDITOR_DRAFT_MAX_BYTES,
+  type EditorComposeDeps,
+  parseEditorCommand,
+} from "./editor-compose";
 
 function memDeps(
   editor: string | undefined,
@@ -58,6 +63,15 @@ describe("external editor compose parity", () => {
     const deps = memDeps("missing-editor", "keep", (text) => text);
     deps.spawn = async () => { throw new Error("ENOENT"); };
     await expect(composeInEditor(deps)).resolves.toEqual({ kind: "failed", reason: "ENOENT" });
+    expect(deps.removed()).toBe(true);
+  });
+
+  it("rejects oversized editor output and cleans the temp file", async () => {
+    const deps = memDeps("editor", "seed", () => "x".repeat(EDITOR_DRAFT_MAX_BYTES + 1));
+    await expect(composeInEditor(deps)).resolves.toEqual({
+      kind: "failed",
+      reason: `Editor draft exceeds ${EDITOR_DRAFT_MAX_BYTES} bytes`,
+    });
     expect(deps.removed()).toBe(true);
   });
 });

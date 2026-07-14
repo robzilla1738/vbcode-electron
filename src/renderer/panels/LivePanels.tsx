@@ -336,7 +336,7 @@ export function PlanCard({
           className="chip caution"
           onClick={onAcceptYolo}
           aria-keyshortcuts="Meta+y"
-          title="Accept the plan and auto-approve all future tool calls this turn"
+          title="Accept the plan and switch this session to YOLO until you change modes"
         >
           <span className="action-label">Accept + auto-approve</span>
           <ActionKbd>⌘Y</ActionKbd>

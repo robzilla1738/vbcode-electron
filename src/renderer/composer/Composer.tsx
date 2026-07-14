@@ -31,6 +31,10 @@ const MODE_HINT: Record<UiMode, string> = {
 
 /** Matches `--composer-input-max` — keep JS clamp and CSS in sync. */
 const COMPOSER_INPUT_MAX_PX = 320;
+/** Fast UI ceiling; App performs the authoritative encoded-command byte check. */
+const COMPOSER_DRAFT_MAX_CHARS = 800_000;
+const COMPOSER_MAX_ATTACHMENTS = 32;
+const IMAGE_PREVIEW_MAX_BYTES = 12 * 1024 * 1024;
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "tif", "tiff"]);
 
 type DroppedFile = File & { path?: string };
@@ -676,6 +680,7 @@ export function Composer({
       const liveStart = input?.selectionStart ?? sourceDraft.length;
       const liveEnd = input?.selectionEnd ?? liveStart;
       let caret = start;
+      let warnedTooLarge = false;
       setDraft((current) => {
         // If the user typed while native clipboard IPC was resolving, paste at
         // the live caret instead of applying stale offsets to the newer draft.
@@ -686,6 +691,18 @@ export function Composer({
           unchanged ? end : liveEnd,
           result,
         );
+        if (edit.value.length > COMPOSER_DRAFT_MAX_CHARS) {
+          if (!warnedTooLarge) {
+            warnedTooLarge = true;
+            queueMicrotask(() => {
+              onPasteError(
+                `Message is too large to paste safely (limit ${COMPOSER_DRAFT_MAX_CHARS.toLocaleString()} characters).`,
+              );
+            });
+          }
+          caret = unchanged ? start : liveStart;
+          return current;
+        }
         caret = edit.caret;
         return edit.value;
       });
@@ -740,11 +757,21 @@ export function Composer({
     setDropTarget(false);
 
     const dropped = Array.from(event.dataTransfer.files) as DroppedFile[];
+    if (!dropped.length) {
+      onPasteError("Drop an image or file onto the composer.");
+      return;
+    }
     const pathsFromTransfer = transferPaths(event.dataTransfer);
     const seen = new Set(attachments.map((attachment) => comparablePath(attachment.path)));
     const next: ComposerAttachment[] = [];
     let inaccessible = 0;
+    const availableSlots = Math.max(0, COMPOSER_MAX_ATTACHMENTS - attachments.length);
+    if (availableSlots === 0) {
+      onPasteError(`You can attach up to ${COMPOSER_MAX_ATTACHMENTS} files at a time.`);
+      return;
+    }
     for (const [index, file] of dropped.entries()) {
+      if (next.length >= availableSlots) break;
       let path = file.path?.trim() ?? "";
       if (!path) {
         try {
@@ -774,14 +801,14 @@ export function Composer({
         token,
         isImage,
         size: file.size,
-        previewUrl: isImage ? URL.createObjectURL(file) : null,
+        // Avoid decoding an unbounded image into renderer memory. The file is
+        // still attached by path; only the decorative thumbnail is omitted.
+        previewUrl: isImage && file.size <= IMAGE_PREVIEW_MAX_BYTES
+          ? URL.createObjectURL(file)
+          : null,
       });
     }
 
-    if (!dropped.length) {
-      onPasteError("Drop an image or file onto the composer.");
-      return;
-    }
     if (!next.length) {
       onPasteError(
         inaccessible > 0
@@ -791,6 +818,9 @@ export function Composer({
       return;
     }
     setAttachments((current) => [...current, ...next]);
+    if (dropped.length > availableSlots) {
+      onPasteError(`Attached the first ${availableSlots} files (limit ${COMPOSER_MAX_ATTACHMENTS}).`);
+    }
     window.requestAnimationFrame(() => ref.current?.focus());
   };
 
@@ -1125,6 +1155,7 @@ export function Composer({
           aria-expanded={menuId != null}
           aria-controls={menuId}
           aria-activedescendant={activeOptionId}
+          maxLength={COMPOSER_DRAFT_MAX_CHARS}
           rows={1}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}

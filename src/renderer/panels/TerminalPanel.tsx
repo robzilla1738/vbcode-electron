@@ -2,7 +2,11 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XtermTerminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
-import type { TerminalEvent, TerminalOpenResult } from "../../shared/terminal";
+import {
+  terminalSessionNeedsReopen,
+  type TerminalEvent,
+  type TerminalOpenResult,
+} from "../../shared/terminal";
 import { getTheme } from "../../shared/themes";
 import { IconClose } from "../icons";
 
@@ -61,7 +65,20 @@ export function TerminalPanel({
 
     let disposed = false;
     let sessionId: string | null = null;
+    let reopening = false;
     const pendingEvents: TerminalEvent[] = [];
+
+    const handleCommandFailure = (message: string) => {
+      if (disposed) return;
+      if (terminalSessionNeedsReopen(message) && !reopening) {
+        reopening = true;
+        sessionId = null;
+        setError(null);
+        setRestartNonce((value) => value + 1);
+        return;
+      }
+      setError(message);
+    };
 
     const applyEvent = (event: TerminalEvent) => {
       if (event.type === "data") {
@@ -82,7 +99,7 @@ export function TerminalPanel({
           cols: terminal.cols,
           rows: terminal.rows,
         }).then((result) => {
-          if (!result.ok && !disposed) setError(result.error);
+          if (!result.ok) handleCommandFailure(result.error);
         }).catch((reason: unknown) => {
           if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
         });
@@ -99,7 +116,7 @@ export function TerminalPanel({
     const dataDisposable = terminal.onData((data) => {
       if (!sessionId) return;
       void window.vibe.terminalWrite({ id: sessionId, data }).then((result) => {
-        if (!result.ok && !disposed) setError(result.error);
+        if (!result.ok) handleCommandFailure(result.error);
       }).catch((reason: unknown) => {
         if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
       });
@@ -160,7 +177,7 @@ export function TerminalPanel({
           <p className="sidebar-heading-sub terminal-panel-subtitle" title={cwd}>{cwd}</p>
         </div>
         <div className="terminal-panel-actions">
-          {exit ? (
+          {exit || error ? (
             <button type="button" className="button terminal-restart" onClick={() => setRestartNonce((value) => value + 1)}>
               Restart
             </button>

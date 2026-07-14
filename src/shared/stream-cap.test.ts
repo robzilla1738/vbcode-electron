@@ -8,6 +8,7 @@ describe("stream capture cap", () => {
     appendCapture(buf, "stderr", "warn");
     expect(buf.stdout).toBe("hello");
     expect(buf.stderr).toBe("warn");
+    expect(buf.capturedBytes).toBe(9);
     expect(buf.truncated).toBe(false);
   });
 
@@ -18,6 +19,16 @@ describe("stream capture cap", () => {
     expect(buf.stdout.length).toBe(10);
     appendCapture(buf, "stdout", "more");
     expect(buf.stdout.length).toBe(10);
+  });
+
+  it("enforces one aggregate UTF-8 byte ceiling across both streams", () => {
+    const buf = createCaptureBuffers(7);
+    appendCapture(buf, "stdout", "abc");
+    appendCapture(buf, "stderr", "😀more");
+    expect(buf.stdout).toBe("abc");
+    expect(buf.stderr).toBe("😀");
+    expect(buf.capturedBytes).toBe(7);
+    expect(buf.truncated).toBe(true);
   });
 
   it("overflow error prefers stderr then a clear message", () => {

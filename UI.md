@@ -24,8 +24,9 @@ The shell has these primary surfaces:
    Session, Changes, Git, Terminal, Jobs, Files. Its equally inset rounded
    `--surface-subtle` enclosure has no shadow, section dividers, or
    Local/Commit/Compare noise. It
-   switches to compact icon navigation below ~960px; Jobs is also available via
-   `/jobs`.
+   switches to a six-column compact icon grid below ~960px; every target remains
+   outside the Electron drag region and keeps a 44px hit area. Jobs is also
+   available via `/jobs`.
 4. **Activity sidebar** — one full-height, edge-attached right pane for Session,
    Changes, Git, Terminal, and Jobs. The active view replaces the previous view
    in the same structural grid column. Files remains a Finder reveal rather
@@ -33,8 +34,17 @@ The shell has these primary surfaces:
 5. **Changed-files footer chip** — after edits, a compact summary shares the
    transcript footer row with Jump to latest and opens the Changes workspace.
 
-Transcript output, approval cards, and the composer use the same centered
-`--composer-max: 40rem` measure. The central chat pane fills its workspace
+Transcript prose, Thinking/tool activity, notices, approval cards, and the
+composer use the same centered, font-independent `--transcript-measure: 40rem`
+measure (`--prose-max` and `--composer-max` alias it). Compact caption
+typography must never change a row's physical width or horizontal position.
+Top-level transcript items use one `--transcript-flow-gap`; child blocks do not
+stack their own vertical margins, and hidden assistant actions occupy that gap
+without changing document flow. “Load earlier” controls anchor to the same
+conversation edge rather than the wider structured-output canvas. Compact
+activity, continuation, pagination, status, and footer-action surfaces share
+`--transcript-compact-row-h` so adjacent controls do not wobble in height.
+The central chat pane fills its workspace
 edge-to-edge. Output may scroll behind the floating composer; continuous
 full-surface frost blurs that overlap. Approval cards stay opaque.
 
@@ -123,12 +133,32 @@ without changing the active chat or scroll position.
   activity groups under `Thinking · N steps`. Each open thought is **one
   quiet surface** (label + prose; no brain icon; no stacked empty cards).
   Copy for thinking sits on the head row.
+- Thinking groups, nested tool/thought rows, and assistant prose share the same
+  physical left edge at every viewport width; compact label typography must not
+  re-resolve the `ch` reading measure or introduce nested indentation.
+- Restarting or returning to a session preserves the structured coding view:
+  thinking, tool calls/results, diffs, and their collapsed presentation are
+  restored instead of flattening the turn into assistant prose. Cached
+  presentation state is accepted only when every content-bearing transcript
+  block and changed-file record matches the host-owned session history;
+  collapse state and other presentation-only fields do not invalidate it.
 - User messages fold/unfold the turn by click or Enter/Space on the bubble —
   no persistent collapse arrow.
 - User-message Copy / Edit / time sit **under** the bubble (trailing-aligned),
   hover/focus of the bubble stack; assistant Copy stays below the response.
 - Streaming follows only near the bottom; Jump to latest restores follow.
-- Subagent rows are static status summaries (spinner/check), not expandable.
+- Live Tasks/Subagents chips use the standard UI text scale with a 38px compact
+  target and proportionally sized activity ring so progress remains legible.
+- Jump to latest occupies its own centered row above live Tasks/Subagents,
+  permission, plan, and gate panels; it must never cover those controls.
+- Extremely large assistant/user/reasoning payloads retain their newest useful
+  tail and show an omission marker instead of growing renderer memory without
+  bound. Plans, subagent summaries, orchestration rows, and changed-file diff
+  bodies have corresponding explicit ceilings.
+- The live Subagents pill opens Session directly at a focused Subagents section.
+  Each child is an accessible disclosure: running children open by default and
+  show live activity/elapsed time; completed children expose the full bounded
+  markdown result with Copy.
 - Memory is a quiet `Memory · N notes` disclosure.
 
 ### Sources and articles
@@ -139,7 +169,8 @@ snippet. External links go through `ExternalLink` / host bridge.
 ### Composer and queue
 
 - Floating frosted composer; continuous full-surface frost.
-- Soft bottom veil on non-empty chat; empty home has no veil.
+- Soft bottom veil on non-empty chat; it continues through the reserved
+  workspace-dock lane without a color seam. Empty home has no veil.
 - Queue: one quiet card above the composer; steer/remove on row hover.
 - Active work is communicated by the composer status and project-row spinner;
   do not render a redundant floating “Running” card. Density-change
@@ -175,7 +206,9 @@ snippet. External links go through `ExternalLink` / host bridge.
   open shells at the project root; one-off Chats open at the user's home instead
   of the internal `~/.vibe/chats` session store. Each effective-cwd PTY continues
   in the main process, keeps bounded replay output, and reconnects when Terminal
-  is selected again; app shutdown remains the lifecycle boundary.
+  is selected again; app shutdown remains the lifecycle boundary. Shells are
+  explicitly interactive login sessions, and a stale PTY id self-heals by
+  reopening the effective cwd instead of leaving a dead terminal banner.
 - All activity tabs, headers, labels, and supporting paths use the shared app
   sans stack and tokenized type scale. The xterm grid intentionally uses
   `--font-mono` at 12.5px with neutral letter spacing and a 1.35 line height so
@@ -186,7 +219,10 @@ snippet. External links go through `ExternalLink` / host bridge.
 - Changes is a dedicated master-detail review workspace: searchable directory
   groups stay visible beside the selected file, with aggregate/per-file stats,
   churn balance, previous/next navigation, Diff/File modes, line gutters, copy,
-  and Reveal in Finder. It stacks navigator above review in compact drawers.
+  and Reveal in Finder. Diff mode resolves the current HEAD-to-working-tree
+  patch from Git, including repositories scaffolded beneath the opened project
+  and synthetic unified diffs for untracked files; session event data remains
+  the fallback outside Git. It stacks navigator above review in compact drawers.
 - Host fatal / boot error: primary **New session**, plus Retry and Choose
   another project.
 

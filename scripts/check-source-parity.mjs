@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -6,6 +7,25 @@ import ts from "typescript";
 
 const electronRoot = resolve(import.meta.dirname, "..");
 const vibeRoot = process.env.VIBE_CODR_ROOT || join(homedir(), "Code", "vibe-codr");
+const engineCommit = readFileSync(join(electronRoot, "ENGINE_COMMIT"), "utf8").trim();
+if (!/^[0-9a-f]{40}$/i.test(engineCommit)) {
+  console.error("CLI source parity check failed: ENGINE_COMMIT must contain a 40-character git commit");
+  process.exit(1);
+}
+
+function lockedEngineSource(relativePath) {
+  try {
+    return execFileSync(
+      "git",
+      ["-C", vibeRoot, "show", `${engineCommit}:${relativePath}`],
+      { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+    );
+  } catch {
+    throw new Error(
+      `Could not read ${relativePath} at locked engine ${engineCommit}; fetch ENGINE_COMMIT in ${vibeRoot}`,
+    );
+  }
+}
 
 // Files where the Electron app intentionally diverges from the upstream TUI.
 // `extras` allows declarations not in upstream; `drift` allows modified
@@ -26,6 +46,13 @@ const ALLOW_EXTRAS = new Set([
 // scoped so unrelated drift in the same source files still fails the gate.
 const ALLOW_DECLARATION_EXTRAS = new Map([
   ["spinner", new Set(["FunctionDeclaration:compactElapsed"])],
+  [
+    "editor-compose",
+    new Set([
+      "FirstStatement:EDITOR_DRAFT_MAX_BYTES",
+      "FunctionDeclaration:readEditorDraft",
+    ]),
+  ],
 ]);
 const ALLOW_DECLARATION_DRIFT = new Map([
   // Forward-compatible engine-authored user-message labels are already rendered
@@ -84,10 +111,10 @@ function declarationName(node) {
   return null;
 }
 
-function declarations(path) {
+function declarations(path, contents = readFileSync(path, "utf8")) {
   const source = ts.createSourceFile(
     path,
-    readFileSync(path, "utf8"),
+    contents,
     ts.ScriptTarget.Latest,
     true,
     ts.ScriptKind.TS,
@@ -108,15 +135,17 @@ const failures = [];
 for (const [upstreamRel, electronRel, allowElectronExtras] of pairs) {
   const upstreamPath = join(vibeRoot, upstreamRel);
   const electronPath = join(electronRoot, electronRel);
-  if (!existsSync(upstreamPath)) {
-    failures.push(`${upstreamRel}: upstream file missing (set VIBE_CODR_ROOT)`);
-    continue;
-  }
   if (!existsSync(electronPath)) {
     failures.push(`${electronRel}: Electron port missing`);
     continue;
   }
-  const upstream = declarations(upstreamPath);
+  let upstream;
+  try {
+    upstream = declarations(upstreamPath, lockedEngineSource(upstreamRel));
+  } catch (error) {
+    failures.push(error instanceof Error ? error.message : String(error));
+    continue;
+  }
   const electron = declarations(electronPath);
   const allowExtras = typeof allowElectronExtras === "object" ? allowElectronExtras.extras : allowElectronExtras;
   const allowDrift = typeof allowElectronExtras === "object" ? allowElectronExtras.drift : false;

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,16 +9,23 @@ const electronRoot = resolve(import.meta.dirname, "..");
 const vibeRoot = process.env.VIBE_CODR_ROOT || join(homedir(), "Code", "vibe-codr");
 const upstreamPath = join(vibeRoot, "packages/config/src/schema.ts");
 const localPath = join(electronRoot, "src/shared/config-schema.ts");
+const upstreamRelativePath = "packages/config/src/schema.ts";
+const engineCommit = readFileSync(join(electronRoot, "ENGINE_COMMIT"), "utf8").trim();
 
-for (const path of [upstreamPath, localPath]) {
+if (!/^[0-9a-f]{40}$/i.test(engineCommit)) {
+  console.error("Config shape check failed: ENGINE_COMMIT must contain a 40-character git commit");
+  process.exit(1);
+}
+
+for (const path of [localPath]) {
   if (!existsSync(path)) {
     console.error(`Config shape check failed: ${path} does not exist`);
     process.exit(1);
   }
 }
 
-function sourceFile(path) {
-  return ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+function sourceFile(path, contents = readFileSync(path, "utf8")) {
+  return ts.createSourceFile(path, contents, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 }
 
 function propertyName(node) {
@@ -27,8 +35,8 @@ function propertyName(node) {
   return null;
 }
 
-function upstreamKeys(path) {
-  const source = sourceFile(path);
+function upstreamKeys(path, contents) {
+  const source = sourceFile(path, contents);
   let objectLiteral;
   for (const statement of source.statements) {
     if (!ts.isVariableStatement(statement)) continue;
@@ -56,7 +64,12 @@ function localKeys(path) {
 }
 
 try {
-  const upstream = upstreamKeys(upstreamPath);
+  const upstreamContents = execFileSync(
+    "git",
+    ["-C", vibeRoot, "show", `${engineCommit}:${upstreamRelativePath}`],
+    { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+  );
+  const upstream = upstreamKeys(upstreamPath, upstreamContents);
   const local = localKeys(localPath);
   const missing = [...upstream].filter((key) => !local.has(key)).sort();
   const extra = [...local].filter((key) => !upstream.has(key)).sort();
@@ -68,6 +81,9 @@ try {
   }
   console.log(`Config shape parity OK (${upstream.size} top-level fields)`);
 } catch (error) {
-  console.error(`Config shape check failed: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(
+    `Config shape check failed: ${error instanceof Error ? error.message : String(error)}\n` +
+      `Fetch locked engine ${engineCommit} in ${vibeRoot}.`,
+  );
   process.exit(1);
 }

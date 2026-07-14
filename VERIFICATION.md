@@ -18,7 +18,7 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (**311** tests as of 2026-07-13), Playwright Electron E2E
+Expect: Vitest green (**360** tests as of 2026-07-13), Playwright Electron E2E
 green (**12** scenarios), all 19 upstream source pairs aligned, Biome and `tsc`
 clean, all 40 engine config fields represented, electron-vite build and
 renderer/host bundle budget OK, and smoke prints
@@ -36,10 +36,13 @@ prevents parallel test workers from racing Electron 43's lazy binary download.
 | `npm run verify:fast` | lint + unit + typecheck |
 | `npm run verify:ci` | verify + coverage + bridge smoke + E2E |
 
-The source and config parity commands compare against the checkout selected by
-`VIBE_CODR_ROOT` or `~/Code/vibe-codr`. CI and release builds fetch the exact
-revision in `ENGINE_COMMIT`; local release proof should point
-`VIBE_CODR_ROOT` at a clean checkout of that revision. The source parity script
+The source and config parity commands read their upstream files directly from
+the exact revision in `ENGINE_COMMIT` with `git show`. `VIBE_CODR_ROOT` (or the
+default `~/Code/vibe-codr`) therefore only needs to contain that fetched
+commit; uncommitted sibling work cannot silently redefine the release
+contract. Packaging is stricter: `copy-host` requires the engine checkout HEAD
+to equal `ENGINE_COMMIT`, rejects dirty runtime paths, verifies source freshness
+and host architecture, and only then embeds the host. The source parity script
 allows documented Electron-specific additions and normalizes whitespace to
 avoid false formatting drift.
 
@@ -96,7 +99,9 @@ uses its own persisted wider review width. Confirm the
 five-item top switcher stays visible, chat remains mounted and unobscured, and
 compact widths use an end drawer. In Terminal, start a delayed command, switch
 to Session, then return to Terminal: the command must keep running and its output
-must replay. Close/reopen Terminal and verify the same PTY remains. Files reveals Finder.
+must replay. Close/reopen Terminal and verify the same PTY remains. If the PTY
+exits between resize/input and its exit event, confirm the panel reconnects to a
+fresh interactive shell instead of remaining on “session is no longer open.” Files reveals Finder.
 Open Terminal from a project and confirm `pwd` is that project root. Then open a
 Chats session and confirm `pwd` is the user's home directory, not `~/.vibe/chats`.
 Confirm terminal chrome uses the app sans stack while the xterm grid uses the
@@ -129,6 +134,8 @@ npm run dev
 
 1. Open a project (or confirm last-cwd restore).
 2. Confirm projects and titled sessions load; switch projects and resume one session.
+   A session containing thinking and tool calls must retain those expandable
+   rows after an app restart rather than merging them into assistant prose.
    Keep Changes open in File mode while switching sessions, then return: the
    activity view/mode and each session's transcript position must be preserved.
 3. Submit a short prompt — stream text + tools; the project rail spinner appears
@@ -176,7 +183,10 @@ npm run dev
     inaccessible project open must not replace the last known-good workspace.
 18. Exercise File/Tools/Help menu actions: New Session, Open Project, Continue
     Latest, Settings, Git, Inspector, Terminal, Jobs, and Keyboard Shortcuts.
-19. Hover an assistant response — confirm clean white Copy/Edit icons appear below it; inspect a subagent row — confirm spinner/check status and no detail expansion.
+19. Hover an assistant response — confirm clean white Copy/Edit icons appear
+    below it. Click the live Subagents pill, confirm Session focuses the
+    Subagents section, then expand each child and review task/activity/elapsed
+    time/result; confirm result Copy works.
 20. `/clear` mid-turn — abort + empty transcript.
 21. Quit app — host finalizes (no orphan process).
 22. Drag one image and one file from Finder onto the composer; confirm both
@@ -187,8 +197,11 @@ npm run dev
 24. Open Changes from the dock. Confirm the pane expands without covering chat;
     searchable directory groups remain visible beside the selected file; totals,
     churn bar, per-file stats, hunk count, and index are correct. Switch Diff/File,
-    copy/reveal, navigate previous/next, resize and reopen, then verify the compact
-    drawer stacks the navigator above review without losing selection.
+    copy/reveal, navigate previous/next, resize and reopen, then verify a project
+    containing a nested generated Git repository shows its real HEAD-to-working-tree
+    hunks, deleted files whose parent directory is gone, and untracked files as
+    additions—not current file contents posing as a diff.
+    Verify the compact drawer stacks the navigator above review without losing selection.
 25. Switch through Session, Git, Terminal, and Jobs, then drag the project rail
     and activity-panel handles; verify keyboard Arrow/Home/End resizing and width
     persistence after reopening. After another edit, the footer chip and dock

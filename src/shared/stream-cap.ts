@@ -10,13 +10,37 @@ export interface CaptureBuffers {
   stderr: string;
   truncated: boolean;
   maxBytes: number;
+  capturedBytes: number;
 }
 
 export function createCaptureBuffers(maxBytes = DEFAULT_CAPTURE_MAX_BYTES): CaptureBuffers {
-  return { stdout: "", stderr: "", truncated: false, maxBytes };
+  return {
+    stdout: "",
+    stderr: "",
+    truncated: false,
+    maxBytes: Math.max(0, Math.trunc(maxBytes)),
+    capturedBytes: 0,
+  };
 }
 
-/** Append a chunk to stdout or stderr; marks truncated when the cap is hit. */
+/** Return the longest prefix whose UTF-8 encoding fits within `maxBytes`. */
+function utf8Prefix(text: string, maxBytes: number): string {
+  if (maxBytes <= 0) return "";
+  if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
+
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(text.slice(0, mid), "utf8") <= maxBytes) low = mid;
+    else high = mid - 1;
+  }
+  // Do not retain half of a UTF-16 surrogate pair at the boundary.
+  if (low > 0 && /[\uD800-\uDBFF]/.test(text[low - 1]!)) low -= 1;
+  return text.slice(0, low);
+}
+
+/** Append a chunk under one aggregate stdout+stderr UTF-8 byte ceiling. */
 export function appendCapture(
   buf: CaptureBuffers,
   target: "stdout" | "stderr",
@@ -24,13 +48,17 @@ export function appendCapture(
 ): void {
   if (buf.truncated) return;
   const text = typeof chunk === "string" ? chunk : chunk.toString();
-  const next = buf[target] + text;
-  if (next.length > buf.maxBytes) {
-    buf[target] = next.slice(0, buf.maxBytes);
+  const chunkBytes = Buffer.byteLength(text, "utf8");
+  const remaining = Math.max(0, buf.maxBytes - buf.capturedBytes);
+  if (chunkBytes > remaining) {
+    const prefix = utf8Prefix(text, remaining);
+    buf[target] += prefix;
+    buf.capturedBytes += Buffer.byteLength(prefix, "utf8");
     buf.truncated = true;
     return;
   }
-  buf[target] = next;
+  buf[target] += text;
+  buf.capturedBytes += chunkBytes;
 }
 
 export function captureOverflowError(buf: CaptureBuffers, label = "output"): string {

@@ -6,6 +6,7 @@ import {
   sortChangedFilesForDisplay,
 } from "../../shared/changed-files";
 import type { ChangedFile } from "../../shared/reducer";
+import { isUnifiedDiff } from "../../shared/diff-view";
 import { CopyButton } from "../CopyButton";
 import {
   IconArrowRight,
@@ -65,6 +66,13 @@ export function ChangesView({
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewTruncated, setPreviewTruncated] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [workingDiff, setWorkingDiff] = useState<{
+    diff: string;
+    added: number;
+    removed: number;
+  } | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
 
   const totals = useMemo(() => changedFilesTotals(files), [files]);
   const normalizedQuery = query.trim().toLowerCase();
@@ -131,6 +139,38 @@ export function ChangesView({
       cancelled = true;
     };
   }, [cwd, reviewMode, selectedPath]);
+
+  useEffect(() => {
+    if (!selectedPath || !cwd) {
+      setWorkingDiff(null);
+      setDiffError(null);
+      return;
+    }
+    let cancelled = false;
+    setDiffLoading(true);
+    setDiffError(null);
+    setWorkingDiff(null);
+    void window.vibe.gitFileDiff({ cwd, path: selectedPath }).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        setDiffError(result.error);
+      } else if (result.available) {
+        setWorkingDiff({ diff: result.diff, added: result.added, removed: result.removed });
+      }
+    }).catch((error: unknown) => {
+      if (!cancelled) setDiffError(error instanceof Error ? error.message : String(error));
+    }).finally(() => {
+      if (!cancelled) setDiffLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cwd, selectedFile?.added, selectedFile?.diff, selectedFile?.removed, selectedPath]);
+
+  const selectedDiff = workingDiff?.diff
+    ?? (isUnifiedDiff(selectedFile?.diff) ? selectedFile.diff : undefined);
+  const selectedAdded = workingDiff?.added ?? selectedFile?.added ?? 0;
+  const selectedRemoved = workingDiff?.removed ?? selectedFile?.removed ?? 0;
 
   const selectFile = (path: string) => {
     setSelectedPath(path);
@@ -219,9 +259,9 @@ export function ChangesView({
                 <div className="changes-file-identity">
                   {selectedDirectory ? <span className="changes-file-directory">{selectedDirectory}/</span> : null}
                   <strong title={selectedFile.path}>{fileBasename(selectedFile.path)}</strong>
-                  <span className="file-diff" aria-label={`${selectedFile.added} additions, ${selectedFile.removed} deletions`}>
-                    <span className="diff-add-count">+{selectedFile.added}</span>
-                    <span className="diff-del-count">−{selectedFile.removed}</span>
+                  <span className="file-diff" aria-label={`${selectedAdded} additions, ${selectedRemoved} deletions`}>
+                    <span className="diff-add-count">+{selectedAdded}</span>
+                    <span className="diff-del-count">−{selectedRemoved}</span>
                   </span>
                 </div>
                 <div className="changes-file-actions">
@@ -257,19 +297,23 @@ export function ChangesView({
                     <IconFolderOpen size={13} />
                     <span>Reveal</span>
                   </button>
-                  {reviewMode === "diff" && selectedFile.diff ? (
-                    <CopyButton text={selectedFile.diff} label="Copy diff" />
+                  {reviewMode === "diff" && selectedDiff ? (
+                    <CopyButton text={selectedDiff} label="Copy diff" />
                   ) : null}
                 </div>
               </div>
 
               <div className="changes-review-content">
-                {reviewMode === "diff" ? (
+                {reviewMode === "diff" && diffLoading ? (
+                  <p className="changes-loading"><span className="spinner" aria-hidden /> Loading current diff…</p>
+                ) : reviewMode === "diff" && diffError && !selectedDiff ? (
+                  <p className="changes-loading is-error" role="alert">Couldn’t load diff · {diffError}</p>
+                ) : reviewMode === "diff" ? (
                   <DiffPreview
                     path={selectedFile.path}
-                    diff={selectedFile.diff}
-                    added={selectedFile.added}
-                    removed={selectedFile.removed}
+                    diff={selectedDiff}
+                    added={selectedAdded}
+                    removed={selectedRemoved}
                     hideFileHeaders
                     fill
                   />

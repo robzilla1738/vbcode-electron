@@ -8,6 +8,7 @@
  * supports live.
  */
 
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { ipcMain } from "electron";
 import {
   configPathForScope,
@@ -28,12 +29,34 @@ import type {
 } from "../shared/config-schema";
 import type { AssertTrustedIpc } from "./ipc-security";
 import { isAllowedCwd } from "../shared/cwd-allowlist";
+import { resolveWritablePathInsideRoot } from "../shared/path-safe";
 
 function projectCwdGuard(scope: ConfigScope, cwd?: string): string | null {
   if (scope !== "project") return null;
   if (typeof cwd !== "string" || !cwd) return "Project scope requires a cwd";
   if (!isAllowedCwd(cwd)) return "cwd is not an opened project root";
   return null;
+}
+
+function scopedPath(
+  scope: ConfigScope,
+  cwd: string | undefined,
+  kind: "config" | "memory",
+): string {
+  if (scope === "global") {
+    return kind === "config"
+      ? configPathForScope(scope)
+      : memoryPathForScope(scope);
+  }
+  if (!cwd) throw new Error("Project scope requires a cwd");
+  const relativePath = kind === "config" ? ".vibe/config.json" : "VIBE.md";
+  const located = resolveWritablePathInsideRoot(cwd, relativePath, {
+    existsSync,
+    lstatSync,
+    realpathSync,
+  });
+  if (!located.ok) throw new Error(located.error);
+  return located.target;
 }
 
 export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
@@ -45,7 +68,7 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     const guard = projectCwdGuard(opts.scope, opts.cwd);
     if (guard) return { ok: false as const, error: guard };
     try {
-      const path = configPathForScope(opts.scope, opts.cwd);
+      const path = scopedPath(opts.scope, opts.cwd, "config");
       const read = await readConfigFile(path);
       if (!read) {
         return { ok: true as const, config: {}, path, raw: "" } as ConfigReadResult;
@@ -70,7 +93,7 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     const guard = projectCwdGuard(req.scope, req.cwd);
     if (guard) return { ok: false as const, error: guard };
     try {
-      const path = configPathForScope(req.scope, req.cwd);
+      const path = scopedPath(req.scope, req.cwd, "config");
       // Single critical section: read → merge → validate → write under the
       // per-path lock so concurrent saves cannot persist an unvalidated merge.
       const result = await writeConfigFileValidated(path, req.patch, validateConfig);
@@ -93,7 +116,7 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     }
     const guard = projectCwdGuard("project", cwd);
     if (guard) throw new Error(guard);
-    return configPathForScope("project", cwd);
+    return scopedPath("project", cwd, "config");
   });
 
   // ── Memory (VIBE.md / custom instructions) ───────────────────────────
@@ -106,7 +129,7 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     const guard = projectCwdGuard(opts.scope, opts.cwd);
     if (guard) return { ok: false as const, error: guard };
     try {
-      const path = memoryPathForScope(opts.scope, opts.cwd);
+      const path = scopedPath(opts.scope, opts.cwd, "memory");
       const read = await readMemoryFile(path);
       return { ok: true as const, path, content: read.content, exists: read.exists } as MemoryFileResult;
     } catch (err) {
@@ -122,7 +145,7 @@ export function registerConfigIpc(assertTrusted: AssertTrustedIpc): void {
     const guard = projectCwdGuard(req.scope, req.cwd);
     if (guard) return { ok: false as const, error: guard };
     try {
-      const path = memoryPathForScope(req.scope, req.cwd);
+      const path = scopedPath(req.scope, req.cwd, "memory");
       await writeMemoryFile(path, req.content);
       return { ok: true as const, path };
     } catch (err) {

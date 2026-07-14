@@ -382,6 +382,14 @@ export function encodeInbound(msg: HostInbound): string {
   return `${JSON.stringify(msg)}\n`;
 }
 
+/** The host rejects lines above 1,000,000 characters. A byte ceiling below
+ * that boundary is safe for both ASCII and multibyte JSON payloads. */
+export const HOST_INBOUND_SAFE_BYTES = 900_000;
+
+export function encodedEngineCommandBytes(command: EngineCommand): number {
+  return new TextEncoder().encode(encodeInbound({ op: "send", command })).byteLength;
+}
+
 export function decodeOutbound(line: string): HostOutbound | null {
   let value: unknown;
   try { value = JSON.parse(line); } catch { return null; }

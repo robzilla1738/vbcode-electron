@@ -210,7 +210,9 @@ export class TerminalManager {
   }
 
   private shellArgs(): string[] {
-    return process.platform === "win32" ? [] : ["-l"];
+    // Be explicit: GUI-launched shells do not consistently infer interactive
+    // mode from a newly-created PTY during startup (notably fish).
+    return process.platform === "win32" ? [] : ["-i", "-l"];
   }
 }
 

@@ -6,4 +6,8 @@ export interface SectionProps {
   updateConfig: (patch: Partial<VibeConfig>) => void;
   updateNested: <K extends keyof VibeConfig>(key: K, patch: Partial<VibeConfig[K]>) => void;
   cwd: string | null;
+  /** Keeps malformed local editor drafts inside the settings dirty guard. */
+  onInvalidDraftChange?: (key: string, invalid: boolean) => void;
+  /** Bumped by Reset so local draft editors return to persisted values. */
+  draftResetVersion?: number;
 }

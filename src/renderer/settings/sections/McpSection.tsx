@@ -4,7 +4,14 @@ import { mcpServerTypeTemplate } from "../../../shared/mcp-server-edit";
 import type { SectionProps } from "./types";
 import { KeyValueTextArea, NumberInput, SettingBadge, SettingField, SettingSection, TextArea, TextInput, ToggleSwitch } from "../FormControls";
 
-export function McpSection({ config, scope, updateConfig, cwd }: SectionProps) {
+export function McpSection({
+  config,
+  scope,
+  updateConfig,
+  cwd,
+  onInvalidDraftChange,
+  draftResetVersion = 0,
+}: SectionProps) {
   const servers = config.mcp?.servers ?? {};
   const serverNames = Object.keys(servers);
   const [expanded, setExpanded] = useState<string | null>(serverNames[0] ?? null);
@@ -53,8 +60,11 @@ export function McpSection({ config, scope, updateConfig, cwd }: SectionProps) {
                   </button>
                   <button type="button" className="button danger" onClick={() => removeServer(name)}>Remove</button>
                 </div>
-                {isExpanded && (
-                  <div className="setting-card-body">
+                <div
+                  className="setting-card-body"
+                  hidden={!isExpanded}
+                  aria-hidden={!isExpanded}
+                >
                     <SettingField label="Type">
                       <div className="setting-radio-group">
                         <label>
@@ -101,9 +111,10 @@ export function McpSection({ config, scope, updateConfig, cwd }: SectionProps) {
                             value={server.env}
                             onChange={(env) => updateServer(name, { ...server, env })}
                             separator="="
-                            resetKey={`${scope}:${cwd ?? ""}:${name}:env`}
+                            resetKey={`mcp:${draftResetVersion}:${scope}:${cwd ?? ""}:${name}:env`}
                             placeholder={"API_KEY=$" + "{MY_API_KEY}"}
                             trimValues={false}
+                            onInvalidDraftChange={onInvalidDraftChange}
                           />
                         </SettingField>
                         <SettingField label="Working directory" description="cwd for the spawned server process.">
@@ -153,8 +164,9 @@ export function McpSection({ config, scope, updateConfig, cwd }: SectionProps) {
                             value={server.headers}
                             onChange={(headers) => updateServer(name, { ...server, headers })}
                             separator=":"
-                            resetKey={`${scope}:${cwd ?? ""}:${name}:headers`}
+                            resetKey={`mcp:${draftResetVersion}:${scope}:${cwd ?? ""}:${name}:headers`}
                             placeholder={"Authorization: Bearer $" + "{MCP_TOKEN}"}
+                            onInvalidDraftChange={onInvalidDraftChange}
                           />
                         </SettingField>
                         <SettingField
@@ -247,8 +259,7 @@ export function McpSection({ config, scope, updateConfig, cwd }: SectionProps) {
                         placeholder="default"
                       />
                     </SettingField>
-                  </div>
-                )}
+                </div>
               </div>
             );
           })}

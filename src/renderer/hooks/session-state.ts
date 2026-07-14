@@ -1,4 +1,12 @@
+import { seedChromeFromSessionStart } from "../../shared/chrome-seed";
+import { isTranscriptDensity, type TranscriptDensity } from "../../shared/density";
 import type { UIEvent } from "../../shared/events";
+import {
+  dropSettledPerms,
+  type PendingPerm,
+  type Subagent,
+} from "../../shared/reducer";
+import { appendRollingText } from "../../shared/stream-cap";
 import type {
   EngineSnapshot,
   GitInfo,
@@ -8,13 +16,17 @@ import type {
   SessionUsage,
   Task,
 } from "../../shared/types";
-import {
-  dropSettledPerms,
-  type PendingPerm,
-  type Subagent,
-} from "../../shared/reducer";
-import { isTranscriptDensity, type TranscriptDensity } from "../../shared/density";
-import { seedChromeFromSessionStart } from "../../shared/chrome-seed";
+
+const PLAN_MAX_CHARS = 2 * 1024 * 1024;
+const PLAN_MAX_SOURCES = 500;
+const PLAN_MAX_ASSUMPTIONS = 200;
+const PLAN_ASSUMPTION_MAX_CHARS = 32 * 1024;
+const SUBAGENT_MAX_ROWS = 256;
+const SUBAGENT_PROMPT_MAX_CHARS = 64 * 1024;
+const SUBAGENT_RESULT_MAX_CHARS = 256 * 1024;
+const SUBAGENT_ACTIVITY_MAX_CHARS = 4 * 1024;
+const ORCHESTRATION_MAX_ROWS = 1_000;
+const ORCHESTRATION_OBJECTIVE_MAX_CHARS = 64 * 1024;
 
 export interface OrchestrationRow {
   taskId: string;
@@ -242,9 +254,15 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
       return {
         ...s,
         plan: {
-          text: event.plan,
-          sources: event.sources,
-          assumptions: event.assumptions,
+          text: appendRollingText("", event.plan, PLAN_MAX_CHARS),
+          sources: event.sources?.slice(0, PLAN_MAX_SOURCES),
+          assumptions: event.assumptions
+            ?.slice(0, PLAN_MAX_ASSUMPTIONS)
+            .map((assumption) => appendRollingText(
+              "",
+              assumption,
+              PLAN_ASSUMPTION_MAX_CHARS,
+            )),
           ungrounded: event.ungrounded,
         },
       };
@@ -258,13 +276,20 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
     case "orchestration-task": {
       const row: OrchestrationRow = {
         taskId: event.taskId,
-        objective: event.objective,
+        objective: appendRollingText(
+          "",
+          event.objective,
+          ORCHESTRATION_OBJECTIVE_MAX_CHARS,
+        ),
         status: event.status,
         attempts: event.attempts,
         durationMs: event.durationMs,
       };
       const rest = s.orchestration.filter((o) => o.taskId !== event.taskId);
-      return { ...s, orchestration: [...rest, row] };
+      return {
+        ...s,
+        orchestration: [...rest, row].slice(-ORCHESTRATION_MAX_ROWS),
+      };
     }
     case "checkpoint-created":
       return {
@@ -280,7 +305,11 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
         const subagents = s.subagents.slice();
         subagents[existing] = {
           ...subagents[existing],
-          prompt: event.prompt,
+          prompt: appendRollingText(
+            "",
+            event.prompt,
+            SUBAGENT_PROMPT_MAX_CHARS,
+          ),
           status: "running" as const,
           activity: undefined,
           result: undefined,
@@ -294,11 +323,15 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
           ...s.subagents,
           {
             id: event.subagentId,
-            prompt: event.prompt,
+            prompt: appendRollingText(
+              "",
+              event.prompt,
+              SUBAGENT_PROMPT_MAX_CHARS,
+            ),
             status: "running" as const,
             startedAt: Date.now(),
           },
-        ],
+        ].slice(-SUBAGENT_MAX_ROWS),
       };
     }
     case "subagent-activity": {
@@ -308,7 +341,14 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
         ...s,
         subagents: s.subagents.map((x) =>
           x.id === event.subagentId && x.status === "running"
-            ? { ...x, activity: event.label }
+            ? {
+                ...x,
+                activity: appendRollingText(
+                  "",
+                  event.label,
+                  SUBAGENT_ACTIVITY_MAX_CHARS,
+                ),
+              }
             : x,
         ),
       };
@@ -321,7 +361,11 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
             ? {
                 ...x,
                 status: "done" as const,
-                result: event.result,
+                result: appendRollingText(
+                  "",
+                  event.result,
+                  SUBAGENT_RESULT_MAX_CHARS,
+                ),
                 activity: undefined,
                 elapsedMs:
                   x.startedAt !== undefined ? Date.now() - x.startedAt : undefined,
@@ -350,4 +394,3 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
       return s;
   }
 }
-

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolvePathInsideRoot } from "./path-safe";
+import { resolvePathInsideRoot, resolveWritablePathInsideRoot } from "./path-safe";
 
 describe("resolvePathInsideRoot", () => {
   it("accepts a normal file under the project", () => {
@@ -50,5 +50,37 @@ describe("resolvePathInsideRoot", () => {
       isFile: () => false,
     });
     expect(res.ok).toBe(false);
+  });
+
+  it("does not mistake a normal dot-prefixed child for a parent escape", () => {
+    const res = resolvePathInsideRoot("/proj", "..cache/file.txt", {
+      realpathSync(path) {
+        if (path === "/proj") return "/proj";
+        return "/proj/..cache/file.txt";
+      },
+      existsSync: () => true,
+      isFile: () => true,
+    });
+    expect(res.ok).toBe(true);
+  });
+});
+
+describe("resolveWritablePathInsideRoot", () => {
+  it("accepts a future nested file when existing ancestors are real directories", () => {
+    const res = resolveWritablePathInsideRoot("/proj", ".vibe/config.json", {
+      existsSync: (path) => path === "/proj" || path === "/proj/.vibe",
+      lstatSync: () => ({ isSymbolicLink: () => false }),
+      realpathSync: (path) => path,
+    });
+    expect(res).toEqual({ ok: true, root: "/proj", target: "/proj/.vibe/config.json" });
+  });
+
+  it("rejects a project-owned symlink in a future write path", () => {
+    const res = resolveWritablePathInsideRoot("/proj", ".vibe/config.json", {
+      existsSync: () => true,
+      lstatSync: (path) => ({ isSymbolicLink: () => path === "/proj/.vibe" }),
+      realpathSync: (path) => path,
+    });
+    expect(res).toEqual({ ok: false, error: "Project path uses a symbolic link" });
   });
 });

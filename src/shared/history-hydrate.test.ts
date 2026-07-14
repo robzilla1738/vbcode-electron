@@ -80,4 +80,24 @@ describe("hydrateFromHistory", () => {
       label: "Automatic review follow-up",
     });
   });
+
+  it("preserves reasoning order relative to tool calls", () => {
+    const state = hydrateFromHistory([
+      {
+        id: "a1",
+        role: "assistant",
+        createdAt: 1,
+        parts: [
+          { type: "reasoning", text: "Inspect first" },
+          {
+            type: "tool-call",
+            toolCallId: "call-1",
+            toolName: "read",
+            input: { path: "src/app.ts" },
+          },
+        ],
+      },
+    ]);
+    expect(state.blocks.map((block) => block.kind)).toEqual(["thinking", "tool"]);
+  });
 });

@@ -214,6 +214,7 @@ export function KeyValueTextArea({
   placeholder,
   rows = 3,
   trimValues = separator === ":",
+  onInvalidDraftChange,
 }: {
   value: Record<string, string> | undefined;
   onChange: (value: Record<string, string> | undefined) => void;
@@ -222,6 +223,7 @@ export function KeyValueTextArea({
   placeholder?: string;
   rows?: number;
   trimValues?: boolean;
+  onInvalidDraftChange?: (key: string, invalid: boolean) => void;
 }) {
   const formatted = formatKeyValueLines(value ?? {}, separator);
   const [draft, setDraft] = useState(formatted);
@@ -230,7 +232,9 @@ export function KeyValueTextArea({
   useEffect(() => {
     setDraft(formatted);
     setError(null);
-  }, [formatted, resetKey]);
+    onInvalidDraftChange?.(resetKey, false);
+    return () => onInvalidDraftChange?.(resetKey, false);
+  }, [formatted, resetKey, onInvalidDraftChange]);
 
   return (
     <>
@@ -246,9 +250,11 @@ export function KeyValueTextArea({
           const parsed = parseKeyValueLines(next, separator, { trimValues });
           if (!parsed.ok) {
             setError(parsed.error);
+            onInvalidDraftChange?.(resetKey, true);
             return;
           }
           setError(null);
+          onInvalidDraftChange?.(resetKey, false);
           onChange(Object.keys(parsed.value).length ? parsed.value : undefined);
         }}
       />
