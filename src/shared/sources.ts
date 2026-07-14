@@ -1,3 +1,5 @@
+import { safeExternalUrl } from "./external-url";
+
 export interface SourceItem {
   title: string;
   url?: string;
@@ -86,10 +88,5 @@ export function parseSearchResults(text: string): SourceItem[] {
 export function externalHref(url: string | undefined): string | null {
   if (!url) return null;
   const href = /^[a-z]+:\/\//i.test(url) ? url : `https://${url}`;
-  try {
-    const parsed = new URL(href);
-    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : null;
-  } catch {
-    return null;
-  }
+  return safeExternalUrl(href);
 }

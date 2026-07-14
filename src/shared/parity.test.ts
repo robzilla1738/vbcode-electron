@@ -33,6 +33,7 @@ import {
 import { decodeOutbound, encodeInbound } from "./protocol";
 import {
   capChangedFileDiffs,
+  capTranscriptState,
   groupIntoTurns,
   initialTranscript,
   reduceTranscript,
@@ -81,6 +82,25 @@ describe("slash routing", () => {
 });
 
 describe("transcript reducer", () => {
+  it("caps whole-state replacement while shifting live cursors safely", () => {
+    const blocks = Array.from({ length: 4 }, (_, index) => ({
+      kind: "assistant" as const,
+      id: index,
+      text: String(index),
+      streaming: index === 3,
+      gap: false,
+      timestamp: index,
+    }));
+    const state = capTranscriptState({
+      ...initialTranscript(),
+      blocks,
+      activeAssistant: 3,
+      toolByCallId: { dropped: 0, retained: 3 },
+    }, 2);
+    expect(state.blocks.map((block) => block.id)).toEqual([2, 3]);
+    expect(state.activeAssistant).toBe(1);
+    expect(state.toolByCallId).toEqual({ retained: 1 });
+  });
   it("builds a user → assistant turn", () => {
     let s = initialTranscript();
     s = reduceTranscript(s, { type: "user", text: "hi" });
@@ -268,6 +288,7 @@ describe("rich sources", () => {
   it("allows only browser-safe external source URLs", () => {
     expect(externalHref("example.com")).toBe("https://example.com/");
     expect(externalHref("javascript:alert(1)")).toBeNull();
+    expect(externalHref("https://trusted.example@evil.example/path")).toBeNull();
   });
 });
 

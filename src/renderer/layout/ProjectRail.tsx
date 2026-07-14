@@ -5,9 +5,15 @@ import {
   filterChatSessions,
   filterProjects,
   isChatsCwd,
+  limitProjectRailProjects,
+  limitProjectRailSessions,
+  normalizeProjectName,
+  normalizeSessionTitle,
+  PROJECT_NAME_LIMIT,
   partitionProjects,
   projectLabel,
   relativeSessionTime,
+  SESSION_TITLE_LIMIT,
 } from "../../shared/project-index";
 import type { ProjectSessionSummary, ProjectSummary } from "../../shared/protocol";
 import {
@@ -105,6 +111,10 @@ export function ProjectRail({
   const [renaming, setRenaming] = useState<{ cwd: string; id: string; title: string } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"archive" | "delete" | null>(null);
   const [confirmProjectAction, setConfirmProjectAction] = useState<"archive" | "delete" | null>(null);
+  const [renamePending, setRenamePending] = useState(false);
+  const [menuActionPending, setMenuActionPending] = useState(false);
+  const renamePendingRef = useRef(false);
+  const menuActionPendingRef = useRef(false);
   const filterRef = useRef<HTMLInputElement>(null);
   const projectRenameRef = useRef<HTMLInputElement>(null);
   const renameRef = useRef<HTMLInputElement>(null);
@@ -127,12 +137,21 @@ export function ProjectRail({
   );
   const chatsRoot = partitioned.chats?.cwd ?? chatsCwd;
   const inChats = Boolean(activeCwd && chatsCwd && isChatsCwd(activeCwd, chatsCwd));
+  const mountedProjects = useMemo(
+    () => limitProjectRailProjects(visibleProjects, activeCwd),
+    [visibleProjects, activeCwd],
+  );
+  const mountedChats = useMemo(
+    () => limitProjectRailSessions(visibleChats, inChats ? activeSessionId : null),
+    [visibleChats, inChats, activeSessionId],
+  );
   const searchIsOpen = searchOpen || query.length > 0;
   // While filtering, keep both sections open so matches stay visible.
   const showProjectsBody = projectsOpen || query.length > 0;
   const showChatsBody = chatsOpen || query.length > 0;
 
   const closeMenu = useCallback((restoreFocus = false) => {
+    if (menuActionPendingRef.current) return;
     if (!menu && !menuClosing) return;
     if (menuCloseTimerRef.current !== null) {
       window.clearTimeout(menuCloseTimerRef.current);
@@ -195,6 +214,7 @@ export function ProjectRail({
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
+        if (menuActionPendingRef.current) return;
         if (confirmAction || confirmProjectAction) {
           setConfirmAction(null);
           setConfirmProjectAction(null);
@@ -314,21 +334,89 @@ export function ProjectRail({
   };
 
   const commitRename = async () => {
-    if (!renaming) return;
-    const title = renaming.title.trim();
+    if (!renaming || renamePendingRef.current) return;
+    const title = normalizeSessionTitle(renaming.title);
     const { cwd, id } = renaming;
-    setRenaming(null);
-    if (!title) return;
-    await onRenameSession(cwd, id, title);
+    if (!title) {
+      setRenaming(null);
+      return;
+    }
+    renamePendingRef.current = true;
+    setRenamePending(true);
+    let ok = false;
+    try {
+      ok = await onRenameSession(cwd, id, title);
+    } finally {
+      renamePendingRef.current = false;
+      setRenamePending(false);
+    }
+    if (ok) {
+      setRenaming(null);
+    } else {
+      window.requestAnimationFrame(() => renameRef.current?.focus());
+    }
   };
 
   const commitProjectRename = async () => {
-    if (!renamingProject) return;
-    const name = renamingProject.name.trim();
+    if (!renamingProject || renamePendingRef.current) return;
+    const name = normalizeProjectName(renamingProject.name);
     const { cwd } = renamingProject;
-    setRenamingProject(null);
-    if (!name) return;
-    await onRenameProject(cwd, name);
+    if (!name) {
+      setRenamingProject(null);
+      return;
+    }
+    renamePendingRef.current = true;
+    setRenamePending(true);
+    let ok = false;
+    try {
+      ok = await onRenameProject(cwd, name);
+    } finally {
+      renamePendingRef.current = false;
+      setRenamePending(false);
+    }
+    if (ok) {
+      setRenamingProject(null);
+    } else {
+      window.requestAnimationFrame(() => projectRenameRef.current?.focus());
+    }
+  };
+
+  const runProjectAction = async (cwd: string, mode: "archive" | "delete") => {
+    if (menuActionPendingRef.current) return;
+    menuActionPendingRef.current = true;
+    setMenuActionPending(true);
+    let ok = false;
+    try {
+      ok = mode === "delete" ? await onDeleteProject(cwd) : await onArchiveProject(cwd);
+    } finally {
+      menuActionPendingRef.current = false;
+      setMenuActionPending(false);
+    }
+    if (ok) {
+      setMenu(null);
+      setConfirmProjectAction(null);
+    }
+  };
+
+  const runSessionAction = async (
+    cwd: string,
+    id: string,
+    mode: "archive" | "delete",
+  ) => {
+    if (menuActionPendingRef.current) return;
+    menuActionPendingRef.current = true;
+    setMenuActionPending(true);
+    let ok = false;
+    try {
+      ok = mode === "delete" ? await onDeleteSession(cwd, id) : await onArchiveSession(cwd, id);
+    } finally {
+      menuActionPendingRef.current = false;
+      setMenuActionPending(false);
+    }
+    if (ok) {
+      setMenu(null);
+      setConfirmAction(null);
+    }
   };
 
   const busyTitle = "Stop the current turn before switching sessions";
@@ -441,9 +529,13 @@ export function ProjectRail({
             {query ? "No matching projects." : "Add a folder to start."}
           </div>
         )}
-        {visibleProjects.map((project) => {
+        {mountedProjects.items.map((project) => {
           const isExpanded = query.length > 0 || expanded.has(project.cwd);
           const isActiveProject = project.cwd === activeCwd;
+          const mountedSessions = limitProjectRailSessions(
+            project.sessions,
+            isActiveProject ? activeSessionId : null,
+          );
           return (
             <section className="project-group" key={project.cwd}>
               {renamingProject?.cwd === project.cwd ? (
@@ -458,11 +550,14 @@ export function ProjectRail({
                     ref={projectRenameRef}
                     className="project-rename-input"
                     value={renamingProject.name}
+                    maxLength={PROJECT_NAME_LIMIT}
+                    disabled={renamePending}
                     onChange={(event) => setRenamingProject({ ...renamingProject, name: event.target.value })}
                     onBlur={() => { void commitProjectRename(); }}
                     onKeyDown={(event) => {
                       if (event.key === "Escape") {
                         event.preventDefault();
+                        if (renamePendingRef.current) return;
                         setRenamingProject(null);
                       }
                     }}
@@ -526,7 +621,7 @@ export function ProjectRail({
                   aria-label={`Sessions in ${projectLabel(project, projects)}`}
                 >
                   {project.sessions.length === 0 && <div className="session-empty">No saved sessions.</div>}
-                  {project.sessions.map((session) => {
+                  {mountedSessions.items.map((session) => {
                     const isRenaming = renaming?.cwd === project.cwd && renaming.id === session.id;
                     const isActive = session.id === activeSessionId;
                     return (
@@ -546,6 +641,8 @@ export function ProjectRail({
                               ref={renameRef}
                               className="session-rename-input"
                               value={renaming.title}
+                              maxLength={SESSION_TITLE_LIMIT}
+                              disabled={renamePending}
                               onChange={(event) =>
                                 setRenaming({ ...renaming, title: event.target.value })
                               }
@@ -553,6 +650,7 @@ export function ProjectRail({
                               onKeyDown={(event) => {
                                 if (event.key === "Escape") {
                                   event.preventDefault();
+                                  if (renamePendingRef.current) return;
                                   setRenaming(null);
                                 }
                               }}
@@ -614,11 +712,21 @@ export function ProjectRail({
                       </div>
                     );
                   })}
+                  {mountedSessions.omitted > 0 && (
+                    <div className="rail-state rail-state-quiet">
+                      {mountedSessions.omitted} older session{mountedSessions.omitted === 1 ? "" : "s"} not mounted. Search to narrow the list.
+                    </div>
+                  )}
                 </div>
               )}
             </section>
           );
         })}
+        {mountedProjects.omitted > 0 && (
+          <div className="rail-state rail-state-quiet">
+            {mountedProjects.omitted} older project{mountedProjects.omitted === 1 ? "" : "s"} not mounted. Search to narrow the list.
+          </div>
+        )}
         </div>
         )}
 
@@ -658,7 +766,7 @@ export function ProjectRail({
           )}
           {visibleChats.length > 0 && chatsRoot && (
             <div className="session-list is-flat" role="group" aria-label="Chats">
-              {visibleChats.map((session) => {
+              {mountedChats.items.map((session) => {
                 const isRenaming = renaming?.cwd === chatsRoot && renaming.id === session.id;
                 const isActive = inChats && session.id === activeSessionId;
                 return (
@@ -678,6 +786,8 @@ export function ProjectRail({
                           ref={renameRef}
                           className="session-rename-input"
                           value={renaming.title}
+                          maxLength={SESSION_TITLE_LIMIT}
+                          disabled={renamePending}
                           onChange={(event) =>
                             setRenaming({ ...renaming, title: event.target.value })
                           }
@@ -685,6 +795,7 @@ export function ProjectRail({
                           onKeyDown={(event) => {
                             if (event.key === "Escape") {
                               event.preventDefault();
+                              if (renamePendingRef.current) return;
                               setRenaming(null);
                             }
                           }}
@@ -739,6 +850,11 @@ export function ProjectRail({
                   </div>
                 );
               })}
+              {mountedChats.omitted > 0 && (
+                <div className="rail-state rail-state-quiet">
+                  {mountedChats.omitted} older chat{mountedChats.omitted === 1 ? "" : "s"} not mounted. Search to narrow the list.
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -809,6 +925,7 @@ export function ProjectRail({
                     className="session-menu-confirm-cancel"
                     // biome-ignore lint/a11y/noAutofocus: focus the safe choice so Enter cancels, not confirms
                     autoFocus
+                    disabled={menuActionPending}
                     onClick={() => setConfirmProjectAction(null)}
                   >
                     Cancel
@@ -816,16 +933,16 @@ export function ProjectRail({
                   <button
                     type="button"
                     className={`session-menu-confirm-go${confirmProjectAction === "delete" ? " danger" : ""}`}
+                    disabled={menuActionPending}
                     onClick={() => {
                       const { cwd } = menu;
                       const mode = confirmProjectAction;
-                      setMenu(null);
-                      setConfirmProjectAction(null);
-                      if (mode === "delete") void onDeleteProject(cwd);
-                      else void onArchiveProject(cwd);
+                      void runProjectAction(cwd, mode);
                     }}
                   >
-                    {confirmProjectAction === "delete" ? "Delete" : "Archive"}
+                    {menuActionPending
+                      ? confirmProjectAction === "delete" ? "Deleting…" : "Archiving…"
+                      : confirmProjectAction === "delete" ? "Delete" : "Archive"}
                   </button>
                 </div>
               </div>
@@ -881,6 +998,7 @@ export function ProjectRail({
                   className="session-menu-confirm-cancel"
                   // biome-ignore lint/a11y/noAutofocus: focus the safe choice so Enter cancels, not confirms
                   autoFocus
+                  disabled={menuActionPending}
                   onClick={() => setConfirmAction(null)}
                 >
                   Cancel
@@ -888,16 +1006,16 @@ export function ProjectRail({
                 <button
                   type="button"
                   className={`session-menu-confirm-go${confirmAction === "delete" ? " danger" : ""}`}
+                  disabled={menuActionPending}
                   onClick={() => {
                     const { cwd, session } = menu;
                     const mode = confirmAction;
-                    setMenu(null);
-                    setConfirmAction(null);
-                    if (mode === "delete") void onDeleteSession(cwd, session.id);
-                    else void onArchiveSession(cwd, session.id);
+                    void runSessionAction(cwd, session.id, mode);
                   }}
                 >
-                  {confirmAction === "delete" ? "Delete" : "Archive"}
+                  {menuActionPending
+                    ? confirmAction === "delete" ? "Deleting…" : "Archiving…"
+                    : confirmAction === "delete" ? "Delete" : "Archive"}
                 </button>
               </div>
             </div>

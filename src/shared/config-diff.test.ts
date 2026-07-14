@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildConfigPatch } from "./config-diff";
+import { applyConfigPatch, buildConfigPatch } from "./config-diff";
 
 describe("buildConfigPatch", () => {
   it("returns an empty patch when nothing changed", () => {
@@ -105,5 +105,30 @@ describe("buildConfigPatch", () => {
       providers: { custom: {} },
       mcp: { oauth: {} },
     });
+  });
+});
+
+describe("applyConfigPatch", () => {
+  it("deep-merges values and deletes null leaves", () => {
+    expect(applyConfigPatch(
+      { model: "old", providers: { openai: { apiKey: "old", baseURL: "url" } } },
+      { model: "new", providers: { openai: { apiKey: null } } },
+    )).toEqual({ model: "new", providers: { openai: { baseURL: "url" } } });
+  });
+
+  it("produces a reversible onboarding transaction patch", () => {
+    const original = { model: "old", providers: { old: { apiKey: "secret" } } };
+    const applied = applyConfigPatch(original, {
+      model: "new",
+      providers: { custom: { baseURL: "https://example.com" } },
+    });
+    const rollback = buildConfigPatch(applied, original);
+    expect(applyConfigPatch(applied, rollback)).toEqual(original);
+  });
+
+  it("ignores prototype-polluting patch keys", () => {
+    const patch = JSON.parse('{"__proto__":{"polluted":true},"safe":1}') as Record<string, unknown>;
+    expect(applyConfigPatch({}, patch)).toEqual({ safe: 1 });
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
   });
 });

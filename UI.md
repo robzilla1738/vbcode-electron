@@ -25,7 +25,9 @@ The shell has these primary surfaces:
    `--surface-subtle` enclosure has no shadow, section dividers, or
    Local/Commit/Compare noise. It
    switches to a six-column compact icon grid below ~960px; every target remains
-   outside the Electron drag region and keeps a 44px hit area. Jobs is also
+   outside the Electron drag region. Empty compact layouts use a denser 184px
+   toolbar with 24px controls and 11px icons across the full compact range;
+   non-empty navigation retains its larger responsive targets. Jobs is also
    available via `/jobs`.
 4. **Activity sidebar** — one full-height, edge-attached right pane for Session,
    Changes, Git, Terminal, and Jobs. The active view replaces the previous view
@@ -121,9 +123,19 @@ without changing the active chat or scroll position.
 - A persistent top switcher keeps Session, Changes, Git, Terminal, and Jobs
   visible whenever the sidebar is open. Switching views replaces only the
   sidebar body; it does not close the lane or remount chat.
-- The activity header, width, divider, close behavior, Escape handling, resize
-  handle, and open motion are shared across all five views. Do not create a
-  bespoke drawer for a new dock item.
+- The activity header, width, structural left edge, close behavior, Escape handling, resize
+  handle, and open motion are shared across all five views. The header always
+  uses the same Workspace eyebrow, title/subtitle geometry, and close placement.
+  Do not create a bespoke drawer for a new dock item.
+- Activity tabs and headers use compact caption/label typography and no
+  horizontal divider rules. Spacing and surface tone provide grouping instead.
+- Escape from a sidebar text-entry control stays with that control; it never
+  closes the whole activity lane before a Git draft, filter, or editor can
+  handle the key. Escape outside an editor closes the active lane.
+- Changes keeps review on the left and a searchable nested file tree on the
+  right. Folder disclosure is recursive, selected files remain visible while
+  filtering, and compact drawers stack the tree above the numbered Diff/File
+  code surface without replacing chat.
 
 ### Transcript
 
@@ -182,7 +194,8 @@ snippet. External links go through `ExternalLink` / host bridge.
 ### Approval and plan cards
 
 - Composer measure; sit above composer clearance.
-- Permission: human title, preview, once/session/project/deny (+ optional deny reason).
+- Permission: human title, bounded head/tail-safe preview (including unfamiliar
+  plugin/MCP arguments), once/session/project/deny (+ optional deny reason).
 - Plan: fixed title and approval footer around one bounded scroll region for
   markdown, sources, assumptions, and ungrounded warnings; Enter / Esc / ⌘Y.
   The footer remains visible and sits 8px above the plan-revision composer.
@@ -191,7 +204,9 @@ snippet. External links go through `ExternalLink` / host bridge.
 
 - The wide Environment dock is a compact hairline navigation surface on
   `--bg`, without a rail tint or floating shadow. At the compact breakpoint it
-  becomes a small enclosed icon strip rather than disappearing.
+  becomes a small enclosed icon strip rather than disappearing; empty windows
+  use a minimal 184px toolbar with 24px controls across the compact range while
+  non-empty navigation retains its larger responsive controls.
 - Activity views are closed by default. Session opens from dock Session or ⇧⌘I;
   Changes opens from the dock or changed-files footer chip. Git opens from the dock or
   Git shortcut; Jobs opens from the dock or `/jobs`. Sending a message must not
@@ -239,6 +254,10 @@ snippet. External links go through `ExternalLink` / host bridge.
   global-only decision and cannot be enabled by the project being loaded;
   untrusted filtering preserves exact persisted grants and deny/ask rules while
   rejecting broad allows and code/credential-bearing settings.
+- Compaction preserves the engine's compatible normalization behavior: when a
+  configured (or default) offload threshold would collide with the summary
+  threshold, Settings displays the lower effective threshold the engine will
+  use rather than presenting the raw value as runtime truth.
 - The save path deep-diffs, validates structural types/URLs/OAuth/ranges, and
   writes atomically under a bounded per-path queue. Invalid merged config is
   surfaced in Settings and never persisted. A save snapshots the revision it

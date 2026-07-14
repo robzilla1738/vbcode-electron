@@ -17,14 +17,29 @@ import type {
 const FAV_KEY = "vibe.models.favorites";
 const RECENT_KEY = "vibe.models.recent";
 const MAX_RECENTS = 8;
+const MAX_FAVORITES = 24;
+const MAX_STORED_MODEL_ID_CHARS = 512;
 
-function safeReadJsonStringArray(key: string): string[] {
+export function normalizeStoredModelIds(value: unknown, maxItems: number): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || !item || item.length > MAX_STORED_MODEL_ID_CHARS) continue;
+    if (seen.has(item)) continue;
+    seen.add(item);
+    normalized.push(item);
+    if (normalized.length >= maxItems) break;
+  }
+  return normalized;
+}
+
+function safeReadJsonStringArray(key: string, maxItems: number): string[] {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed) || !parsed.every((x) => typeof x === "string")) return [];
-    return parsed;
+    return normalizeStoredModelIds(parsed, maxItems);
   } catch {
     return [];
   }
@@ -40,19 +55,19 @@ function safeWriteJson(key: string, value: unknown): void {
 
 export function getModelFavorites(): string[] {
   if (typeof localStorage === "undefined") return [];
-  return safeReadJsonStringArray(FAV_KEY);
+  return safeReadJsonStringArray(FAV_KEY, MAX_FAVORITES);
 }
 
 export function getModelRecents(): string[] {
   if (typeof localStorage === "undefined") return [];
-  return safeReadJsonStringArray(RECENT_KEY);
+  return safeReadJsonStringArray(RECENT_KEY, MAX_RECENTS);
 }
 
 export function toggleModelFavorite(fullId: string): boolean {
   const list = getModelFavorites();
   const next = list.includes(fullId)
     ? list.filter((v) => v !== fullId)
-    : [fullId, ...list].slice(0, 24);
+    : [fullId, ...list].slice(0, MAX_FAVORITES);
   safeWriteJson(FAV_KEY, next);
   return next.includes(fullId);
 }
@@ -70,6 +85,53 @@ export function isModelFree(model: ModelSummary): boolean {
 
 export function isSectionOption(opt: CatalogOption): boolean {
   return Boolean(opt.section) || opt.key.startsWith("__section__");
+}
+
+export interface LimitedCatalogOptions {
+  options: CatalogOption[];
+  omitted: number;
+  totalItems: number;
+}
+
+/** Bound mounted catalog rows while preserving group labels and the current model. */
+export function limitCatalogOptions(
+  options: readonly CatalogOption[],
+  maxActionable = 400,
+): LimitedCatalogOptions {
+  const limit = Math.max(0, Math.floor(maxActionable));
+  const totalItems = options.reduce(
+    (count, option) => count + (isSectionOption(option) ? 0 : 1),
+    0,
+  );
+  if (totalItems <= limit) {
+    return { options: [...options], omitted: 0, totalItems };
+  }
+
+  const visible: CatalogOption[] = [];
+  let currentSection: CatalogOption | null = null;
+  let emittedSectionKey: string | null = null;
+  let ordinaryShown = 0;
+  let itemsShown = 0;
+  for (const option of options) {
+    if (isSectionOption(option)) {
+      currentSection = option;
+      continue;
+    }
+    if (ordinaryShown >= limit && !option.current) continue;
+    if (currentSection && emittedSectionKey !== currentSection.key) {
+      visible.push(currentSection);
+      emittedSectionKey = currentSection.key;
+    }
+    visible.push(option);
+    itemsShown += 1;
+    if (!option.current || ordinaryShown < limit) ordinaryShown += 1;
+  }
+
+  return {
+    options: visible,
+    omitted: Math.max(0, totalItems - itemsShown),
+    totalItems,
+  };
 }
 
 /** Format a context window as a compact label: `1M` / `400k` / `128k` (TUI parity: fmtContext). */

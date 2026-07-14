@@ -1,5 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  agentCatalogOptions,
+  type CatalogOption,
+  isSectionOption,
+  limitCatalogOptions,
+  type ModelPickerTarget,
+  mcpCatalogOptions,
+  modelCatalogOptions,
+  modelTargetLabel,
+  providerCatalogOptions,
+  pushModelRecent,
+  skillCatalogOptions,
+} from "../../shared/catalog-draft";
+import type { EngineCommand } from "../../shared/commands";
 import type {
   AgentInfo,
   McpServerInfo,
@@ -7,19 +21,6 @@ import type {
   ProviderInfo,
   SkillInfo,
 } from "../../shared/types";
-import type { EngineCommand } from "../../shared/commands";
-import {
-  agentCatalogOptions,
-  isSectionOption,
-  mcpCatalogOptions,
-  modelCatalogOptions,
-  modelTargetLabel,
-  pushModelRecent,
-  providerCatalogOptions,
-  skillCatalogOptions,
-  type CatalogOption,
-  type ModelPickerTarget,
-} from "../../shared/catalog-draft";
 import { useFloatingAnchor } from "../hooks/useFloatingAnchor";
 import { IconClose, IconSearch } from "../icons";
 
@@ -139,7 +140,7 @@ export function CatalogModal({
   const [query, setQuery] = useState(picker.query ?? "");
   const box = useFloatingAnchor(anchorRef, true);
   const allOptions = useMemo(() => catalogOptions(picker), [picker]);
-  const options = useMemo(() => {
+  const filteredOptions = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return allOptions;
     // Keep sections when they have matching children
@@ -156,9 +157,6 @@ export function CatalogModal({
         pendingSection = opt;
         currentSection = opt;
         sectionHasMatch = false;
-        continue;
-      }
-      if (!isActionable(opt)) {
         continue;
       }
       if (`${opt.primary} ${opt.secondary}`.toLowerCase().includes(normalized)) {
@@ -178,6 +176,8 @@ export function CatalogModal({
     void currentSection;
     return filtered;
   }, [allOptions, query]);
+  const limited = useMemo(() => limitCatalogOptions(filteredOptions), [filteredOptions]);
+  const options = limited.options;
 
   // Memoize so selection-reset effect does not re-fire every render (new array
   // identity would snap keyboard/hover selection back to the first item).
@@ -456,7 +456,7 @@ export function CatalogModal({
         ) : (
           <>
             {options.map((option, index) => {
-              if (!isActionable(option)) {
+              if (isSectionOption(option)) {
                 return (
                   <div key={option.key} className="catalog-section" role="presentation">
                     {option.primary}
@@ -464,6 +464,19 @@ export function CatalogModal({
                 );
               }
               const { tag, body } = splitSecondary(option.secondary);
+              if (!isActionable(option)) {
+                return (
+                  <div key={option.key} className="catalog-row is-static" role="listitem">
+                    <span className="catalog-row-primary">{option.primary}</span>
+                    {(tag || body) ? (
+                      <span className="catalog-row-secondary">
+                        {tag ? <span className="catalog-tag">{tag}</span> : null}
+                        {body}
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              }
               return (
                 <button
                   key={option.key}
@@ -495,6 +508,11 @@ export function CatalogModal({
                 </button>
               );
             })}
+            {limited.omitted > 0 ? (
+              <div className="catalog-limit-note" role="status">
+                {limited.omitted.toLocaleString()} more results. Type to narrow the list.
+              </div>
+            ) : null}
             {options.length === 0 && (
               <div className="catalog-empty" role="status">
                 <div>{CATALOG_EMPTY_COPY[picker.kind] ?? "Nothing matches this filter."}</div>

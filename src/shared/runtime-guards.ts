@@ -1,6 +1,17 @@
 import type { UIEvent } from "./events";
-import { isUIEvent, type ProjectSummary, type RpcMethod } from "./protocol";
+import {
+  isRuntimeIdentifier,
+  isUIEvent,
+  type ProjectSummary,
+  type RpcMethod,
+} from "./protocol";
 import type { EngineSnapshot } from "./types";
+
+export const RPC_CATALOG_MAX_ITEMS = 20_000;
+export const RPC_CATALOG_FIELD_MAX_CHARS = 16 * 1_024;
+export const RPC_CATALOG_ERROR_MAX_CHARS = 64 * 1_024;
+export const RPC_PROVIDER_ENV_MAX_ITEMS = 64;
+export const RPC_PROVIDER_ENV_MAX_CHARS = 1_024;
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -12,8 +23,16 @@ function finite(value: unknown): boolean {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function recordsWithString(value: unknown, key: string): boolean {
-  return Array.isArray(value) && value.every((item) => typeof record(item)?.[key] === "string");
+function nonNegative(value: unknown): boolean {
+  return finite(value) && (value as number) >= 0;
+}
+
+function positive(value: unknown): boolean {
+  return finite(value) && (value as number) > 0;
+}
+
+function recordsWithRuntimeId(value: unknown, key: string): boolean {
+  return Array.isArray(value) && value.every((item) => isRuntimeIdentifier(record(item)?.[key]));
 }
 
 function everyRecord(value: unknown, predicate: (item: Record<string, unknown>) => boolean): boolean {
@@ -23,13 +42,50 @@ function everyRecord(value: unknown, predicate: (item: Record<string, unknown>) 
   });
 }
 
+function catalogRecords(
+  value: unknown,
+  predicate: (item: Record<string, unknown>) => boolean,
+): boolean {
+  return Array.isArray(value)
+    && value.length <= RPC_CATALOG_MAX_ITEMS
+    && everyRecord(value, predicate);
+}
+
+function boundedString(value: unknown, maxChars = RPC_CATALOG_FIELD_MAX_CHARS): boolean {
+  return typeof value === "string"
+    && value.length > 0
+    && value.length <= maxChars
+    && !value.includes("\0");
+}
+
+function boundedDisplayString(value: unknown, maxChars = RPC_CATALOG_FIELD_MAX_CHARS): boolean {
+  return typeof value === "string" && value.length <= maxChars && !value.includes("\0");
+}
+
+function boundedOptionalDisplayString(
+  value: unknown,
+  maxChars = RPC_CATALOG_FIELD_MAX_CHARS,
+): boolean {
+  return value === undefined || boundedDisplayString(value, maxChars);
+}
+
+function boundedOptionalStringOrNull(value: unknown): boolean {
+  return value === undefined || value === null || boundedString(value);
+}
+
+function boundedProviderEnv(value: unknown): boolean {
+  return Array.isArray(value)
+    && value.length <= RPC_PROVIDER_ENV_MAX_ITEMS
+    && value.every((item) => boundedString(item, RPC_PROVIDER_ENV_MAX_CHARS));
+}
+
 function usage(value: unknown): boolean {
   const item = record(value);
   return !!item
-    && (item.inputTokens === undefined || finite(item.inputTokens))
-    && (item.outputTokens === undefined || finite(item.outputTokens))
-    && (item.totalTokens === undefined || finite(item.totalTokens))
-    && (item.cachedInputTokens === undefined || finite(item.cachedInputTokens));
+    && (item.inputTokens === undefined || nonNegative(item.inputTokens))
+    && (item.outputTokens === undefined || nonNegative(item.outputTokens))
+    && (item.totalTokens === undefined || nonNegative(item.totalTokens))
+    && (item.cachedInputTokens === undefined || nonNegative(item.cachedInputTokens));
 }
 
 function messagePart(value: unknown): boolean {
@@ -37,10 +93,10 @@ function messagePart(value: unknown): boolean {
   if (!part || typeof part.type !== "string") return false;
   if (part.type === "text" || part.type === "reasoning") return typeof part.text === "string";
   if (part.type === "tool-call") {
-    return typeof part.toolCallId === "string" && typeof part.toolName === "string";
+    return isRuntimeIdentifier(part.toolCallId) && typeof part.toolName === "string";
   }
   if (part.type === "tool-result") {
-    return typeof part.toolCallId === "string"
+    return isRuntimeIdentifier(part.toolCallId)
       && typeof part.toolName === "string"
       && (part.isError === undefined || typeof part.isError === "boolean");
   }
@@ -50,7 +106,7 @@ function messagePart(value: unknown): boolean {
 function message(value: unknown): boolean {
   const item = record(value);
   return !!item
-    && typeof item.id === "string"
+    && isRuntimeIdentifier(item.id)
     && (item.role === "user" || item.role === "assistant" || item.role === "system" || item.role === "tool")
     && Array.isArray(item.parts)
     && item.parts.every(messagePart)
@@ -62,16 +118,16 @@ export function isEngineSnapshot(value: unknown): value is EngineSnapshot {
   const snap = record(value);
   const usage = record(snap?.usage);
   return !!snap
-    && typeof snap.sessionId === "string" && !!snap.sessionId
+    && isRuntimeIdentifier(snap.sessionId)
     && typeof snap.model === "string"
     && (snap.mode === "plan" || snap.mode === "execute")
     && (snap.goal === null || typeof snap.goal === "string")
     && Array.isArray(snap.history) && snap.history.every(message)
     && Array.isArray(snap.tasks) && snap.tasks.every(task)
-    && !!usage && finite(usage.inputTokens) && finite(usage.outputTokens)
-    && finite(usage.totalTokens) && finite(usage.costUSD)
+    && !!usage && nonNegative(usage.inputTokens) && nonNegative(usage.outputTokens)
+    && nonNegative(usage.totalTokens) && nonNegative(usage.costUSD)
     && (usage.costEstimated === undefined || typeof usage.costEstimated === "boolean")
-    && (usage.cachedInputTokens === undefined || finite(usage.cachedInputTokens))
+    && (usage.cachedInputTokens === undefined || nonNegative(usage.cachedInputTokens))
     && typeof snap.busy === "boolean"
     && typeof snap.theme === "string"
     && typeof snap.accentColor === "string"
@@ -92,7 +148,7 @@ export function isProjectSummaryArray(value: unknown): value is ProjectSummary[]
     return project.sessions.every((sessionValue) => {
       const session = record(sessionValue);
       return !!session
-        && typeof session.id === "string"
+        && isRuntimeIdentifier(session.id)
         && typeof session.title === "string"
         && typeof session.model === "string"
         && (session.mode === "plan" || session.mode === "execute")
@@ -107,38 +163,26 @@ export function isRpcResult(method: RpcMethod, value: unknown): boolean {
   switch (method) {
     case "snapshot": return isEngineSnapshot(value);
     case "listProjects": return isProjectSummaryArray(value);
-    case "listModels": return everyRecord(value, (item) => typeof item.id === "string" && typeof item.providerId === "string" && optionalFinite(item.contextWindow));
-    case "listProviders": return everyRecord(value, (item) => typeof item.id === "string" && typeof item.configured === "boolean" && typeof item.keyless === "boolean" && stringList(item.env));
-    case "listAgents": return everyRecord(value, (item) => typeof item.name === "string" && typeof item.description === "string" && optionalStringOrNull(item.model) && (item.mode === "plan" || item.mode === "execute"));
-    case "listSkills": return everyRecord(value, (item) => typeof item.name === "string" && typeof item.description === "string");
-    case "listMcp": return everyRecord(value, (item) => typeof item.name === "string" && typeof item.connected === "boolean" && typeof item.configured === "boolean" && finite(item.toolCount) && finite(item.resourceCount) && finite(item.promptCount) && (item.error === undefined || typeof item.error === "string"));
-    case "listSessions": return recordsWithString(value, "id");
+    case "listModels": return catalogRecords(value, (item) => boundedString(item.id) && boundedString(item.providerId) && boundedOptionalDisplayString(item.name) && (item.contextWindow === undefined || positive(item.contextWindow)));
+    case "listProviders": return catalogRecords(value, (item) => boundedString(item.id) && typeof item.configured === "boolean" && typeof item.keyless === "boolean" && boundedProviderEnv(item.env));
+    case "listAgents": return catalogRecords(value, (item) => boundedString(item.name) && boundedDisplayString(item.description) && boundedOptionalStringOrNull(item.model) && (item.mode === "plan" || item.mode === "execute"));
+    case "listSkills": return catalogRecords(value, (item) => boundedString(item.name) && boundedDisplayString(item.description));
+    case "listMcp": return catalogRecords(value, (item) => boundedString(item.name) && typeof item.connected === "boolean" && typeof item.configured === "boolean" && nonNegative(item.toolCount) && nonNegative(item.resourceCount) && nonNegative(item.promptCount) && boundedOptionalDisplayString(item.error, RPC_CATALOG_ERROR_MAX_CHARS));
+    case "listSessions": return recordsWithRuntimeId(value, "id");
     case "renameProject": return typeof record(value)?.name === "string";
     case "archiveProject":
     case "deleteProject": return typeof record(value)?.cwd === "string";
     case "renameSession":
     case "deleteSession":
-    case "archiveSession": return typeof record(value)?.id === "string";
+    case "archiveSession": return isRuntimeIdentifier(record(value)?.id);
     case "finalize": return value === null;
   }
-}
-
-function optionalFinite(value: unknown): boolean {
-  return value === undefined || finite(value);
-}
-
-function optionalStringOrNull(value: unknown): boolean {
-  return value === undefined || value === null || typeof value === "string";
-}
-
-function stringList(value: unknown): boolean {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function task(value: unknown): boolean {
   const item = record(value);
   return !!item
-    && typeof item.id === "string"
+    && isRuntimeIdentifier(item.id)
     && typeof item.title === "string"
     && (item.status === "pending" || item.status === "in_progress" || item.status === "completed");
 }
@@ -147,9 +191,9 @@ function gitInfo(value: unknown): boolean {
   const git = record(value);
   return !!git
     && typeof git.branch === "string"
-    && finite(git.dirty)
-    && finite(git.ahead)
-    && finite(git.behind)
+    && nonNegative(git.dirty)
+    && nonNegative(git.ahead)
+    && nonNegative(git.behind)
     && typeof git.worktree === "boolean";
 }
 
@@ -158,8 +202,8 @@ function goalRun(value: unknown): boolean {
   return !!run
     && typeof run.active === "boolean"
     && (run.phase === null || run.phase === "plan" || run.phase === "execute")
-    && finite(run.round)
-    && finite(run.max)
+    && nonNegative(run.round)
+    && nonNegative(run.max)
     && (run.pausedReason === null || typeof run.pausedReason === "string")
     && typeof run.met === "boolean";
 }

@@ -1,9 +1,14 @@
-import type { SectionProps } from "./types";
+import {
+  effectiveCompactionThresholds,
+  formatThresholdPercent,
+} from "../../../shared/compaction-thresholds";
 import { NumberInput, SettingField, SettingSection, ToggleSwitch } from "../FormControls";
+import type { SectionProps } from "./types";
 
 export function CompactionSection({ config, updateNested }: SectionProps) {
   const compaction = config.compaction ?? {};
   const offload = compaction.offload ?? {};
+  const thresholds = effectiveCompactionThresholds(compaction.threshold, offload.threshold);
   return (
     <SettingSection title="Compaction" description="Context-window management: lossless offload fires below the lossy summary threshold.">
       <SettingField label="Summary threshold" description="Fraction of context window at which to auto-compact (LLM summary).">
@@ -13,7 +18,14 @@ export function CompactionSection({ config, updateNested }: SectionProps) {
         <ToggleSwitch checked={offload.enabled ?? true} onChange={(v) => updateNested("compaction", { offload: { enabled: v } })} />
       </SettingField>
       <SettingField label="Offload threshold" description="Fraction at which offload fires (below summary threshold).">
-        <NumberInput value={offload.threshold} onChange={(v) => updateNested("compaction", { offload: { threshold: v } })} min={0.1} max={0.9} step={0.05} placeholder="0.6" />
+        <div className="setting-control-stack">
+          <NumberInput value={offload.threshold} onChange={(v) => updateNested("compaction", { offload: { threshold: v } })} min={0.1} max={0.9} step={0.05} placeholder="0.6" />
+          {thresholds?.adjusted ? (
+            <p className="setting-effective-note" role="status">
+              Effective threshold: {formatThresholdPercent(thresholds.effectiveOffload)}. The engine keeps lossless offload below the {formatThresholdPercent(thresholds.summary)} summary threshold.
+            </p>
+          ) : null}
+        </div>
       </SettingField>
       <SettingField label="Max result bytes" description="Results at or above this many chars are offload-eligible.">
         <NumberInput value={offload.maxResultBytes} onChange={(v) => updateNested("compaction", { offload: { maxResultBytes: v } })} min={1} placeholder="16384" />

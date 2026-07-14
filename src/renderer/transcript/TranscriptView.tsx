@@ -9,6 +9,7 @@ import type { Block, Turn } from "../../shared/reducer";
 import { collapsedHint, toolDurationLabel } from "../../shared/reducer";
 import { isScrollAnchored } from "../../shared/scroll-anchor";
 import { parseSearchResults } from "../../shared/sources";
+import { TtlLruCache } from "../../shared/ttl-lru-cache";
 import { CopyButton } from "../CopyButton";
 import { IconCheck, IconChevron, IconContinue, IconRename } from "../icons";
 import { StatusDot } from "../primitives";
@@ -19,7 +20,10 @@ import { SourceList } from "./SourceList";
 /** Keep each session's reading position while the app remains open. A fresh
  * launch intentionally starts at the latest content instead of restoring a
  * potentially stale offset from disk. */
-const sessionScrollPositions = new Map<string, number>();
+const sessionScrollPositions = new TtlLruCache<string, number>(
+  128,
+  24 * 60 * 60 * 1_000,
+);
 
 /** JS smooth-scroll must honor the OS reduced-motion setting (I19/P04); CSS
  *  `scroll-behavior: smooth` is already disabled by the media query, but

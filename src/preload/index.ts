@@ -16,14 +16,14 @@ import type {
   GitCommitRequest,
   GitCreateBranchRequest,
   GitDeleteBranchRequest,
-  GitFullStatus,
   GitFileDiffResult,
+  GitFullStatus,
   GitMergeRequest,
   GitPullRequest,
   GitPushRequest,
 } from "../shared/git-types";
-import type { RpcMethod } from "../shared/protocol";
-import type { ProjectSummary } from "../shared/protocol";
+import { isMenuAction, type MenuAction } from "../shared/menu-actions";
+import type { ProjectSummary, RpcMethod } from "../shared/protocol";
 import type {
   TerminalCommandResult,
   TerminalEvent,
@@ -66,7 +66,9 @@ export interface VibeApi {
   onEvent(cb: (event: unknown) => void): () => void;
   onReady(cb: (sessionId: string) => void): () => void;
   onFatal(cb: (message: string) => void): () => void;
-  onMenuAction(cb: (action: string) => void): () => void;
+  onMenuAction(cb: (action: MenuAction) => void): () => void;
+  /** Synchronize unsaved Settings/Instructions state for native close/quit guards. */
+  setSettingsDirty(dirty: boolean): void;
   openProject(): Promise<string | null>;
   /** Ensure `~/.vibe/chats` exists and return its absolute path (one-off conversations). */
   ensureChatsDir(): Promise<string>;
@@ -156,10 +158,13 @@ const api: VibeApi = {
     return () => ipcRenderer.removeListener("engine:fatal", handler);
   },
   onMenuAction: (cb) => {
-    const handler = (_: Electron.IpcRendererEvent, action: string) => cb(action);
+    const handler = (_: Electron.IpcRendererEvent, action: unknown) => {
+      if (isMenuAction(action)) cb(action);
+    };
     ipcRenderer.on("menu:action", handler);
     return () => ipcRenderer.removeListener("menu:action", handler);
   },
+  setSettingsDirty: (dirty) => ipcRenderer.send("settings:dirty", dirty),
   openProject: () => ipcRenderer.invoke("dialog:openProject"),
   ensureChatsDir: () => ipcRenderer.invoke("app:ensureChatsDir"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),

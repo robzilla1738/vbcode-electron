@@ -159,6 +159,7 @@ function SettingsSidebar({
 // ── Form area ────────────────────────────────────────────────────────────
 
 function SettingsFormArea({
+  active,
   activeSection,
   scope,
   cwd,
@@ -167,6 +168,7 @@ function SettingsFormArea({
   onBindClose,
   onBindDirty,
 }: {
+  active: boolean;
   activeSection: SectionId;
   scope: ConfigScope;
   cwd: string | null;
@@ -187,6 +189,7 @@ function SettingsFormArea({
   const loadedContextRef = useRef<{ scope: ConfigScope; cwd?: string } | null>(null);
   /** Instructions section dirty (kept mounted while settings is open). */
   const instructionsDirtyRef = useRef<() => boolean>(() => false);
+  const [instructionsDirty, setInstructionsDirty] = useState(false);
   const invalidDraftsRef = useRef<Set<string>>(new Set());
   const [invalidDrafts, setInvalidDrafts] = useState<Set<string>>(() => new Set());
   const [draftResetVersion, setDraftResetVersion] = useState(0);
@@ -198,6 +201,15 @@ function SettingsFormArea({
     () => dirtyRef.current || instructionsDirtyRef.current() || invalidDraftsRef.current.size > 0,
     [],
   );
+  const combinedDirty = state.dirty || instructionsDirty || invalidDrafts.size > 0;
+
+  useEffect(() => {
+    window.vibe.setSettingsDirty(combinedDirty);
+  }, [combinedDirty]);
+
+  useEffect(() => () => {
+    window.vibe.setSettingsDirty(false);
+  }, []);
 
   const loadConfig = useCallback(async (selectedScope: ConfigScope) => {
     const seq = ++loadSeq.current;
@@ -351,16 +363,20 @@ function SettingsFormArea({
   }, []);
 
   useEffect(() => {
+    if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !event.defaultPrevented) {
         event.preventDefault();
         event.stopPropagation();
         requestClose();
       }
     };
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [requestClose]);
+    // Bubble so section-owned controls can consume Escape first (cancel an Add
+    // row, close a draft) instead of the Settings layer pre-empting them in the
+    // capture phase and prompting to discard the entire form.
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [active, requestClose]);
 
   const sectionProps = useMemo(() => ({
     config: state.config,
@@ -427,7 +443,11 @@ function SettingsFormArea({
               hidden={activeSection !== "instructions"}
               aria-hidden={activeSection !== "instructions"}
             >
-              <InstructionsSection {...sectionProps} onBindDirty={bindInstructionsDirty} />
+              <InstructionsSection
+                {...sectionProps}
+                onBindDirty={bindInstructionsDirty}
+                onDirtyChange={setInstructionsDirty}
+              />
             </div>
             {CONFIG_SECTIONS.filter(({ id }) => id !== "instructions").map(({ id }) => (
               <div key={id} hidden={activeSection !== id} aria-hidden={activeSection !== id}>
@@ -443,7 +463,7 @@ function SettingsFormArea({
         <div className="settings-save-bar">
           <div className="settings-save-status">
             {invalidDrafts.size > 0
-              ? <span className="settings-dirty-indicator">Fix invalid draft fields before saving</span>
+              ? <span className="settings-dirty-indicator">Finish or clear draft fields before saving</span>
               : state.dirty
               ? <span className="settings-dirty-indicator">Unsaved changes</span>
               : <span className="settings-clean-indicator">All changes saved</span>}
@@ -463,11 +483,13 @@ function SettingsFormArea({
 // ── Combined view (used by App.tsx) ──────────────────────────────────────
 
 export function SettingsView({
+  active,
   cwd,
   onClose,
   showToast,
   onBindDirty,
 }: {
+  active: boolean;
   cwd: string | null;
   onClose: () => void;
   showToast: (message: string, severity?: "info" | "warn" | "error") => void;
@@ -536,6 +558,7 @@ export function SettingsView({
           </div>
         </header>
         <SettingsFormArea
+          active={active}
           activeSection={activeSection}
           scope={scope}
           cwd={cwd}

@@ -179,12 +179,41 @@ function optionalString(value: unknown): boolean {
   return value === undefined || typeof value === "string";
 }
 
+export const RUNTIME_IDENTIFIER_MAX_CHARS = 1_024;
+
+/** IDs cross process boundaries and become Map/object/DOM keys. Reject empty,
+ * oversized, or NUL-bearing values before they can enter long-lived state. */
+export function isRuntimeIdentifier(value: unknown): value is string {
+  return typeof value === "string"
+    && value.length > 0
+    && value.length <= RUNTIME_IDENTIFIER_MAX_CHARS
+    && !value.includes("\0");
+}
+
+function optionalRuntimeIdentifier(value: unknown): boolean {
+  return value === undefined || isRuntimeIdentifier(value);
+}
+
+function runtimeIdentifierArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every(isRuntimeIdentifier);
+}
+
 function optionalBoolean(value: unknown): boolean {
   return value === undefined || typeof value === "boolean";
 }
 
+/** Retained from the locked bridge protocol; stricter telemetry validators
+ * compose this baseline finite-number check with their domain constraints. */
 function optionalNumber(value: unknown): boolean {
   return value === undefined || Number.isFinite(value);
+}
+
+function nonNegativeNumber(value: unknown): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function optionalNonNegativeNumber(value: unknown): boolean {
+  return optionalNumber(value) && (value === undefined || nonNegativeNumber(value));
 }
 
 function stringArray(value: unknown): boolean {
@@ -196,9 +225,9 @@ function uiGitInfo(value: unknown): boolean {
   const git = record(value);
   return !!git
     && typeof git.branch === "string"
-    && Number.isFinite(git.dirty)
-    && Number.isFinite(git.ahead)
-    && Number.isFinite(git.behind)
+    && nonNegativeNumber(git.dirty)
+    && nonNegativeNumber(git.ahead)
+    && nonNegativeNumber(git.behind)
     && typeof git.worktree === "boolean";
 }
 
@@ -207,8 +236,8 @@ function uiGoalRun(value: unknown): boolean {
   return !!run
     && typeof run.active === "boolean"
     && (run.phase === null || run.phase === "plan" || run.phase === "execute")
-    && Number.isFinite(run.round)
-    && Number.isFinite(run.max)
+    && nonNegativeNumber(run.round)
+    && nonNegativeNumber(run.max)
     && (run.pausedReason === null || typeof run.pausedReason === "string")
     && typeof run.met === "boolean";
 }
@@ -216,11 +245,11 @@ function uiGoalRun(value: unknown): boolean {
 function uiJob(value: unknown): boolean {
   const item = record(value);
   return !!item
-    && typeof item.id === "string"
+    && isRuntimeIdentifier(item.id)
     && typeof item.command === "string"
     && (item.status === "running" || item.status === "exited" || item.status === "killed")
     && (item.exitCode === null || Number.isFinite(item.exitCode))
-    && (item.pid === undefined || Number.isFinite(item.pid))
+    && (item.pid === undefined || (Number.isFinite(item.pid) && (item.pid as number) > 0))
     && stringArray(item.servers)
     && typeof item.outputTail === "string";
 }
@@ -228,14 +257,14 @@ function uiJob(value: unknown): boolean {
 function uiTask(value: unknown): boolean {
   const item = record(value);
   return !!item
-    && typeof item.id === "string"
+    && isRuntimeIdentifier(item.id)
     && typeof item.title === "string"
     && (item.status === "pending" || item.status === "in_progress" || item.status === "completed");
 }
 
 function uiQueuedItem(value: unknown): boolean {
   const item = record(value);
-  return !!item && typeof item.id === "string" && typeof item.label === "string";
+  return !!item && isRuntimeIdentifier(item.id) && typeof item.label === "string";
 }
 
 function uiPlanSource(value: unknown): boolean {
@@ -247,19 +276,19 @@ function uiPlanSource(value: unknown): boolean {
 
 function sessionUsage(value: unknown): boolean {
   const usage = record(value);
-  return !!usage && Number.isFinite(usage.inputTokens) && Number.isFinite(usage.outputTokens)
-    && Number.isFinite(usage.totalTokens) && Number.isFinite(usage.costUSD)
+  return !!usage && nonNegativeNumber(usage.inputTokens) && nonNegativeNumber(usage.outputTokens)
+    && nonNegativeNumber(usage.totalTokens) && nonNegativeNumber(usage.costUSD)
     && optionalBoolean(usage.costEstimated)
-    && optionalNumber(usage.cachedInputTokens);
+    && optionalNonNegativeNumber(usage.cachedInputTokens);
 }
 
 function stepUsage(value: unknown): boolean {
   const usage = record(value);
   return !!usage
-    && optionalNumber(usage.inputTokens)
-    && optionalNumber(usage.outputTokens)
-    && optionalNumber(usage.totalTokens)
-    && optionalNumber(usage.cachedInputTokens);
+    && optionalNonNegativeNumber(usage.inputTokens)
+    && optionalNonNegativeNumber(usage.outputTokens)
+    && optionalNonNegativeNumber(usage.totalTokens)
+    && optionalNonNegativeNumber(usage.cachedInputTokens);
 }
 
 function engineCommand(value: unknown): value is EngineCommand {
@@ -276,8 +305,8 @@ function engineCommand(value: unknown): value is EngineCommand {
     case "create-agent": return typeof command.name === "string";
     case "set-goal": return command.goal === null || typeof command.goal === "string";
     case "dequeue":
-    case "steer": return typeof command.id === "string";
-    case "resolve-permission": return typeof command.id === "string" && ["once", "always", "always-project", "deny"].includes(String(command.decision)) && optionalString(command.feedback);
+    case "steer": return isRuntimeIdentifier(command.id);
+    case "resolve-permission": return isRuntimeIdentifier(command.id) && ["once", "always", "always-project", "deny"].includes(String(command.decision)) && optionalString(command.feedback);
     case "resolve-plan": return ["accept", "edit", "keep-planning"].includes(String(command.decision)) && optionalString(command.edit) && (command.approvals === undefined || command.approvals === "auto");
     default: return true;
   }
@@ -286,7 +315,7 @@ function engineCommand(value: unknown): value is EngineCommand {
 export function isUIEvent(value: unknown): value is UIEvent {
   const event = record(value);
   if (!event || typeof event.type !== "string" || !UI_EVENT_TYPES.has(event.type as UIEvent["type"])) return false;
-  if (SESSION_EVENT_TYPES.has(event.type as UIEvent["type"]) && typeof event.sessionId !== "string") return false;
+  if (SESSION_EVENT_TYPES.has(event.type as UIEvent["type"]) && !isRuntimeIdentifier(event.sessionId)) return false;
   switch (event.type) {
     case "session-start": return typeof event.model === "string" && (event.mode === "plan" || event.mode === "execute");
     case "user-message":
@@ -294,13 +323,18 @@ export function isUIEvent(value: unknown): value is UIEvent {
         && (event.origin === undefined || event.origin === "user" || event.origin === "engine")
         && optionalString(event.label);
     case "assistant-text-delta":
-    case "reasoning-delta": return typeof event.delta === "string" && optionalString(event.subagentId);
-    case "tool-call-started": return typeof event.toolCallId === "string" && typeof event.toolName === "string" && optionalString(event.subagentId);
-    case "tool-call-progress": return typeof event.toolCallId === "string" && typeof event.chunk === "string" && optionalString(event.subagentId);
-    case "tool-call-finished": return typeof event.toolCallId === "string" && typeof event.toolName === "string" && typeof event.isError === "boolean" && optionalString(event.subagentId);
+    case "reasoning-delta": return typeof event.delta === "string" && optionalRuntimeIdentifier(event.subagentId);
+    case "tool-call-started": return isRuntimeIdentifier(event.toolCallId) && typeof event.toolName === "string" && optionalRuntimeIdentifier(event.subagentId);
+    case "tool-call-progress": return isRuntimeIdentifier(event.toolCallId) && typeof event.chunk === "string" && optionalRuntimeIdentifier(event.subagentId);
+    case "tool-call-finished": return isRuntimeIdentifier(event.toolCallId) && typeof event.toolName === "string" && typeof event.isError === "boolean" && optionalRuntimeIdentifier(event.subagentId);
     case "step-finished": return event.usage === undefined || stepUsage(event.usage);
     case "usage-updated": return sessionUsage(event.usage);
-    case "context-updated": return Number.isFinite(event.usedTokens) && Number.isFinite(event.contextWindow);
+    case "context-updated": return typeof event.usedTokens === "number"
+      && Number.isFinite(event.usedTokens)
+      && event.usedTokens >= 0
+      && typeof event.contextWindow === "number"
+      && Number.isFinite(event.contextWindow)
+      && event.contextWindow > 0;
     case "mode-changed": return event.mode === "plan" || event.mode === "execute";
     case "model-changed": return typeof event.model === "string";
     case "goal-changed": return event.goal === null || typeof event.goal === "string";
@@ -317,27 +351,27 @@ export function isUIEvent(value: unknown): value is UIEvent {
         && (event.sources === undefined || (Array.isArray(event.sources) && event.sources.every(uiPlanSource)))
         && (event.assumptions === undefined || stringArray(event.assumptions))
         && optionalBoolean(event.ungrounded);
-    case "permission-request": return typeof event.id === "string" && typeof event.toolName === "string";
-    case "permission-settled": return stringArray(event.ids) && (event.reason === "aborted" || event.reason === "shutdown");
+    case "permission-request": return isRuntimeIdentifier(event.id) && typeof event.toolName === "string";
+    case "permission-settled": return runtimeIdentifierArray(event.ids) && (event.reason === "aborted" || event.reason === "shutdown");
     case "tasks-updated": return Array.isArray(event.tasks) && event.tasks.every(uiTask);
-    case "orchestration-task": return typeof event.taskId === "string" && typeof event.objective === "string" && ["running", "completed", "failed", "skipped"].includes(String(event.status)) && optionalNumber(event.attempts) && optionalNumber(event.durationMs);
+    case "orchestration-task": return isRuntimeIdentifier(event.taskId) && typeof event.objective === "string" && ["running", "completed", "failed", "skipped"].includes(String(event.status)) && optionalNonNegativeNumber(event.attempts) && optionalNonNegativeNumber(event.durationMs);
     case "queue-changed":
       return (event.active === null || uiQueuedItem(event.active))
         && Array.isArray(event.pending)
         && event.pending.every(uiQueuedItem);
     case "notice": return (event.level === "info" || event.level === "warn" || event.level === "error") && typeof event.message === "string";
-    case "engine-error": return typeof event.message === "string" && optionalString(event.sessionId);
-    case "file-changed": return typeof event.toolCallId === "string" && typeof event.path === "string" && (event.action === "edit" || event.action === "write") && typeof event.diff === "string" && Number.isFinite(event.added) && Number.isFinite(event.removed);
+    case "engine-error": return typeof event.message === "string" && optionalRuntimeIdentifier(event.sessionId);
+    case "file-changed": return isRuntimeIdentifier(event.toolCallId) && typeof event.path === "string" && (event.action === "edit" || event.action === "write") && typeof event.diff === "string" && nonNegativeNumber(event.added) && nonNegativeNumber(event.removed);
     case "checkpoint-created":
-    case "checkpoint-restored": return typeof event.id === "string" && typeof event.label === "string";
+    case "checkpoint-restored": return isRuntimeIdentifier(event.id) && typeof event.label === "string";
     case "verify-started": return typeof event.command === "string";
     case "verify-finished": return typeof event.ok === "boolean" && typeof event.output === "string";
-    case "compacted": return Number.isFinite(event.freedTokens);
-    case "subagent-started": return typeof event.subagentId === "string" && typeof event.prompt === "string";
-    case "subagent-activity": return typeof event.subagentId === "string" && typeof event.label === "string";
-    case "subagent-finished": return typeof event.subagentId === "string" && typeof event.result === "string";
-    case "loop-tick": return typeof event.loopId === "string" && Number.isFinite(event.iteration);
-    case "loop-stopped": return typeof event.loopId === "string" && typeof event.reason === "string";
+    case "compacted": return nonNegativeNumber(event.freedTokens);
+    case "subagent-started": return isRuntimeIdentifier(event.subagentId) && typeof event.prompt === "string";
+    case "subagent-activity": return isRuntimeIdentifier(event.subagentId) && typeof event.label === "string";
+    case "subagent-finished": return isRuntimeIdentifier(event.subagentId) && typeof event.result === "string";
+    case "loop-tick": return isRuntimeIdentifier(event.loopId) && nonNegativeNumber(event.iteration);
+    case "loop-stopped": return isRuntimeIdentifier(event.loopId) && typeof event.reason === "string";
     case "engine-idle": return event.gate === undefined || ["green", "red", "unverified", "aborted"].includes(String(event.gate));
     default: return true;
   }
@@ -350,7 +384,7 @@ export function decodeInbound(line: string): HostInbound | null {
   if (!msg || typeof msg.op !== "string") return null;
   if (msg.op === "shutdown") return { op: "shutdown" };
   if (msg.op === "bootstrap") {
-    if (typeof msg.cwd !== "string" || !msg.cwd.trim() || !optionalString(msg.resume) || !optionalString(msg.model)) return null;
+    if (typeof msg.cwd !== "string" || !msg.cwd.trim() || !optionalRuntimeIdentifier(msg.resume) || !optionalString(msg.model)) return null;
     if (msg.continue !== undefined && typeof msg.continue !== "boolean") return null;
     if (msg.mode !== undefined && msg.mode !== "plan" && msg.mode !== "execute" && msg.mode !== "yolo") return null;
     return value as HostInbound;
@@ -372,6 +406,14 @@ export function decodeInbound(line: string): HostInbound | null {
         !optionalString(params.name))
     ) {
       return null;
+    }
+    if (params) {
+      const allowed = new Set(["cwd", "id", "title", "name"]);
+      if (Object.keys(params).some((key) => !allowed.has(key))) return null;
+      if ((typeof params.cwd === "string" && (params.cwd.length > 32_768 || params.cwd.includes("\0")))
+        || (typeof params.id === "string" && (params.id.length > 1_024 || params.id.includes("\0")))
+        || (typeof params.title === "string" && params.title.length > 1_024)
+        || (typeof params.name === "string" && params.name.length > 1_024)) return null;
     }
     return value as HostInbound;
   }
@@ -395,7 +437,7 @@ export function decodeOutbound(line: string): HostOutbound | null {
   try { value = JSON.parse(line); } catch { return null; }
   const msg = record(value);
   if (!msg || typeof msg.type !== "string") return null;
-  if (msg.type === "ready") return typeof msg.sessionId === "string" && msg.sessionId ? value as HostOutbound : null;
+  if (msg.type === "ready") return isRuntimeIdentifier(msg.sessionId) ? value as HostOutbound : null;
   if (msg.type === "event") return isUIEvent(msg.event) ? value as HostOutbound : null;
   if (msg.type === "fatal") return typeof msg.message === "string" ? value as HostOutbound : null;
   if (msg.type === "resp") {

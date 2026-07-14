@@ -1,8 +1,16 @@
-import { useState } from "react";
-import type { SectionProps } from "./types";
+import { useEffect, useState } from "react";
 import { NumberInput, SelectInput, SettingBadge, SettingField, SettingSection, TextArea, TextInput } from "../FormControls";
+import type { SectionProps } from "./types";
 
-export function ModelsSection({ config, updateConfig, updateNested }: SectionProps) {
+export function ModelsSection({
+  config,
+  scope,
+  updateConfig,
+  updateNested,
+  cwd,
+  onInvalidDraftChange,
+  draftResetVersion = 0,
+}: SectionProps) {
   const reasoning = config.reasoning ?? {};
   return (
     <>
@@ -87,20 +95,48 @@ export function ModelsSection({ config, updateConfig, updateNested }: SectionPro
       </SettingSection>
 
       <SettingSection title="Pricing Overrides" description="Per-model price overrides keyed by model string (provider/model), in USD per 1M tokens. Overrides catalog pricing for cost tracking.">
-        <PricingEditor config={config} updateConfig={updateConfig} />
+        <PricingEditor
+          config={config}
+          updateConfig={updateConfig}
+          draftKey={`models:${scope}:${cwd ?? ""}:pricing-key`}
+          draftResetVersion={draftResetVersion}
+          onInvalidDraftChange={onInvalidDraftChange}
+        />
       </SettingSection>
 
       <SettingSection title="Context Window Overrides" description="Per-model context-window overrides (tokens). Pins the real window for a model the catalog doesn't know, driving accurate context-fill % and compaction.">
-        <ContextWindowEditor config={config} updateConfig={updateConfig} />
+        <ContextWindowEditor
+          config={config}
+          updateConfig={updateConfig}
+          draftKey={`models:${scope}:${cwd ?? ""}:context-key`}
+          draftResetVersion={draftResetVersion}
+          onInvalidDraftChange={onInvalidDraftChange}
+        />
       </SettingSection>
     </>
   );
 }
 
-function PricingEditor({ config, updateConfig }: Pick<SectionProps, "config" | "updateConfig">) {
+function PricingEditor({
+  config,
+  updateConfig,
+  draftKey,
+  draftResetVersion,
+  onInvalidDraftChange,
+}: Pick<SectionProps, "config" | "updateConfig" | "onInvalidDraftChange"> & {
+  draftKey: string;
+  draftResetVersion: number;
+}) {
   const pricing = config.pricing ?? {};
   const modelKeys = Object.keys(pricing);
   const [newKey, setNewKey] = useState("");
+
+  useEffect(() => {
+    const pending = Boolean(newKey.trim());
+    onInvalidDraftChange?.(draftKey, pending);
+    return () => onInvalidDraftChange?.(draftKey, false);
+  }, [draftKey, newKey, onInvalidDraftChange]);
+  useEffect(() => setNewKey(""), [draftKey, draftResetVersion]);
 
   const update = (model: string, patch: Partial<NonNullable<typeof pricing[string]>>) => {
     const next = { ...pricing, [model]: { ...pricing[model], ...patch } };
@@ -161,19 +197,39 @@ function PricingEditor({ config, updateConfig }: Pick<SectionProps, "config" | "
           onChange={(e) => setNewKey(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") add();
-            if (e.key === "Escape") setNewKey("");
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              setNewKey("");
+            }
           }}
         />
-        <button type="button" className="button primary" disabled={!newKey.trim()} onClick={add}>Add</button>
+        <button type="button" className="button primary" disabled={!newKey.trim() || Boolean(pricing[newKey.trim()])} onClick={add}>Add</button>
       </div>
     </>
   );
 }
 
-function ContextWindowEditor({ config, updateConfig }: Pick<SectionProps, "config" | "updateConfig">) {
+function ContextWindowEditor({
+  config,
+  updateConfig,
+  draftKey,
+  draftResetVersion,
+  onInvalidDraftChange,
+}: Pick<SectionProps, "config" | "updateConfig" | "onInvalidDraftChange"> & {
+  draftKey: string;
+  draftResetVersion: number;
+}) {
   const ctx = config.contextWindow ?? {};
   const modelKeys = Object.keys(ctx);
   const [newKey, setNewKey] = useState("");
+
+  useEffect(() => {
+    const pending = Boolean(newKey.trim());
+    onInvalidDraftChange?.(draftKey, pending);
+    return () => onInvalidDraftChange?.(draftKey, false);
+  }, [draftKey, newKey, onInvalidDraftChange]);
+  useEffect(() => setNewKey(""), [draftKey, draftResetVersion]);
 
   const update = (model: string, value: number | undefined) => {
     const next = { ...ctx };
@@ -213,10 +269,14 @@ function ContextWindowEditor({ config, updateConfig }: Pick<SectionProps, "confi
           onChange={(e) => setNewKey(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") add();
-            if (e.key === "Escape") setNewKey("");
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              setNewKey("");
+            }
           }}
         />
-        <button type="button" className="button primary" disabled={!newKey.trim()} onClick={add}>Add</button>
+        <button type="button" className="button primary" disabled={!newKey.trim() || Boolean(ctx[newKey.trim()])} onClick={add}>Add</button>
       </div>
     </>
   );

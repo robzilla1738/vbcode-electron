@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import {
+  MAX_RETAINED_JOB_ITEMS,
+  MAX_RETAINED_QUEUE_ITEMS,
+  MAX_RETAINED_TASK_ITEMS,
+} from "../../shared/chrome-state-bounds";
 import type { UIEvent } from "../../shared/events";
 import { initialChrome, reduceChrome } from "./session-state";
 
@@ -46,6 +51,26 @@ describe("session chrome state", () => {
     expect(state.perms.map((item) => item.id)).toEqual(["p2"]);
   });
 
+  it("deduplicates permission ids and retains only bounded display input", () => {
+    let state = initialChrome("/repo");
+    state = event(state, {
+      type: "permission-request",
+      sessionId: "s",
+      id: "p1",
+      toolName: "mcp_export",
+      input: { payload: `head-${"x".repeat(300_000)}-tail` },
+    });
+    state = event(state, {
+      type: "permission-request",
+      sessionId: "s",
+      id: "p1",
+      toolName: "mcp_export",
+      input: { payload: "replacement" },
+    });
+    expect(state.perms).toHaveLength(1);
+    expect(state.perms[0]?.input).toEqual({ payload: "replacement" });
+  });
+
   it("keeps plan evidence and clears it only when a new user turn begins", () => {
     let state = initialChrome("/repo");
     state = event(state, {
@@ -80,6 +105,89 @@ describe("session chrome state", () => {
     expect(state).toMatchObject({ busy: false, thinkingStream: "", tasks: [], lastGate: null });
     // Checkpoints belong to the session and must not survive /clear or /new.
     expect(state.checkpoints).toEqual([]);
+  });
+
+  it("bounds retained queue and job snapshots while preserving authoritative totals", () => {
+    let state = initialChrome("/repo");
+    state = event(state, {
+      type: "queue-changed",
+      active: null,
+      pending: Array.from({ length: 1_200 }, (_, index) => ({
+        id: `q-${index}`,
+        label: `Queue ${index}`,
+      })),
+    });
+    expect(state.queuePending).toHaveLength(MAX_RETAINED_QUEUE_ITEMS);
+    expect(state.queuePendingTotal).toBe(1_200);
+
+    state = event(state, {
+      type: "jobs-changed",
+      sessionId: "s",
+      jobs: Array.from({ length: 700 }, (_, index) => ({
+        id: `job-${index}`,
+        command: `command ${index}`,
+        status: index === 0 ? "running" as const : "exited" as const,
+        exitCode: index === 0 ? null : 0,
+        servers: [],
+        outputTail: "",
+      })),
+    });
+    expect(state.jobs).toHaveLength(MAX_RETAINED_JOB_ITEMS);
+    expect(state.jobsTotal).toBe(700);
+    expect(state.jobs.some((job) => job.id === "job-0")).toBe(true);
+  });
+
+  it("bounds task snapshots and preserves authoritative completion totals", () => {
+    let state = initialChrome("/repo");
+    state = event(state, {
+      type: "tasks-updated",
+      sessionId: "s",
+      tasks: Array.from({ length: 1_500 }, (_, index) => ({
+        id: `task-${index}`,
+        title: `Task ${index}`,
+        status: index < 1_200 ? "completed" as const : "pending" as const,
+      })),
+    });
+    expect(state.tasks).toHaveLength(MAX_RETAINED_TASK_ITEMS);
+    expect(state.tasksTotal).toBe(1_500);
+    expect(state.tasksCompletedTotal).toBe(1_200);
+    expect(state.tasksUnfinishedTotal).toBe(300);
+  });
+
+  it("bounds long-lived snapshot and plan metadata outside transcript blocks", () => {
+    let state = initialChrome("/repo");
+    state = event(state, {
+      type: "goal-changed",
+      sessionId: "s",
+      goal: "g".repeat(3 * 1024 * 1024),
+    });
+    expect(state.goal?.length).toBe(2 * 1024 * 1024);
+
+    state = event(state, {
+      type: "plan-presented",
+      sessionId: "s",
+      plan: "plan",
+      sources: [
+        { url: `https://example.com/${"u".repeat(70 * 1024)}`, title: "drop" },
+        { url: "https://example.com/ok", title: "t".repeat(80 * 1024) },
+      ],
+    });
+    expect(state.plan?.sources).toHaveLength(1);
+    expect(state.plan?.sources?.[0]?.title?.length).toBe(64 * 1024);
+
+    state = event(state, {
+      type: "goal-run",
+      sessionId: "s",
+      run: {
+        active: false,
+        phase: null,
+        round: 0,
+        max: 10,
+        pausedReason: "p".repeat(80 * 1024),
+        met: false,
+      },
+    });
+    expect(state.goalRun?.pausedReason?.length).toBe(64 * 1024);
   });
 });
 

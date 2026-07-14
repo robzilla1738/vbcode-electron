@@ -384,6 +384,31 @@ export function providerChoiceAcceptsApiKey(
   return choice.customEndpoint === true || providerChoiceNeedsApiKey(choice, configuredIds);
 }
 
+/** First-run setup is unnecessary when credentials exist for a remote provider
+ * or a keyless/local provider has actually returned at least one live model.
+ * A registry's `keyless` flag alone does not prove that Ollama/LM Studio is
+ * running, so treating it as ready can strand a clean install without setup. */
+export function hasUsableOnboardingProvider(
+  providers: readonly { configured: boolean; keyless: boolean }[],
+  models: readonly unknown[],
+): boolean {
+  return models.length > 0 || providers.some((provider) => provider.configured && !provider.keyless);
+}
+
+/** Provider ids whose readiness comes from credentials, not merely from a
+ * keyless registry definition. Shared ids such as Ollama must not make the
+ * cloud onboarding choice skip its API-key field just because local Ollama is
+ * keyless. */
+export function configuredCredentialProviderIds(
+  providers: readonly { id: string; configured: boolean; keyless: boolean }[],
+): Set<string> {
+  return new Set(
+    providers
+      .filter((provider) => provider.configured && !provider.keyless)
+      .map((provider) => provider.id),
+  );
+}
+
 /**
  * Build the global-config patch from onboarding answers (mirrors the CLI's
  * `buildOnboardingPatch`). Pure for testing.

@@ -11,6 +11,7 @@ import { existsSync, lstatSync, realpathSync } from "node:fs";
 import type { Readable } from "node:stream";
 import { ipcMain } from "electron";
 import { isAllowedCwd } from "../shared/cwd-allowlist";
+import { safeExternalUrl } from "../shared/external-url";
 import {
   checkoutBranch,
   commit,
@@ -28,17 +29,19 @@ import {
   unstageAll,
   unstageFiles,
 } from "../shared/git-ops";
-import type {
-  GhPrCreateRequest,
-  GhPrCreateResult,
-  GhPrListResult,
-  GitCheckoutRequest,
-  GitCommitRequest,
-  GitCreateBranchRequest,
-  GitDeleteBranchRequest,
-  GitMergeRequest,
-  GitPullRequest,
-  GitPushRequest,
+import {
+  type GhPrCreateRequest,
+  type GhPrCreateResult,
+  type GhPrListResult,
+  type GitCheckoutRequest,
+  type GitCommitRequest,
+  type GitCreateBranchRequest,
+  type GitDeleteBranchRequest,
+  type GitMergeRequest,
+  type GitPullRequest,
+  type GitPushRequest,
+  parseGhPrList,
+  validateGhPrCreateRequest,
 } from "../shared/git-types";
 import { resolveWritablePathInsideRoot } from "../shared/path-safe";
 import {
@@ -305,10 +308,13 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
       if (!res.ok) {
         return { ok: false as const, prs: [], error: res.stderr || "gh command failed" } as GhPrListResult;
       }
-      const data = JSON.parse(res.stdout) as { number: number; title: string; state: string; headRefName: string; url: string }[];
+      const data = parseGhPrList(JSON.parse(res.stdout) as unknown);
+      if (!data) {
+        return { ok: false as const, prs: [], error: "gh returned an invalid pull-request list" } as GhPrListResult;
+      }
       return {
         ok: true as const,
-        prs: data.map((p) => ({ number: p.number, title: p.title, state: p.state, head: p.headRefName, url: p.url })),
+        prs: data,
       } as GhPrListResult;
     } catch (err) {
       return { ok: false as const, prs: [], error: err instanceof Error ? err.message : String(err) } as GhPrListResult;
@@ -317,7 +323,7 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
 
   ipcMain.handle("gh:prCreate", async (event, req: GhPrCreateRequest) => {
     assertTrusted(event);
-    if (!req || typeof req.cwd !== "string" || typeof req.title !== "string") {
+    if (!validateGhPrCreateRequest(req)) {
       return { ok: false as const, error: "Invalid request" } as GhPrCreateResult;
     }
     const bad = rejectCwd(req.cwd);
@@ -333,7 +339,11 @@ export function registerGitIpc(assertTrusted: AssertTrustedIpc): void {
       if (!res.ok) {
         return { ok: false as const, error: res.stderr || "gh pr create failed" } as GhPrCreateResult;
       }
-      const url = res.stdout.trim().split("\n")[0] || undefined;
+      const outputUrl = res.stdout.trim().split("\n")[0] || undefined;
+      const url = outputUrl ? safeExternalUrl(outputUrl) : undefined;
+      if (outputUrl && !url) {
+        return { ok: false as const, error: "gh returned an invalid pull-request URL" } as GhPrCreateResult;
+      }
       return { ok: true as const, url, message: res.ok ? "PR created" : undefined } as GhPrCreateResult;
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) } as GhPrCreateResult;

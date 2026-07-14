@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GitFullStatus } from "../../shared/git-types";
-import { IconClose } from "../icons";
+import { ActivityPanelHeader } from "../layout/ActivityPanelHeader";
 
 type Tab = "branches" | "changes" | "history" | "remotes" | "prs";
 
@@ -43,6 +43,7 @@ function statusIcon(index: string, working: string): string {
 }
 
 interface GitOpResult { ok: boolean; message?: string; error?: string }
+type RunGitOperation = (op: () => Promise<GitOpResult>, message?: string) => Promise<boolean>;
 
 // ── Content area ─────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ function GitContent({
   tab: Tab;
   cwd: string;
   busy: boolean;
-  runOp: (op: () => Promise<GitOpResult>, msg?: string) => void;
+  runOp: RunGitOperation;
   loading: boolean;
   error: string | null;
   onRetry: () => void;
@@ -144,9 +145,17 @@ export function GitView({
     setBusy(true);
     try {
       const res = await op();
-      if (res.ok) { showToast(successMsg ?? res.message ?? "Done", "info"); await refresh(); }
-      else { showToast(res.error ?? "Operation failed", "error"); }
-    } catch (err) { showToast(err instanceof Error ? err.message : "Operation failed", "error"); }
+      if (res.ok) {
+        showToast(successMsg ?? res.message ?? "Done", "info");
+        await refresh();
+        return true;
+      }
+      showToast(res.error ?? "Operation failed", "error");
+      return false;
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Operation failed", "error");
+      return false;
+    }
     finally { setBusy(false); }
   }, [refresh, showToast]);
 
@@ -179,26 +188,15 @@ export function GitView({
       aria-label="Git workspace"
       aria-labelledby="git-panel-title"
     >
-      <header className="sidebar-heading-row git-panel-heading">
-        <div className="sidebar-heading-copy">
-          <p className="sidebar-eyebrow">Workspace</p>
-          <h2 id="git-panel-title" className="sidebar-heading-title">Git</h2>
-          <p className="sidebar-heading-sub">
-            {status
-              ? `${status.branch}${status.clean ? " · clean" : ` · ${status.entries.length} changed`}`
-              : "Branches, changes, and history"}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="icon-button sidebar-close"
-          onClick={onClose}
-          aria-label="Close git panel"
-          title="Close git panel"
-        >
-          <IconClose size={14} />
-        </button>
-      </header>
+      <ActivityPanelHeader
+        titleId="git-panel-title"
+        title="Git"
+        subtitle={status
+          ? `${status.branch}${status.clean ? " · clean" : ` · ${status.entries.length} changed`}`
+          : "Branches, changes, and history"}
+        onClose={onClose}
+        closeLabel="Close git panel"
+      />
 
       <div className="git-panel-actions" aria-label="Git actions">
         <button type="button" className="button" disabled={busy} onClick={() => void runOp(() => window.vibe.gitFetch({ cwd }))}>Fetch</button>
@@ -243,12 +241,30 @@ export function GitView({
 
 // ── Tab content components ───────────────────────────────────────────────
 
-function BranchesContent({ status, cwd, busy, runOp }: { status: GitFullStatus; cwd: string; busy: boolean; runOp: (op: () => Promise<GitOpResult>, msg?: string) => void }) {
+function BranchesContent({ status, cwd, busy, runOp }: { status: GitFullStatus; cwd: string; busy: boolean; runOp: RunGitOperation }) {
   const [newBranch, setNewBranch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const localBranches = status.branches.filter((b) => !b.remote);
   const remoteBranches = status.branches.filter((b) => b.remote);
+
+  const createBranch = async () => {
+    const name = newBranch.trim();
+    if (!name || busy) return;
+    const created = await runOp(
+      () => window.vibe.gitCreateBranch({ cwd, name, checkout: true }),
+      `Created and switched to ${name}`,
+    );
+    if (!created) return;
+    setNewBranch("");
+    setShowCreate(false);
+  };
+
+  const deleteBranch = async (name: string) => {
+    if (busy) return;
+    const deleted = await runOp(() => window.vibe.gitDeleteBranch({ cwd, name }));
+    if (deleted) setConfirmDelete(null);
+  };
 
   return (
     <div className="settings-section">
@@ -259,9 +275,9 @@ function BranchesContent({ status, cwd, busy, runOp }: { status: GitFullStatus; 
       {showCreate && (
         <div className="git-create-row">
           <input type="text" className="setting-input is-mono" value={newBranch} placeholder="branch-name" onChange={(e) => setNewBranch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && newBranch.trim()) { void runOp(() => window.vibe.gitCreateBranch({ cwd, name: newBranch.trim(), checkout: true }), `Created and switched to ${newBranch.trim()}`); setNewBranch(""); setShowCreate(false); } if (e.key === "Escape") { setShowCreate(false); setNewBranch(""); } }}
+            onKeyDown={(e) => { if (e.key === "Enter") void createBranch(); if (e.key === "Escape") { setShowCreate(false); setNewBranch(""); } }}
           />
-          <button type="button" className="button primary" disabled={!newBranch.trim() || busy} onClick={() => { void runOp(() => window.vibe.gitCreateBranch({ cwd, name: newBranch.trim(), checkout: true }), `Created and switched to ${newBranch.trim()}`); setNewBranch(""); setShowCreate(false); }}>Create & switch</button>
+          <button type="button" className="button primary" disabled={!newBranch.trim() || busy} onClick={() => void createBranch()}>Create & switch</button>
           <button type="button" className="button" onClick={() => { setShowCreate(false); setNewBranch(""); }}>Cancel</button>
         </div>
       )}
@@ -278,7 +294,7 @@ function BranchesContent({ status, cwd, busy, runOp }: { status: GitFullStatus; 
             </button>
             {!branch.current && (confirmDelete === branch.name ? (
               <div className="git-confirm-delete">
-                <button type="button" className="button danger" onClick={() => { void runOp(() => window.vibe.gitDeleteBranch({ cwd, name: branch.name })); setConfirmDelete(null); }}>Confirm</button>
+                <button type="button" className="button danger" disabled={busy} onClick={() => void deleteBranch(branch.name)}>Confirm</button>
                 <button type="button" className="button" onClick={() => setConfirmDelete(null)}>Cancel</button>
               </div>
             ) : (
@@ -308,7 +324,7 @@ function BranchesContent({ status, cwd, busy, runOp }: { status: GitFullStatus; 
   );
 }
 
-function ChangesContent({ status, cwd, busy, runOp }: { status: GitFullStatus; cwd: string; busy: boolean; runOp: (op: () => Promise<GitOpResult>, msg?: string) => void }) {
+function ChangesContent({ status, cwd, busy, runOp }: { status: GitFullStatus; cwd: string; busy: boolean; runOp: RunGitOperation }) {
   const [commitMsg, setCommitMsg] = useState("");
   const [stageAllUntracked, setStageAllUntracked] = useState(false);
 

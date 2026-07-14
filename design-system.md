@@ -52,12 +52,16 @@ because its section navigation and form content require the larger canvas.
 
 Its compact top switcher is persistent while the lane is open. The five views
 use equal-width quiet text tabs with selected fill, optional Changes/Jobs counts,
-and no bright selection line. Terminal's PTY is owned by the main process per
+and no bright selection line. Every view uses the same compact Workspace
+header primitive, including identical padding, height, subtitle rhythm, and
+close placement. Tabs and headers use caption/label typography with no
+horizontal rules; spacing and surface tone provide separation. Terminal's PTY is owned by the main process per
 effective cwd; projects use their root and Chats use the user's home directory.
 Closing or switching its renderer view never terminates the shell.
 Changes may use a wider persisted review measure inside the same structural lane:
-its master-detail layout keeps the searchable grouped file navigator beside the
-active Diff/File surface, then stacks them inside the compact drawer.
+its master-detail layout keeps a searchable, recursively expandable changed-file
+tree beside the active Diff/File surface, then stacks the tree above review inside
+the compact drawer. File mode uses the same numbered code gutter as diff review.
 
 ### Layout measures
 
@@ -99,7 +103,10 @@ Named JavaScript breakpoints live in `src/shared/breakpoints.ts`:
 | `compact` | `720px` | End panel becomes an end-edge drawer |
 | `narrow` | `640px` | Dense phone-narrow chrome |
 
-The workspace dock switches to compact icon navigation below `960px`; Jobs
+The workspace dock switches to compact icon navigation below `960px`. Empty
+layouts across that compact range use a restrained 184px-wide toolbar with
+24px controls and 11px icons, including Retina-scaled desktop windows below
+`720px`. Non-empty navigation retains its larger responsive targets. Jobs
 remains reachable through `/jobs`, and the activity drawer remains available
 through the responsive layout rules.
 
@@ -133,6 +140,13 @@ The first-paint fallbacks mirror the default palette in
 | Deletion background | `--del-bg` | `#37222c` |
 | Code / source accent | `--code` | `#88b0e0` |
 
+Dedicated review roles keep vivid code changes separate from generic success and
+error semantics. Dark themes use `--diff-add: #00d26a` and
+`--diff-del: #ff4d4f`; light mode uses contrast-safe `#087a3b` and `#c92a2a`;
+the contrast theme retains its maximum-separation pair. Diff rows, counters,
+transcript patches, and changed-file summaries use these roles while
+task failures and application errors continue to use `--del`.
+
 The semantic palette is applied at runtime by `applyPalette`. `light` and
 `contrast` are explicit schemes, while the named terminal themes are registered
 in `src/shared/theme-registry.ts` and rendered by `src/shared/themes.ts`:
@@ -155,9 +169,8 @@ Accent changes remap the accent, selection, and focus roles together.
 - The composer frost covers its entire surface, including the top edge, so
   transcript text never remains visibly readable through a hard cut.
 - Section navigation uses spacing and selected fills, not bright white outline
-  segments or decorative divider lines. A separator is only appropriate when it
-  conveys a real data boundary, such as the workspace and session groups in an
-  activity panel.
+  segments or decorative divider lines. Lines are reserved for semantic data
+  boundaries such as patch hunks, never activity-sidebar chrome.
 
 ## Typography
 
@@ -284,9 +297,10 @@ Panels must remain predictable:
 - The workspace dock and activity sidebar use the same row order and edge alignment.
 - The workspace dock is a compact `--surface-subtle` navigation surface with
   equal top/side inset, one quiet hairline, and no floating shadow. Its compact
-  icon-grid form keeps the same enclosure, 44px targets, and explicit non-drag
-  hit testing so it remains legible and interactive over the reclaimed chat
-  area.
+  icon-grid form keeps the same enclosure and explicit non-drag hit testing.
+  Empty pointer-sized desktop layouts use 24px toolbar controls and 11px icons
+  across the compact range; non-empty navigation keeps the larger targets over
+  the reclaimed chat area.
 - Session, Changes, Git, Terminal, and Jobs are mutually exclusive in the activity sidebar.
 - Session handoffs preserve the active activity view and each session's reading
   position; replacing conversation data must not reset the surrounding workspace.
@@ -308,11 +322,11 @@ Panels must remain predictable:
 |---|---|---|
 | Project rail | `src/renderer/layout/ProjectRail.tsx` | Collapsible Projects/Chats, stable icon/text columns, portal menus, persisted resize |
 | Workspace dock | `src/renderer/layout/WorkspaceDock.tsx` | Chat-surface navigation for Session/Changes/Git/Terminal/Jobs/Files |
-| Activity sidebar | `src/renderer/layout/ActivitySidebar.tsx`, `src/renderer/panels/Inspector.tsx`, `src/renderer/panels/TerminalPanel.tsx`, `src/renderer/panels/JobsView.tsx`, `src/renderer/git/GitPanel.tsx` | Persistent five-view switcher; full-height edge-attached geometry, shared header/divider/resize behavior; content never occludes chat |
+| Activity sidebar | `src/renderer/layout/ActivitySidebar.tsx`, `src/renderer/panels/Inspector.tsx`, `src/renderer/panels/TerminalPanel.tsx`, `src/renderer/panels/JobsView.tsx`, `src/renderer/git/GitPanel.tsx` | Persistent five-view switcher; full-height edge-attached geometry, compact shared header, rule-free horizontal chrome, and shared resize behavior; content never occludes chat |
 | Contextual terminal | `src/main/terminal-manager.ts`, `src/renderer/panels/TerminalPanel.tsx` | Main-owned PTY at project root or user home for Chats, bounded replay, detach/reconnect across sidebar close and view switches |
 | Transcript | `src/renderer/transcript/TranscriptView.tsx` | Plain streaming text, finalized Streamdown hierarchy, anchored scrolling, foldable user turns; engine-authored continuations use compact expandable context rows, while gate and visual-check results use structured status rows |
 | Composer | `src/renderer/composer/Composer.tsx` | Floating, continuously frosted, attachment-aware, keyboard-contained menus |
-| Changes review | `src/renderer/panels/ChangesView.tsx`, `DiffPreview.tsx` | Searchable grouped file navigator, totals/churn balance, persistent Diff/File review, navigation, copy, and Reveal |
+| Changes review | `src/renderer/panels/ChangesView.tsx`, `DiffPreview.tsx` | Searchable nested file navigator, compact totals, persistent Diff/File review, navigation, copy, and Reveal |
 | Changed-files footer | `src/renderer/panels/TurnChangesCard.tsx` | Compact file summary beside Jump to latest; Review opens Changes |
 | Settings | `src/renderer/settings/SettingsPanel.tsx` | Full-workspace section navigation, engine-shape-validated saved config, mounted Instructions draft |
 | Git | `src/renderer/git/GitPanel.tsx` | Full Git content inside the shared right-side activity rail |

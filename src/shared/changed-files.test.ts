@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildChangedFileTree,
+  changedFileTypeLabel,
   changedFilesHeading,
   changedFilesTotals,
   fileBasename,
   fileParentDir,
   sortChangedFilesForDisplay,
+  resolveChangedFileSelection,
 } from "./changed-files";
 
 describe("changed-files display helpers", () => {
@@ -33,5 +36,52 @@ describe("changed-files display helpers", () => {
       "README.md",
       "src/a.ts",
     ]);
+  });
+
+  it("builds a deterministic nested tree with root files", () => {
+    const tree = buildChangedFileTree([
+      { path: "src/z.ts", added: 1, removed: 0 },
+      { path: "README.md", added: 0, removed: 1 },
+      { path: "src/app/a.tsx", added: 4, removed: 2 },
+      { path: "scripts/build.mjs", added: 2, removed: 0 },
+    ]);
+    expect(tree.map((node) => `${node.kind}:${node.name}`)).toEqual([
+      "directory:scripts",
+      "directory:src",
+      "file:README.md",
+    ]);
+    const src = tree[1];
+    expect(src).toMatchObject({ kind: "directory", path: "src", files: 2, added: 5, removed: 2 });
+    if (src?.kind === "directory") {
+      expect(src.children.map((node) => `${node.kind}:${node.name}`)).toEqual([
+        "directory:app",
+        "file:z.ts",
+      ]);
+    }
+  });
+
+  it("normalizes Windows separators and assigns compact file labels", () => {
+    const tree = buildChangedFileTree([{ path: "src\\renderer\\App.tsx", added: 1, removed: 1 }]);
+    expect(tree[0]).toMatchObject({ kind: "directory", name: "src", path: "src" });
+    expect(changedFileTypeLabel("scripts/check.mjs")).toBe("JS");
+    expect(changedFileTypeLabel("README.md")).toBe("MD");
+  });
+
+  it("keeps matching ancestors and the active file while filtering", () => {
+    const tree = buildChangedFileTree(files, "deep", "README.md");
+    expect(tree.map((node) => `${node.kind}:${node.name}`)).toEqual([
+      "directory:src",
+      "file:README.md",
+    ]);
+    const src = tree[0];
+    if (src?.kind === "directory") {
+      expect(src.children[0]).toMatchObject({ kind: "directory", name: "deep" });
+    }
+  });
+
+  it("preserves valid selection and falls back by display order", () => {
+    expect(resolveChangedFileSelection(files, "src/a.ts")).toBe("src/a.ts");
+    expect(resolveChangedFileSelection(files, "missing.ts")).toBe("src/deep/b.ts");
+    expect(resolveChangedFileSelection([], "missing.ts")).toBeNull();
   });
 });

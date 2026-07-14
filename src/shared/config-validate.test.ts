@@ -34,6 +34,36 @@ describe("validateConfig", () => {
 
   it("accepts an MCP url with env-var reference", () => {
     expect(validateConfig({ mcp: { servers: { s: { url: "$" + "{MCP_URL}" } } } })).toEqual([]);
+    expect(validateConfig({ mcp: { servers: { s: { url: "$" + "{MCP_URL:-https://localhost:3000/mcp}" } } } })).toEqual([]);
+  });
+
+  it("rejects malformed MCP env references across connection fields", () => {
+    const dollar = "$";
+    const errors = validateConfig({
+      mcp: {
+        servers: {
+          remote: {
+            url: `https://${dollar}{GOOD}/${dollar}{BAD-NAME}`,
+            headers: { Authorization: `Bearer ${dollar}{TOKEN` },
+          },
+          local: {
+            command: `${dollar}{9INVALID}/server`,
+            args: ["--token", `${dollar}{TOKEN`],
+            env: { API_KEY: `${dollar}{KEY-NAME}` },
+            enabled: false,
+          },
+        },
+      },
+    });
+    for (const path of [
+      "mcp.servers.remote.url",
+      "mcp.servers.remote.headers.Authorization",
+      "mcp.servers.local.command",
+      "mcp.servers.local.args[1]",
+      "mcp.servers.local.env.API_KEY",
+    ]) {
+      expect(errors.some((error) => error.includes(path)), path).toBe(true);
+    }
   });
 
   it("rejects a hook with neither command nor url", () => {
@@ -71,6 +101,13 @@ describe("validateConfig", () => {
     expect(errs.some((e) => e.includes("compaction.threshold"))).toBe(true);
   });
 
+  it("rejects malformed or duplicate plugin module specifiers", () => {
+    const errs = validateConfig({ plugins: ["plugin-a", "plugin-a", " padded ", ""] });
+    expect(errs.some((e) => e.includes("plugins[1]") && e.includes("duplicates"))).toBe(true);
+    expect(errs.some((e) => e.includes("plugins[2]") && e.includes("whitespace"))).toBe(true);
+    expect(errs.some((e) => e.includes("plugins[3]") && e.includes("empty"))).toBe(true);
+  });
+
   it("rejects an invalid build gate check", () => {
     const errs = validateConfig({ build: { gate: { checks: ["typecheck", "invalid"] } } });
     expect(errs.some((e) => e.includes("build.gate.checks"))).toBe(true);
@@ -93,6 +130,23 @@ describe("validateConfig", () => {
         mcp: { servers: { fs: { command: "", args: [], enabled: false } } },
       }),
     ).toEqual([]);
+  });
+
+  it("rejects MCP records that do not match exactly one transport", () => {
+    const missingCommand = validateConfig({
+      mcp: { servers: { local: { enabled: false } } },
+    });
+    expect(missingCommand.some((error) => error.includes("mcp.servers.local.command"))).toBe(true);
+
+    const nullUrl = validateConfig({
+      mcp: { servers: { remote: { url: null, enabled: false } } },
+    });
+    expect(nullUrl.some((error) => error.includes("mcp.servers.remote.url"))).toBe(true);
+
+    const ambiguous = validateConfig({
+      mcp: { servers: { mixed: { command: "node", url: "https://example.com/mcp" } } },
+    });
+    expect(ambiguous.some((error) => error.includes("exactly one transport"))).toBe(true);
   });
 
   it("rejects enabled remote MCP servers without a url", () => {
@@ -140,6 +194,55 @@ describe("validateConfig", () => {
     }
   });
 
+  it("rejects header injection and NUL-bearing process fields before persistence", () => {
+    const errors = validateConfig({
+      providers: {
+        openai: {
+          apiKey: "secret\r\nX-Injected: true",
+          headers: { Authorization: "Bearer token\nX-Injected: true" },
+          tokenFile: "/tmp/token\0.json",
+        },
+      },
+      mcp: {
+        servers: {
+          local: {
+            command: "node\0evil",
+            args: ["server.js\0extra"],
+            env: { API_KEY: "secret\0tail" },
+            cwd: "/tmp/project\0other",
+          },
+          remote: {
+            url: "https://example.com/mcp",
+            headers: { Authorization: "Bearer token\rmalformed" },
+            oauth: { tokenStore: "/tmp/tokens\0.json" },
+          },
+        },
+      },
+      hooks: [{ event: "session.start", command: "node hook.js\0extra" }],
+      verify: { command: "npm test\0extra" },
+      lsp: { servers: { ts: { command: "typescript-language-server\0bad" } } },
+      sandbox: { writablePaths: ["/tmp/cache\0outside"] },
+    });
+
+    for (const path of [
+      "providers.openai.apiKey",
+      "providers.openai.headers.Authorization",
+      "providers.openai.tokenFile",
+      "mcp.servers.local.command",
+      "mcp.servers.local.args[0]",
+      "mcp.servers.local.env.API_KEY",
+      "mcp.servers.local.cwd",
+      "mcp.servers.remote.headers.Authorization",
+      "mcp.servers.remote.oauth.tokenStore",
+      "hooks[0].command",
+      "verify.command",
+      "lsp.servers.ts.command",
+      "sandbox.writablePaths[0]",
+    ]) {
+      expect(errors.some((error) => error.includes(path)), path).toBe(true);
+    }
+  });
+
   it("rejects relative sandbox writable paths", () => {
     const errors = validateConfig({ sandbox: { writablePaths: ["build/cache", "/tmp/cache"] } });
     expect(errors.some((error) => error.includes("sandbox.writablePaths[0]"))).toBe(true);
@@ -175,5 +278,25 @@ describe("validateConfig", () => {
     for (const path of ["plugins", "memory.semantic.enabled", "caching.cacheTools", "providers.openai", "permissions"]) {
       expect(errors.some((error) => error.includes(path))).toBe(true);
     }
+  });
+
+  it("requires permission actions and hook events", () => {
+    const errors = validateConfig({
+      permissions: [{ tool: "bash" }],
+      hooks: [{ command: "node hook.js" }],
+    });
+    expect(errors.some((error) => error.includes("permissions[0].action"))).toBe(true);
+    expect(errors.some((error) => error.includes("hooks[0].event"))).toBe(true);
+  });
+
+  it("rejects ambiguous or inert permission rules", () => {
+    const errors = validateConfig({
+      permissions: [
+        { tool: "", action: "ask" },
+        { tool: "bash", match: "git *", matchExact: "git status", action: "allow" },
+      ],
+    });
+    expect(errors.some((error) => error.includes("permissions[0].tool"))).toBe(true);
+    expect(errors.some((error) => error.includes("permissions[1]") && error.includes("mutually exclusive"))).toBe(true);
   });
 });

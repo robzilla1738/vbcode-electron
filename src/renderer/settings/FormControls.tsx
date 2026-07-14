@@ -6,8 +6,26 @@
  * + --edge-highlight for resting surfaces, focus rings via :focus-visible.
  */
 
-import { type ReactNode, useEffect, useId, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useId,
+  useState,
+} from "react";
 import { formatKeyValueLines, parseKeyValueLines } from "../../shared/key-value-lines";
+
+interface SettingFieldA11y {
+  labelId: string;
+  descriptionId?: string;
+}
+
+const SettingFieldA11yContext = createContext<SettingFieldA11y | null>(null);
+
+function useSettingFieldA11y(): SettingFieldA11y | null {
+  return useContext(SettingFieldA11yContext);
+}
 
 // ── Field wrapper ────────────────────────────────────────────────────────
 
@@ -22,13 +40,26 @@ export function SettingField({
   children: ReactNode;
   htmlFor?: string;
 }) {
+  const generatedId = useId();
+  const labelId = `${generatedId}-label`;
+  const descriptionId = description ? `${generatedId}-description` : undefined;
   return (
     <div className="setting-field">
       <div className="setting-field-label">
-        <label htmlFor={htmlFor}>{label}</label>
-        {description && <p className="setting-field-desc">{description}</p>}
+        <span id={labelId} className="setting-field-name">{label}</span>
+        {description && <p id={descriptionId} className="setting-field-desc">{description}</p>}
       </div>
-      <div className="setting-field-control">{children}</div>
+      <SettingFieldA11yContext.Provider value={{ labelId, descriptionId }}>
+        <div
+          id={htmlFor}
+          className="setting-field-control"
+          role="group"
+          aria-labelledby={labelId}
+          aria-describedby={descriptionId}
+        >
+          {children}
+        </div>
+      </SettingFieldA11yContext.Provider>
     </div>
   );
 }
@@ -52,6 +83,7 @@ export function TextInput({
   type?: "text" | "password" | "number" | "url";
   id?: string;
 }) {
+  const fieldA11y = useSettingFieldA11y();
   return (
     <input
       id={id}
@@ -60,6 +92,8 @@ export function TextInput({
       value={value}
       placeholder={placeholder}
       disabled={disabled}
+      aria-labelledby={fieldA11y?.labelId}
+      aria-describedby={fieldA11y?.descriptionId}
       onChange={(e) => onChange(e.target.value)}
     />
   );
@@ -86,6 +120,7 @@ export function NumberInput({
   disabled?: boolean;
   id?: string;
 }) {
+  const fieldA11y = useSettingFieldA11y();
   return (
     <input
       id={id}
@@ -97,6 +132,8 @@ export function NumberInput({
       step={step}
       placeholder={placeholder}
       disabled={disabled}
+      aria-labelledby={fieldA11y?.labelId}
+      aria-describedby={fieldA11y?.descriptionId}
       onChange={(e) => {
         const v = e.target.value;
         if (v === "") { onChange(undefined); return; }
@@ -122,12 +159,15 @@ export function SelectInput<T extends string>({
   disabled?: boolean;
   id?: string;
 }) {
+  const fieldA11y = useSettingFieldA11y();
   return (
     <select
       id={id}
       className="setting-select"
       value={value}
       disabled={disabled}
+      aria-labelledby={fieldA11y?.labelId}
+      aria-describedby={fieldA11y?.descriptionId}
       onChange={(e) => onChange(e.target.value as T)}
     >
       {options.map((opt) => (
@@ -153,6 +193,7 @@ export function ToggleSwitch({
   id?: string;
 }) {
   const generatedId = useId();
+  const fieldA11y = useSettingFieldA11y();
   const switchId = id ?? generatedId;
   return (
     <button
@@ -160,6 +201,8 @@ export function ToggleSwitch({
       id={switchId}
       role="switch"
       aria-checked={checked}
+      aria-labelledby={fieldA11y?.labelId}
+      aria-describedby={fieldA11y?.descriptionId}
       className={`setting-toggle${checked ? " is-on" : ""}`}
       disabled={disabled}
       onClick={() => onChange(!checked)}
@@ -188,6 +231,7 @@ export function TextArea({
   disabled?: boolean;
   id?: string;
 }) {
+  const fieldA11y = useSettingFieldA11y();
   return (
     <textarea
       id={id}
@@ -196,6 +240,8 @@ export function TextArea({
       placeholder={placeholder}
       rows={rows}
       disabled={disabled}
+      aria-labelledby={fieldA11y?.labelId}
+      aria-describedby={fieldA11y?.descriptionId}
       onChange={(e) => onChange(e.target.value)}
     />
   );
@@ -225,6 +271,8 @@ export function KeyValueTextArea({
   trimValues?: boolean;
   onInvalidDraftChange?: (key: string, invalid: boolean) => void;
 }) {
+  const fieldA11y = useSettingFieldA11y();
+  const errorId = `${useId()}-error`;
   const formatted = formatKeyValueLines(value ?? {}, separator);
   const [draft, setDraft] = useState(formatted);
   const [error, setError] = useState<string | null>(null);
@@ -244,6 +292,12 @@ export function KeyValueTextArea({
         placeholder={placeholder}
         rows={rows}
         aria-invalid={error ? true : undefined}
+        aria-labelledby={fieldA11y?.labelId}
+        aria-describedby={
+          [fieldA11y?.descriptionId, error ? errorId : undefined].filter(Boolean).join(" ")
+          || undefined
+        }
+        aria-errormessage={error ? errorId : undefined}
         onChange={(event) => {
           const next = event.target.value;
           setDraft(next);
@@ -258,7 +312,7 @@ export function KeyValueTextArea({
           onChange(Object.keys(parsed.value).length ? parsed.value : undefined);
         }}
       />
-      {error ? <div className="settings-save-error" role="alert">{error}</div> : null}
+      {error ? <div id={errorId} className="settings-save-error" role="alert">{error}</div> : null}
     </>
   );
 }

@@ -4,12 +4,15 @@ import { existsSync, lstatSync, readdirSync, realpathSync, statSync } from "node
 import { chmod, open as fsOpen, mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import type { MessageBoxSyncOptions } from "electron";
 import { app, BrowserWindow, clipboard, crashReporter, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell } from "electron";
 import { readTextFileCapped } from "../shared/capped-read";
 import type { EngineCommand } from "../shared/commands";
 import { isAllowedCwd, isAllowedProjectRoot, isAllowedRevealPath, projectCwdAllowlist } from "../shared/cwd-allowlist";
 import { composeInEditor, EDITOR_DRAFT_MAX_BYTES } from "../shared/editor-compose";
+import { safeExternalUrl } from "../shared/external-url";
 import { listProjectFiles, rankPaths } from "../shared/file-fuzzy";
+import type { MenuAction } from "../shared/menu-actions";
 import { resolvePathInsideRoot, resolveWritablePathInsideRoot } from "../shared/path-safe";
 import { chatsCwdFromHome } from "../shared/project-index";
 import type { ProjectSummary } from "../shared/protocol";
@@ -24,7 +27,28 @@ import { assertTrustedIpc, assertTrustedSender, getMainWindow, setMainWindow } f
 import { TerminalManager } from "./terminal-manager";
 
 let mainWindow: BrowserWindow | null = null;
+let settingsDirty = false;
 const bridge = new EngineBridge();
+
+function confirmDiscardSettings(parent?: BrowserWindow | null): boolean {
+  if (!settingsDirty) return true;
+  const options: MessageBoxSyncOptions = {
+    type: "warning",
+    title: "Unsaved Settings",
+    message: "Discard unsaved settings changes?",
+    detail: "Settings, custom instructions, or an unfinished field still has changes.",
+    buttons: ["Keep Editing", "Discard Changes"],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  };
+  const choice = parent
+    ? dialog.showMessageBoxSync(parent, options)
+    : dialog.showMessageBoxSync(options);
+  if (choice !== 1) return false;
+  settingsDirty = false;
+  return true;
+}
 
 /** Short-TTL cache for `@` mention tree walks (avoids main-thread stalls). */
 const LIST_FILES_CACHE_TTL_MS = 5_000;
@@ -98,15 +122,6 @@ function inbound(value: unknown): HostInbound | null {
   try {
     const encoded = JSON.stringify(value);
     return typeof encoded === "string" ? decodeInbound(encoded) : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeExternalUrl(value: string): string | null {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
   } catch {
     return null;
   }
@@ -190,7 +205,7 @@ function buildApplicationMenu(): void {
             {
               label: "Settings…",
               accelerator: "CmdOrCtrl+,",
-              click: () => sendToRenderer("menu:action", "toggleSettings"),
+              click: () => sendMenuAction("toggleSettings"),
             },
             { type: "separator" as const },
             { role: "services" as const },
@@ -210,19 +225,19 @@ function buildApplicationMenu(): void {
         {
           label: "New Session",
           accelerator: "CmdOrCtrl+N",
-          click: () => sendToRenderer("menu:action", "newSession"),
+          click: () => sendMenuAction("newSession"),
         },
         {
           label: "Open Project…",
           // Cmd/Ctrl+O belongs to the transcript's established fold-all
           // contract. Keep project opening discoverable in the File menu
           // without registering a competing native accelerator.
-          click: () => sendToRenderer("menu:action", "openProject"),
+          click: () => sendMenuAction("openProject"),
         },
         {
           label: "Continue Latest Session",
           accelerator: "CmdOrCtrl+Shift+N",
-          click: () => sendToRenderer("menu:action", "continueLatest"),
+          click: () => sendMenuAction("continueLatest"),
         },
         { type: "separator" as const },
         { role: "close" as const },
@@ -275,28 +290,28 @@ function buildApplicationMenu(): void {
         ...(!isMac ? [{
           label: "Settings…",
           accelerator: "CmdOrCtrl+,",
-          click: () => sendToRenderer("menu:action", "toggleSettings"),
+          click: () => sendMenuAction("toggleSettings"),
         }] : []),
         {
           label: "Git…",
           accelerator: "CmdOrCtrl+Shift+B",
-          click: () => sendToRenderer("menu:action", "toggleGit"),
+          click: () => sendMenuAction("toggleGit"),
         },
         {
           label: "Toggle Inspector",
           accelerator: "CmdOrCtrl+Shift+I",
-          click: () => sendToRenderer("menu:action", "toggleInspector"),
+          click: () => sendMenuAction("toggleInspector"),
         },
         { type: "separator" as const },
         {
           label: "Terminal",
           accelerator: "CmdOrCtrl+J",
-          click: () => sendToRenderer("menu:action", "toggleTerminal"),
+          click: () => sendMenuAction("toggleTerminal"),
         },
         {
           label: "Background Jobs",
           accelerator: "CmdOrCtrl+Shift+J",
-          click: () => sendToRenderer("menu:action", "toggleJobs"),
+          click: () => sendMenuAction("toggleJobs"),
         },
       ],
     },
@@ -315,7 +330,7 @@ function buildApplicationMenu(): void {
         {
           label: "Keyboard Shortcuts",
           accelerator: "CmdOrCtrl+/",
-          click: () => sendToRenderer("menu:action", "showKeys"),
+          click: () => sendMenuAction("showKeys"),
         },
         { type: "separator" as const },
         {
@@ -387,7 +402,12 @@ function createWindow(): void {
 
   setMainWindow(mainWindow);
 
+  mainWindow.on("close", (event) => {
+    if (!quitting && !confirmDiscardSettings(mainWindow)) event.preventDefault();
+  });
+
   mainWindow.on("closed", () => {
+    settingsDirty = false;
     mainWindow = null;
     setMainWindow(null);
   });
@@ -403,6 +423,10 @@ function sendToRenderer(channel: string, ...args: unknown[]): void {
   }
 }
 
+function sendMenuAction(action: MenuAction): void {
+  sendToRenderer("menu:action", action);
+}
+
 const terminalManager = new TerminalManager((event) => sendToRenderer("terminal:event", event));
 
 function wireBridge(): void {
@@ -412,6 +436,11 @@ function wireBridge(): void {
 }
 
 function registerIpc(): void {
+  ipcMain.on("settings:dirty", (event, dirty: unknown) => {
+    assertTrustedSender(event.sender);
+    settingsDirty = dirty === true;
+  });
+
   ipcMain.handle(
     "engine:bootstrap",
     async (
@@ -894,6 +923,10 @@ app.on("before-quit", async (e) => {
   if (quitting) {
     // A second Cmd+Q must not bypass the cleanup already in flight. `app.exit`
     // below exits directly and does not re-enter this cancellable event.
+    e.preventDefault();
+    return;
+  }
+  if (!confirmDiscardSettings(mainWindow)) {
     e.preventDefault();
     return;
   }

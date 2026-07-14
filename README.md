@@ -77,7 +77,7 @@ npm run ui:shots -- tools/ui-preview/shots
 
 Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 `permission`, `plan`, `gate`, `mode`, `queue`, `onboarding`, `slash`, `catalog`,
-`catalog-draft`, `mention`, `attachments`, `jobs`, `inspector`, `toast`,
+`catalog-draft`, `mention`, `attachments`, `jobs`, `inspector`, `changes`, `toast`,
 `density-quiet`, `density-verbose`, `ctx-hot`, `settings`, `git` — plus
 `&theme=<name>` for any TUI theme. See
 [tools/ui-preview/README.md](./tools/ui-preview/README.md).
@@ -130,10 +130,14 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 - Content max ~130ch; transcript prose, tool activity, notices, approval panels, and the composer share the font-independent `--transcript-measure: 40rem` reading measure
 - **Left rail:** collapsible Projects + Chats sections; section **+** only (add project / new chat); Git & Settings in the footer
 - **Right workspace dock:** full-label Session / Changes / Git / Terminal / Jobs / Files in an equally inset, quietly grey rounded enclosure on the chat surface; compact below ~960px
-- **Shared activity sidebar:** Session, Changes, Git, Terminal, and Jobs open in one full-height, edge-attached right pane with a persistent top switcher, shared headers, divider, resize handle, and responsive drawer behavior. It is a structural sibling of chat, never a floating card or overlay on desktop. Files remains a Finder reveal.
+- **Shared activity sidebar:** Session, Changes, Git, Terminal, and Jobs open in one full-height, edge-attached right pane with equal switcher tabs, one compact Workspace header, a shared resize handle, and responsive drawer behavior. Horizontal divider rules are omitted; spacing and quiet surface shifts organize the chrome. Changes pairs a recursively expandable file tree with numbered Diff/File review and saturated semantic change colors. It is a structural sibling of chat, never a floating card or overlay on desktop. Files remains a Finder reveal.
 - **Persistent contextual terminal:** project sessions open at the project root;
   Chats open at the user's home. Each effective-cwd PTY lives in the main process,
   so closing Terminal or switching views preserves commands and buffered output.
+- **Long-session recovery:** authoritative engine history is enhanced by a bounded
+  IndexedDB presentation cache; corrupt, oversized, unsettled, or schema-invalid
+  records are discarded and rebuilt instead of entering renderer state, and
+  unavailable browser storage never blocks bootstrap or cleanup.
 - **Deferred terminal runtime:** xterm is code-split and loaded only when the
   Terminal activity view first opens, preserving the chat startup bundle.
 - **Cross-platform CI install:** macOS-only Liquid Glass is optional, so Linux
@@ -209,13 +213,16 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
 
 - **First-run onboarding wizard**: curated provider catalog (33 choices mirroring
   the CLI's `PROVIDER_CHOICES`), key entry with get-a-key links, base URL for
-  custom endpoints, model preselect, and save → re-bootstrap
+  custom endpoints, model preselect, and transactional save → re-bootstrap;
+  setup stays open with recovery guidance until the new engine configuration
+  actually starts
 - **Full-workspace settings**: 15 sections covering every config field — Models
   (default, planning, fallbacks, reasoning, turn/stream/queue limits,
   pricing/context-window overrides),
   Providers (curated dropdown + free-text), MCP Servers (stdio + remote,
+  reversible transport drafts and strict `${VAR}` / `${VAR:-default}` preflight,
   headers/environment, OAuth token-store settings),
-  Permissions (tool/match/matchExact/action), Appearance (16 themes + accent
+  Permissions (tool plus mutually exclusive glob/exact scope and action), Appearance (16 themes + accent
   swatches), Behavior (mode, approvals, sandbox, checkpoints, trust), Subagents,
   Build & Verify (recon, green gate, checks, review, worktrees, ensemble, plan
   gate), Memory, Search & Web, Compaction, Budget & Retry, Hooks, Custom
@@ -237,6 +244,12 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   numeric ranges are checked before persisting — invalid values are rejected
   with a helpful error, not written; CI also fails if the engine adds or removes
   a top-level config field without a matching shell type
+- **Bounded capability catalogs**: stale model/provider/agent/skill/MCP RPCs
+  cannot reopen or clear a newer picker, and persisted favorite/recent model IDs
+  are deduplicated and capped before rendering
+- **Native close safety**: unsaved Settings, custom instructions, and malformed
+  local editor drafts are synchronized to main; window close and Cmd/Ctrl+Q
+  confirm before discarding or beginning engine/terminal shutdown
 - **Deep-diff save**: only changed keys are persisted; clearing a field sends
   `null` (delete) instead of `undefined` (no-op)
 - Config is shared with the CLI at `~/.config/vibe-codr/config.json`
@@ -310,7 +323,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **360 unit tests**, **12 Electron E2E scenarios**, 19 source
+Current baseline: **463 unit tests**, **12 Electron E2E scenarios**, 19 source
 parity pairs, 40 top-level config fields, Biome, typecheck, production build,
 and renderer bundle budget pass in the current checkout. Settings, Terminal,
 Git, and Changes are isolated from the initial renderer chunk. CI runs `verify` +

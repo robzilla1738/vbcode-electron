@@ -23,6 +23,11 @@ export function applyPalette(p: Palette, accentOverride?: string, themeName?: st
       }
     : p;
   const chrome = resolveChromeAccent(p, accentOverride);
+  const diff = themeName === "contrast"
+    ? { add: "#5fff00", del: "#ff3b3b", addBg: "#003000", delBg: "#3a0000" }
+    : scheme === "light"
+      ? { add: "#087a3b", del: "#c92a2a", addBg: "#dff5e8", delBg: "#fde5e5" }
+      : { add: "#00d26a", del: "#ff4d4f", addBg: "#123522", delBg: "#3b1d22" };
   root.style.colorScheme = scheme;
   root.dataset.scheme = scheme;
   if (themeName) root.dataset.theme = themeName;
@@ -43,6 +48,10 @@ export function applyPalette(p: Palette, accentOverride?: string, themeName?: st
   root.style.setProperty("--del", p.del);
   root.style.setProperty("--add-bg", p.addBg);
   root.style.setProperty("--del-bg", p.delBg);
+  root.style.setProperty("--diff-add", diff.add);
+  root.style.setProperty("--diff-del", diff.del);
+  root.style.setProperty("--diff-add-bg", diff.addBg);
+  root.style.setProperty("--diff-del-bg", diff.delBg);
   root.style.setProperty("--gutter", p.gutter);
   // Light mode keeps headings and interface chrome neutral even when the CLI
   // palette uses a blue heading accent. Blue remains available through the

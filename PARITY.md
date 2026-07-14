@@ -1,7 +1,7 @@
 # CLI ↔ Electron parity checklist
 
 Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated:
-`npm test` (360 unit tests), `npm run test:e2e` (12 scenarios),
+`npm test` (463 unit tests), `npm run test:e2e` (12 scenarios),
 `npm run verify:source-parity` (19 declaration pairs),
 `npm run verify:config-shape` (40 top-level engine fields), and CI
 coverage/bridge/packaged-host gates.
@@ -42,6 +42,7 @@ whose HEAD equals the lock before it will embed a rebuilt host.
 - [x] Resume restores structured thinking/tool/output history through the host's
   authoritative session record, falls back to `snapshot.history` with older
   hosts, and reuses an exact bounded IndexedDB presentation cache when the
+  payload is size-consistent, settled, signature-valid, and deeply schema-valid;
   authoritative conversation signature still matches
 - [x] Submit prompt → streaming assistant text + tool rows
 - [x] `busy` held until `engine-idle` (not per-turn idle)
@@ -413,6 +414,7 @@ npm run dev
 - [x] Provider management: API keys, base URLs, token files, extra headers per
   provider with expand/collapse cards and inline add form (no window.prompt)
 - [x] MCP server management: stdio + remote (HTTP/SSE) with env-var expansion,
+  reversible stdio/remote drafts, and malformed expansion-reference rejection
   draft-preserving environment/header editors, OAuth 2.1 token-store settings,
   per-server enable/disable, timeout, inline add form
 - [x] Permission rules editor: tool/match/action with add/remove
@@ -465,6 +467,31 @@ npm run dev
 - [x] Per-path write serialization — concurrent config writes (settings save +
   permission grant) chain through a promise so neither clobbers the other
   (parity with `@vibe/config`'s `writeChain`)
+- [x] Project/session rename, archive, and delete controls preserve their draft
+  or confirmation until the backing mutation succeeds and block duplicate submits
+- [x] Rename drafts and RPC payloads use the project index's canonical 80/72
+  character labels, so successful names do not change again after refresh
+- [x] Plugin module entries are trimmed, ordered, deduplicated, and validated
+  against empty/control-character specifiers before Settings can persist them
+- [x] The 2,500-block transcript ceiling applies identically to live events,
+  IndexedDB replacement, and incremental engine-history hydration
+- [x] Large model/provider/agent/skill/MCP catalogs remain fully filterable but
+  cap mounted result rows at 400, preserving group labels and current model
+- [x] Every Settings add-row draft (provider, MCP, pricing, context window, LSP)
+  participates in dirty/close/scope guards and clears on Reset or context discard
+- [x] Permission payloads are projected into bounded renderer state while
+  retaining both head and tail; known command/edit previews and unfamiliar
+  plugin/MCP argument previews cannot hide a dangerous suffix or require blind approval
+- [x] Queue and background-job panels cap mounted rows at 200 with explicit
+  omission counts; queue head/tail and running/recent jobs remain actionable
+- [x] Runtime guards reject impossible negative usage/cost, Git divergence,
+  goal progress, file churn, compaction savings, and loop/orchestration counters
+- [x] Transcript cache opens fail closed without leaking a late IndexedDB
+  connection; eviction deletes corrupt legacy records instead of throwing mid-cursor
+- [x] Onboarding provider/model changes are transactional: failed startup rolls
+  back the prior config and runtime while keeping form values available to fix
+- [x] Plan accept mirrors the engine's active-goal ownership guard before
+  clearing the card or setting optimistic busy, preventing a permanently stuck shell
 - [x] `__vibeSecurityNotices` key stripped before disk write so a round-trip
   through the shell doesn't freeze a transient engine notice into user config
   (parity with `stripSecurityNotices`)
@@ -485,6 +512,8 @@ npm run dev
 - [x] Settings parity gaps closed:
   - `subagent.structuredMaxAttempts` in Subagents section
   - `compaction.offload.maxArtifactBytes` in Compaction section
+  - Compaction shows the effective lossless-offload threshold whenever the
+    engine normalizes an inverted/default pair below the summary threshold
   - `build.recon.enabled` + `build.recon.ledger` in Build section
   - `build.gate.checks` multi-select (typecheck/test/build/lint) in Build section
   - `plan` config (minCodeTouches, requireWebFetch, requirePackageInfo,
@@ -507,6 +536,8 @@ npm run dev
   Project, Continue Latest; Tools → Settings, Git, Inspector, Terminal, Jobs;
   Help → Keyboard Shortcuts, docs, issue reporting, wired through one
   `onMenuAction` router
+- [x] Native window close and application quit share the Settings dirty guard;
+  cancellation occurs before host finalization or terminal teardown
 - [x] Theme list fix: AppearanceSection had completely wrong theme names
   (midnight, solarized-dark, github, rose-pine — none exist in the registry).
   Fixed to use the actual `THEME_NAMES` from `theme-registry.ts` with labels
@@ -546,9 +577,29 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current release gate: 360 unit tests, 12 e2e scenarios, lint, typecheck,
+- [x] Current release gate: 463 unit tests, 12 e2e scenarios, lint, typecheck,
   build, bundle budget, source parity (19 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.
+
+## Uniform activity chrome and diff review (2026-07-14)
+
+- [x] Session, Changes, Git, Terminal, and Jobs render one shared Workspace
+  header primitive with identical height, padding, subtitle rhythm, close
+  placement, and five equal-width switcher tabs. Header/tabs use compact
+  caption/label typography and no horizontal divider rules.
+- [x] Changes uses a recursively expandable changed-file tree with deterministic
+  directory/file ordering, deep-path filtering, selected-file retention,
+  type-aware file badges, and compact tree-over-review stacking.
+- [x] Diff review has fixed line gutters, semantic edge markers, distinct sticky
+  hunk rows, and saturated addition/deletion washes. File review uses a numbered,
+  keyboard-scrollable code surface while preserving copy, Reveal, navigation,
+  loading, error, empty, and truncation behavior.
+- [x] Dedicated `--diff-add` / `--diff-del` roles cover review rows, counters,
+  transcript patches, changed-file cards, and dock summaries across
+  dark, light, and contrast schemes without intensifying generic errors/tasks.
+- [x] Activity-sidebar Escape handling bubbles after child controls and never
+  closes the lane from a focused text-entry field; Git drafts and file filters
+  retain keyboard ownership.
 
 ## Production safety closeout (2026-07-13)
 
@@ -567,10 +618,20 @@ npm run dev
   drafts/attachments, changed-file diffs, editor round trips, host transport,
   subprocess output, and terminal replay all have explicit ceilings with
   visible omission markers where user-visible content is shortened.
+- [x] Onboarding closes only after the saved provider configuration successfully
+  re-bootstraps; a failed startup preserves the setup form and actionable error.
+  Catalog presentations are latest-request-wins, and corrupt local favorite/
+  recent model state is bounded before it reaches the picker.
+- [x] Permission rules cannot silently combine glob and exact scopes; the editor
+  clears the competing scope and validation rejects ambiguous or empty rules.
+- [x] Context telemetry rejects negative/zero-window payloads and shares one
+  bounded percentage helper across composer and Session review.
 - [x] Application accelerators no longer conflict with transcript folding or
   Session Inspector. Git remote metadata strips embedded HTTP credentials and
   secret query values before renderer exposure; Git and `gh` subprocesses have
-  TERM/KILL escalation plus a hard settlement deadline.
+  TERM/KILL escalation plus a hard settlement deadline. Branch drafts survive
+  failed creation, mutations cannot double-submit, and `gh` PR JSON is validated
+  before renderer exposure.
 - [x] Source/config parity reads the exact locked engine commit. Packaging
   refuses a mismatched HEAD or dirty engine build input—including dependency
   manifests and the lockfile—before copying the host.

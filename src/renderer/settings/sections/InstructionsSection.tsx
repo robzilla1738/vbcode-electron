@@ -8,8 +8,10 @@ export function InstructionsSection({
   scope,
   cwd,
   onBindDirty,
+  onDirtyChange,
 }: SectionProps & {
   onBindDirty?: (isDirty: () => boolean) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [activeScope, setActiveScope] = useState<ConfigScope>(scope);
   const [content, setContent] = useState("");
@@ -147,6 +149,10 @@ export function InstructionsSection({
   }, []);
 
   const dirty = content !== original;
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   return (
     <SettingSection

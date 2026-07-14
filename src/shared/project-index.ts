@@ -2,6 +2,71 @@ import type { ProjectSessionSummary, ProjectSummary } from "./protocol";
 
 /** Relative path segments under the home dir for one-off chats (not a real repo). */
 export const CHATS_DIR_SEGMENTS = [".vibe", "chats"] as const;
+export const PROJECT_NAME_LIMIT = 80;
+export const SESSION_TITLE_LIMIT = 72;
+export const MAX_PROJECT_RAIL_PROJECT_ROWS = 200;
+export const MAX_PROJECT_RAIL_SESSION_ROWS = 200;
+
+export interface LimitedRailItems<T> {
+  items: T[];
+  omitted: number;
+}
+
+function limitRecentWithPinned<T>(
+  items: readonly T[],
+  keyOf: (item: T) => string,
+  pinnedKey: string | null,
+  maxItems: number,
+): LimitedRailItems<T> {
+  const limit = Math.max(1, Math.floor(maxItems));
+  if (items.length <= limit) return { items: [...items], omitted: 0 };
+  const visible = items.slice(0, limit);
+  if (pinnedKey && !visible.some((item) => keyOf(item) === pinnedKey)) {
+    const pinned = items.find((item) => keyOf(item) === pinnedKey);
+    if (pinned) visible[visible.length - 1] = pinned;
+  }
+  return { items: visible, omitted: items.length - visible.length };
+}
+
+/** Bound mounted project headings while preserving the active workspace. */
+export function limitProjectRailProjects(
+  projects: readonly ProjectSummary[],
+  activeCwd: string | null,
+  maxItems = MAX_PROJECT_RAIL_PROJECT_ROWS,
+): LimitedRailItems<ProjectSummary> {
+  return limitRecentWithPinned(projects, (project) => project.cwd, activeCwd, maxItems);
+}
+
+/** Bound mounted session rows while preserving the active session when it is
+ * part of the filtered result. The full index remains available to search. */
+export function limitProjectRailSessions(
+  sessions: readonly ProjectSessionSummary[],
+  activeSessionId: string | null,
+  maxItems = MAX_PROJECT_RAIL_SESSION_ROWS,
+): LimitedRailItems<ProjectSessionSummary> {
+  return limitRecentWithPinned(
+    sessions,
+    (session) => session.id,
+    activeSessionId,
+    maxItems,
+  );
+}
+
+function clippedLabel(value: string, limit: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= limit) return clean;
+  return `${clean.slice(0, limit - 1).trimEnd()}…`;
+}
+
+/** Match the engine project index so a successful rename does not change again on refresh. */
+export function normalizeProjectName(value: string): string {
+  return clippedLabel(value, PROJECT_NAME_LIMIT);
+}
+
+/** Match the engine's project-summary title projection. */
+export function normalizeSessionTitle(value: string): string {
+  return clippedLabel(value, SESSION_TITLE_LIMIT);
+}
 
 /**
  * Resolve the dedicated chats workspace path under a home directory.

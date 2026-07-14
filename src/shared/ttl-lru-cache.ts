@@ -36,6 +36,14 @@ export class TtlLruCache<K, V> {
     }
   }
 
+  delete(key: K): boolean {
+    return this.entries.delete(key);
+  }
+
+  clear(): void {
+    this.entries.clear();
+  }
+
   get size(): number {
     return this.entries.size;
   }

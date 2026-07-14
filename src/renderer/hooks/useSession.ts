@@ -4,6 +4,7 @@ import type { EngineCommand } from "../../shared/commands";
 import type { UIEvent } from "../../shared/events";
 import { GLYPH } from "../../shared/glyphs";
 import { hydrateFromHistory } from "../../shared/history-hydrate";
+import { estimateJsonUtf8Bytes } from "../../shared/json-size";
 import {
   cycleModeAction,
   deriveUiMode,
@@ -13,12 +14,13 @@ import {
   type UiMode,
 } from "../../shared/modes";
 import { isUIEvent } from "../../shared/protocol";
-import { estimateJsonUtf8Bytes } from "../../shared/json-size";
 import {
   ASSISTANT_OUTPUT_MAX_CHARS,
+  capTranscriptState,
   firstLine,
   groupIntoTurns,
   initialTranscript,
+  MAX_RETAINED_TRANSCRIPT_BLOCKS,
   REASONING_OUTPUT_MAX_CHARS,
   reduceTranscript,
   type TranscriptAction,
@@ -28,6 +30,7 @@ import {
 import { isEngineSnapshot, isRenderableUIEvent } from "../../shared/runtime-guards";
 import { appendRollingText } from "../../shared/stream-cap";
 import { getTheme } from "../../shared/themes";
+import { bufferToolProgress } from "../../shared/tool-progress-buffer";
 import { Trail, turnWindowStart, windowStartIndex } from "../../shared/trail";
 import type { EngineSnapshot } from "../../shared/types";
 import { stripVisionRelayContext } from "../../shared/vision-display";
@@ -102,27 +105,8 @@ const REVEAL_PAGE = 20;
 const TURN_ITEMS_MAX = 120;
 const TURN_ITEMS_STEP = 24;
 const TURN_ITEM_REVEAL_PAGE = TURN_ITEMS_STEP;
-/** Hard ceiling on retained transcript blocks (DOM window is separate). */
-const MAX_RETAINED_BLOCKS = 2_500;
 function reduceTxCapped(s: TranscriptState, a: TxAction): TranscriptState {
-  const next = reduceTx(s, a);
-  if (next.blocks.length <= MAX_RETAINED_BLOCKS) return next;
-  // Drop oldest blocks while preserving active streaming/tool indices when possible.
-  const overflow = next.blocks.length - MAX_RETAINED_BLOCKS;
-  const blocks = next.blocks.slice(overflow);
-  const shift = overflow;
-  const toolByCallId: Record<string, number> = {};
-  for (const [id, idx] of Object.entries(next.toolByCallId)) {
-    const shifted = idx - shift;
-    if (shifted >= 0) toolByCallId[id] = shifted;
-  }
-  return {
-    ...next,
-    blocks,
-    activeAssistant:
-      next.activeAssistant >= shift ? next.activeAssistant - shift : -1,
-    toolByCallId,
-  };
+  return capTranscriptState(reduceTx(s, a), MAX_RETAINED_TRANSCRIPT_BLOCKS);
 }
 
 export function useSession(cwd: string | null) {
@@ -367,9 +351,14 @@ export function useSession(cwd: string | null) {
           if (event.subagentId || !event.chunk) break;
           // Buffer progress chunks and flush on the same timer as text deltas
           // (TUI parity: coalesce chatty tool output to avoid per-chunk re-renders).
+          // Cap before buffering: the protocol permits a large single line and
+          // the reducer's tail ceiling would otherwise apply only after 24ms.
           {
-            const prev = progressBuf.current.get(event.toolCallId) ?? "";
-            progressBuf.current.set(event.toolCallId, prev + event.chunk);
+            bufferToolProgress(
+              progressBuf.current,
+              event.toolCallId,
+              event.chunk,
+            );
             if (flushTimer.current == null) {
               flushTimer.current = window.setTimeout(flushDeltas, 24);
             }
@@ -814,6 +803,20 @@ export function useSession(cwd: string | null) {
   }, [transcript.blocks]);
 
   const turns = useMemo(() => groupIntoTurns(transcript.blocks), [transcript.blocks]);
+  useEffect(() => {
+    // Transcript retention shifts old blocks out of memory. Prune interaction
+    // state for those turns too, otherwise repeatedly folding/revealing old
+    // history could leave stale keys alive for the rest of the renderer run.
+    const retainedKeys = new Set(turns.map((turn) => turn.key));
+    setFoldedTurns((current) => {
+      if ([...current].every((key) => retainedKeys.has(key))) return current;
+      return new Set([...current].filter((key) => retainedKeys.has(key)));
+    });
+    setRevealedTurnItems((current) => {
+      if ([...current.keys()].every((key) => retainedKeys.has(key))) return current;
+      return new Map([...current].filter(([key]) => retainedKeys.has(key)));
+    });
+  }, [turns]);
   const windowStart = useMemo(
     () => windowStartIndex(turns.length, WINDOW_TURNS, revealTurns),
     [turns.length, revealTurns],

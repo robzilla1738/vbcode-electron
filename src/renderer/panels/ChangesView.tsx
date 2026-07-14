@@ -1,46 +1,131 @@
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import {
+  buildChangedFileTree,
   changedFilesTotals,
+  changedFileTypeLabel,
   fileBasename,
   fileParentDir,
+  resolveChangedFileSelection,
   sortChangedFilesForDisplay,
+  type ChangedFileTreeNode,
 } from "../../shared/changed-files";
-import type { ChangedFile } from "../../shared/reducer";
 import { isUnifiedDiff } from "../../shared/diff-view";
+import type { ChangedFile } from "../../shared/reducer";
 import { CopyButton } from "../CopyButton";
 import {
   IconArrowRight,
   IconChevron,
-  IconClose,
   IconFile,
+  IconFolder,
   IconFolderOpen,
   IconSearch,
 } from "../icons";
+import { ActivityPanelHeader } from "../layout/ActivityPanelHeader";
 import { DiffPreview } from "./DiffPreview";
 
 type ReviewMode = "diff" | "file";
 
-interface FileGroup {
-  directory: string;
-  files: ChangedFile[];
-  added: number;
-  removed: number;
+function directoryPaths(nodes: ChangedFileTreeNode<ChangedFile>[]): string[] {
+  return nodes.flatMap((node) => node.kind === "directory"
+    ? [node.path, ...directoryPaths(node.children)]
+    : []);
 }
 
-function groupFiles(files: ChangedFile[]): FileGroup[] {
-  const groups = new Map<string, ChangedFile[]>();
-  for (const file of files) {
-    const directory = fileParentDir(file.path) || "Root";
-    const current = groups.get(directory) ?? [];
-    current.push(file);
-    groups.set(directory, current);
-  }
-  return [...groups.entries()]
-    .sort(([a], [b]) => (a === "Root" ? -1 : b === "Root" ? 1 : a.localeCompare(b)))
-    .map(([directory, group]) => {
-      const totals = changedFilesTotals(group);
-      return { directory, files: group, added: totals.added, removed: totals.removed };
-    });
+function ChangedFileTree({
+  nodes,
+  selectedPath,
+  expanded,
+  forceExpanded,
+  depth = 0,
+  onToggle,
+  onSelect,
+}: {
+  nodes: ChangedFileTreeNode<ChangedFile>[];
+  selectedPath: string | null;
+  expanded: ReadonlySet<string>;
+  forceExpanded: boolean;
+  depth?: number;
+  onToggle: (path: string) => void;
+  onSelect: (path: string) => void;
+}) {
+  return nodes.map((node) => {
+    const style = { "--tree-indent": `${depth * 14}px` } as CSSProperties;
+    if (node.kind === "directory") {
+      const open = forceExpanded || expanded.has(node.path);
+      return (
+        <div className="changes-tree-directory" key={`directory:${node.path}`}>
+          <button
+            type="button"
+            role="treeitem"
+            aria-expanded={open}
+            className="changes-tree-row changes-tree-folder"
+            style={style}
+            onClick={() => onToggle(node.path)}
+            title={node.path}
+          >
+            <IconChevron className={open ? "is-open" : undefined} size={12} />
+            {open ? <IconFolderOpen size={13} /> : <IconFolder size={13} />}
+            <span className="changes-tree-name">{node.name}</span>
+            <span className="changes-tree-count">{node.files}</span>
+          </button>
+          {open ? (
+            <div role="group">
+              <ChangedFileTree
+                nodes={node.children}
+                selectedPath={selectedPath}
+                expanded={expanded}
+                forceExpanded={forceExpanded}
+                depth={depth + 1}
+                onToggle={onToggle}
+                onSelect={onSelect}
+              />
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    const selected = node.path === selectedPath;
+    return (
+      <button
+        type="button"
+        role="treeitem"
+        aria-selected={selected}
+        className={`changes-tree-row changes-file-row${selected ? " is-selected" : ""}`}
+        style={style}
+        key={`file:${node.path}`}
+        onClick={() => onSelect(node.path)}
+        title={node.path}
+      >
+        <span className="changes-file-type" aria-hidden>{changedFileTypeLabel(node.path)}</span>
+        <span className="changes-tree-name">{node.name}</span>
+        <span className="changes-file-row-stats" aria-hidden>
+          {node.file.added > 0 ? <span className="diff-add-count">+{node.file.added}</span> : null}
+          {node.file.removed > 0 ? <span className="diff-del-count">−{node.file.removed}</span> : null}
+        </span>
+      </button>
+    );
+  });
+}
+
+function NumberedFilePreview({ path, text }: { path: string; text: string | null }) {
+  const lines = useMemo(() => (text ?? "").split("\n"), [text]);
+  return (
+    <div
+      className="changes-file-preview"
+      role="region"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable source review
+      tabIndex={0}
+      aria-label={`Current contents of ${path}`}
+    >
+      {lines.map((line, index) => (
+        <div className="file-preview-line" key={`${index}:${line.slice(0, 48)}`}>
+          <span className="file-preview-line-number" aria-hidden>{index + 1}</span>
+          <code>{line || " "}</code>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function ChangesView({
@@ -57,11 +142,15 @@ export function ChangesView({
   onRevealFile: (path: string) => void;
 }) {
   const orderedFiles = useMemo(() => sortChangedFilesForDisplay(files), [files]);
-  const [selectedPath, setSelectedPath] = useState<string | null>(
-    focusPath ?? orderedFiles[0]?.path ?? null,
+  const [selectedPath, setSelectedPath] = useState<string | null>(() =>
+    resolveChangedFileSelection(files, focusPath),
   );
   const [reviewMode, setReviewMode] = useState<ReviewMode>("diff");
   const [query, setQuery] = useState("");
+  const initialTree = useMemo(() => buildChangedFileTree(files), [files]);
+  const [expandedDirectories, setExpandedDirectories] = useState<Set<string>>(
+    () => new Set(directoryPaths(initialTree)),
+  );
   const [previewText, setPreviewText] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewTruncated, setPreviewTruncated] = useState(false);
@@ -75,24 +164,27 @@ export function ChangesView({
   const [diffError, setDiffError] = useState<string | null>(null);
 
   const totals = useMemo(() => changedFilesTotals(files), [files]);
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredFiles = useMemo(
-    () => orderedFiles.filter((file) => !normalizedQuery || file.path.toLowerCase().includes(normalizedQuery)),
-    [normalizedQuery, orderedFiles],
+  const tree = useMemo(
+    () => buildChangedFileTree(files, query, selectedPath),
+    [files, query, selectedPath],
   );
-  const groups = useMemo(() => groupFiles(filteredFiles), [filteredFiles]);
   const selectedFile = selectedPath ? files.find((file) => file.path === selectedPath) : undefined;
   const selectedIndex = selectedPath
     ? orderedFiles.findIndex((file) => file.path === selectedPath)
     : -1;
   const previousFile = selectedIndex > 0 ? orderedFiles[selectedIndex - 1] : null;
-  const nextFile =
-    selectedIndex >= 0 && selectedIndex < orderedFiles.length - 1
-      ? orderedFiles[selectedIndex + 1]
-      : null;
+  const nextFile = selectedIndex >= 0 && selectedIndex < orderedFiles.length - 1
+    ? orderedFiles[selectedIndex + 1]
+    : null;
   const selectedDirectory = selectedPath ? fileParentDir(selectedPath) : "";
-  const totalChurn = totals.added + totals.removed;
-  const addedShare = totalChurn > 0 ? (100 * totals.added) / totalChurn : 0;
+
+  useEffect(() => {
+    setExpandedDirectories((current) => {
+      const next = new Set(current);
+      for (const path of directoryPaths(initialTree)) next.add(path);
+      return next;
+    });
+  }, [initialTree]);
 
   useEffect(() => {
     if (focusPath && files.some((file) => file.path === focusPath)) {
@@ -102,9 +194,9 @@ export function ChangesView({
   }, [files, focusPath]);
 
   useEffect(() => {
-    if (selectedPath && files.some((file) => file.path === selectedPath)) return;
-    setSelectedPath(orderedFiles[0]?.path ?? null);
-  }, [files, orderedFiles, selectedPath]);
+    const resolved = resolveChangedFileSelection(files, selectedPath);
+    if (resolved !== selectedPath) setSelectedPath(resolved);
+  }, [files, selectedPath]);
 
   useEffect(() => {
     if (!selectedPath || !cwd || reviewMode !== "file") {
@@ -128,16 +220,11 @@ export function ChangesView({
       setPreviewError(null);
       setPreviewTruncated(result.truncated);
     }).catch((error: unknown) => {
-      if (cancelled) return;
-      setPreviewText(null);
-      setPreviewError(error instanceof Error ? error.message : String(error));
-      setPreviewTruncated(false);
+      if (!cancelled) setPreviewError(error instanceof Error ? error.message : String(error));
     }).finally(() => {
       if (!cancelled) setPreviewLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [cwd, reviewMode, selectedPath]);
 
   useEffect(() => {
@@ -152,19 +239,14 @@ export function ChangesView({
     setWorkingDiff(null);
     void window.vibe.gitFileDiff({ cwd, path: selectedPath }).then((result) => {
       if (cancelled) return;
-      if (!result.ok) {
-        setDiffError(result.error);
-      } else if (result.available) {
-        setWorkingDiff({ diff: result.diff, added: result.added, removed: result.removed });
-      }
+      if (!result.ok) setDiffError(result.error);
+      else if (result.available) setWorkingDiff({ diff: result.diff, added: result.added, removed: result.removed });
     }).catch((error: unknown) => {
       if (!cancelled) setDiffError(error instanceof Error ? error.message : String(error));
     }).finally(() => {
       if (!cancelled) setDiffLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [cwd, selectedFile?.added, selectedFile?.diff, selectedFile?.removed, selectedPath]);
 
   const selectedDiff = workingDiff?.diff
@@ -177,6 +259,15 @@ export function ChangesView({
     setReviewMode("diff");
   };
 
+  const toggleDirectory = (path: string) => {
+    setExpandedDirectories((current) => {
+      const next = new Set(current);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
   return (
     <section
       id="changes-panel"
@@ -184,72 +275,19 @@ export function ChangesView({
       aria-label="Changed files review"
       aria-labelledby="changes-title"
     >
-      <header className="changes-header">
-        <div className="changes-heading-copy">
-          <div className="changes-title-line">
-            <h2 id="changes-title">Changes</h2>
-            <span className="changes-count">{totals.count}</span>
-          </div>
-          <div className="changes-summary">
+      <ActivityPanelHeader
+        titleId="changes-title"
+        title="Changes"
+        subtitle={(
+          <span className="changes-summary">
             <span>{totals.count === 1 ? "1 file" : `${totals.count} files`}</span>
             <span className="diff-add-count">+{totals.added}</span>
             <span className="diff-del-count">−{totals.removed}</span>
-          </div>
-        </div>
-        <button
-          type="button"
-          className="icon-button sidebar-close"
-          onClick={onClose}
-          aria-label="Close changes panel"
-          title="Close changes panel"
-        >
-          <IconClose size={14} />
-        </button>
-      </header>
-
-      <div className="changes-balance" aria-label={`${totals.added} additions and ${totals.removed} deletions`}>
-        {totalChurn > 0 ? (
-          <>
-            <span className="changes-balance-add" style={{ width: `${addedShare}%` }} />
-            <span className="changes-balance-del" style={{ width: `${100 - addedShare}%` }} />
-          </>
-        ) : null}
-      </div>
-
-      <div className="changes-toolbar">
-        <label className="changes-search">
-          <IconSearch size={13} />
-          <span className="sr-only">Filter changed files</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter files…"
-          />
-        </label>
-        <div className="review-mode-toggle" role="tablist" aria-label="Review mode">
-          <button
-            type="button"
-            className={`review-mode-button${reviewMode === "diff" ? " is-active" : ""}`}
-            role="tab"
-            aria-selected={reviewMode === "diff"}
-            onClick={() => setReviewMode("diff")}
-            disabled={!selectedFile}
-          >
-            Diff
-          </button>
-          <button
-            type="button"
-            className={`review-mode-button${reviewMode === "file" ? " is-active" : ""}`}
-            role="tab"
-            aria-selected={reviewMode === "file"}
-            onClick={() => setReviewMode("file")}
-            disabled={!selectedFile}
-          >
-            File
-          </button>
-        </div>
-      </div>
+          </span>
+        )}
+        onClose={onClose}
+        closeLabel="Close changes panel"
+      />
 
       <div className="changes-workspace">
         <div className="changes-review-pane">
@@ -257,14 +295,37 @@ export function ChangesView({
             <>
               <div className="changes-file-header">
                 <div className="changes-file-identity">
-                  {selectedDirectory ? <span className="changes-file-directory">{selectedDirectory}/</span> : null}
-                  <strong title={selectedFile.path}>{fileBasename(selectedFile.path)}</strong>
+                  <span className="changes-file-type" aria-hidden>{changedFileTypeLabel(selectedFile.path)}</span>
+                  <span className="changes-file-path" title={selectedFile.path}>
+                    {selectedDirectory ? <span>{selectedDirectory}/</span> : null}
+                    <strong>{fileBasename(selectedFile.path)}</strong>
+                  </span>
                   <span className="file-diff" aria-label={`${selectedAdded} additions, ${selectedRemoved} deletions`}>
                     <span className="diff-add-count">+{selectedAdded}</span>
                     <span className="diff-del-count">−{selectedRemoved}</span>
                   </span>
                 </div>
                 <div className="changes-file-actions">
+                  <div className="review-mode-toggle" role="tablist" aria-label="Review mode">
+                    <button
+                      type="button"
+                      className={`review-mode-button${reviewMode === "diff" ? " is-active" : ""}`}
+                      role="tab"
+                      aria-selected={reviewMode === "diff"}
+                      onClick={() => setReviewMode("diff")}
+                    >
+                      Diff
+                    </button>
+                    <button
+                      type="button"
+                      className={`review-mode-button${reviewMode === "file" ? " is-active" : ""}`}
+                      role="tab"
+                      aria-selected={reviewMode === "file"}
+                      onClick={() => setReviewMode("file")}
+                    >
+                      File
+                    </button>
+                  </div>
                   <div className="changes-file-nav" role="group" aria-label="Navigate changed files">
                     <button
                       type="button"
@@ -276,7 +337,7 @@ export function ChangesView({
                     >
                       <IconArrowRight size={13} />
                     </button>
-                    <span>{selectedIndex + 1} / {orderedFiles.length}</span>
+                    <span>{selectedIndex + 1}/{orderedFiles.length}</span>
                     <button
                       type="button"
                       className="icon-button"
@@ -290,16 +351,14 @@ export function ChangesView({
                   </div>
                   <button
                     type="button"
-                    className="button changes-reveal"
+                    className="icon-button changes-reveal"
                     onClick={() => onRevealFile(selectedFile.path)}
+                    aria-label="Reveal in Finder"
                     title="Reveal in Finder"
                   >
                     <IconFolderOpen size={13} />
-                    <span>Reveal</span>
                   </button>
-                  {reviewMode === "diff" && selectedDiff ? (
-                    <CopyButton text={selectedDiff} label="Copy diff" />
-                  ) : null}
+                  {reviewMode === "diff" && selectedDiff ? <CopyButton text={selectedDiff} label="Copy diff" /> : null}
                 </div>
               </div>
 
@@ -322,15 +381,7 @@ export function ChangesView({
                 ) : previewError ? (
                   <p className="changes-loading is-error" role="alert">Couldn’t load file · {previewError}</p>
                 ) : (
-                  <pre
-                    className="changes-file-preview"
-                    role="region"
-                    // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-scrollable file preview
-                    tabIndex={0}
-                    aria-label={`Current contents of ${selectedFile.path}`}
-                  >
-                    {previewText || "This file is empty."}
-                  </pre>
+                  <NumberedFilePreview path={selectedFile.path} text={previewText} />
                 )}
                 {reviewMode === "file" && previewTruncated ? (
                   <p className="changes-truncated">Showing the first 64 KB.</p>
@@ -348,38 +399,29 @@ export function ChangesView({
 
         <aside className="changes-file-browser" aria-label="Changed files">
           <div className="changes-browser-heading">
-            <span>Files</span>
-            <span>{filteredFiles.length}</span>
+            <label className="changes-search">
+              <IconSearch size={13} />
+              <span className="sr-only">Filter changed files</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Filter files…"
+              />
+            </label>
+            <span className="changes-browser-count">{files.length}</span>
           </div>
-          <div className="changes-file-groups">
-            {groups.length > 0 ? groups.map((group) => (
-              <details className="changes-file-group" key={group.directory} open>
-                <summary>
-                  <span className="changes-group-chevron" aria-hidden><IconChevron size={12} /></span>
-                  <span className="changes-group-name" title={group.directory}>{group.directory}</span>
-                  <span className="changes-group-dot" aria-hidden />
-                </summary>
-                <div className="changes-group-files">
-                  {group.files.map((file) => (
-                    <button
-                      type="button"
-                      className={`changes-file-row${file.path === selectedPath ? " is-selected" : ""}`}
-                      key={file.path}
-                      onClick={() => selectFile(file.path)}
-                      aria-current={file.path === selectedPath ? "true" : undefined}
-                      title={file.path}
-                    >
-                      <IconFile size={13} />
-                      <span className="changes-file-row-name">{fileBasename(file.path)}</span>
-                      <span className="changes-file-row-stats" aria-hidden>
-                        {file.added > 0 ? <span className="diff-add-count">+{file.added}</span> : null}
-                        {file.removed > 0 ? <span className="diff-del-count">−{file.removed}</span> : null}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </details>
-            )) : (
+          <div className="changes-file-groups" role="tree" aria-label="Changed file tree">
+            {tree.length > 0 ? (
+              <ChangedFileTree
+                nodes={tree}
+                selectedPath={selectedPath}
+                expanded={expandedDirectories}
+                forceExpanded={query.trim().length > 0}
+                onToggle={toggleDirectory}
+                onSelect={selectFile}
+              />
+            ) : (
               <p className="changes-filter-empty">No files match “{query}”.</p>
             )}
           </div>

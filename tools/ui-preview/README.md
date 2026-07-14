@@ -24,7 +24,7 @@ Scenarios: `welcome`, `splash` (quiet empty home + composer), `chat`, `table`,
 `light`, and `theme-opencode`. `attachments` previews the dropped-image and
 file-reference composer state, including Finder-style URI path fallback. The
 `inspector` exercises Session, while `changes` opens the expanded master-detail
-changed-files review with grouped navigation, totals, and Diff/File content;
+changed-files review with recursive navigation, totals, and numbered Diff/File content;
 `settings` remains a full-workspace tool; `git` and `inspector` exercise the
 right-side activity surface. Live app chrome (not fully mirrored in every mock
 scenario) also includes the workspace dock, shared Session/Changes/Git/Terminal/Jobs

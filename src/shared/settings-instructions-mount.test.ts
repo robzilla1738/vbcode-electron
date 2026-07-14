@@ -47,4 +47,10 @@ describe("settings instructions mount contract", () => {
     expect(panelSrc).toContain("if (seq !== loadSeq.current) return");
     expect(instructionsSrc).toContain("if (seq !== loadSeq.current) return");
   });
+
+  it("keeps hidden Settings mounted without letting it consume Escape", () => {
+    expect(panelSrc).toMatch(/function SettingsFormArea\(\{\s*active,/);
+    expect(panelSrc).toMatch(/useEffect\(\(\) => \{\s*if \(!active\) return;\s*const onKeyDown/);
+    expect(panelSrc).toContain("active={active}");
+  });
 });

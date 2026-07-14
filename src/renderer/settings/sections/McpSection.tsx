@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { McpServerConfig } from "../../../shared/config-schema";
-import { mcpServerTypeTemplate } from "../../../shared/mcp-server-edit";
-import type { SectionProps } from "./types";
+import {
+  type McpTransportDrafts,
+  switchMcpServerType,
+} from "../../../shared/mcp-server-edit";
 import { KeyValueTextArea, NumberInput, SettingBadge, SettingField, SettingSection, TextArea, TextInput, ToggleSwitch } from "../FormControls";
+import type { SectionProps } from "./types";
 
 export function McpSection({
   config,
@@ -17,6 +20,20 @@ export function McpSection({
   const [expanded, setExpanded] = useState<string | null>(serverNames[0] ?? null);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
+  const transportDrafts = useRef(new Map<string, McpTransportDrafts>());
+  const addDraftKey = `mcp:${scope}:${cwd ?? ""}:new-name`;
+
+  useEffect(() => {
+    const pending = showAdd && Boolean(newName.trim());
+    onInvalidDraftChange?.(addDraftKey, pending);
+    return () => onInvalidDraftChange?.(addDraftKey, false);
+  }, [addDraftKey, newName, onInvalidDraftChange, showAdd]);
+
+  useEffect(() => {
+    transportDrafts.current.clear();
+    setNewName("");
+    setShowAdd(false);
+  }, [scope, cwd, draftResetVersion]);
 
   const updateServer = (name: string, server: McpServerConfig) => {
     const next = { ...servers, [name]: server };
@@ -24,9 +41,24 @@ export function McpSection({
   };
 
   const removeServer = (name: string) => {
+    transportDrafts.current.delete(name);
     const next = { ...servers };
     delete next[name];
     updateConfig({ mcp: { servers: next } });
+  };
+
+  const switchServerType = (
+    name: string,
+    kind: "stdio" | "remote",
+    server: McpServerConfig,
+  ) => {
+    const switched = switchMcpServerType(
+      kind,
+      server,
+      transportDrafts.current.get(name),
+    );
+    transportDrafts.current.set(name, switched.drafts);
+    updateServer(name, switched.server);
   };
 
   const confirmAdd = () => {
@@ -72,7 +104,7 @@ export function McpSection({
                             type="radio"
                             name={`mcp-type-${name}`}
                             checked={isStdio}
-                            onChange={() => updateServer(name, mcpServerTypeTemplate("stdio", server))}
+                            onChange={() => switchServerType(name, "stdio", server)}
                           />
                           Stdio (local process)
                         </label>
@@ -81,7 +113,7 @@ export function McpSection({
                             type="radio"
                             name={`mcp-type-${name}`}
                             checked={!isStdio}
-                            onChange={() => updateServer(name, mcpServerTypeTemplate("remote", server))}
+                            onChange={() => switchServerType(name, "remote", server)}
                           />
                           Remote (HTTP/SSE)
                         </label>
@@ -275,7 +307,12 @@ export function McpSection({
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") confirmAdd();
-              if (e.key === "Escape") { setShowAdd(false); setNewName(""); }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowAdd(false);
+                setNewName("");
+              }
             }}
           />
           <button type="button" className="button primary" disabled={!newName.trim() || Boolean(servers[newName.trim()])} onClick={confirmAdd}>Add</button>

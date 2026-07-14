@@ -18,6 +18,13 @@ describe("workspace dock design contract", () => {
     join(process.cwd(), "src/renderer/layout/ActivitySidebar.tsx"),
     "utf8",
   );
+  const headerSource = readFileSync(
+    join(process.cwd(), "src/renderer/layout/ActivityPanelHeader.tsx"),
+    "utf8",
+  );
+  const inspectorSource = readFileSync(join(process.cwd(), "src/renderer/panels/Inspector.tsx"), "utf8");
+  const changesSource = readFileSync(join(process.cwd(), "src/renderer/panels/ChangesView.tsx"), "utf8");
+  const jobsSource = readFileSync(join(process.cwd(), "src/renderer/panels/JobsView.tsx"), "utf8");
   const gitSource = readFileSync(join(process.cwd(), "src/renderer/git/GitPanel.tsx"), "utf8");
   const terminalSource = readFileSync(
     join(process.cwd(), "src/renderer/panels/TerminalPanel.tsx"),
@@ -49,6 +56,8 @@ describe("workspace dock design contract", () => {
     // No section divider chrome
     expect(source).not.toContain("workspace-dock-divider");
     expect(source).not.toContain("workspace-dock-section-label");
+    expect(source).toContain("data-empty-home={emptyHome || undefined}");
+    expect(appSource).toContain("emptyHome={");
     void staticLabels;
   });
 
@@ -83,6 +92,34 @@ describe("workspace dock design contract", () => {
     expect(terminalSource).toContain("letterSpacing: 0");
   });
 
+  it("uses equal switcher columns and one shared header across every view", () => {
+    expect(styles).toMatch(/\.activity-sidebar-tabs\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
+    expect(headerSource).toContain('className="activity-panel-header sidebar-heading-row"');
+    for (const panel of [inspectorSource, changesSource, gitSource, terminalSource, jobsSource]) {
+      expect(panel).toContain("ActivityPanelHeader");
+    }
+    expect(styles).not.toMatch(/\.activity-sidebar-tabs\s*\{[^}]*border-bottom:/s);
+    expect(styles).not.toMatch(/\.sidebar-heading-row\s*\{[^}]*border-bottom:/s);
+    expect(styles).toMatch(/\.sidebar-heading-row\s*\{[^}]*font-family:\s*var\(--font-sans\);/s);
+    expect(styles).toMatch(/\.sidebar-heading-row \.sidebar-heading-title\s*\{[^}]*font-size:\s*var\(--text-label\);/s);
+  });
+
+  it("keeps diff color roles separate from generic error semantics", () => {
+    expect(styles).toContain("--diff-add: #00d26a");
+    expect(styles).toContain("--diff-del: #ff4d4f");
+    expect(styles).toContain(".diff-add-count { color: var(--diff-add); }");
+    expect(styles).toContain(".diff-del-count { color: var(--diff-del); }");
+    expect(styles).toContain(".terminal-panel-error { color: var(--del); }");
+  });
+
+  it("renders Changes as a nested tree and numbered File mode", () => {
+    expect(changesSource).toContain('role="tree"');
+    expect(changesSource).toContain('role="treeitem"');
+    expect(changesSource).toContain("buildChangedFileTree");
+    expect(changesSource).toContain("file-preview-line-number");
+    expect(changesSource).toContain("NumberedFilePreview");
+  });
+
   it("keeps the reserved dock lane on the same continuous chat-stage veil", () => {
     expect(styles).toMatch(
       /\.content-inset:has\(> \.workspace-dock\) \.chat-column:not\(\.is-empty\)::after\s*\{[\s\S]*?inset-inline-end:\s*calc\(-1 \* \(var\(--workspace-dock-w\) \+ var\(--space-lg\)\)\);/,
@@ -94,6 +131,12 @@ describe("workspace dock design contract", () => {
     expect(styles).toMatch(/\.workspace-dock-row\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;[\s\S]*?touch-action:\s*manipulation;/);
     expect(styles).toMatch(/@media \(max-width: 960px\)[\s\S]*?grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\);/);
     expect(styles).toMatch(/@media \(max-width: 960px\)[\s\S]*?\.workspace-dock-row\s*\{[\s\S]*?min-height:\s*44px;/);
+    expect(styles).toMatch(
+      /@media \(max-width: 960px\)[\s\S]*?\.workspace-dock\[data-empty-home="true"\]\s*\{[\s\S]*?width:\s*min\(184px,[\s\S]*?\.workspace-dock\[data-empty-home="true"\] \.workspace-dock-row\s*\{[\s\S]*?min-height:\s*24px;/,
+    );
+    expect(styles).toMatch(
+      /\.workspace-dock\[data-empty-home="true"\] \.workspace-dock-row-icon svg\s*\{[\s\S]*?width:\s*11px;[\s\S]*?height:\s*11px;/,
+    );
     expect(styles).toMatch(/\.activity-sidebar\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;/);
   });
 });

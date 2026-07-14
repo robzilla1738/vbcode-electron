@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useLayoutEffect } from "react";
 import type { WorkspaceDockTarget } from "./WorkspaceDock";
 
 export type ActivitySidebarTarget = Exclude<WorkspaceDockTarget, "files">;
@@ -26,28 +26,27 @@ export function ActivitySidebar({
   onClose: () => void;
   children: ReactNode;
 }) {
-  const sidebarRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      const target = event.target;
-      const ownsTarget =
-        target === document.body ||
-        target === document.documentElement ||
-        (target instanceof Node && sidebarRef.current?.contains(target));
-      if (!ownsTarget) return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      const inTextEntry =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT" ||
+        target?.isContentEditable;
+      if (inTextEntry) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       onClose();
     };
-    window.addEventListener("keydown", closeOnEscape, { capture: true });
-    return () => window.removeEventListener("keydown", closeOnEscape, { capture: true });
+    // Bubble so nested controls can consume Escape before the sidebar does.
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
   }, [onClose]);
 
   return (
     <aside
-      ref={sidebarRef}
       className="activity-sidebar"
       data-active={active}
       aria-label="Workspace tools"

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { belowBreakpoint } from "../shared/breakpoints";
+import { CatalogCache, type CatalogCacheKey } from "../shared/catalog-cache";
 import {
   agentsPickerQuery,
   currentModelForTarget,
@@ -12,7 +13,10 @@ import {
 } from "../shared/catalog-draft";
 import { sortChangedFilesForDisplay } from "../shared/changed-files";
 import { commandsExpectBusy } from "../shared/command-busy";
+import { applyConfigPatch, buildConfigPatch } from "../shared/config-diff";
+import { contextUsagePercent } from "../shared/context-usage";
 import { densityLabel, nextDensity } from "../shared/density";
+import { planResolutionBlockedReason } from "../shared/plan-resolution";
 import {
   isChatsCwd,
   normalizeCwd,
@@ -20,15 +24,15 @@ import {
   terminalCwdForWorkspace,
 } from "../shared/project-index";
 import {
+  type EngineCommand,
   encodedEngineCommandBytes,
   HOST_INBOUND_SAFE_BYTES,
-  type EngineCommand,
   type ProjectSummary,
 } from "../shared/protocol";
+import { hasUsableOnboardingProvider } from "../shared/providers-catalog";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
 import { lineToCommands, routePendingPermLine } from "../shared/slash";
 import { classifySubmitLine } from "../shared/submit-routing";
-import { hasUnfinishedTasks } from "../shared/task-window";
 import type {
   AgentInfo,
   McpServerInfo,
@@ -119,12 +123,9 @@ export function App() {
   const [draft, setDraft] = useState("");
   const [picker, setPicker] = useState<Picker>(null);
   const [modelTarget, setModelTarget] = useState<"main" | "sub">("main");
-  const agentsCache = useRef<AgentInfo[] | null>(null);
-  const modelsCache = useRef<ModelSummary[] | null>(null);
-  const providersCache = useRef<ProviderInfo[] | null>(null);
-  const skillsCache = useRef<SkillInfo[] | null>(null);
-  const mcpCache = useRef<McpServerInfo[] | null>(null);
+  const catalogCache = useRef(new CatalogCache());
   const catalogGeneration = useRef(0);
+  const catalogPresentationGate = useRef(new RequestGate());
   const pickerRetryRef = useRef<(() => void) | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [chatsCwd, setChatsCwd] = useState<string | null>(null);
@@ -139,6 +140,7 @@ export function App() {
   const [onboardingProviders, setOnboardingProviders] = useState<ProviderStatus[]>([]);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const onboardingProbeGate = useRef(new RequestGate());
   const [keysOpen, setKeysOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Bumped on N so PermissionCard can open deny-reason then confirm (card parity). */
@@ -240,20 +242,19 @@ export function App() {
   }, [session]);
 
   const toggleSettings = useCallback(() => {
-    setSettingsOpen((prev) => {
-      if (prev) {
-        if (settingsDirtyRef.current() && !window.confirm("Discard unsaved settings changes?")) {
-          return prev;
-        }
-        return false;
+    if (settingsOpen) {
+      if (settingsDirtyRef.current() && !window.confirm("Discard unsaved settings changes?")) {
+        return;
       }
-      setGitOpen(false);
-      setTerminalOpen(false);
-      session.setInspectorOpen(false);
-      session.setJobsView(false);
-      return true;
-    });
-  }, [session]);
+      setSettingsOpen(false);
+      return;
+    }
+    setGitOpen(false);
+    setTerminalOpen(false);
+    session.setInspectorOpen(false);
+    session.setJobsView(false);
+    setSettingsOpen(true);
+  }, [settingsOpen, session]);
 
   const openGit = useCallback(() => {
     if (!cwd) return;
@@ -267,18 +268,19 @@ export function App() {
 
   const toggleGit = useCallback(() => {
     if (!cwd) return;
-    setGitOpen((prev) => {
-      if (prev) return false;
-      if (settingsDirtyRef.current() && !window.confirm("Discard unsaved settings changes?")) {
-        return prev;
-      }
-      setSettingsOpen(false);
-      setTerminalOpen(false);
-      session.setInspectorOpen(false);
-      session.setJobsView(false);
-      return true;
-    });
-  }, [cwd, session]);
+    if (gitOpen) {
+      setGitOpen(false);
+      return;
+    }
+    if (settingsDirtyRef.current() && !window.confirm("Discard unsaved settings changes?")) {
+      return;
+    }
+    setSettingsOpen(false);
+    setTerminalOpen(false);
+    session.setInspectorOpen(false);
+    session.setJobsView(false);
+    setGitOpen(true);
+  }, [cwd, gitOpen, session]);
 
   const toggleInspector = useCallback(() => {
     if (settingsOpen) {
@@ -378,22 +380,22 @@ export function App() {
   );
 
   const closeActiveEndPanel = useCallback(() => {
-    if (session.inspectorOpen) {
+    if (activeEndPanel === "session" || activeEndPanel === "changes") {
       setInspectorFocusPath(null);
       setInspectorFocusSection(null);
       session.setInspectorOpen(false);
       return;
     }
-    if (session.jobsView) {
+    if (activeEndPanel === "jobs") {
       session.setJobsView(false);
       return;
     }
-    if (gitOpen) {
+    if (activeEndPanel === "git") {
       setGitOpen(false);
       return;
     }
-    if (terminalOpen) setTerminalOpen(false);
-  }, [gitOpen, session, terminalOpen]);
+    if (activeEndPanel === "terminal") setTerminalOpen(false);
+  }, [activeEndPanel, session]);
 
   // Preview harness: auto-open a panel when a `vibe-preview-open-panel` event
   // is dispatched (used by `npm run ui:preview ?scenario=settings|git|changes`).
@@ -437,13 +439,17 @@ export function App() {
   const chromeRef = useRef(session.chrome);
   chromeRef.current = session.chrome;
 
+  const dismissCatalog = useCallback(() => {
+    catalogPresentationGate.current.invalidate();
+    pickerRetryRef.current = null;
+    setPicker(null);
+  }, []);
+
   const invalidateCatalogs = useCallback(() => {
     catalogGeneration.current += 1;
-    agentsCache.current = null;
-    modelsCache.current = null;
-    providersCache.current = null;
-    skillsCache.current = null;
-    mcpCache.current = null;
+    catalogPresentationGate.current.invalidate();
+    pickerRetryRef.current = null;
+    catalogCache.current.clear();
     setPicker(null);
     setModelTarget("main");
   }, []);
@@ -485,18 +491,29 @@ export function App() {
       if (ok) {
         setCwd(path);
         await refreshProjects();
+        const onboardingProbe = onboardingProbeGate.current.begin();
         try {
-          const prov = await window.vibe.rpc("listProviders");
+          const [prov, models] = await Promise.all([
+            window.vibe.rpc("listProviders"),
+            window.vibe.rpc("listModels"),
+          ]);
+          if (!onboardingProbeGate.current.isCurrent(onboardingProbe)) return;
           if (!prov.ok) {
             setOnboardingProviders([]);
             setShowOnboarding(false);
             return;
           }
           const items = (prov.value as ProviderInfo[]) ?? [];
+          const modelItems = models.ok ? (models.value as ModelSummary[]) : [];
+          catalogCache.current.set("providers", items);
+          if (models.ok) catalogCache.current.set("models", modelItems);
           setOnboardingProviders(items as ProviderStatus[]);
-          const anyReady = items.some((p) => p.configured || p.keyless);
-          setShowOnboarding(!anyReady && !onboardingDismissed.current);
+          setShowOnboarding(
+            !hasUsableOnboardingProvider(items, modelItems)
+              && !onboardingDismissed.current,
+          );
         } catch {
+          if (!onboardingProbeGate.current.isCurrent(onboardingProbe)) return;
           // Unknown provider state must not open a misleading first-run modal.
           setOnboardingProviders([]);
           setShowOnboarding(false);
@@ -508,26 +525,78 @@ export function App() {
 
   const saveOnboarding = useCallback(
     async (patch: Record<string, unknown>) => {
+      onboardingProbeGate.current.invalidate();
       setOnboardingSaving(true);
       setOnboardingError(null);
+      let rollbackPatch: Record<string, unknown> | null = null;
+      let wroteConfig = false;
       try {
+        const previous = await window.vibe.readConfig({ scope: "global" });
+        if (!previous.ok) {
+          setOnboardingError(`Could not read existing settings safely: ${previous.error}`);
+          return;
+        }
+        const original = (previous.config ?? {}) as Record<string, unknown>;
+        const proposed = applyConfigPatch(original, patch);
+        rollbackPatch = buildConfigPatch(proposed, original);
+
         const res = await window.vibe.writeConfig({ scope: "global", patch });
         if (!res.ok) {
           setOnboardingError(res.error);
-          setOnboardingSaving(false);
           return;
         }
-        setShowOnboarding(false);
+        wroteConfig = true;
+        // Provider/model RPC results were produced by the previous runtime
+        // configuration. Never let setup success leave stale picker results.
+        invalidateCatalogs();
+        if (!cwd) {
+          setOnboardingError(
+            "Provider settings were saved, but no project is open. Open a project to start the engine.",
+          );
+          return;
+        }
+
+        // Treat setup as complete only after the engine accepts the new
+        // configuration. Closing the modal after the config write alone left
+        // users stranded on a boot error with no guided way to correct a bad
+        // provider, model, or custom endpoint.
+        const bootstrapped = await session.bootstrap({ cwd });
+        if (!bootstrapped) {
+          const restored = await window.vibe.writeConfig({ scope: "global", patch: rollbackPatch });
+          const runtimeRestored = restored.ok ? await session.bootstrap({ cwd }) : false;
+          setOnboardingError(restored.ok && runtimeRestored
+            ? "The engine could not start with those settings. Previous settings were restored; review the provider, model, and endpoint, then try again."
+            : restored.ok
+              ? "The engine could not start with those settings. The previous config file was restored, but the engine could not restart. Review the setup and try again."
+              : `The engine could not start, and automatic settings restore failed: ${restored.error}`);
+          return;
+        }
+
         onboardingDismissed.current = false;
-        setOnboardingSaving(false);
-        // Re-bootstrap so the engine picks up the new provider config.
-        if (cwd) await session.bootstrap({ cwd });
+        setShowOnboarding(false);
       } catch (err) {
-        setOnboardingError(err instanceof Error ? err.message : "Failed to save");
+        let restoreFailure = "";
+        if (wroteConfig && rollbackPatch) {
+          try {
+            const restored = await window.vibe.writeConfig({ scope: "global", patch: rollbackPatch });
+            if (!restored.ok) {
+              restoreFailure = ` Automatic restore also failed: ${restored.error}`;
+            } else if (cwd) {
+              const runtimeRestored = await session.bootstrap({ cwd });
+              if (!runtimeRestored) {
+                restoreFailure = " The previous config file was restored, but the engine could not restart.";
+              }
+            }
+          } catch (restoreError) {
+            restoreFailure = ` Automatic restore also failed: ${restoreError instanceof Error ? restoreError.message : String(restoreError)}`;
+          }
+        }
+        setOnboardingError(`${err instanceof Error ? err.message : "Failed to save"}${restoreFailure}`);
+      } finally {
         setOnboardingSaving(false);
       }
     },
-    [cwd, session],
+    [cwd, session, invalidateCatalogs],
   );
 
   const openProject = useCallback(async () => {
@@ -616,10 +685,13 @@ export function App() {
       session.showToast("Stop the current turn before switching sessions.", "warn");
       return;
     }
+    const wasDirty = settingsDirtyRef.current();
+    if (!confirmLeaveSettings()) return;
+    if (wasDirty) setSettingsOpen(false);
     invalidateCatalogs();
     const ok = await session.bootstrap({ cwd, continueLatest: true });
     if (ok) await refreshProjects();
-  }, [cwd, session, refreshProjects, invalidateCatalogs]);
+  }, [cwd, session, refreshProjects, invalidateCatalogs, confirmLeaveSettings]);
 
   const newSession = useCallback(async () => {
     if (!cwd) return false;
@@ -858,6 +930,7 @@ export function App() {
     async (decision: "once" | "always" | "always-project" | "deny", feedback?: string) => {
       const perm = session.chrome.perms[0];
       if (!perm || resolvingGate.current) return false;
+      const gateSessionId = session.chrome.sessionId;
       const command: EngineCommand = {
         type: "resolve-permission",
         id: perm.id,
@@ -869,6 +942,10 @@ export function App() {
       try {
         const sent = await session.send(command);
         if (!sent) return false;
+        // A slow renderer→host write can settle after New/Open/Resume replaced
+        // the session. Never let an acknowledgement for the old permission
+        // mutate a new session whose request happens to reuse the same id.
+        if (chromeRef.current.sessionId !== gateSessionId) return true;
         session.dispatchChrome({ type: "drop-perm", id: perm.id });
         // Do not synthesize an "allowed" transcript notice here. The IPC result
         // only acknowledges transport; a concurrent permission-settled event may
@@ -888,6 +965,14 @@ export function App() {
       approvals?: "auto",
     ) => {
       if (resolvingGate.current) return false;
+      const pendingPlan = session.chrome.plan;
+      if (!pendingPlan) return false;
+      const gateSessionId = session.chrome.sessionId;
+      const blocked = planResolutionBlockedReason(decision, session.chrome.goalRun);
+      if (blocked) {
+        session.showToast(blocked, "warn");
+        return false;
+      }
       const command: EngineCommand = {
         type: "resolve-plan",
         decision,
@@ -899,6 +984,15 @@ export function App() {
       try {
         const sent = await session.send(command);
         if (!sent) return false;
+        // Only the exact plan/session that originated this send may be cleared.
+        // A delayed acknowledgement must not dismiss a newer plan or mark a
+        // newly-opened session busy.
+        if (
+          chromeRef.current.sessionId !== gateSessionId
+          || chromeRef.current.plan !== pendingPlan
+        ) {
+          return true;
+        }
         session.dispatchChrome({ type: "clear-plan" });
         // Accept/edit start real engine work — match commandsExpectBusy optimism.
         if (decision === "accept" || decision === "edit") {
@@ -918,14 +1012,16 @@ export function App() {
   // loading/ready picker descriptors.
   const presentCatalog = useCallback(
     async <T,>(opts: {
-      cache: { current: T[] | null };
+      cacheKey: CatalogCacheKey;
       fetch: () => Promise<{ ok: true; value: T[] } | { ok: false; error: string }>;
       loadingPicker: CatalogPickerState;
       readyPicker: (items: T[]) => CatalogPickerState;
       cancelled: () => boolean;
     }): Promise<boolean> => {
       const generation = catalogGeneration.current;
-      let items = opts.cache.current;
+      const request = catalogPresentationGate.current.begin();
+      const isCurrent = () => catalogPresentationGate.current.isCurrent(request);
+      let items = catalogCache.current.get<T>(opts.cacheKey);
       if (!items) {
         setPicker({ ...opts.loadingPicker, status: "loading" });
         pickerRetryRef.current = () => {
@@ -940,11 +1036,9 @@ export function App() {
             error: error instanceof Error ? error.message : "Catalog request failed",
           };
         }
-        if (opts.cancelled() || generation !== catalogGeneration.current) {
-          // Cancel after loading was shown — clear stuck "loading" popover.
-          setPicker((current) =>
-            current?.status === "loading" ? null : current,
-          );
+        if (opts.cancelled() || generation !== catalogGeneration.current || !isCurrent()) {
+          // A newer request or explicit close owns the picker now. A stale
+          // completion must never clear or reopen that newer presentation.
           return false;
         }
         if (!res.ok) {
@@ -952,14 +1046,12 @@ export function App() {
           return false;
         }
         items = res.value;
-        opts.cache.current = items;
+        catalogCache.current.set(opts.cacheKey, items);
       }
-      if (opts.cancelled() || generation !== catalogGeneration.current) {
-        setPicker((current) =>
-          current?.status === "loading" ? null : current,
-        );
+      if (opts.cancelled() || generation !== catalogGeneration.current || !isCurrent()) {
         return false;
       }
+      pickerRetryRef.current = null;
       setPicker(opts.readyPicker(items));
       return true;
     },
@@ -973,7 +1065,7 @@ export function App() {
   const openModelsPicker = useCallback(
     async (target: ModelPickerTarget, query = ""): Promise<boolean> => {
       return presentCatalog<ModelSummary>({
-        cache: modelsCache,
+        cacheKey: "models",
         fetch: async () => {
           const res = await window.vibe.rpc("listModels");
           return res.ok ? { ok: true, value: res.value as ModelSummary[] } : { ok: false, error: res.error };
@@ -990,7 +1082,7 @@ export function App() {
               target,
               chrome.model,
               chrome.subagentModel,
-              agentsCache.current ?? [],
+              catalogCache.current.get<AgentInfo>("agents") ?? [],
             ),
           };
         },
@@ -1103,7 +1195,7 @@ export function App() {
       }
       if (trimmed === "/providers") {
         return presentCatalog<ProviderInfo>({
-          cache: providersCache,
+          cacheKey: "providers",
           fetch: async () => {
             const res = await window.vibe.rpc("listProviders");
             return res.ok ? { ok: true, value: res.value as ProviderInfo[] } : { ok: false, error: res.error };
@@ -1115,7 +1207,7 @@ export function App() {
       }
       if (trimmed === "/agents") {
         return presentCatalog<AgentInfo>({
-          cache: agentsCache,
+          cacheKey: "agents",
           fetch: async () => {
             const res = await window.vibe.rpc("listAgents");
             return res.ok ? { ok: true, value: res.value as AgentInfo[] } : { ok: false, error: res.error };
@@ -1128,7 +1220,7 @@ export function App() {
       if (trimmed === "/skills" || trimmed.startsWith("/skills ")) {
         const skillsQuery = trimmed.slice("/skills".length).trim();
         return presentCatalog<SkillInfo>({
-          cache: skillsCache,
+          cacheKey: "skills",
           fetch: async () => {
             const res = await window.vibe.rpc("listSkills");
             return res.ok ? { ok: true, value: res.value as SkillInfo[] } : { ok: false, error: res.error };
@@ -1140,7 +1232,7 @@ export function App() {
       }
       if (trimmed === "/mcp") {
         return presentCatalog<McpServerInfo>({
-          cache: mcpCache,
+          cacheKey: "mcp",
           fetch: async () => {
             const res = await window.vibe.rpc("listMcp");
             return res.ok
@@ -1160,9 +1252,9 @@ export function App() {
 
       // Invalidate model/provider caches after key/refresh
       if (/^\/model\s+key\b/i.test(trimmed) || /^\/models?\s+refresh\b/i.test(trimmed)) {
-        modelsCache.current = null;
-        providersCache.current = null;
-        setPicker(null);
+        catalogCache.current.delete("models");
+        catalogCache.current.delete("providers");
+        dismissCatalog();
       }
 
       const commands = lineToCommands(trimmed);
@@ -1175,7 +1267,7 @@ export function App() {
       if (!sent && expectBusy) session.setBusy(false);
       return sent;
     },
-    [session, cwd, answerPerm, answerPlan, commandFitsInboundLimit, openModelsPicker, presentCatalog, openSettings, openGit, openWorkspaceDock],
+    [session, cwd, answerPerm, answerPlan, commandFitsInboundLimit, openModelsPicker, presentCatalog, openSettings, openGit, openWorkspaceDock, dismissCatalog],
   );
 
   // Live draft catalogs — open/update pickers while typing (TUI parity).
@@ -1187,7 +1279,7 @@ export function App() {
       const pick = modelPicker(draft, modelTarget);
       if (pick) {
         await presentCatalog<ModelSummary>({
-          cache: modelsCache,
+          cacheKey: "models",
           fetch: async () => {
             const res = await window.vibe.rpc("listModels");
             return res.ok ? { ok: true, value: res.value as ModelSummary[] } : { ok: false, error: res.error };
@@ -1204,7 +1296,7 @@ export function App() {
                 pick.target,
                 chrome.model,
                 chrome.subagentModel,
-                agentsCache.current ?? [],
+                catalogCache.current.get<AgentInfo>("agents") ?? [],
               ),
             };
           },
@@ -1216,7 +1308,7 @@ export function App() {
       const provQ = providersPickerQuery(draft);
       if (provQ !== null) {
         await presentCatalog<ProviderInfo>({
-          cache: providersCache,
+          cacheKey: "providers",
           fetch: async () => {
             const res = await window.vibe.rpc("listProviders");
             return res.ok ? { ok: true, value: res.value as ProviderInfo[] } : { ok: false, error: res.error };
@@ -1231,7 +1323,7 @@ export function App() {
       const agentsQ = agentsPickerQuery(draft);
       if (agentsQ !== null) {
         await presentCatalog<AgentInfo>({
-          cache: agentsCache,
+          cacheKey: "agents",
           fetch: async () => {
             const res = await window.vibe.rpc("listAgents");
             return res.ok ? { ok: true, value: res.value as AgentInfo[] } : { ok: false, error: res.error };
@@ -1246,7 +1338,7 @@ export function App() {
       const skillsQ = skillsPickerFilter(draft);
       if (skillsQ !== null) {
         await presentCatalog<SkillInfo>({
-          cache: skillsCache,
+          cacheKey: "skills",
           fetch: async () => {
             const res = await window.vibe.rpc("listSkills");
             return res.ok ? { ok: true, value: res.value as SkillInfo[] } : { ok: false, error: res.error };
@@ -1261,7 +1353,7 @@ export function App() {
       const mcpQ = mcpPickerQuery(draft);
       if (mcpQ !== null) {
         await presentCatalog<McpServerInfo>({
-          cache: mcpCache,
+          cacheKey: "mcp",
           fetch: async () => {
             const res = await window.vibe.rpc("listMcp");
             return res.ok ? { ok: true, value: asMcpList(res.value) } : { ok: false, error: res.error };
@@ -1274,14 +1366,14 @@ export function App() {
       }
 
       // Typed away from a catalog draft — close. Empty draft leaves submit-opened pickers alone.
-      if (draft.trim()) setPicker(null);
+      if (draft.trim()) dismissCatalog();
     };
 
     void sync();
     return () => {
       cancelled = true;
     };
-  }, [draft, modelTarget, session.chrome.model, session.chrome.subagentModel, presentCatalog]);
+  }, [draft, modelTarget, session.chrome.model, session.chrome.subagentModel, presentCatalog, dismissCatalog]);
 
   const onCatalogChoose = useCallback(
     (choice: CatalogChoice) => {
@@ -1290,7 +1382,7 @@ export function App() {
         void (async () => {
           const sent = await session.send(cmd);
           if (!sent) return;
-          setPicker(null);
+          dismissCatalog();
           setDraft("");
           setModelTarget("main");
           if (cmd.type === "set-subagent-model") {
@@ -1301,41 +1393,49 @@ export function App() {
           if (cmd.type === "set-agent-model") {
             // Persistence/reload is asynchronous engine-side. Invalidate rather
             // than claiming a value the engine may reject or fail to persist.
-            agentsCache.current = null;
+            catalogCache.current.delete("agents");
           }
         })();
         return;
       }
       if (choice.kind === "prefill") {
-        setPicker(null);
+        dismissCatalog();
         setDraft(choice.draft);
         window.requestAnimationFrame(() => {
           document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus();
         });
         return;
       }
-      setPicker(null);
+      dismissCatalog();
       void submitLine(choice.line);
     },
-    [session, submitLine],
+    [session, submitLine, dismissCatalog],
   );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const emptyDraft = !draft.trim();
       const target = e.target as HTMLElement | null;
-      const inInput =
-        target?.tagName === "TEXTAREA" || target?.tagName === "INPUT";
+      const inInput = Boolean(
+        target
+        && (
+          target.tagName === "TEXTAREA"
+          || target.tagName === "INPUT"
+          || target.tagName === "SELECT"
+          || target.isContentEditable
+        )
+      );
       const inComposer = target?.classList.contains("composer-input") ?? false;
+      const chatShortcutAvailable = !settingsOpen && (!inInput || inComposer);
 
       // Ctrl/Cmd+T thinking
-      if (e.key === "t" && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      if (chatShortcutAvailable && e.key === "t" && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         session.dispatchTranscript({ type: "toggle-thinking-all" });
         return;
       }
       // Ctrl/Cmd+D density
-      if (e.key === "d" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      if (chatShortcutAvailable && e.key === "d" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
         e.preventDefault();
         const next = nextDensity(session.chrome.density);
         void (async () => {
@@ -1345,37 +1445,37 @@ export function App() {
         return;
       }
       // Ctrl/Cmd+O fold all turns
-      if (e.key === "o" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      if (chatShortcutAvailable && e.key === "o" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
         e.preventDefault();
         session.foldAllTurns();
         return;
       }
       // Ctrl/Cmd+G external editor (TUI parity: composeInEditor)
-      if (e.key.toLowerCase() === "g" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      if (chatShortcutAvailable && e.key.toLowerCase() === "g" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
         e.preventDefault();
         void composeInEditor();
         return;
       }
       // ⇧⌘N continue latest
-      if (e.key === "n" && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+      if (chatShortcutAvailable && e.key === "n" && e.shiftKey && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         void continueLatest();
         return;
       }
       // ⌘K / Ctrl+K open slash by prefilling /
-      if (e.key === "k" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+      if (chatShortcutAvailable && e.key === "k" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
         e.preventDefault();
         setDraft("/");
         return;
       }
       // Ctrl+P project grant
-      if (e.key === "p" && (e.ctrlKey || e.metaKey) && emptyDraft && session.chrome.perms[0]) {
+      if (chatShortcutAvailable && e.key === "p" && (e.ctrlKey || e.metaKey) && emptyDraft && session.chrome.perms[0]) {
         e.preventDefault();
         void answerPerm("always-project");
         return;
       }
       // Ctrl+Y accept plan + yolo
-      if (e.key === "y" && (e.ctrlKey || e.metaKey) && emptyDraft && session.chrome.plan && !session.chrome.perms.length) {
+      if (chatShortcutAvailable && e.key === "y" && (e.ctrlKey || e.metaKey) && emptyDraft && session.chrome.plan && !session.chrome.perms.length) {
         e.preventDefault();
         void answerPlan("accept", undefined, "auto");
         return;
@@ -1436,20 +1536,17 @@ export function App() {
       }
 
       if (e.key === "Escape") {
-        // Allow Esc from end-panel inputs (inspector search, git fields) to close
-        // the topmost overlay; only block free-text that is not composer when a
-        // permission deny-reason field owns the chord (handled below via flag).
-        const inEndPanel =
-          target?.closest?.(".activity-rail, .session-panel, .git-activity-rail, .jobs-view") !=
-          null;
-        if (inInput && !inComposer && !inEndPanel) return;
+        // Text-entry controls own Escape (Git drafts, file filters, settings,
+        // deny reasons). Closing a surrounding surface while editing loses
+        // context and can discard a local draft before its field handler runs.
+        if (inInput && !inComposer) return;
         e.preventDefault();
         if (keysOpen) {
           setKeysOpen(false);
           return;
         }
         if (picker) {
-          setPicker(null);
+          dismissCatalog();
           return;
         }
         if (endPanelOpen) {
@@ -1503,13 +1600,10 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [session, draft, continueLatest, answerPerm, answerPlan, composeInEditor, picker, keysOpen, cwd, projectRailOpen, toggleInspector, endPanelOpen, closeActiveEndPanel]);
+  }, [session, draft, continueLatest, answerPerm, answerPlan, composeInEditor, picker, keysOpen, cwd, projectRailOpen, toggleInspector, endPanelOpen, closeActiveEndPanel, dismissCatalog, settingsOpen]);
 
   const chrome = session.chrome;
-  const ctxPct =
-    chrome.ctxWindow > 0
-      ? Math.min(100, Math.round((100 * chrome.ctxUsed) / chrome.ctxWindow))
-      : null;
+  const ctxPct = contextUsagePercent(chrome.ctxUsed, chrome.ctxWindow);
   const hotCtx = ctxPct != null && ctxPct >= 80;
 
   // Usage as a composer chip. Changed files get their own review pill above
@@ -1523,15 +1617,15 @@ export function App() {
 
   const activeProject = projects.find((project) => project.cwd === cwd);
   const activeTask = chrome.tasks.find((t) => t.status === "in_progress");
-  const taskDone = chrome.tasks.filter((t) => t.status === "completed").length;
+  const taskDone = chrome.tasksCompletedTotal;
   const runningSubagents = chrome.subagents.filter((s) => s.status === "running").length;
   const doneSubagents = chrome.subagents.filter((s) => s.status === "done").length;
   const activeSessionTitle =
     activeProject?.sessions.find((item) => item.id === chrome.sessionId)?.title ??
     (chrome.goal || "New session");
   const topbarMetaChips = [
-    chrome.queuePending.length
-      ? { key: "queue", label: `queued ${chrome.queuePending.length}`, tone: "neutral" as const }
+    chrome.queuePendingTotal
+      ? { key: "queue", label: `queued ${chrome.queuePendingTotal}`, tone: "neutral" as const }
       : null,
     hotCtx && ctxPct != null
       ? { key: "ctx", label: `ctx ${ctxPct}%`, tone: "warn" as const }
@@ -1601,6 +1695,7 @@ export function App() {
               )}
             >
               <SettingsView
+                active={settingsOpen}
                 cwd={cwd}
                 onClose={() => setSettingsOpen(false)}
                 showToast={session.showToast}
@@ -1866,9 +1961,9 @@ export function App() {
                 />
               )}
               {!session.inspectorOpen &&
-                (hasUnfinishedTasks(chrome.tasks) || chrome.subagents.length > 0) && (
+                (chrome.tasksUnfinishedTotal > 0 || chrome.subagents.length > 0) && (
                 <div className="panel-strip-compact" role="group" aria-label="Live activity">
-                  {hasUnfinishedTasks(chrome.tasks) && (
+                  {chrome.tasksUnfinishedTotal > 0 && (
                     <button
                       type="button"
                       className="panel-strip-chip"
@@ -1877,7 +1972,7 @@ export function App() {
                     >
                       <StatusDot status={activeTask ? "active" : "pending"} />
                       <span>
-                        Tasks · {taskDone}/{chrome.tasks.length}
+                        Tasks · {taskDone}/{chrome.tasksTotal}
                         {activeTask ? ` · ${activeTask.title}` : ""}
                       </span>
                     </button>
@@ -1908,6 +2003,7 @@ export function App() {
             <div className="composer-stack" id="composer" ref={composerStackRef}>
               <QueuePanel
                 pending={chrome.queuePending}
+                totalCount={chrome.queuePendingTotal}
                 onSteer={(id) => void session.send({ type: "steer", id })}
                 onDequeue={(id) => void session.send({ type: "dequeue", id })}
               />
@@ -1918,7 +2014,7 @@ export function App() {
                   autoFocusSearch={!draft.trim()}
                   draftLinked={!!draft.trim()}
                   onClose={() => {
-                    setPicker(null);
+                    dismissCatalog();
                     setModelTarget("main");
                   }}
                   onChoose={onCatalogChoose}
@@ -1935,7 +2031,7 @@ export function App() {
                               next,
                               chrome.model,
                               chrome.subagentModel,
-                              agentsCache.current ?? [],
+                              catalogCache.current.get<AgentInfo>("agents") ?? [],
                             ),
                           });
                         }
@@ -2009,6 +2105,12 @@ export function App() {
               gitOpen={false}
               terminalOpen={false}
               jobsOpen={false}
+              emptyHome={
+                !session.booting &&
+                !(session.bootError && !session.ready) &&
+                session.transcript.blocks.length === 0 &&
+                !chrome.busy
+              }
               onOpen={openWorkspaceDock}
             />
           )}
@@ -2017,7 +2119,7 @@ export function App() {
             <ActivitySidebar
               active={activeEndPanel}
               changedCount={session.transcript.changedFiles.length}
-              jobCount={chrome.jobs.length}
+              jobCount={chrome.jobsTotal}
               onSelect={selectActivityTool}
               onClose={closeActiveEndPanel}
             >
@@ -2028,6 +2130,7 @@ export function App() {
                 >
                   <JobsView
                     jobs={chrome.jobs}
+                    totalCount={chrome.jobsTotal}
                     onClose={() => session.setJobsView(false)}
                   />
                 </section>

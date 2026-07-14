@@ -10,15 +10,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  PROVIDER_CHOICES,
   buildOnboardingPatch,
+  configuredCredentialProviderIds,
   initialChoiceIndex,
+  PROVIDER_CHOICES,
+  type ProviderChoice,
   providerChoiceAcceptsApiKey,
   providerChoiceNeedsApiKey,
-  type ProviderChoice,
 } from "../../shared/providers-catalog";
-import { IconClose, IconExternalLink } from "../icons";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { IconClose, IconExternalLink } from "../icons";
 
 export interface ProviderStatus {
   id: string;
@@ -43,7 +44,7 @@ export function OnboardingModal({
   saveError?: string | null;
 }) {
   const configuredIds = useMemo(
-    () => new Set((providers ?? []).filter((p) => p.configured).map((p) => p.id)),
+    () => configuredCredentialProviderIds(providers ?? []),
     [providers],
   );
 
@@ -203,7 +204,7 @@ export function OnboardingModal({
         <footer className="onboarding-modal-footer">
           <button type="button" className="button" onClick={onDismiss}>Skip for now</button>
           <button type="button" className="button primary" onClick={handleSave} disabled={!canSave || saving}>
-            {saving ? "Saving…" : "Save & start"}
+            {saving ? "Saving & starting…" : "Save & start"}
           </button>
         </footer>
       </div>

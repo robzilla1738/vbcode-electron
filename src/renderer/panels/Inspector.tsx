@@ -4,13 +4,13 @@ import {
   fileBasename,
   sortChangedFilesForDisplay,
 } from "../../shared/changed-files";
+import { contextUsagePercent } from "../../shared/context-usage";
 import { formatDiffStats } from "../../shared/diff-view";
 import type { ChangedFile } from "../../shared/reducer";
-import { hasUnfinishedTasks } from "../../shared/task-window";
 import { CopyButton } from "../CopyButton";
 import type { SessionChrome } from "../hooks/useSession";
-import { IconClose, IconFolderOpen } from "../icons";
-import { DiffPreview } from "./DiffPreview";
+import { IconFolderOpen } from "../icons";
+import { ActivityPanelHeader } from "../layout/ActivityPanelHeader";
 import {
   formatGitLine,
   formatGoalLine,
@@ -21,6 +21,7 @@ import {
   TasksSection,
   ThinkingTrail,
 } from "./activity-shared";
+import { DiffPreview } from "./DiffPreview";
 
 type ReviewMode = "diff" | "file";
 
@@ -55,10 +56,7 @@ export function Inspector({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [reviewMode, setReviewMode] = useState<ReviewMode>("diff");
 
-  const ctxPct =
-    chrome.ctxWindow > 0
-      ? Math.min(100, Math.round((100 * chrome.ctxUsed) / chrome.ctxWindow))
-      : null;
+  const ctxPct = contextUsagePercent(chrome.ctxUsed, chrome.ctxWindow);
   const ctxLine =
     chrome.ctxWindow > 0
       ? `${chrome.ctxUsed.toLocaleString()} / ${chrome.ctxWindow.toLocaleString()} · ${ctxPct}%`
@@ -210,7 +208,7 @@ export function Inspector({
     chrome.checkpoints.length === 0 &&
     chrome.orchestration.length === 0 &&
     chrome.subagents.length === 0 &&
-    !hasUnfinishedTasks(chrome.tasks) &&
+    chrome.tasksUnfinishedTotal === 0 &&
     chrome.thoughtLog.length === 0;
   const orderedFiles = useMemo(
     () => sortChangedFilesForDisplay(changedFiles),
@@ -249,24 +247,13 @@ export function Inspector({
       aria-labelledby="inspector-title"
       ref={rootRef}
     >
-      <div className="sidebar-heading-row">
-        <div className="sidebar-heading-copy">
-          <p className="sidebar-eyebrow">Workspace</p>
-          <h2 id="inspector-title" className="sidebar-heading-title">
-            {title}
-          </h2>
-          <p className="sidebar-heading-sub">{subtitle}</p>
-        </div>
-        <button
-          type="button"
-          className="icon-button sidebar-close"
-          onClick={onClose}
-          aria-label="Close session panel"
-          title="Close session panel"
-        >
-          <IconClose size={14} />
-        </button>
-      </div>
+      <ActivityPanelHeader
+        titleId="inspector-title"
+        title={title}
+        subtitle={subtitle}
+        onClose={onClose}
+        closeLabel="Close session panel"
+      />
 
       <div className="inspector-scroll">
         {!previewPath && (

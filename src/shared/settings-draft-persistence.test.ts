@@ -19,6 +19,14 @@ describe("settings draft persistence contract", () => {
     join(process.cwd(), "src/renderer/settings/sections/ProvidersSection.tsx"),
     "utf8",
   );
+  const models = readFileSync(
+    join(process.cwd(), "src/renderer/settings/sections/ModelsSection.tsx"),
+    "utf8",
+  );
+  const advanced = readFileSync(
+    join(process.cwd(), "src/renderer/settings/sections/AdvancedSection.tsx"),
+    "utf8",
+  );
 
   it("keeps config sections mounted across navigation", () => {
     expect(panel).toContain('CONFIG_SECTIONS.filter(({ id }) => id !== "instructions").map');
@@ -34,5 +42,15 @@ describe("settings draft persistence contract", () => {
   it("keeps provider and MCP field editors mounted while cards collapse", () => {
     expect(mcp).toContain("hidden={!isExpanded}");
     expect(providers).toContain("hidden={!isExpanded}");
+  });
+
+  it("guards every unfinished add-row draft and clears it on reset/context change", () => {
+    for (const section of [providers, mcp, models, advanced]) {
+      expect(section).toContain("onInvalidDraftChange?.(");
+      expect(section).toContain("draftResetVersion");
+    }
+    expect(models).toContain("[draftKey, draftResetVersion]");
+    expect(advanced).toContain("[scope, cwd, draftResetVersion]");
+    expect(panel).toContain("Finish or clear draft fields before saving");
   });
 });

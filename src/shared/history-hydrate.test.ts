@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hydrateFromHistory } from "./history-hydrate";
+import { MAX_RETAINED_TRANSCRIPT_BLOCKS } from "./reducer";
 import type { Message } from "./types";
 
 describe("hydrateFromHistory", () => {
@@ -99,5 +100,25 @@ describe("hydrateFromHistory", () => {
       },
     ]);
     expect(state.blocks.map((block) => block.kind)).toEqual(["thinking", "tool"]);
+  });
+
+  it("never bypasses the retained-block ceiling while resuming long history", () => {
+    const history: Message[] = Array.from(
+      { length: MAX_RETAINED_TRANSCRIPT_BLOCKS + 100 },
+      (_, index) => ({
+        id: `u${index}`,
+        role: "user" as const,
+        createdAt: index,
+        parts: [{ type: "text" as const, text: `message ${index}` }],
+      }),
+    );
+
+    const state = hydrateFromHistory(history);
+    expect(state.blocks).toHaveLength(MAX_RETAINED_TRANSCRIPT_BLOCKS);
+    expect(state.blocks.at(-1)).toMatchObject({
+      kind: "user",
+      text: `message ${history.length - 1}`,
+    });
+    expect(state.blocks.some((block) => block.kind === "user" && block.text === "message 0")).toBe(false);
   });
 });

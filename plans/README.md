@@ -33,6 +33,6 @@
 
 ## Verification snapshot (2026-07-13)
 
-294 unit tests, 12 e2e scenarios, 19 source pairs, 40 config fields, coverage
+463 unit tests, 12 e2e scenarios, 19 source pairs, 40 config fields, coverage
 floors, bridge smoke, and locked-engine packaged smoke green. See root
 `VERIFICATION.md` / `ACCEPTANCE.md`.

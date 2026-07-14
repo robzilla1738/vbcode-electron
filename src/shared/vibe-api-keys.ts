@@ -19,6 +19,7 @@ export const VIBE_API_KEYS = [
   "onReady",
   "onFatal",
   "onMenuAction",
+  "setSettingsDirty",
   "openProject",
   "ensureChatsDir",
   "openExternal",

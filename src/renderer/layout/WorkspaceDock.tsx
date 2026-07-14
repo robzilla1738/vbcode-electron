@@ -36,6 +36,7 @@ export function WorkspaceDock({
   gitOpen,
   terminalOpen,
   jobsOpen,
+  emptyHome,
   onOpen,
 }: {
   changedFiles: ChangedFile[];
@@ -48,13 +49,19 @@ export function WorkspaceDock({
   gitOpen: boolean;
   terminalOpen: boolean;
   jobsOpen: boolean;
+  /** Quiet toolbar treatment for the centered welcome/empty-session state. */
+  emptyHome?: boolean;
   onOpen: (target: WorkspaceDockTarget) => void;
 }) {
   const totals = changedFilesTotals(changedFiles);
   const hasChanges = totals.count > 0;
 
   return (
-    <aside className="workspace-dock" aria-label="Environment">
+    <aside
+      className="workspace-dock"
+      data-empty-home={emptyHome || undefined}
+      aria-label="Environment"
+    >
       <div className="workspace-dock-header">
         <div className="workspace-dock-header-copy">
           <span className="workspace-dock-eyebrow">Environment</span>

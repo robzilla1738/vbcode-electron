@@ -1,5 +1,9 @@
-import type { Block, TranscriptState } from "../shared/reducer";
 import { estimateJsonUtf8Bytes } from "../shared/json-size";
+import {
+  type Block,
+  MAX_RETAINED_TRANSCRIPT_BLOCKS,
+  type TranscriptState,
+} from "../shared/reducer";
 
 const DATABASE = "vibe-codr-presentation";
 const STORE = "transcripts";
@@ -27,19 +31,42 @@ export function transcriptCacheKeyBelongsToCwd(key: string, cwd: string): boolea
 function openDatabase(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === "undefined") return Promise.resolve(null);
   return new Promise((resolve) => {
-    const request = indexedDB.open(DATABASE, VERSION);
-    request.onupgradeneeded = () => {
-      const store = request.result.objectStoreNames.contains(STORE)
-        ? request.transaction!.objectStore(STORE)
-        : request.result.createObjectStore(STORE, { keyPath: "key" });
-      if (!store.indexNames.contains("savedAt")) {
-        store.createIndex("savedAt", "savedAt");
+    let settled = false;
+    const finish = (db: IDBDatabase | null) => {
+      if (settled) {
+        // A blocked upgrade can later succeed after the caller has already
+        // fallen back to no cache. Close that unowned late handle immediately.
+        if (db) closeDatabase(db);
+        return;
       }
+      settled = true;
+      resolve(db);
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => resolve(null);
-    request.onblocked = () => resolve(null);
+    try {
+      const request = indexedDB.open(DATABASE, VERSION);
+      request.onupgradeneeded = () => {
+        const store = request.result.objectStoreNames.contains(STORE)
+          ? request.transaction!.objectStore(STORE)
+          : request.result.createObjectStore(STORE, { keyPath: "key" });
+        if (!store.indexNames.contains("savedAt")) {
+          store.createIndex("savedAt", "savedAt");
+        }
+      };
+      request.onsuccess = () => finish(request.result);
+      request.onerror = () => finish(null);
+      request.onblocked = () => finish(null);
+    } catch {
+      finish(null);
+    }
   });
+}
+
+function closeDatabase(db: IDBDatabase): void {
+  try {
+    db.close();
+  } catch {
+    /* Optional cache cleanup must not affect the active session. */
+  }
 }
 
 function blockIdentity(block: Block): string {
@@ -111,21 +138,101 @@ export function transcriptConversationSignature(state: TranscriptState): string 
   });
 }
 
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function optionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
+function optionalNonNegative(value: unknown): boolean {
+  return value === undefined
+    || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+}
+
+function transcriptBlock(value: unknown): value is Block {
+  const block = record(value);
+  if (!block || !Number.isSafeInteger(block.id) || (block.id as number) < 0) return false;
+  switch (block.kind) {
+    case "user":
+      return typeof block.text === "string"
+        && typeof block.timestamp === "number"
+        && Number.isFinite(block.timestamp)
+        && block.timestamp >= 0
+        && (block.origin === undefined || block.origin === "user" || block.origin === "engine")
+        && optionalString(block.label);
+    case "assistant":
+      return typeof block.text === "string"
+        && typeof block.streaming === "boolean"
+        && typeof block.gap === "boolean"
+        && typeof block.timestamp === "number"
+        && Number.isFinite(block.timestamp)
+        && block.timestamp >= 0;
+    case "thinking":
+      return typeof block.text === "string"
+        && typeof block.collapsed === "boolean"
+        && optionalNonNegative(block.seconds);
+    case "notice":
+      return typeof block.text === "string"
+        && (block.level === "info" || block.level === "warn" || block.level === "error");
+    case "tool":
+      return optionalString(block.toolName)
+        && typeof block.label === "string"
+        && Array.isArray(block.output)
+        && block.output.every((line) => typeof line === "string")
+        && typeof block.collapsed === "boolean"
+        && typeof block.isDiff === "boolean"
+        && (block.isMarkdown === undefined || typeof block.isMarkdown === "boolean")
+        && (block.isSources === undefined || typeof block.isSources === "boolean")
+        && typeof block.isError === "boolean"
+        && typeof block.done === "boolean"
+        && optionalString(block.tail)
+        && optionalNonNegative(block.startedAt)
+        && optionalNonNegative(block.elapsedMs);
+    default:
+      return false;
+  }
+}
+
+function numericRecord(value: unknown): boolean {
+  const item = record(value);
+  return !!item && Object.values(item).every((entry) =>
+    Number.isSafeInteger(entry) && (entry as number) >= 0
+  );
+}
+
+function trueRecord(value: unknown): boolean {
+  const item = record(value);
+  return !!item && Object.values(item).every((entry) => entry === true);
+}
+
 function isTranscriptState(value: unknown): value is TranscriptState {
-  if (!value || typeof value !== "object") return false;
-  const state = value as Partial<TranscriptState>;
-  return Array.isArray(state.blocks)
-    && state.blocks.every((block) => {
-      if (!block || typeof block !== "object") return false;
-      const item = block as { kind?: unknown; id?: unknown };
-      return typeof item.kind === "string" && Number.isFinite(item.id);
-    })
+  const state = record(value);
+  return !!state
+    && Array.isArray(state.blocks)
+    && state.blocks.length <= MAX_RETAINED_TRANSCRIPT_BLOCKS
+    && state.blocks.every(transcriptBlock)
     && Array.isArray(state.changedFiles)
-    && Number.isFinite(state.nextId)
-    && typeof state.toolByCallId === "object"
-    && state.toolByCallId !== null
-    && typeof state.suppressCallIds === "object"
-    && state.suppressCallIds !== null;
+    && state.changedFiles.every((value) => {
+      const file = record(value);
+      return !!file
+        && typeof file.path === "string"
+        && typeof file.added === "number"
+        && Number.isFinite(file.added)
+        && file.added >= 0
+        && typeof file.removed === "number"
+        && Number.isFinite(file.removed)
+        && file.removed >= 0
+        && optionalString(file.diff);
+    })
+    && Number.isSafeInteger(state.nextId)
+    && (state.nextId as number) >= 0
+    && Number.isSafeInteger(state.activeAssistant)
+    && numericRecord(state.toolByCallId)
+    && trueRecord(state.suppressCallIds);
 }
 
 function settle(state: TranscriptState): TranscriptState {
@@ -156,29 +263,64 @@ export async function loadTranscriptCache(
   const db = await openDatabase();
   if (!db) return null;
   return new Promise((resolve) => {
-    const request = db.transaction(STORE, "readonly").objectStore(STORE).get(keyFor(cwd, sessionId));
-    request.onsuccess = () => {
-      try {
-        const record = request.result as CacheRecord | undefined;
-        const parsed: unknown = record ? JSON.parse(record.state) : null;
-        resolve(
-          isTranscriptState(parsed)
-            && isSettled(parsed)
-            && record?.signature === transcriptContentSignature(parsed)
-            ? settle(parsed)
-            : null,
-        );
-      } catch {
+    try {
+      const request = db.transaction(STORE, "readonly").objectStore(STORE).get(keyFor(cwd, sessionId));
+      request.onsuccess = () => {
+        try {
+          resolve(decodeTranscriptCacheRecord(request.result));
+        } finally {
+          closeDatabase(db);
+        }
+      };
+      request.onerror = () => {
+        closeDatabase(db);
         resolve(null);
-      } finally {
-        db.close();
-      }
-    };
-    request.onerror = () => {
-      db.close();
+      };
+    } catch {
+      closeDatabase(db);
       resolve(null);
-    };
+    }
   });
+}
+
+/** Decode an IndexedDB value without trusting legacy/corrupt record metadata. */
+export function decodeTranscriptCacheRecord(value: unknown): TranscriptState | null {
+  const cached = record(value);
+  if (
+    !cached
+    || typeof cached.key !== "string"
+    || typeof cached.savedAt !== "number"
+    || !Number.isFinite(cached.savedAt)
+    || cached.savedAt < 0
+    || typeof cached.signature !== "string"
+    || typeof cached.state !== "string"
+    || cached.state.length > MAX_SERIALIZED_CHARS
+    || transcriptCacheRecordSize(cached) === null
+  ) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(cached.state);
+    return isTranscriptState(parsed)
+      && isSettled(parsed)
+      && cached.signature === transcriptContentSignature(parsed)
+      ? settle(parsed)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Validate cleanup metadata before eviction dereferences legacy/corrupt rows. */
+export function transcriptCacheRecordSize(value: unknown): number | null {
+  const cached = record(value);
+  if (!cached || typeof cached.state !== "string") return null;
+  if (cached.size === undefined) return cached.state.length;
+  return Number.isSafeInteger(cached.size)
+    && (cached.size as number) >= 0
+    && cached.size === cached.state.length
+    ? cached.size as number
+    : null;
 }
 
 export async function saveTranscriptCache(
@@ -197,41 +339,50 @@ export async function saveTranscriptCache(
   const db = await openDatabase();
   if (!db) return;
   await new Promise<void>((resolve) => {
-    const transaction = db.transaction(STORE, "readwrite");
-    const store = transaction.objectStore(STORE);
-    store.put({
-      key: keyFor(cwd, sessionId),
-      savedAt: Date.now(),
-      signature: transcriptContentSignature(state),
-      state: serialized,
-      size: serialized.length,
-    } satisfies CacheRecord);
-    let retained = 0;
-    let retainedChars = 0;
-    const cursor = store.index("savedAt").openCursor(null, "prev");
-    cursor.onsuccess = () => {
-      const entry = cursor.result;
-      if (!entry) return;
-      const record = entry.value as CacheRecord;
-      const size = record.size ?? record.state.length;
-      const keep = retained < MAX_ENTRIES
-        && retainedChars + size <= MAX_TOTAL_SERIALIZED_CHARS;
-      if (keep) {
-        retained += 1;
-        retainedChars += size;
-      } else {
-        entry.delete();
-      }
-      entry.continue();
-    };
-    transaction.oncomplete = () => {
-      db.close();
+    try {
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      store.put({
+        key: keyFor(cwd, sessionId),
+        savedAt: Date.now(),
+        signature: transcriptContentSignature(state),
+        state: serialized,
+        size: serialized.length,
+      } satisfies CacheRecord);
+      let retained = 0;
+      let retainedChars = 0;
+      const cursor = store.index("savedAt").openCursor(null, "prev");
+      cursor.onsuccess = () => {
+        const entry = cursor.result;
+        if (!entry) return;
+        const size = transcriptCacheRecordSize(entry.value);
+        if (size === null) {
+          entry.delete();
+          entry.continue();
+          return;
+        }
+        const keep = retained < MAX_ENTRIES
+          && retainedChars + size <= MAX_TOTAL_SERIALIZED_CHARS;
+        if (keep) {
+          retained += 1;
+          retainedChars += size;
+        } else {
+          entry.delete();
+        }
+        entry.continue();
+      };
+      transaction.oncomplete = () => {
+        closeDatabase(db);
+        resolve();
+      };
+      transaction.onerror = transaction.onabort = () => {
+        closeDatabase(db);
+        resolve();
+      };
+    } catch {
+      closeDatabase(db);
       resolve();
-    };
-    transaction.onerror = transaction.onabort = () => {
-      db.close();
-      resolve();
-    };
+    }
   });
 }
 
@@ -239,12 +390,17 @@ export async function deleteTranscriptCache(cwd: string, sessionId: string): Pro
   const db = await openDatabase();
   if (!db) return;
   await new Promise<void>((resolve) => {
-    const transaction = db.transaction(STORE, "readwrite");
-    transaction.objectStore(STORE).delete(keyFor(cwd, sessionId));
-    transaction.oncomplete = transaction.onerror = transaction.onabort = () => {
-      db.close();
+    try {
+      const transaction = db.transaction(STORE, "readwrite");
+      transaction.objectStore(STORE).delete(keyFor(cwd, sessionId));
+      transaction.oncomplete = transaction.onerror = transaction.onabort = () => {
+        closeDatabase(db);
+        resolve();
+      };
+    } catch {
+      closeDatabase(db);
       resolve();
-    };
+    }
   });
 }
 
@@ -252,17 +408,22 @@ export async function deleteTranscriptCachesForCwd(cwd: string): Promise<void> {
   const db = await openDatabase();
   if (!db) return;
   await new Promise<void>((resolve) => {
-    const transaction = db.transaction(STORE, "readwrite");
-    const store = transaction.objectStore(STORE);
-    const request = store.getAllKeys();
-    request.onsuccess = () => {
-      for (const key of request.result) {
-        if (typeof key === "string" && transcriptCacheKeyBelongsToCwd(key, cwd)) store.delete(key);
-      }
-    };
-    transaction.oncomplete = transaction.onerror = transaction.onabort = () => {
-      db.close();
+    try {
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      const request = store.getAllKeys();
+      request.onsuccess = () => {
+        for (const key of request.result) {
+          if (typeof key === "string" && transcriptCacheKeyBelongsToCwd(key, cwd)) store.delete(key);
+        }
+      };
+      transaction.oncomplete = transaction.onerror = transaction.onabort = () => {
+        closeDatabase(db);
+        resolve();
+      };
+    } catch {
+      closeDatabase(db);
       resolve();
-    };
+    }
   });
 }

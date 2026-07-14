@@ -18,7 +18,7 @@ npm run smoke:bridge   # requires vibe-codr dist host (sibling or VIBE_CODR_ROOT
 npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
-Expect: Vitest green (**360** tests as of 2026-07-13), Playwright Electron E2E
+Expect: the current Vitest suite green, Playwright Electron E2E
 green (**12** scenarios), all 19 upstream source pairs aligned, Biome and `tsc`
 clean, all 40 engine config fields represented, electron-vite build and
 renderer/host bundle budget OK, and smoke prints
@@ -91,17 +91,31 @@ handles respond to pointer and keyboard input. Confirm the right workspace dock
 matches the chat background (no decorative divider/project header), Projects/Chats
 headers collapse, and user-message actions appear under the bubble on hover.
 Confirm the Environment dock has equal top/right inset and a quiet grey fill
-inside its rounded hairline in both full-label and compact icon layouts.
+inside its rounded hairline in both full-label and compact icon layouts. At
+empty-state viewports on both sides of the 720px breakpoint, verify the strip
+remains 184px wide with 24px controls and 11px icons; confirm non-empty compact
+navigation retains its larger responsive targets.
 Open Session, Changes, Git, Terminal, and Jobs in turn. Each must use the same
 full-height edge-attached sidebar with one left divider, no outer radius/shadow,
-and no desktop scrim. Session/Git/Terminal/Jobs share a persisted width; Changes
+and no desktop scrim. Confirm each view has the same Workspace eyebrow,
+header height, title/subtitle baseline, and close-button position, and that the
+five switcher tabs remain equal width. Confirm there are no horizontal rules
+below the switcher, header, or sidebar section chrome; patch hunk boundaries are
+the only intentional horizontal lines. Session/Git/Terminal/Jobs share a persisted width; Changes
 uses its own persisted wider review width. Confirm the
 five-item top switcher stays visible, chat remains mounted and unobscured, and
-compact widths use an end drawer. In Terminal, start a delayed command, switch
+compact widths use an end drawer. In Changes, collapse nested folders, filter a
+deep path, switch between files and Diff/File modes, and verify the active file
+stays visible with numbered gutters. Addition/deletion rows and counters,
+and transcript patches must use the saturated diff roles in dark, light, and
+contrast themes without changing generic error colors. In Terminal, start a delayed command, switch
 to Session, then return to Terminal: the command must keep running and its output
 must replay. Close/reopen Terminal and verify the same PTY remains. If the PTY
 exits between resize/input and its exit event, confirm the panel reconnects to a
 fresh interactive shell instead of remaining on “session is no longer open.” Files reveals Finder.
+While a Git draft or Changes filter has focus, press Escape and confirm the
+field retains ownership and the sidebar stays open; move focus to sidebar
+chrome and confirm Escape closes the lane.
 Open Terminal from a project and confirm `pwd` is that project root. Then open a
 Chats session and confirm `pwd` is the user's home directory, not `~/.vibe/chats`.
 Confirm terminal chrome uses the app sans stack while the xterm grid uses the
@@ -122,7 +136,9 @@ launch proof; public artifacts use the signed/notarized release path. Verify
 `release/mac-arm64/Vibe Codr.app` launches with the renderer sandbox enabled,
 uses `Contents/Resources/vibecodr-engine-host`, shows the optically padded VC
 app icon at a comparable size to neighboring macOS icons in Dock/Finder, and
-does not require `VIBE_CODR_ROOT`. Its final plist must keep
+does not require `VIBE_CODR_ROOT`. The smoke grants its fixture through the
+native Open Project path; renderer `localStorage` is not treated as a cwd
+capability. Its final plist must keep
 `NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth
 permission strings.
 
@@ -144,9 +160,13 @@ npm run dev
 4. Scroll upward during streaming — output must stop following; Jump to latest restores it.
 5. Shift+Tab through PLAN → AGENT → YOLO.
 6. Trigger a permission (e.g. bash) — y / a / n / ⌘P.
+   Use a command/edit longer than 200 lines and confirm Expand preview shows
+   bounded head and tail content with an explicit middle-omission marker.
 7. `/plan …` then present_plan — Enter / Esc / ⌘Y. With a long plan, confirm
    the review body scrolls while the title and equal-width action footer remain
    visible directly above the composer.
+   While an active goal run owns tasks, attempt Accept; the plan must remain,
+   Busy must stay false, and the shell must explain that the goal must be cleared.
 8. Catalogs (TUI-faithful):
    - Type `/model clau` — live filter opens; Tab toggles main ⇄ sub; current marked.
    - `/providers` → configured provider prefills `/model id/`; unconfigured prefills `/model key id `.
@@ -168,9 +188,14 @@ npm run dev
     changed-files chip, not above it.
 13. Expand a Thinking group — compact steps, no brain icon, one surface per open
     thought; tool rows stay expandable for output.
-14. Approve a permission request for a background `npm run dev`; confirm the job starts, the host remains healthy, and the session does not show a generic host-exited failure.
-15. Settings → MCP: add a stdio server with command and one-argument-per-line
-    args; verify an incomplete `KEY=value` or header line stays visible with an
+14. Approve a permission request for a background `npm run dev`; confirm the job starts, the host remains healthy, and the session does not show a generic host-exited failure. Trigger an unfamiliar plugin/MCP permission and confirm its bounded argument preview is visible before deciding.
+    For synthetic large queue/job fixtures, confirm only 200 rows mount, the
+    omitted count is visible, and running jobs plus queue head/tail remain present.
+15. Settings → MCP: add a stdio server with a command and one argument per line,
+    switch it to Remote and back, and confirm the stdio command/args/env draft is
+    restored. Confirm malformed `${VAR}` / `${VAR:-default}` references block
+    Save with the exact field path. Verify an incomplete `KEY=value` or header
+    line stays visible with an
     inline error and cannot be silently discarded. For remote OAuth, verify the
     UI states that first authorization is out-of-band rather than promising an
     in-app callback flow.
@@ -178,11 +203,27 @@ npm run dev
     disabled there; only Global settings can opt into unsafe repo-authored code,
     credential routes, sandbox/SSRF relaxations, auto approvals, and broad
     allows. Confirm an exact “Always for this project” grant remains effective.
+    In Permissions, entering a glob must clear an existing exact scope (and vice
+    versa); empty tools or a manually-authored rule containing both must block Save.
+    In Compaction, lower Summary threshold below the configured/default Offload
+    threshold and confirm the effective engine threshold is shown five percentage
+    points below Summary; restoring a valid ordering removes the note.
+    Type but do not submit a provider, MCP, pricing, context-window, or LSP add row;
+    Save must stay blocked, close/scope switching must confirm discard, and Reset
+    must clear the unfinished row.
 17. Onboarding: Skip for now, reopen/reload the renderer, and confirm onboarding
     is eligible to appear again when no provider is configured. A failed or
     inaccessible project open must not replace the last known-good workspace.
+    Save an invalid provider/model combination and confirm setup remains open
+    after bootstrap fails, preserving the form for correction while restoring
+    the prior config/runtime so dismissing or quitting cannot strand the app.
+    Simulate unavailable/blocked IndexedDB and corrupt cache metadata; startup
+    must continue without cache, and a late open handle must be closed.
 18. Exercise File/Tools/Help menu actions: New Session, Open Project, Continue
     Latest, Settings, Git, Inspector, Terminal, Jobs, and Keyboard Shortcuts.
+    Then make an unsaved Settings or Custom Instructions edit and try native
+    window close and Cmd/Ctrl+Q. Both must offer Keep Editing / Discard Changes;
+    Keep Editing leaves the app running and teardown begins only after Discard.
 19. Hover an assistant response — confirm clean white Copy/Edit icons appear
     below it. Click the live Subagents pill, confirm Session focuses the
     Subagents section, then expand each child and review task/activity/elapsed
@@ -206,6 +247,11 @@ npm run dev
     and activity-panel handles; verify keyboard Arrow/Home/End resizing and width
     persistence after reopening. After another edit, the footer chip and dock
     Changes count must update and open the highest-churn file in Diff mode.
+    In Git, force branch creation to fail and confirm the name/form remains for
+    correction; repeated Enter while an operation is running must not duplicate it.
+    Repeat with project/session rename, archive, and delete from the project rail:
+    failed operations retain the draft/confirmation and in-flight controls cannot
+    submit twice.
 26. Kill/fatal the host (or `fixture:fatal` in e2e) — **New session** recovers;
     Settings → Instructions: switch sections without losing unsaved VIBE.md text.
 

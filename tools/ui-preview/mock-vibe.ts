@@ -654,6 +654,36 @@ async function runTimeline(): Promise<void> {
         added: 5,
         removed: 0,
       });
+      emit({
+        type: "file-changed",
+        sessionId: SID,
+        toolCallId: "tc_sidebar_layout",
+        path: "src/renderer/layout/activity/ActivitySidebarHeader.tsx",
+        action: "edit",
+        diff: "@@ -14,5 +14,5 @@\n-export function PanelHeading({ title }: Props) {\n-  return <h2 className=\"panel-title\">{title}</h2>;\n+export function ActivitySidebarHeader({ title, subtitle }: Props) {\n+  return <header><h2>{title}</h2><p>{subtitle}</p></header>;\n }\n",
+        added: 2,
+        removed: 2,
+      });
+      emit({
+        type: "file-changed",
+        sessionId: SID,
+        toolCallId: "tc_diff_parser",
+        path: "src/shared/review/diff/parseUnifiedDiff.ts",
+        action: "edit",
+        diff: "@@ -31,4 +31,5 @@\n export function parseUnifiedDiff(value: string) {\n-  return value.split(\"\\n\");\n+  const lines = value.split(\"\\n\");\n+  return lines.map(classifyLine);\n }\n",
+        added: 2,
+        removed: 1,
+      });
+      emit({
+        type: "file-changed",
+        sessionId: SID,
+        toolCallId: "tc_root_docs",
+        path: "README.md",
+        action: "edit",
+        diff: "@@ -1,3 +1,4 @@\n # Vibe Codr\n-A terminal coding harness.\n+A focused desktop coding workspace.\n+Review every change without leaving the conversation.\n",
+        added: 2,
+        removed: 1,
+      });
       await sleep(80);
       window.dispatchEvent(new CustomEvent("vibe-preview-open-panel", { detail: "changes" }));
       break;
@@ -752,6 +782,7 @@ const mock = {
   onReady: () => () => undefined,
   onFatal: () => () => undefined,
   onMenuAction: () => () => undefined,
+  setSettingsDirty: () => undefined,
   openProject: async () => CWD,
   ensureChatsDir: async () => "/Users/rob/.vibe/chats",
   openExternal: async () => undefined,
@@ -913,7 +944,7 @@ const mock = {
 const REQUIRED_VIBE_KEYS = [
   "bootstrap", "send", "rpc", "listProjects", "renameProject", "archiveProject",
   "deleteProject", "renameSession", "deleteSession", "archiveSession", "stop",
-  "quit", "onEvent", "onReady", "onFatal", "onMenuAction", "openProject",
+  "quit", "onEvent", "onReady", "onFatal", "onMenuAction", "setSettingsDirty", "openProject",
   "ensureChatsDir", "openExternal", "showItem", "readTextFile", "composeInEditor",
   "getPath", "getPathForFile", "listFiles", "pasteClipboard", "writeClipboardText", "globalConfigPath",
   "readConfig", "writeConfig", "projectConfigPath", "readMemory", "writeMemory",

@@ -36,4 +36,9 @@ describe("permission deny N two-step contract", () => {
     expect(app).toContain("!inPermDenyReason");
     expect(app).toContain("setPermDenyKick");
   });
+
+  it("describes persistent grants as exact-request scope", () => {
+    expect(livePanels).toContain("Allow this exact request for the rest of this session");
+    expect(livePanels).toContain("Allow this exact request for this project and future sessions");
+  });
 });

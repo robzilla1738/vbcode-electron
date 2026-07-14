@@ -20,6 +20,28 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+const RESERVED_CONFIG_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+
+/** Apply the same null-delete/deep-merge semantics used by config writes. */
+export function applyConfigPatch(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const output: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    if (RESERVED_CONFIG_KEYS.has(key) || value === undefined) continue;
+    if (value === null) {
+      delete output[key];
+      continue;
+    }
+    const current = output[key];
+    output[key] = isPlainObject(current) && isPlainObject(value)
+      ? applyConfigPatch(current, value)
+      : value;
+  }
+  return output;
+}
+
 /** Structural deep equality — avoids JSON.stringify key-order / undefined quirks. */
 function deepEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;

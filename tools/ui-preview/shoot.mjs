@@ -16,6 +16,7 @@ const OUT = process.argv[2] ?? "tools/ui-preview/shots";
 const SHOTS = [
   ["welcome", "scenario=welcome", { width: 1440, height: 900 }],
   ["splash", "scenario=splash", { width: 1440, height: 900 }],
+  ["splash-compact", "scenario=splash", { width: 700, height: 900 }],
   ["chat", "scenario=chat", { width: 1440, height: 900 }],
   ["table", "scenario=table", { width: 1440, height: 900 }],
   ["docs", "scenario=docs", { width: 1440, height: 900 }],
@@ -36,6 +37,9 @@ const SHOTS = [
   ["attachments", "scenario=attachments", { width: 1440, height: 900 }],
   ["jobs", "scenario=jobs", { width: 1440, height: 900 }],
   ["inspector", "scenario=inspector", { width: 1720, height: 1000 }],
+  ["changes", "scenario=changes", { width: 1720, height: 1000 }],
+  ["changes-compact", "scenario=changes", { width: 700, height: 900 }],
+  ["changes-light", "scenario=changes&theme=light", { width: 1720, height: 1000 }],
   ["toast", "scenario=toast", { width: 1440, height: 900 }],
   ["density-quiet", "scenario=density-quiet", { width: 1440, height: 900 }],
   ["density-verbose", "scenario=density-verbose", { width: 1440, height: 900 }],

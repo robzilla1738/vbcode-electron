@@ -1,7 +1,7 @@
-import { _electron as electron } from "playwright";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { _electron as electron } from "playwright";
 
 const root = resolve(import.meta.dirname, "..");
 const releaseRoot = join(root, "release");
@@ -24,15 +24,23 @@ try {
     cwd: root,
     env,
   });
+  // Exercise the same capability grant a real user gets from the native folder
+  // picker. A forged localStorage `vibe.lastCwd` is intentionally not trusted
+  // by the main process and therefore cannot be used to bootstrap this smoke.
+  await app.evaluate(({ dialog }, selectedProject) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [selectedProject],
+    });
+  }, project);
   const page = await app.firstWindow();
-  await page.evaluate((cwd) => localStorage.setItem("vibe.lastCwd", cwd), project);
-  await page.reload();
+  await page.getByRole("button", { name: "Open project" }).click();
   const composer = page.getByRole("textbox", { name: "Task message" });
   await composer.waitFor({ state: "visible", timeout: 45_000 });
   await composer.fill("/theme light");
   await composer.press("Enter");
   await page.waitForFunction(() => document.documentElement.style.colorScheme === "light");
-  process.stdout.write("packaged smoke ok: bundled host booted, project restored, command applied\n");
+  process.stdout.write("packaged smoke ok: bundled host booted, project opened, command applied\n");
 } finally {
   await app?.close();
   // Best-effort orphan check: after close, no child host should remain for this userData run.

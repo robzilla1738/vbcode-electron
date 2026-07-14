@@ -49,6 +49,22 @@ describe("NDJSON protocol runtime validation", () => {
         }),
       ),
     ).not.toBeNull();
+    expect(
+      decodeInbound(JSON.stringify({
+        op: "rpc",
+        id: 1,
+        method: "renameProject",
+        params: { cwd: "/r", name: "Mine", unexpected: true },
+      })),
+    ).toBeNull();
+    expect(
+      decodeInbound(JSON.stringify({
+        op: "rpc",
+        id: 1,
+        method: "renameSession",
+        params: { cwd: "/r", id: "s", title: "x".repeat(1_025) },
+      })),
+    ).toBeNull();
   });
 
   it("rejects malformed host messages and UI events", () => {
@@ -58,7 +74,20 @@ describe("NDJSON protocol runtime validation", () => {
     expect(decodeOutbound(JSON.stringify({ type: "event", event: { type: "notice", level: "info", message: "ok" } }))).not.toBeNull();
     expect(decodeOutbound(JSON.stringify({ type: "event", event: { type: "jobs-changed", sessionId: "s", jobs: "bad" } }))).toBeNull();
     expect(decodeOutbound(JSON.stringify({ type: "event", event: { type: "permission-settled", sessionId: "s", ids: [3], reason: "aborted" } }))).toBeNull();
+    expect(decodeOutbound(JSON.stringify({ type: "event", event: { type: "loop-tick", sessionId: "s", loopId: "l", iteration: -1 } }))).toBeNull();
+    expect(decodeOutbound(JSON.stringify({ type: "event", event: { type: "goal-run", sessionId: "s", run: { active: true, phase: "execute", round: -1, max: 3, pausedReason: null, met: false } } }))).toBeNull();
+    expect(decodeOutbound(JSON.stringify({ type: "event", event: { type: "tool-call-progress", sessionId: "s", toolCallId: "x".repeat(1_025), chunk: "data" } }))).toBeNull();
+    expect(decodeOutbound(JSON.stringify({ type: "event", event: { type: "permission-settled", sessionId: "s", ids: ["ok", "bad\0id"], reason: "aborted" } }))).toBeNull();
     expect(decodeOutbound(JSON.stringify({ type: "resp", id: 1, ok: false }))).toBeNull();
+  });
+
+  it("rejects oversized runtime ids in both protocol directions", () => {
+    const oversized = "x".repeat(1_025);
+    expect(decodeOutbound(JSON.stringify({ type: "ready", sessionId: oversized }))).toBeNull();
+    expect(decodeInbound(JSON.stringify({
+      op: "send",
+      command: { type: "resolve-permission", id: oversized, decision: "deny" },
+    }))).toBeNull();
   });
 
   it("lists exhaustive UIEvent and EngineCommand allowlists", () => {

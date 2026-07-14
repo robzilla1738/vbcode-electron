@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { belowBreakpoint } from "../../shared/breakpoints";
+import { jobsForDisplay } from "../../shared/live-list-bounds";
 import type { JobInfo } from "../../shared/types";
 import { CopyButton } from "../CopyButton";
-import { IconClose, IconLink } from "../icons";
+import { IconLink } from "../icons";
+import { ActivityPanelHeader } from "../layout/ActivityPanelHeader";
 import { ExternalLink } from "../primitives";
 
 function statusLabel(status: JobInfo["status"]): string {
@@ -117,9 +119,11 @@ function JobTerminal({
 
 export function JobsView({
   jobs,
+  totalCount = jobs.length,
   onClose,
 }: {
   jobs: JobInfo[];
+  totalCount?: number;
   onClose?: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -137,7 +141,7 @@ export function JobsView({
     // Capture the element that opened the drawer (e.g. the Jobs toggle) before
     // moving focus inside, so we can restore it on close (I47 — no focus orphan).
     const trigger = document.activeElement as HTMLElement | null;
-    const close = root.querySelector<HTMLButtonElement>(".jobs-close");
+    const close = root.querySelector<HTMLButtonElement>(".sidebar-close");
     (close ?? root).focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -173,32 +177,21 @@ export function JobsView({
     };
   }, [isDrawer]);
 
-  const heading = (
-    <header className="sidebar-heading-row jobs-heading">
-      <div className="sidebar-heading-copy">
-        <p className="sidebar-eyebrow">Workspace</p>
-        <h2 id="jobs-panel-title" className="sidebar-heading-title">Background jobs</h2>
-        <p className="sidebar-heading-sub">
-          {jobs.length === 0
-            ? "None yet"
-            : `${jobs.length} ${jobs.length === 1 ? "process" : "processes"}`}
-        </p>
-      </div>
-      {onClose ? (
-        <button
-          type="button"
-          className="icon-button sidebar-close jobs-close"
-          onClick={onClose}
-          aria-label="Close jobs"
-          title="Close (Esc)"
-        >
-          <IconClose size={14} />
-        </button>
-      ) : null}
-    </header>
-  );
+  const visibleJobs = jobsForDisplay(jobs);
 
-  if (jobs.length === 0) {
+  const heading = onClose ? (
+    <ActivityPanelHeader
+      titleId="jobs-panel-title"
+      title="Background jobs"
+      subtitle={totalCount === 0
+        ? "None yet"
+        : `${totalCount} ${totalCount === 1 ? "process" : "processes"}`}
+      onClose={onClose}
+      closeLabel="Close jobs"
+    />
+  ) : null;
+
+  if (totalCount === 0) {
     return (
       <div
         ref={rootRef}
@@ -223,11 +216,16 @@ export function JobsView({
       className="jobs-view"
       tabIndex={-1}
       aria-labelledby="jobs-panel-title"
-      aria-label={`Background jobs, ${jobs.length} total`}
+      aria-label={`Background jobs, ${totalCount} total`}
     >
       {heading}
       <div className="jobs-list">
-        {jobs.map((j) => (
+        {totalCount > visibleJobs.items.length ? (
+          <p className="jobs-limit-note">
+            Showing {visibleJobs.items.length} entries · {totalCount - visibleJobs.items.length} older entries omitted
+          </p>
+        ) : null}
+        {visibleJobs.items.map((j) => (
           <article
             key={j.id}
             className={`job-card${j.status === "running" ? " is-running" : ""}`}

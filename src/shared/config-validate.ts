@@ -12,6 +12,7 @@
  */
 
 import { isAbsolute } from "node:path";
+import { validatePluginSpecifiers } from "./plugin-specifiers";
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -34,10 +35,39 @@ function httpUrlWithHost(value: unknown): true | string {
 
 /** Expandable URL — allows `${VAR}` references (MCP url field). */
 function expandableHttpUrl(value: unknown): true | string {
-  if (value === undefined || value === null) return true;
+  if (value === undefined || value === null) return "is required for remote MCP servers";
   if (typeof value !== "string") return "must be a string URL";
-  if (value.includes("${")) return true; // env-var reference, validated post-expansion
+  if (value.includes("${")) {
+    return hasOnlyValidEnvReferences(value)
+      ? true
+      : `contains an invalid \${VAR} or \${VAR:-default} reference`;
+  }
   return httpUrlWithHost(value);
+}
+
+const ENV_REFERENCE = /\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^}]*)?\}/g;
+
+function hasOnlyValidEnvReferences(value: string): boolean {
+  return !value.replace(ENV_REFERENCE, "").includes("${");
+}
+
+function checkEnvReferences(value: unknown, path: string): string[] {
+  if (typeof value !== "string" || !value.includes("${")) return [];
+  return hasOnlyValidEnvReferences(value)
+    ? []
+    : [`${path}: contains an invalid \${VAR} or \${VAR:-default} reference`];
+}
+
+function checkEnvReferencesInArray(value: unknown, path: string): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry, index) => checkEnvReferences(entry, `${path}[${index}]`));
+}
+
+function checkEnvReferencesInRecord(value: unknown, path: string): string[] {
+  if (!isPlainObject(value)) return [];
+  return Object.entries(value).flatMap(([key, entry]) =>
+    checkEnvReferences(entry, `${path}.${key}`),
+  );
 }
 
 function checkNumber(
@@ -93,6 +123,36 @@ function checkStringArray(value: unknown, path: string): string[] {
     return [`${path}: must be an array of strings`];
   }
   return [];
+}
+
+function checkNoNul(value: unknown, path: string): string[] {
+  return typeof value === "string" && value.includes("\0")
+    ? [`${path}: must not contain a NUL character`]
+    : [];
+}
+
+function checkNoNulInArray(value: unknown, path: string): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry, index) => checkNoNul(entry, `${path}[${index}]`));
+}
+
+function checkNoNulInRecord(value: unknown, path: string): string[] {
+  if (!isPlainObject(value)) return [];
+  return Object.entries(value).flatMap(([key, entry]) =>
+    checkNoNul(entry, `${path}.${key}`),
+  );
+}
+
+/** Fetch implementations reject CR/LF/NUL in header values. Catch those at
+ * save time so one malformed provider or MCP header cannot break every request
+ * or connection attempt after the next bootstrap. Horizontal tabs remain legal. */
+function checkHttpHeaderValues(value: unknown, path: string): string[] {
+  if (!isPlainObject(value)) return [];
+  return Object.entries(value).flatMap(([key, entry]) =>
+    typeof entry === "string" && /[\0\r\n]/u.test(entry)
+      ? [`${path}.${key}: must not contain CR, LF, or NUL characters`]
+      : [],
+  );
 }
 
 function checkStringRecord(
@@ -154,6 +214,9 @@ export function validateConfig(config: Record<string, unknown>): string[] {
     errors.push("accentColor: must be empty or a 6-digit hex color such as #8b5cf6");
   }
   errors.push(...checkStringArray(config.plugins, "plugins"));
+  if (Array.isArray(config.plugins) && config.plugins.every((entry) => typeof entry === "string")) {
+    errors.push(...validatePluginSpecifiers(config.plugins));
+  }
 
   // Provider baseURLs
   const providers = objectField(config, "providers", "providers", errors);
@@ -164,8 +227,13 @@ export function validateConfig(config: Record<string, unknown>): string[] {
         continue;
       }
       errors.push(...checkString(prov.apiKey, `providers.${id}.apiKey`));
+      if (typeof prov.apiKey === "string" && /[\0\r\n]/u.test(prov.apiKey)) {
+        errors.push(`providers.${id}.apiKey: must not contain CR, LF, or NUL characters`);
+      }
       errors.push(...checkString(prov.tokenFile, `providers.${id}.tokenFile`));
+      errors.push(...checkNoNul(prov.tokenFile, `providers.${id}.tokenFile`));
       errors.push(...checkString(prov.tokenPath, `providers.${id}.tokenPath`));
+      errors.push(...checkNoNul(prov.tokenPath, `providers.${id}.tokenPath`));
       const urlCheck = httpUrlWithHost(prov.baseURL);
       if (urlCheck !== true) errors.push(`providers.${id}.baseURL: ${urlCheck}`);
       errors.push(...checkStringRecord(
@@ -174,6 +242,7 @@ export function validateConfig(config: Record<string, unknown>): string[] {
         HTTP_HEADER_NAME,
         "must be a valid HTTP header name",
       ));
+      errors.push(...checkHttpHeaderValues(prov.headers, `providers.${id}.headers`));
     }
   }
 
@@ -188,6 +257,9 @@ export function validateConfig(config: Record<string, unknown>): string[] {
       }
       errors.push(...checkBoolean(server.enabled, `mcp.servers.${name}.enabled`));
       errors.push(...checkNumber(server.timeoutMs, { min: 1, integer: true }, `mcp.servers.${name}.timeoutMs`));
+      if ("url" in server && "command" in server) {
+        errors.push(`mcp.servers.${name}: must configure exactly one transport (url or command)`);
+      }
       if ("url" in server) {
         errors.push(...checkEnum(server.transport, ["http", "sse"], `mcp.servers.${name}.transport`));
         errors.push(...checkStringRecord(
@@ -196,35 +268,48 @@ export function validateConfig(config: Record<string, unknown>): string[] {
           HTTP_HEADER_NAME,
           "must be a valid HTTP header name",
         ));
+        errors.push(...checkHttpHeaderValues(server.headers, `mcp.servers.${name}.headers`));
+        errors.push(...checkEnvReferencesInRecord(server.headers, `mcp.servers.${name}.headers`));
         const urlCheck = expandableHttpUrl(server.url);
         if (urlCheck !== true) errors.push(`mcp.servers.${name}.url: ${urlCheck}`);
         const oauth = objectField(server, "oauth", `mcp.servers.${name}.oauth`, errors);
         if (oauth) {
           errors.push(...checkStringArray(oauth.scopes, `mcp.servers.${name}.oauth.scopes`));
+          errors.push(...checkNoNulInArray(oauth.scopes, `mcp.servers.${name}.oauth.scopes`));
           errors.push(...checkString(oauth.clientId, `mcp.servers.${name}.oauth.clientId`));
+          errors.push(...checkNoNul(oauth.clientId, `mcp.servers.${name}.oauth.clientId`));
           errors.push(...checkString(oauth.clientName, `mcp.servers.${name}.oauth.clientName`));
+          errors.push(...checkNoNul(oauth.clientName, `mcp.servers.${name}.oauth.clientName`));
           errors.push(...checkString(oauth.tokenStore, `mcp.servers.${name}.oauth.tokenStore`));
+          errors.push(...checkNoNul(oauth.tokenStore, `mcp.servers.${name}.oauth.tokenStore`));
           const redirectCheck = httpUrlWithHost(oauth.redirectUri);
           if (redirectCheck !== true) {
             errors.push(`mcp.servers.${name}.oauth.redirectUri: ${redirectCheck}`);
           }
         }
-      } else if (server.enabled !== false) {
-        const cmd = typeof server.command === "string" ? server.command.trim() : "";
-        if (!cmd) {
+      } else {
+        if (typeof server.command !== "string") {
+          errors.push(`mcp.servers.${name}.command: must be a string`);
+        } else if (server.enabled !== false && !server.command.trim()) {
           errors.push(`mcp.servers.${name}.command: required for enabled stdio servers`);
         }
+        errors.push(...checkNoNul(server.command, `mcp.servers.${name}.command`));
       }
       if (!("url" in server)) {
-        errors.push(...checkString(server.command, `mcp.servers.${name}.command`));
         errors.push(...checkStringArray(server.args, `mcp.servers.${name}.args`));
+        errors.push(...checkNoNulInArray(server.args, `mcp.servers.${name}.args`));
         errors.push(...checkString(server.cwd, `mcp.servers.${name}.cwd`));
+        errors.push(...checkNoNul(server.cwd, `mcp.servers.${name}.cwd`));
         errors.push(...checkStringRecord(
           server.env,
           `mcp.servers.${name}.env`,
           ENV_NAME,
           "must be a valid environment variable name",
         ));
+        errors.push(...checkNoNulInRecord(server.env, `mcp.servers.${name}.env`));
+        errors.push(...checkEnvReferences(server.command, `mcp.servers.${name}.command`));
+        errors.push(...checkEnvReferencesInArray(server.args, `mcp.servers.${name}.args`));
+        errors.push(...checkEnvReferencesInRecord(server.env, `mcp.servers.${name}.env`));
       }
     }
   }
@@ -242,8 +327,10 @@ export function validateConfig(config: Record<string, unknown>): string[] {
         "session.start", "user.prompt.submit", "tool.before.execute", "tool.after.execute",
         "step.finish", "assistant.message", "session.idle", "session.end",
       ], `hooks[${i}].event`));
+      if (hook.event === undefined) errors.push(`hooks[${i}].event: is required`);
       errors.push(...checkString(hook.matcher, `hooks[${i}].matcher`));
       errors.push(...checkString(hook.command, `hooks[${i}].command`));
+      errors.push(...checkNoNul(hook.command, `hooks[${i}].command`));
       errors.push(...checkBoolean(hook.async, `hooks[${i}].async`));
       const cmd = typeof hook.command === "string" ? hook.command.trim() : "";
       const url = hook.url;
@@ -298,6 +385,7 @@ export function validateConfig(config: Record<string, unknown>): string[] {
     errors.push(...checkEnum(sandbox.mode, ENUM_VALUES["sandbox.mode"]!, "sandbox.mode"));
     errors.push(...checkEnum(sandbox.network, ENUM_VALUES["sandbox.network"]!, "sandbox.network"));
     errors.push(...checkStringArray(sandbox.writablePaths, "sandbox.writablePaths"));
+    errors.push(...checkNoNulInArray(sandbox.writablePaths, "sandbox.writablePaths"));
     if (Array.isArray(sandbox.writablePaths)) {
       sandbox.writablePaths.forEach((entry, index) => {
         if (typeof entry === "string" && !isAbsolute(entry)) {
@@ -341,10 +429,17 @@ export function validateConfig(config: Record<string, unknown>): string[] {
         errors.push(`permissions[${i}]: must be an object`);
         return;
       }
-      if (typeof rule.tool !== "string") errors.push(`permissions[${i}].tool: must be a string`);
+      if (typeof rule.tool !== "string") {
+        errors.push(`permissions[${i}].tool: must be a string`);
+      } else if (!rule.tool.trim()) {
+        errors.push(`permissions[${i}].tool: must not be empty`);
+      }
       errors.push(...checkString(rule.match, `permissions[${i}].match`));
       errors.push(...checkString(rule.matchExact, `permissions[${i}].matchExact`));
-      if (rule.action !== undefined && (typeof rule.action !== "string" || !validActions.has(rule.action))) {
+      if (typeof rule.match === "string" && typeof rule.matchExact === "string") {
+        errors.push(`permissions[${i}]: match and matchExact are mutually exclusive`);
+      }
+      if (typeof rule.action !== "string" || !validActions.has(rule.action)) {
         errors.push(`permissions[${i}].action: must be one of allow, deny, ask`);
       }
     });
@@ -395,20 +490,10 @@ export function validateConfig(config: Record<string, unknown>): string[] {
       errors.push(...checkString(models.strong, "build.models.strong"));
     }
   }
-  // Expandable MCP URLs with ${ must use valid ${ENV_VAR} placeholders
-  if (mcpServers) {
-    for (const [name, server] of Object.entries(mcpServers)) {
-      if (!isPlainObject(server) || typeof server.url !== "string") continue;
-      if (!server.url.includes("${")) continue;
-      if (!/\$\{[A-Za-z_][A-Za-z0-9_]*\}/.test(server.url)) {
-        errors.push(`mcp.servers.${name}.url: invalid env placeholder`);
-      }
-    }
-  }
-
   const verify = objectField(config, "verify", "verify", errors);
   if (verify) {
     errors.push(...checkString(verify.command, "verify.command"));
+    errors.push(...checkNoNul(verify.command, "verify.command"));
     errors.push(...checkBoolean(verify.auto, "verify.auto"));
     errors.push(...checkNumber(verify.maxRetries, { min: 0, max: 10, integer: true }, "verify.maxRetries"));
   }
@@ -468,7 +553,9 @@ export function validateConfig(config: Record<string, unknown>): string[] {
           continue;
         }
         errors.push(...checkString(server.command, `lsp.servers.${language}.command`));
+        errors.push(...checkNoNul(server.command, `lsp.servers.${language}.command`));
         errors.push(...checkStringArray(server.args, `lsp.servers.${language}.args`));
+        errors.push(...checkNoNulInArray(server.args, `lsp.servers.${language}.args`));
         errors.push(...checkBoolean(server.enabled, `lsp.servers.${language}.enabled`));
       }
     }

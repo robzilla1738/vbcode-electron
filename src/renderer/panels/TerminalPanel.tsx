@@ -8,7 +8,7 @@ import {
   type TerminalOpenResult,
 } from "../../shared/terminal";
 import { getTheme } from "../../shared/themes";
-import { IconClose } from "../icons";
+import { ActivityPanelHeader } from "../layout/ActivityPanelHeader";
 
 function themeFromTokens(): { background: string; foreground: string; cursor: string; selectionBackground: string } {
   const styles = getComputedStyle(document.documentElement);
@@ -170,23 +170,18 @@ export function TerminalPanel({
 
   return (
     <section className="activity-rail terminal-activity-rail" aria-labelledby="terminal-panel-title">
-      <header className="sidebar-heading-row terminal-panel-header">
-        <div className="sidebar-heading-copy">
-          <p className="sidebar-eyebrow">{scope === "chat" ? "Home terminal" : "Project terminal"}</p>
-          <h2 id="terminal-panel-title" className="sidebar-heading-title">Terminal</h2>
-          <p className="sidebar-heading-sub terminal-panel-subtitle" title={cwd}>{cwd}</p>
-        </div>
-        <div className="terminal-panel-actions">
-          {exit || error ? (
-            <button type="button" className="button terminal-restart" onClick={() => setRestartNonce((value) => value + 1)}>
-              Restart
-            </button>
-          ) : null}
-          <button type="button" className="icon-button terminal-close" onClick={onClose} aria-label="Close terminal" title="Close terminal">
-            <IconClose size={14} />
+      <ActivityPanelHeader
+        titleId="terminal-panel-title"
+        title="Terminal"
+        subtitle={<span className="terminal-panel-subtitle" title={cwd}>{scope === "chat" ? "Home" : "Project"} · {cwd}</span>}
+        onClose={onClose}
+        closeLabel="Close terminal"
+        actions={exit || error ? (
+          <button type="button" className="button terminal-restart" onClick={() => setRestartNonce((value) => value + 1)}>
+            Restart
           </button>
-        </div>
-      </header>
+        ) : null}
+      />
       <div
         ref={surfaceRef}
         className="terminal-surface"

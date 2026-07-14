@@ -1,6 +1,13 @@
 import { seedChromeFromSessionStart } from "../../shared/chrome-seed";
+import {
+  retainCommandNames,
+  retainJobState,
+  retainQueueState,
+  retainTaskState,
+} from "../../shared/chrome-state-bounds";
 import { isTranscriptDensity, type TranscriptDensity } from "../../shared/density";
 import type { UIEvent } from "../../shared/events";
+import { permissionInputForDisplay } from "../../shared/permission-input";
 import {
   dropSettledPerms,
   type PendingPerm,
@@ -19,6 +26,8 @@ import type {
 
 const PLAN_MAX_CHARS = 2 * 1024 * 1024;
 const PLAN_MAX_SOURCES = 500;
+const PLAN_SOURCE_URL_MAX_CHARS = 64 * 1024;
+const PLAN_SOURCE_TITLE_MAX_CHARS = 64 * 1024;
 const PLAN_MAX_ASSUMPTIONS = 200;
 const PLAN_ASSUMPTION_MAX_CHARS = 32 * 1024;
 const SUBAGENT_MAX_ROWS = 256;
@@ -27,6 +36,45 @@ const SUBAGENT_RESULT_MAX_CHARS = 256 * 1024;
 const SUBAGENT_ACTIVITY_MAX_CHARS = 4 * 1024;
 const ORCHESTRATION_MAX_ROWS = 1_000;
 const ORCHESTRATION_OBJECTIVE_MAX_CHARS = 64 * 1024;
+const MODEL_NAME_MAX_CHARS = 4 * 1024;
+const GOAL_MAX_CHARS = 2 * 1024 * 1024;
+const GOAL_PAUSE_REASON_MAX_CHARS = 64 * 1024;
+const THEME_NAME_MAX_CHARS = 256;
+const ACCENT_NAME_MAX_CHARS = 256;
+const REASONING_NAME_MAX_CHARS = 4 * 1024;
+const GIT_BRANCH_MAX_CHARS = 64 * 1024;
+const PERMISSION_TOOL_NAME_MAX_CHARS = 4 * 1024;
+const CHECKPOINT_LABEL_MAX_CHARS = 64 * 1024;
+
+function boundedDisplayText(value: string, maxChars: number): string {
+  return appendRollingText("", value, maxChars);
+}
+
+function boundedMachineText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  if (maxChars <= 1) return value.slice(0, Math.max(0, maxChars));
+  return `${value.slice(0, maxChars - 1)}…`;
+}
+
+function boundedGoal(value: string | null): string | null {
+  return value === null ? null : boundedDisplayText(value, GOAL_MAX_CHARS);
+}
+
+function boundedGoalRun(run: GoalRunInfo | null | undefined): GoalRunInfo | null {
+  if (!run) return null;
+  return {
+    ...run,
+    pausedReason: run.pausedReason === null
+      ? null
+      : boundedDisplayText(run.pausedReason, GOAL_PAUSE_REASON_MAX_CHARS),
+  };
+}
+
+function boundedGit(git: GitInfo | null | undefined): GitInfo | null {
+  return git
+    ? { ...git, branch: boundedMachineText(git.branch, GIT_BRANCH_MAX_CHARS) }
+    : null;
+}
 
 export interface OrchestrationRow {
   taskId: string;
@@ -55,9 +103,14 @@ export interface SessionChrome {
   density: TranscriptDensity;
   reasoning?: string;
   tasks: Task[];
+  tasksTotal: number;
+  tasksCompletedTotal: number;
+  tasksUnfinishedTotal: number;
   jobs: JobInfo[];
+  jobsTotal: number;
   queueActive: QueuedItem | null;
   queuePending: QueuedItem[];
+  queuePendingTotal: number;
   plan: {
     text: string;
     sources?: { url: string; title?: string }[];
@@ -101,9 +154,14 @@ export function initialChrome(cwd: string): SessionChrome {
     accent: "",
     density: "normal",
     tasks: [],
+    tasksTotal: 0,
+    tasksCompletedTotal: 0,
+    tasksUnfinishedTotal: 0,
     jobs: [],
+    jobsTotal: 0,
     queueActive: null,
     queuePending: [],
+    queuePendingTotal: 0,
     plan: null,
     perms: [],
     subagents: [],
@@ -137,25 +195,33 @@ export function reduceChrome(s: SessionChrome, a: ChromeAction): SessionChrome {
       return initialChrome(a.cwd);
     case "seed": {
       const snap = a.snap;
+      const tasks = retainTaskState(snap.tasks ?? []);
       return {
         ...initialChrome(a.cwd),
         sessionId: snap.sessionId,
-        model: snap.model,
-        subagentModel: snap.subagentModel,
+        model: boundedMachineText(snap.model, MODEL_NAME_MAX_CHARS),
+        subagentModel: snap.subagentModel
+          ? boundedMachineText(snap.subagentModel, MODEL_NAME_MAX_CHARS)
+          : undefined,
         mode: snap.mode,
         approvals: snap.approvalMode,
-        goal: snap.goal,
-        goalRun: snap.goalRun ?? null,
-        git: snap.git ?? null,
+        goal: boundedGoal(snap.goal),
+        goalRun: boundedGoalRun(snap.goalRun),
+        git: boundedGit(snap.git),
         usage: snap.usage,
         busy: snap.busy,
-        theme: snap.theme || "default",
-        accent: snap.accentColor || "",
+        theme: boundedMachineText(snap.theme || "default", THEME_NAME_MAX_CHARS),
+        accent: boundedMachineText(snap.accentColor || "", ACCENT_NAME_MAX_CHARS),
         density: isTranscriptDensity(snap.details) ? snap.details : "normal",
-        reasoning: snap.reasoning,
+        reasoning: snap.reasoning
+          ? boundedMachineText(snap.reasoning, REASONING_NAME_MAX_CHARS)
+          : undefined,
         thoughtLog: [],
-        tasks: snap.tasks ?? [],
-        commandNames: snap.commandNames ?? [],
+        tasks: tasks.items,
+        tasksTotal: tasks.total,
+        tasksCompletedTotal: tasks.completed,
+        tasksUnfinishedTotal: tasks.unfinished,
+        commandNames: retainCommandNames(snap.commandNames ?? []),
       };
     }
     case "seed-from-session-start": {
@@ -163,13 +229,15 @@ export function reduceChrome(s: SessionChrome, a: ChromeAction): SessionChrome {
       return {
         ...s,
         sessionId: a.event.sessionId,
-        model: seeded.model,
-        subagentModel: a.snap?.subagentModel ?? s.subagentModel,
+        model: boundedMachineText(seeded.model, MODEL_NAME_MAX_CHARS),
+        subagentModel: a.snap?.subagentModel
+          ? boundedMachineText(a.snap.subagentModel, MODEL_NAME_MAX_CHARS)
+          : s.subagentModel,
         mode: seeded.mode,
         approvals: seeded.approvalMode,
-        goal: seeded.goal,
-        theme: seeded.theme,
-        accent: seeded.accentColor,
+        goal: boundedGoal(seeded.goal),
+        theme: boundedMachineText(seeded.theme, THEME_NAME_MAX_CHARS),
+        accent: boundedMachineText(seeded.accentColor, ACCENT_NAME_MAX_CHARS),
         density: isTranscriptDensity(seeded.details) ? seeded.details : s.density,
       };
     }
@@ -182,7 +250,12 @@ export function reduceChrome(s: SessionChrome, a: ChromeAction): SessionChrome {
     case "set-trail":
       return { ...s, thoughtLog: a.lines };
     case "set-subagent-model":
-      return { ...s, subagentModel: a.model };
+      return {
+        ...s,
+        subagentModel: a.model
+          ? boundedMachineText(a.model, MODEL_NAME_MAX_CHARS)
+          : undefined,
+      };
     case "clear-plan":
       return { ...s, plan: null };
     case "drop-perm":
@@ -195,7 +268,11 @@ export function reduceChrome(s: SessionChrome, a: ChromeAction): SessionChrome {
         subagents: [],
         queueActive: null,
         queuePending: [],
+        queuePendingTotal: 0,
         tasks: [],
+        tasksTotal: 0,
+        tasksCompletedTotal: 0,
+        tasksUnfinishedTotal: 0,
         thinkingStream: "",
         thoughtLog: [],
         busy: false,
@@ -213,7 +290,12 @@ export function reduceChrome(s: SessionChrome, a: ChromeAction): SessionChrome {
 function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
   switch (event.type) {
     case "session-start":
-      return { ...s, sessionId: event.sessionId, model: event.model, mode: event.mode };
+      return {
+        ...s,
+        sessionId: event.sessionId,
+        model: boundedMachineText(event.model, MODEL_NAME_MAX_CHARS),
+        mode: event.mode,
+      };
     case "mode-changed":
       // Leaving plan mode DISMISSES the plan card (TUI parity) — live approve
       // already spent #lastPlan engine-side; if the card survived, the next
@@ -222,40 +304,76 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
         ? { ...s, mode: event.mode, plan: null }
         : { ...s, mode: event.mode };
     case "model-changed":
-      return { ...s, model: event.model };
+      return { ...s, model: boundedMachineText(event.model, MODEL_NAME_MAX_CHARS) };
     case "goal-changed":
-      return { ...s, goal: event.goal };
+      return { ...s, goal: boundedGoal(event.goal) };
     case "goal-run":
-      return { ...s, goalRun: event.run };
+      return { ...s, goalRun: boundedGoalRun(event.run) };
     case "theme-changed":
-      return { ...s, theme: event.theme };
+      return { ...s, theme: boundedMachineText(event.theme, THEME_NAME_MAX_CHARS) };
     case "accent-changed":
-      return { ...s, accent: event.accent };
+      return { ...s, accent: boundedMachineText(event.accent, ACCENT_NAME_MAX_CHARS) };
     case "details-changed":
       return {
         ...s,
         density: isTranscriptDensity(event.details) ? event.details : s.density,
       };
     case "git-updated":
-      return { ...s, git: event.git };
-    case "jobs-changed":
-      return { ...s, jobs: event.jobs };
+      return { ...s, git: boundedGit(event.git) };
+    case "jobs-changed": {
+      const retained = retainJobState(event.jobs);
+      return { ...s, jobs: retained.items, jobsTotal: retained.total };
+    }
     case "approvals-changed":
       return { ...s, approvals: event.mode };
     case "usage-updated":
       return { ...s, usage: event.usage };
     case "context-updated":
       return { ...s, ctxUsed: event.usedTokens, ctxWindow: event.contextWindow };
-    case "tasks-updated":
-      return { ...s, tasks: event.tasks };
-    case "queue-changed":
-      return { ...s, queueActive: event.active, queuePending: event.pending };
+    case "tasks-updated": {
+      const tasks = retainTaskState(event.tasks);
+      return {
+        ...s,
+        tasks: tasks.items,
+        tasksTotal: tasks.total,
+        tasksCompletedTotal: tasks.completed,
+        tasksUnfinishedTotal: tasks.unfinished,
+      };
+    }
+    case "queue-changed": {
+      const retained = retainQueueState(event.pending);
+      const active = event.active
+        ? retainQueueState([event.active], 1).items[0] ?? null
+        : null;
+      return {
+        ...s,
+        queueActive: active,
+        queuePending: retained.items,
+        queuePendingTotal: retained.total,
+      };
+    }
     case "plan-presented":
       return {
         ...s,
         plan: {
           text: appendRollingText("", event.plan, PLAN_MAX_CHARS),
-          sources: event.sources?.slice(0, PLAN_MAX_SOURCES),
+          sources: event.sources
+            ?.filter((source) =>
+              source.url.length <= PLAN_SOURCE_URL_MAX_CHARS &&
+              !source.url.includes("\0"),
+            )
+            .slice(0, PLAN_MAX_SOURCES)
+            .map((source) => ({
+              url: source.url,
+              ...(source.title
+                ? {
+                    title: boundedDisplayText(
+                      source.title,
+                      PLAN_SOURCE_TITLE_MAX_CHARS,
+                    ),
+                  }
+                : {}),
+            })),
           assumptions: event.assumptions
             ?.slice(0, PLAN_MAX_ASSUMPTIONS)
             .map((assumption) => appendRollingText(
@@ -269,7 +387,17 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
     case "permission-request":
       return {
         ...s,
-        perms: [...s.perms, { id: event.id, toolName: event.toolName, input: event.input }],
+        perms: [
+          ...s.perms.filter((permission) => permission.id !== event.id),
+          {
+            id: event.id,
+            toolName: boundedMachineText(
+              event.toolName,
+              PERMISSION_TOOL_NAME_MAX_CHARS,
+            ),
+            input: permissionInputForDisplay(event.input),
+          },
+        ],
       };
     case "permission-settled":
       return { ...s, perms: dropSettledPerms(s.perms, event.ids) };
@@ -294,7 +422,13 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
     case "checkpoint-created":
       return {
         ...s,
-        checkpoints: [...s.checkpoints, { id: event.id, label: event.label }].slice(-20),
+        checkpoints: [
+          ...s.checkpoints,
+          {
+            id: event.id,
+            label: boundedDisplayText(event.label, CHECKPOINT_LABEL_MAX_CHARS),
+          },
+        ].slice(-20),
       };
     case "subagent-started": {
       // Deduplicate by subagentId: a continue_subagent re-uses the same child

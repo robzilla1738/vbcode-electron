@@ -1,12 +1,29 @@
-import { useState } from "react";
-import type { SectionProps } from "./types";
+import { useEffect, useState } from "react";
+import { pluginSpecifiersFromLines } from "../../../shared/plugin-specifiers";
 import { NumberInput, SettingField, SettingSection, TextArea, TextInput, ToggleSwitch } from "../FormControls";
+import type { SectionProps } from "./types";
 
-export function AdvancedSection({ config, updateConfig, updateNested }: SectionProps) {
+export function AdvancedSection({
+  config,
+  scope,
+  updateConfig,
+  updateNested,
+  cwd,
+  onInvalidDraftChange,
+  draftResetVersion = 0,
+}: SectionProps) {
   const lsp = config.lsp ?? {};
   const lspServers = lsp.servers ?? {};
   const vision = config.vision?.relay ?? {};
   const [newLspLanguage, setNewLspLanguage] = useState("");
+  const lspDraftKey = `advanced:${scope}:${cwd ?? ""}:lsp-language`;
+
+  useEffect(() => {
+    const pending = Boolean(newLspLanguage.trim());
+    onInvalidDraftChange?.(lspDraftKey, pending);
+    return () => onInvalidDraftChange?.(lspDraftKey, false);
+  }, [lspDraftKey, newLspLanguage, onInvalidDraftChange]);
+  useEffect(() => setNewLspLanguage(""), [scope, cwd, draftResetVersion]);
 
   const updateLspServer = (
     language: string,
@@ -38,7 +55,7 @@ export function AdvancedSection({ config, updateConfig, updateNested }: SectionP
         <SettingField label="Plugin modules" description="One per line. Plugins execute code with the agent's privileges at startup; project plugins are ignored unless project config is globally trusted.">
           <TextArea
             value={(config.plugins ?? []).join("\n")}
-            onChange={(v) => updateConfig({ plugins: v.split("\n").map((s) => s.trim()).filter(Boolean) })}
+            onChange={(v) => updateConfig({ plugins: pluginSpecifiersFromLines(v) })}
             placeholder={"vibe-codr-jira\n./plugins/custom.ts"}
             rows={3}
             monospace
@@ -118,7 +135,11 @@ export function AdvancedSection({ config, updateConfig, updateNested }: SectionP
             onChange={(event) => setNewLspLanguage(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") addLspServer();
-              if (event.key === "Escape") setNewLspLanguage("");
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                setNewLspLanguage("");
+              }
             }}
           />
           <button

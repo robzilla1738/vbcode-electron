@@ -1,10 +1,27 @@
 import { describe, expect, test } from "vitest";
 import { initialTranscript, reduceTranscript } from "../shared/reducer";
 import {
+  decodeTranscriptCacheRecord,
+  deleteTranscriptCache,
+  deleteTranscriptCachesForCwd,
+  loadTranscriptCache,
+  saveTranscriptCache,
   transcriptCacheKeyBelongsToCwd,
+  transcriptCacheRecordSize,
   transcriptContentSignature,
   transcriptConversationSignature,
 } from "./transcript-cache";
+
+function cacheRecord(state: ReturnType<typeof initialTranscript>) {
+  const serialized = JSON.stringify(state);
+  return {
+    key: "/repo\u0000s1",
+    savedAt: 1,
+    signature: transcriptContentSignature(state),
+    state: serialized,
+    size: serialized.length,
+  };
+}
 
 describe("transcriptContentSignature", () => {
   test("ignores presentation state but detects all authoritative content changes", () => {
@@ -95,5 +112,56 @@ describe("transcript cache key ownership", () => {
   test("matches only session records for the exact cwd", () => {
     expect(transcriptCacheKeyBelongsToCwd("/repo\u0000ses_1", "/repo")).toBe(true);
     expect(transcriptCacheKeyBelongsToCwd("/repo-two\u0000ses_1", "/repo")).toBe(false);
+  });
+});
+
+describe("transcript cache eviction metadata", () => {
+  test("rejects corrupt rows without dereferencing invalid state", () => {
+    expect(transcriptCacheRecordSize(null)).toBeNull();
+    expect(transcriptCacheRecordSize({ state: 42 })).toBeNull();
+    expect(transcriptCacheRecordSize({ state: "abc", size: -1 })).toBeNull();
+    expect(transcriptCacheRecordSize({ state: "abc", size: 2 })).toBeNull();
+    expect(transcriptCacheRecordSize({ state: "abc" })).toBe(3);
+    expect(transcriptCacheRecordSize({ state: "abc", size: 3 })).toBe(3);
+  });
+});
+
+describe("transcript cache decoding", () => {
+  test("accepts a settled cache and rejects impossible block shapes", () => {
+    const valid = reduceTranscript(initialTranscript(), { type: "user", text: "hello" });
+    expect(decodeTranscriptCacheRecord(cacheRecord(valid))).toEqual(valid);
+
+    const invalid = {
+      ...valid,
+      blocks: [{ kind: "future-corrupt-kind", id: 0 }],
+    };
+    expect(decodeTranscriptCacheRecord({
+      ...cacheRecord(valid),
+      state: JSON.stringify(invalid),
+      size: JSON.stringify(invalid).length,
+      signature: "forged",
+    })).toBeNull();
+  });
+
+  test("rejects inconsistent record size before accepting content", () => {
+    const state = initialTranscript();
+    expect(decodeTranscriptCacheRecord({ ...cacheRecord(state), size: 1 })).toBeNull();
+  });
+
+  test("fails closed when IndexedDB is unavailable", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+    Object.defineProperty(globalThis, "indexedDB", {
+      configurable: true,
+      value: { open: () => { throw new DOMException("blocked", "SecurityError"); } },
+    });
+    try {
+      await expect(loadTranscriptCache("/repo", "s1")).resolves.toBeNull();
+      await expect(saveTranscriptCache("/repo", "s1", initialTranscript())).resolves.toBeUndefined();
+      await expect(deleteTranscriptCache("/repo", "s1")).resolves.toBeUndefined();
+      await expect(deleteTranscriptCachesForCwd("/repo")).resolves.toBeUndefined();
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, "indexedDB", descriptor);
+      else Reflect.deleteProperty(globalThis, "indexedDB");
+    }
   });
 });

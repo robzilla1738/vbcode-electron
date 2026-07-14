@@ -24,6 +24,9 @@ export const REASONING_OUTPUT_MAX_CHARS = 256 * 1024;
 /** Latest diffs remain reviewable without letting a long multi-file run retain
  * one megabyte per path forever. Metadata/totals remain for every changed file. */
 export const CHANGED_FILE_DIFF_BUDGET_CHARS = 16 * 1024 * 1024;
+/** Shared live/cache ceiling. Older or corrupted presentation caches above this
+ * are discarded and rebuilt from authoritative engine history. */
+export const MAX_RETAINED_TRANSCRIPT_BLOCKS = 2_500;
 
 /** Keep the useful tail while bounding a single newline-free payload. */
 function capTextTail(value: string, maxChars: number, kind: string): string {
@@ -178,6 +181,32 @@ export interface TranscriptState {
 
 export function initialTranscript(): TranscriptState {
   return { blocks: [], changedFiles: [], nextId: 0, activeAssistant: -1, toolByCallId: {}, suppressCallIds: {} };
+}
+
+/**
+ * Enforce the renderer's retained-block ceiling for every state ingress path.
+ * Live actions, IndexedDB restores, and engine-history hydration must all pass
+ * through the same cursor-safe shift or a resumed session can bypass the cap.
+ */
+export function capTranscriptState(
+  state: TranscriptState,
+  maxBlocks = MAX_RETAINED_TRANSCRIPT_BLOCKS,
+): TranscriptState {
+  const limit = Math.max(0, Math.floor(maxBlocks));
+  if (state.blocks.length <= limit) return state;
+  const overflow = state.blocks.length - limit;
+  const toolByCallId: Record<string, number> = {};
+  for (const [id, index] of Object.entries(state.toolByCallId)) {
+    const shifted = index - overflow;
+    if (shifted >= 0) toolByCallId[id] = shifted;
+  }
+  return {
+    ...state,
+    blocks: state.blocks.slice(overflow),
+    activeAssistant:
+      state.activeAssistant >= overflow ? state.activeAssistant - overflow : -1,
+    toolByCallId,
+  };
 }
 
 /** Transcript-affecting actions. app.tsx maps engine UIEvents (and its own

@@ -191,6 +191,14 @@ function safeJson(v: unknown): string {
   }
 }
 
+function safePrettyJson(v: unknown): string {
+  try {
+    return JSON.stringify(v, null, 2) ?? String(v);
+  } catch {
+    return Array.isArray(v) ? "[…]" : "{…}";
+  }
+}
+
 /**
  * Human-readable, single-line summary of a tool call — the text shown after the
  * icon. Falls back to `name [k=v, …]` for tools without a bespoke formatter.
@@ -382,15 +390,36 @@ export function permissionDetail(name: string, input: unknown): string {
   return toolSummary(name, input);
 }
 
-/** Cap for permission-preview body lines — enough to judge the action, small
- * enough that the card never crowds out the input. */
-const PREVIEW_MAX_LINES = 12;
+/** Expanded permission previews stay inspectable without mounting unbounded input. */
+const PREVIEW_MAX_LINES = 200;
+const PREVIEW_MAX_LINE_CHARS = 2_048;
+const PREVIEW_SOURCE_MAX_CHARS = 128 * 1_024;
+const PREVIEW_EDIT_SOURCE_MAX_CHARS = 4 * 1_024;
+const PREVIEW_MAX_EDITS = 100;
 
-/** Bound `lines` to the preview cap, appending a "+N more" marker. */
+function capPreviewSource(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  const half = maxChars / 2;
+  return `${value.slice(0, half)}\n… ${value.length - maxChars} middle characters omitted …\n${value.slice(-half)}`;
+}
+
+function capPreviewLine(line: string): string {
+  if (line.length <= PREVIEW_MAX_LINE_CHARS) return line;
+  const half = PREVIEW_MAX_LINE_CHARS / 2;
+  return `${line.slice(0, half)} … ${line.length - PREVIEW_MAX_LINE_CHARS} chars omitted … ${line.slice(-half)}`;
+}
+
+/** Keep both head and tail: dangerous shell/edit content often sits at the end. */
 function capLines(lines: string[]): string[] {
-  if (lines.length <= PREVIEW_MAX_LINES) return lines;
+  const bounded = lines.map(capPreviewLine);
+  if (bounded.length <= PREVIEW_MAX_LINES) return bounded;
   const hidden = lines.length - PREVIEW_MAX_LINES;
-  return [...lines.slice(0, PREVIEW_MAX_LINES), `… +${hidden} more line${hidden === 1 ? "" : "s"}`];
+  const head = PREVIEW_MAX_LINES / 2;
+  return [
+    ...bounded.slice(0, head),
+    `… ${hidden} middle line${hidden === 1 ? "" : "s"} omitted …`,
+    ...bounded.slice(-head),
+  ];
 }
 
 /**
@@ -402,7 +431,8 @@ function capLines(lines: string[]): string[] {
  * Returns the full bash command (only when the label truncated it), a `-`/`+`
  * preview of each edit, the head of a write's content, or the full URL — capped
  * at {@link PREVIEW_MAX_LINES}. `diff` marks `-`/`+` lines for red/green
- * rendering. Null when the label already tells the whole story.
+ * rendering. Long previews retain both head and tail with explicit omission
+ * markers. Null when the label already tells the whole story.
  */
 export function permissionPreview(
   name: string,
@@ -416,28 +446,50 @@ export function permissionPreview(
       const cmd = str(a.command || a.cmd);
       // The label shows ≤72 chars of a single line; only preview what it hides.
       if (!cmd || (cmd.length <= 72 && !cmd.includes("\n"))) return null;
-      return { lines: capLines(cmd.split("\n")), diff: false };
+      return {
+        lines: capLines(capPreviewSource(cmd, PREVIEW_SOURCE_MAX_CHARS).split("\n")),
+        diff: false,
+      };
     }
     case "edit":
     case "multiedit": {
       // Single-edit form or the atomic `edits` array — both become one -/+ run
       // per edit so the user sees WHAT changes, not just which file.
-      const edits = Array.isArray(a.edits)
-        ? (a.edits as Record<string, unknown>[])
+      const allEdits = Array.isArray(a.edits)
+        ? a.edits.map(asRecord)
         : a.oldString != null || a.newString != null
           ? [a]
           : [];
+      const edits = allEdits.length > PREVIEW_MAX_EDITS
+        ? [...allEdits.slice(0, PREVIEW_MAX_EDITS / 2), ...allEdits.slice(-PREVIEW_MAX_EDITS / 2)]
+        : allEdits;
       const lines: string[] = [];
-      for (const e of edits) {
-        for (const l of str(e.oldString).split("\n")) lines.push(`- ${l}`);
-        for (const l of str(e.newString).split("\n")) lines.push(`+ ${l}`);
+      for (let index = 0; index < edits.length; index += 1) {
+        if (allEdits.length > PREVIEW_MAX_EDITS && index === PREVIEW_MAX_EDITS / 2) {
+          lines.push(`… ${allEdits.length - PREVIEW_MAX_EDITS} middle edits omitted …`);
+        }
+        const edit = edits[index]!;
+        const oldString = str(edit.oldString);
+        const newString = str(edit.newString);
+        if (!oldString && !newString) continue;
+        for (const line of capPreviewSource(oldString, PREVIEW_EDIT_SOURCE_MAX_CHARS).split("\n")) {
+          lines.push(`- ${line}`);
+        }
+        for (const line of capPreviewSource(newString, PREVIEW_EDIT_SOURCE_MAX_CHARS).split("\n")) {
+          lines.push(`+ ${line}`);
+        }
       }
       return lines.length ? { lines: capLines(lines), diff: true } : null;
     }
     case "write": {
       const content = str(a.content);
       if (!content) return null;
-      return { lines: capLines(content.split("\n").map((l) => `+ ${l}`)), diff: true };
+      return {
+        lines: capLines(
+          capPreviewSource(content, PREVIEW_SOURCE_MAX_CHARS).split("\n").map((line) => `+ ${line}`),
+        ),
+        diff: true,
+      };
     }
     case "webfetch":
     case "web_fetch": {
@@ -445,8 +497,17 @@ export function permissionPreview(
       // The label truncates URLs at 64 chars — show the full one past that.
       return url.length > 64 ? { lines: [url], diff: false } : null;
     }
-    default:
-      return null;
+    default: {
+      // Unknown plugin/MCP tools must not become blind approvals. The reducer
+      // has already projected input into a bounded display copy; format that
+      // copy here so every unfamiliar action exposes its arguments.
+      const json = safePrettyJson(input);
+      if (!json || json === "{}") return null;
+      return {
+        lines: capLines(capPreviewSource(json, PREVIEW_SOURCE_MAX_CHARS).split("\n")),
+        diff: false,
+      };
+    }
   }
 }
 

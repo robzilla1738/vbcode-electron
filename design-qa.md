@@ -62,3 +62,33 @@ final result: passed
   16/16px desktop and 8/8px compact insets.
 
 final follow-up result: passed
+
+## Compact empty-state workspace dock follow-up — 2026-07-14
+
+- Source visual truth: `/var/folders/f4/7r6qlts50lj6_rncg4jffq140000gn/T/TemporaryItems/NSIRD_screencaptureui_3zymEx/Screenshot 2026-07-14 at 8.24.23 AM.png`
+- Browser-rendered implementation: `tools/ui-preview/shots/splash-compact.png`
+- Combined comparison: `/Users/robert/.codex/visualizations/2026/07/14/019f60b9-9c5a-7aa0-8591-d6c712be1628/dock-comparison.png` (source left, implementation right)
+- Viewport: 700 × 900 CSS pixels at 2x device scale
+- State: Graphite theme at the sub-720px desktop-scaled empty-chat breakpoint
+
+The source and preview contain different project/chat content, so the combined
+comparison is intentionally limited to the requested top-right Workspace Dock.
+That region is fully legible at the common normalized scale, so a separate
+focused crop was not needed.
+
+- Typography and copy remain unchanged; this pass only reduces control density.
+- The dock contracts from the oversized compact strip to 184px × 30px, with
+  24px rows and 11px icons.
+- Existing surface, border, radius, icon set, and color tokens remain consistent
+  with the application shell. No image assets are involved.
+- The first dock action was exercised in the browser and opened the shared
+  activity sidebar successfully.
+- The compact empty-state treatment now covers the full compact range, including
+  Retina-scaled desktop windows below 720 CSS pixels; non-empty states retain
+  their existing responsive targets.
+- The complete UI screenshot matrix, including the new compact splash case,
+  rendered without capture failures.
+- No actionable P0, P1, or P2 mismatch remains for the requested control-size
+  correction.
+
+final result: passed

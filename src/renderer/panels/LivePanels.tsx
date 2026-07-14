@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { queueRowsForDisplay } from "../../shared/live-list-bounds";
 import type { PendingPerm } from "../../shared/reducer";
 import {
   permissionDetail,
@@ -135,7 +136,7 @@ export function PermissionCard({
               className="permission-preview-more"
               onClick={() => setPreviewExpanded(true)}
             >
-              Show all {allPreviewLines.length} lines
+              Expand preview
             </button>
           ) : null}
           {previewExpanded && allPreviewLines.length > PREVIEW_MAX_LINES ? (
@@ -165,16 +166,16 @@ export function PermissionCard({
           className="chip"
           onClick={() => onDecide("always")}
           aria-keyshortcuts="a"
-          title="Allow this for the rest of the session (A)"
+          title="Allow this exact request for the rest of this session (A)"
         >
-          Always <ActionKbd>A</ActionKbd>
+          For session <ActionKbd>A</ActionKbd>
         </button>
         <button
           type="button"
           className="chip"
           onClick={() => onDecide("always-project")}
           aria-keyshortcuts="Meta+p"
-          title="Allow this for the project (⌘P)"
+          title="Allow this exact request for this project and future sessions (⌘P)"
         >
           For project <ActionKbd>⌘P</ActionKbd>
         </button>
@@ -348,47 +349,58 @@ export function PlanCard({
 
 export function QueuePanel({
   pending,
+  totalCount = pending.length,
   onSteer,
   onDequeue,
 }: {
   pending: QueuedItem[];
+  totalCount?: number;
   onSteer: (id: string) => void;
   onDequeue: (id: string) => void;
 }) {
   if (pending.length === 0) return null;
+  const visible = queueRowsForDisplay(pending);
+
+  const renderRow = (q: QueuedItem) => (
+    <li key={q.id} className="queue-row">
+      <span className="queue-row-mark" aria-hidden />
+      <span className="queue-label">{q.label}</span>
+      <div className="queue-actions hover-reveal">
+        <button
+          type="button"
+          className="queue-action"
+          onClick={() => onSteer(q.id)}
+          title="Steer — run this next"
+          aria-label={`Steer ${q.label} to front of queue`}
+        >
+          <IconSteer size={13} />
+        </button>
+        <button
+          type="button"
+          className="queue-action queue-action-remove"
+          onClick={() => onDequeue(q.id)}
+          title="Remove from queue"
+          aria-label={`Remove ${q.label} from queue`}
+        >
+          <IconRemove size={14} />
+        </button>
+      </div>
+    </li>
+  );
 
   return (
     <div className="composer-queue-tray" role="region" aria-label="Queued prompts">
       <div className="queue-tray-bar">
-        <span className="queue-tray-count">{pending.length} queued</span>
+        <span className="queue-tray-count">{totalCount} queued</span>
       </div>
       <ul id="composer-queue-items" className="queue-items">
-        {pending.map((q) => (
-          <li key={q.id} className="queue-row">
-            <span className="queue-row-mark" aria-hidden />
-            <span className="queue-label">{q.label}</span>
-            <div className="queue-actions hover-reveal">
-              <button
-                type="button"
-                className="queue-action"
-                onClick={() => onSteer(q.id)}
-                title="Steer — run this next"
-                aria-label={`Steer ${q.label} to front of queue`}
-              >
-                <IconSteer size={13} />
-              </button>
-              <button
-                type="button"
-                className="queue-action queue-action-remove"
-                onClick={() => onDequeue(q.id)}
-                title="Remove from queue"
-                aria-label={`Remove ${q.label} from queue`}
-              >
-                <IconRemove size={14} />
-              </button>
-            </div>
+        {visible.head.map(renderRow)}
+        {totalCount > visible.head.length + visible.tail.length ? (
+          <li className="queue-row queue-row-omitted">
+            {totalCount - visible.head.length - visible.tail.length} middle queued items omitted from this view
           </li>
-        ))}
+        ) : null}
+        {visible.tail.map(renderRow)}
       </ul>
     </div>
   );

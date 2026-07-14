@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ProviderConfig } from "../../../shared/config-schema";
 import { PROVIDER_CHOICES } from "../../../shared/providers-catalog";
-import type { SectionProps } from "./types";
 import { KeyValueTextArea, SettingBadge, SettingField, SettingSection, TextInput } from "../FormControls";
+import type { SectionProps } from "./types";
 
 export function ProvidersSection({
   config,
@@ -25,6 +25,18 @@ export function ProvidersSection({
   const [showAdd, setShowAdd] = useState(false);
   const [newId, setNewId] = useState("");
   const [useCustom, setUseCustom] = useState(false);
+  const addDraftKey = `providers:${scope}:${cwd ?? ""}:new-id`;
+
+  useEffect(() => {
+    const pending = showAdd && Boolean(newId.trim());
+    onInvalidDraftChange?.(addDraftKey, pending);
+    return () => onInvalidDraftChange?.(addDraftKey, false);
+  }, [addDraftKey, newId, onInvalidDraftChange, showAdd]);
+  useEffect(() => {
+    setNewId("");
+    setShowAdd(false);
+    setUseCustom(false);
+  }, [scope, cwd, draftResetVersion]);
 
   const updateProvider = (id: string, patch: Partial<ProviderConfig>) => {
     const next = { ...providers, [id]: { ...providers[id], ...patch } };
@@ -136,7 +148,13 @@ export function ProvidersSection({
               onChange={(e) => setNewId(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") confirmAdd();
-                if (e.key === "Escape") { setShowAdd(false); setNewId(""); setUseCustom(false); }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAdd(false);
+                  setNewId("");
+                  setUseCustom(false);
+                }
               }}
               // biome-ignore lint/a11y/noAutofocus: single autofocus owner in the custom add row
               autoFocus

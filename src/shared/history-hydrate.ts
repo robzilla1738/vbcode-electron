@@ -1,5 +1,11 @@
+import {
+  capTranscriptState,
+  initialTranscript,
+  reduceTranscript,
+  type TranscriptAction,
+  type TranscriptState,
+} from "./reducer";
 import type { Message } from "./types";
-import { initialTranscript, reduceTranscript, type TranscriptState } from "./reducer";
 import { stripVisionRelayContext } from "./vision-display";
 
 const FILE_EDIT_TOOLS = new Set([
@@ -12,6 +18,7 @@ const FILE_EDIT_TOOLS = new Set([
   "Edit",
   "Write",
 ]);
+const MAX_PENDING_HISTORY_TOOLS = 4_096;
 
 function pathFromToolInput(input: unknown): string | null {
   if (!input || typeof input !== "object") return null;
@@ -32,6 +39,11 @@ function actionFromTool(toolName: string): "write" | "edit" {
 /** Hydrate transcript blocks from snapshot history (resume UX). */
 export function hydrateFromHistory(history: Message[]): TranscriptState {
   let s = initialTranscript();
+  const apply = (action: TranscriptAction) => {
+    // Cap incrementally so hydration never builds an oversized intermediate
+    // state before the final replacement reducer gets a chance to enforce it.
+    s = capTranscriptState(reduceTranscript(s, action));
+  };
   /** toolCallId → { toolName, input } for reconstructing changed-files on resume. */
   const pendingTools = new Map<string, { toolName: string; input: unknown }>();
 
@@ -44,7 +56,7 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
       if (text) {
         const origin = msg.metadata?.origin === "engine" ? "engine" : undefined;
         const label = typeof msg.metadata?.label === "string" ? msg.metadata.label : undefined;
-        s = reduceTranscript(s, {
+        apply({
           type: "user",
           text: stripVisionRelayContext(text),
           timestamp: msg.createdAt,
@@ -55,13 +67,17 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
     } else if (msg.role === "assistant" || msg.role === "tool") {
       for (const part of msg.parts) {
         if (msg.role === "assistant" && part.type === "text" && part.text) {
-          s = reduceTranscript(s, { type: "delta", text: part.text, timestamp: msg.createdAt });
-          s = reduceTranscript(s, { type: "finalize" });
+          apply({ type: "delta", text: part.text, timestamp: msg.createdAt });
+          apply({ type: "finalize" });
         } else if (msg.role === "assistant" && part.type === "reasoning" && part.text) {
-          s = reduceTranscript(s, { type: "thinking", text: part.text });
+          apply({ type: "thinking", text: part.text });
         } else if (msg.role === "assistant" && part.type === "tool-call") {
+          if (pendingTools.size >= MAX_PENDING_HISTORY_TOOLS) {
+            const oldest = pendingTools.keys().next().value;
+            if (oldest !== undefined) pendingTools.delete(oldest);
+          }
           pendingTools.set(part.toolCallId, { toolName: part.toolName, input: part.input });
-          s = reduceTranscript(s, {
+          apply({
             type: "tool-start",
             toolCallId: part.toolCallId,
             toolName: part.toolName,
@@ -87,7 +103,7 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
               // history has no unified diff so the Changes map still lists the path.
               const added = looksLikeDiff ? (out.match(/^\+[^+]/gm) ?? []).length : 1;
               const removed = looksLikeDiff ? (out.match(/^-[^-]/gm) ?? []).length : 0;
-              s = reduceTranscript(s, {
+              apply({
                 type: "file-changed",
                 toolCallId: part.toolCallId,
                 path,
@@ -100,7 +116,7 @@ export function hydrateFromHistory(history: Message[]): TranscriptState {
           }
           // Live file-changed precedes tool-finished and deliberately folds the
           // edit into that call's row. Keep history hydration in the same order.
-          s = reduceTranscript(s, {
+          apply({
             type: "tool-finish",
             toolCallId: part.toolCallId,
             output: part.output,
