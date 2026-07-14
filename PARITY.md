@@ -577,9 +577,12 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current release gate: 466 unit tests, 12 e2e scenarios, lint, typecheck,
-  build, bundle budget, source parity (19 pairs), config-shape parity (40
+- [x] Current release gate: 470 unit tests, 12 e2e scenarios, lint, typecheck,
+  build, bundle budget, source parity (20 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.
+- [x] Direct macOS/Windows releases publish GitHub-backed updater feeds. Update
+  downloads and restarts require consent, and installation waits for the same
+  bounded engine/PTY cleanup used by an ordinary app quit.
 
 ## Uniform activity chrome and diff review (2026-07-14)
 

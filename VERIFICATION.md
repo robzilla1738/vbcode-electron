@@ -55,18 +55,17 @@ and run the Electron harness without installing that native module.
 
 GitHub CI (`.github/workflows/ci.yml`) runs `verify`, coverage floors,
 `smoke:bridge`, and Electron E2E on Linux, plus explicitly unsigned native-host
-packaged smokes on macOS and Windows and a validated Store package/upload build.
+packaged smokes on macOS and Windows and a validated NSIS/update-feed build.
 A `v<package-version>` tag triggers
 `.github/workflows/release.yml`, which gates publication on both platform jobs:
-it signs and notarizes the hardened arm64 app/DMG, validates Gatekeeper and
-stapling, builds and validates a Windows x64 AppX/MSIX package plus Store upload,
-emits `SHA256SUMS`, and publishes the macOS artifact. The Windows upload remains
-a protected workflow artifact for Partner Center, where Microsoft signs it
-during certification. Direct-distribution production packaging uses
-`forceCodeSigning`; Store packaging explicitly defers signing to Microsoft. The protected `release`
+it signs and notarizes the hardened arm64 app/DMG/ZIP, validates Gatekeeper and
+stapling, builds a Windows x64 NSIS installer, validates both updater feeds,
+emits `SHA256SUMS`, and publishes both platforms to GitHub Releases. The protected `release`
 environment must provide `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`,
 `APPLE_API_KEY_P8` (the `.p8` contents), `APPLE_API_KEY_ID`,
-and `APPLE_API_ISSUER`. Local crash
+and `APPLE_API_ISSUER`. `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` enable
+Authenticode signing; without them the workflow clearly warns and produces an
+unsigned installer that may trigger Windows SmartScreen. Local crash
 breadcrumbs remain enabled without upload.
 
 ## UI preview (renderer-only, no engine)
@@ -150,8 +149,11 @@ native Open Project path; renderer `localStorage` is not treated as a cwd
 capability. Its final plist must keep
 `NSAllowsArbitraryLoads=false` and omit unused camera, microphone, and Bluetooth
 permission strings. On Windows, confirm the unpacked smoke launches with the
-bundled `.exe` host, `MakeAppx` structurally unpacks the Store package, and Partner Center
-accepts the generated `.appxupload` before submission.
+bundled `.exe` host and the NSIS build emits one installer, `latest.yml`, and
+its differential-update blockmap. In an installed build, Help → Check for
+Updates must report the current version; for a newer tagged release, confirm
+the download prompt, progress indicator, restart prompt, engine cleanup, and
+successful relaunch on the new version.
 
 ## Manual (dev window)
 

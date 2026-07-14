@@ -36,6 +36,11 @@ describe("native menu shortcut contract", () => {
     expect(settingsSource).toContain("window.vibe.setSettingsDirty(false)");
   });
 
+  it("keeps the native update action discoverable", () => {
+    expect(source).toContain('label: "Check for Updates…"');
+    expect(source).toContain("appUpdater?.check(true)");
+  });
+
   it("guards Continue Latest before replacing a session with dirty Settings", () => {
     const continueLatest = appSource.match(
       /const continueLatest = useCallback\(async \(\) => \{([\s\S]*?)\n {2}\}, \[/,

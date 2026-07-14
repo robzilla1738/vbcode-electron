@@ -47,6 +47,20 @@ cd ~/Code/vibe-codr && bun install && bun run build:macos-bridge
 Packaged release builds bundle the revision-locked engine host; end users do
 not need Node, Bun, `VIBE_CODR_ROOT`, or a sibling vibe-codr checkout.
 
+## Install
+
+Download the latest direct installer from
+[GitHub Releases](https://github.com/robzilla1738/vbcode-electron/releases):
+
+- macOS Apple Silicon: open the signed and notarized `.dmg`, then drag Vibe Codr
+  to Applications.
+- Windows x64: run the NSIS `.exe` installer. A signed installer is used when
+  the release environment has the Windows code-signing certificate configured.
+
+Installed macOS and Windows builds check GitHub Releases after launch. Updates
+are never installed silently: Vibe Codr asks before downloading and again
+before restarting, and safely stops the engine and terminal processes first.
+
 ## Clone
 
 ```bash
@@ -114,9 +128,8 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 | `npm run copy-host` | Copy host binary into `resources/` (freshness + arch checks) |
 | `npm run pack` / `pack:mac` | Explicitly unsigned macOS dir build for local/CI smoke |
 | `npm run pack:win` | Explicitly unsigned Windows x64 dir build for CI smoke |
-| `npm run dist` / `dist:mac` | Hardened macOS arm64 `.dmg` (release workflow signs and notarizes) |
-| `npm run dist:win` / `dist:win:store` | Windows x64 AppX/MSIX package for Microsoft Store certification |
-| `npm run prepare:win:store` | Validate the Store package and create the `.appxupload` submission bundle (Windows only) |
+| `npm run dist` / `dist:mac` | macOS arm64 `.dmg` + updater `.zip`/metadata (release workflow signs and notarizes) |
+| `npm run dist:win` | Windows x64 NSIS `.exe` + updater metadata/blockmap |
 
 ## Layout
 
@@ -270,7 +283,7 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   Reload instead of blanking the window
 - **Application menu**: standard desktop roles plus New Session, Open Project,
   Continue Latest, Settings, Git, Inspector, Terminal, Background Jobs,
-  Keyboard Shortcuts, documentation, and issue reporting
+  Check for Updates, Keyboard Shortcuts, documentation, and issue reporting
 - **IPC security**: all handlers assert trusted sender; context isolation +
   sandbox enabled; `nodeIntegration: false`
 - **Bounded transport and output**: host NDJSON lines, individual commands,
@@ -280,9 +293,9 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   unused permission strings (camera/mic/Bluetooth) stripped in `after-pack`
 - **Release integrity**: CI and release jobs pin third-party actions by commit
   SHA and build a native host from the commit in `ENGINE_COMMIT`; version tags
-  must produce both a signed/notarized arm64 app/DMG and a validated Windows x64
-  AppX/MSIX Store upload before the GitHub Release is published with a SHA-256
-  checksum; Microsoft signs the Windows package during Store certification
+  must produce both a signed/notarized arm64 app/DMG/ZIP update and a Windows
+  x64 NSIS installer before one GitHub Release is published with update feeds,
+  differential blockmaps, and SHA-256 checksums
 
 ## Features (shell)
 
@@ -331,7 +344,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **466 unit tests**, **12 Electron E2E scenarios**, 20 source
+Current baseline: **470 unit tests**, **12 Electron E2E scenarios**, 20 source
 parity pairs, 40 top-level config fields, Biome, typecheck, production build,
 and renderer bundle budget pass in the current checkout. Settings, Terminal,
 Git, and Changes are isolated from the initial renderer chunk. CI runs `verify` +

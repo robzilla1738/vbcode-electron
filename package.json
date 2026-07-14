@@ -1,6 +1,6 @@
 {
   "name": "vbcode-electron",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "author": "robzilla1738",
   "license": "MIT",
@@ -40,9 +40,7 @@
     "pack:win": "npm run copy-host && npm run build && electron-builder --win --dir --x64 --config.win.signAndEditExecutable=false --config.forceCodeSigning=false",
     "dist": "npm run dist:mac",
     "dist:mac": "npm run copy-host && npm run build && electron-builder --mac --arm64 --publish never",
-    "dist:win": "npm run dist:win:store",
-    "dist:win:store": "npm run copy-host && npm run build && electron-builder --win appx --x64 --config.forceCodeSigning=false --publish never",
-    "prepare:win:store": "pwsh -NoProfile -File scripts/prepare-store-upload.ps1",
+    "dist:win": "npm run copy-host && npm run build && electron-builder --win nsis --x64 --publish never",
     "copy-host": "node scripts/copy-engine-host.mjs",
     "smoke:bridge": "node scripts/smoke-bridge.mjs",
     "smoke:packaged": "node scripts/smoke-packaged.mjs",
@@ -51,6 +49,7 @@
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^1.24.0",
     "node-pty": "^1.1.0",
     "react": "^19.1.0",
@@ -79,7 +78,7 @@
     "appId": "com.vibecodr.desktop",
     "productName": "Vibe Codr",
     "artifactName": "Vibe-Codr-${version}-${os}-${arch}.${ext}",
-    "forceCodeSigning": true,
+    "electronUpdaterCompatibility": ">=2.16",
     "afterPack": "./scripts/after-pack.mjs",
     "directories": {
       "output": "release"
@@ -91,7 +90,7 @@
       "entitlementsInherit": "build/entitlements.mac.inherit.plist",
       "target": [
         "dmg",
-        "dir"
+        "zip"
       ],
       "extendInfo": {
         "NSAppTransportSecurity": {
@@ -105,25 +104,30 @@
       "executableName": "Vibe Codr",
       "target": [
         {
-          "target": "appx",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
         }
       ]
     },
-    "appx": {
-      "applicationId": "VibeCodr",
-      "identityName": "VibeCodr.VibeCodr",
-      "publisher": "CN=932FDDA8-8293-47F3-BD92-AC3AA21D32CD",
-      "publisherDisplayName": "Vibe Codr",
-      "displayName": "Vibe Codr",
-      "backgroundColor": "#13161B",
-      "showNameOnTiles": true,
-      "languages": [
-        "en-US"
-      ]
+    "nsis": {
+      "oneClick": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "Vibe Codr"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "robzilla1738",
+        "repo": "vbcode-electron",
+        "releaseType": "release"
+      }
+    ],
     "icon": "assets/icon.icns",
     "files": [
       "out/**/*",

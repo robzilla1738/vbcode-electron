@@ -129,7 +129,12 @@ jobs:
         env:
           VIBE_CODR_ROOT: ""
         run: npm run smoke:packaged
-      - name: Build and validate Microsoft Store package
+      - name: Build and validate Windows installer update feed
         env:
           VIBE_CODR_ROOT: ${{ github.workspace }}\vibe-codr
-        run: npm run dist:win && npm run prepare:win:store
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm run dist:win -- --config.forceCodeSigning=false
+          $installer = @(Get-ChildItem release -File -Filter *.exe)
+          if ($installer.Count -ne 1) { throw "Expected one NSIS installer" }
+          if (!(Test-Path release/latest.yml)) { throw "Missing Windows update metadata" }

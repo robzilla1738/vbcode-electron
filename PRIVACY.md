@@ -22,6 +22,15 @@ content, tool input, repository data, and service credentials. Each external
 service processes that information under its own terms and privacy policy. You
 control which services are configured and when they are used.
 
+## Update checks
+
+Installed macOS and Windows builds contact GitHub Releases after launch and
+when you choose Help → Check for Updates. The request includes the information
+normally sent with an HTTPS request and the app's current version so GitHub can
+return the correct release metadata. Vibe Codr does not use update checks for
+analytics or advertising, and updates require your consent before download and
+restart.
+
 ## Storage and retention
 
 App data is stored locally on your device and remains there until you remove it,

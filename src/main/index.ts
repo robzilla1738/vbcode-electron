@@ -19,6 +19,7 @@ import type { ProjectSummary } from "../shared/protocol";
 import { decodeInbound, type HostInbound, type RpcMethod } from "../shared/protocol";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
 import { TtlLruCache } from "../shared/ttl-lru-cache";
+import { type AppUpdaterController, createAppUpdater } from "./app-updater";
 import { registerConfigIpc } from "./config-ipc";
 import { EngineBridge } from "./engine-bridge";
 import { registerGitIpc } from "./git-ipc";
@@ -28,6 +29,7 @@ import { TerminalManager } from "./terminal-manager";
 
 let mainWindow: BrowserWindow | null = null;
 let settingsDirty = false;
+let appUpdater: AppUpdaterController | null = null;
 const bridge = new EngineBridge();
 
 function confirmDiscardSettings(parent?: BrowserWindow | null): boolean {
@@ -327,6 +329,11 @@ function buildApplicationMenu(): void {
     {
       role: "help" as const,
       submenu: [
+        {
+          label: "Check for Updates…",
+          click: () => void appUpdater?.check(true),
+        },
+        { type: "separator" as const },
         {
           label: "Keyboard Shortcuts",
           accelerator: "CmdOrCtrl+/",
@@ -901,6 +908,12 @@ if (!gotSingleInstanceLock) {
     wireBridge();
     registerIpc();
     createWindow();
+    appUpdater = createAppUpdater({
+      getWindow: () => mainWindow,
+      prepareToInstall: prepareToInstallUpdate,
+    });
+    const updateTimer = setTimeout(() => void appUpdater?.check(false), 10_000);
+    updateTimer.unref();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -909,6 +922,8 @@ if (!gotSingleInstanceLock) {
 }
 
 let quitting = false;
+let allowUpdaterQuit = false;
+let quitCleanupPromise: Promise<void> | null = null;
 
 /**
  * Quit budget: disposeForQuit uses a short finalize window then always reaps
@@ -917,23 +932,10 @@ let quitting = false;
  */
 const QUIT_HARD_CEILING_MS = 8_000;
 
-app.on("before-quit", async (e) => {
-  // Guard against re-entrant before-quit (e.g. Cmd+Q while already quitting,
-  // or app.exit firing a second before-quit after cleanup completes).
-  if (quitting) {
-    // A second Cmd+Q must not bypass the cleanup already in flight. `app.exit`
-    // below exits directly and does not re-enter this cancellable event.
-    e.preventDefault();
-    return;
-  }
-  if (!confirmDiscardSettings(mainWindow)) {
-    e.preventDefault();
-    return;
-  }
-  quitting = true;
-  e.preventDefault();
+function cleanupForQuit(): Promise<void> {
+  if (quitCleanupPromise) return quitCleanupPromise;
   terminalManager.dispose();
-  await Promise.race([
+  quitCleanupPromise = Promise.race([
     (async () => {
       // Always try to reap when we still own a child (isRunning tracks exit
       // codes, not proc.killed — soft-kill alone must not skip cleanup).
@@ -958,6 +960,37 @@ app.on("before-quit", async (e) => {
     })(),
     new Promise<void>((resolve) => setTimeout(resolve, QUIT_HARD_CEILING_MS)),
   ]);
+  return quitCleanupPromise;
+}
+
+async function prepareToInstallUpdate(): Promise<boolean> {
+  if (quitting) return false;
+  if (!confirmDiscardSettings(mainWindow)) return false;
+  quitting = true;
+  await cleanupForQuit();
+  // quitAndInstall closes windows before emitting before-quit. Mark its quit as
+  // trusted only after engine/PTY cleanup has completed.
+  allowUpdaterQuit = true;
+  return true;
+}
+
+app.on("before-quit", async (e) => {
+  if (allowUpdaterQuit) return;
+  // Guard against re-entrant before-quit (e.g. Cmd+Q while already quitting,
+  // or app.exit firing a second before-quit after cleanup completes).
+  if (quitting) {
+    // A second Cmd+Q must not bypass the cleanup already in flight. `app.exit`
+    // below exits directly and does not re-enter this cancellable event.
+    e.preventDefault();
+    return;
+  }
+  if (!confirmDiscardSettings(mainWindow)) {
+    e.preventDefault();
+    return;
+  }
+  quitting = true;
+  e.preventDefault();
+  await cleanupForQuit();
   app.exit(0);
 });
 
