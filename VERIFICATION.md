@@ -59,7 +59,9 @@ packaged smokes on macOS and Windows. A `v<package-version>` tag triggers
 `.github/workflows/release.yml`, which gates publication on both platform jobs:
 it signs and notarizes the hardened arm64 app/DMG, validates Gatekeeper and
 stapling, builds a signed Windows x64 NSIS installer, emits one `SHA256SUMS`,
-and publishes both artifacts in one GitHub release. The protected `release`
+and publishes both artifacts in one GitHub release. Production packaging uses
+`forceCodeSigning`; Windows additionally requires `Get-AuthenticodeSignature`
+to report `Valid` for both the app and NSIS installer. The protected `release`
 environment must provide `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`,
 `APPLE_API_KEY_P8` (the `.p8` contents), `APPLE_API_KEY_ID`,
 `APPLE_API_ISSUER`, `WIN_CSC_LINK`, and `WIN_CSC_KEY_PASSWORD`. Local crash

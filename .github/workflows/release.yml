@@ -155,6 +155,19 @@ jobs:
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: npm run dist:win
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          $app = "release/win-unpacked/Vibe Codr.exe"
+          $installer = Get-ChildItem release -File -Filter *.exe | Select-Object -First 1
+          if (!(Test-Path $app)) { throw "signed unpacked application not found" }
+          if ($null -eq $installer) { throw "signed NSIS installer not found" }
+          foreach ($path in @($app, $installer.FullName)) {
+            $signature = Get-AuthenticodeSignature $path
+            if ($signature.Status -ne "Valid") {
+              throw "invalid Authenticode signature for $path`: $($signature.Status)"
+            }
+          }
       - name: Stage Windows artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

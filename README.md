@@ -278,7 +278,8 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
 - **Release integrity**: CI and release jobs pin third-party actions by commit
   SHA and build a native host from the commit in `ENGINE_COMMIT`; version tags
   must produce both a signed/notarized arm64 app/DMG and a signed Windows x64
-  NSIS installer before one GitHub Release is published with SHA-256 checksums
+  NSIS installer before one GitHub Release is published with SHA-256 checksums;
+  production packaging is fail-closed when a signing identity is unavailable
 
 ## Features (shell)
 
