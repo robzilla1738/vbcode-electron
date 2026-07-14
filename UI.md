@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff  
-> **Updated:** 2026-07-13 (production settings, transport, and workspace-state hardening)
+> **Updated:** 2026-07-14 (provider onboarding and catalog parity)
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
@@ -10,6 +10,11 @@ live code before changing behavior; the engine remains owned by
 and desktop interaction.
 
 ## Product shape
+
+First-run provider onboarding is searchable: common curated choices stay first,
+followed by the generated models.dev/OpenCode registry and Hermes aliases.
+Provider-specific endpoint fields appear only when required; native AWS/Google
+credential-chain routes explain environment setup instead of asking for a fake key.
 
 The shell has these primary surfaces:
 

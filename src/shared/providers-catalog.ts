@@ -11,6 +11,9 @@
  * present, so onboarding treats the cloud option as key-required.
  */
 
+import { PROVIDER_MANIFEST } from "./provider-manifest";
+export { hasUsableOnboardingProvider } from "./provider-readiness";
+
 export interface ProviderChoice {
   /** Stable choice id (unique within the menu). */
   key: string;
@@ -30,11 +33,13 @@ export interface ProviderChoice {
   localKeyless?: boolean;
   /** Generic bring-your-own OpenAI-compatible endpoint — prompts for a base URL. */
   customEndpoint?: boolean;
+  /** Provider has no catalog endpoint and therefore needs an explicit URL. */
+  requiresBaseURL?: boolean;
   /** Extra setup note (e.g. "needs `ollama serve`"). */
   note?: string;
 }
 
-export const PROVIDER_CHOICES: ProviderChoice[] = [
+const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
   {
     key: "anthropic",
     registryId: "anthropic",
@@ -348,6 +353,65 @@ export const PROVIDER_CHOICES: ProviderChoice[] = [
   },
 ];
 
+const HERMES_PROVIDER_CHOICES: ProviderChoice[] = [
+  { key: "hermes-nous", registryId: "nous", label: "Nous Portal", blurb: "Nous Research subscription and hosted frontier models.", defaultModel: "nous/deepseek/deepseek-v4-flash", env: "NOUS_API_KEY", keyUrl: "https://portal.nousresearch.com" },
+  { key: "hermes-arcee", registryId: "arcee", label: "Arcee AI", blurb: "Trinity reasoning models through Arcee's direct API.", defaultModel: "arcee/trinity-large-thinking", env: "ARCEEAI_API_KEY", keyUrl: "https://app.arcee.ai" },
+  { key: "hermes-azure-foundry", registryId: "azure-foundry", label: "Azure Foundry", blurb: "Models deployed to your Azure AI Foundry endpoint.", defaultModel: "", env: "AZURE_FOUNDRY_API_KEY", requiresBaseURL: true },
+  { key: "hermes-copilot", registryId: "copilot", label: "GitHub Copilot", blurb: "Copilot models using a GitHub or Copilot token.", defaultModel: "copilot/gpt-5.4", env: "COPILOT_GITHUB_TOKEN" },
+  { key: "hermes-gmi", registryId: "gmi", label: "GMI Cloud", blurb: "Hosted open and frontier models through GMI Cloud.", defaultModel: "gmi/zai-org/GLM-5.1-FP8", env: "GMI_API_KEY", keyUrl: "https://www.gmicloud.ai" },
+  { key: "hermes-kilocode", registryId: "kilocode", label: "Kilo Code", blurb: "Kilo Gateway under Hermes-compatible model ids.", defaultModel: "kilocode/anthropic/claude-sonnet-4-5", env: "KILOCODE_API_KEY", keyUrl: "https://kilo.ai" },
+  { key: "hermes-kimi", registryId: "kimi-coding", label: "Kimi Coding Plan", blurb: "Kimi coding models on the international endpoint.", defaultModel: "kimi-coding/kimi-k2.7-code", env: "KIMI_API_KEY", keyUrl: "https://www.kimi.com" },
+  { key: "hermes-kimi-cn", registryId: "kimi-coding-cn", label: "Kimi Coding Plan · China", blurb: "Kimi coding models on Moonshot's China endpoint.", defaultModel: "kimi-coding-cn/kimi-k2.6", env: "KIMI_CN_API_KEY" },
+  { key: "hermes-minimax-cn", registryId: "minimax-cn", label: "MiniMax · China", blurb: "MiniMax models through the domestic Anthropic-compatible API.", defaultModel: "minimax-cn/MiniMax-M3", env: "MINIMAX_CN_API_KEY" },
+  { key: "hermes-minimax-oauth", registryId: "minimax-oauth", label: "MiniMax · OAuth token", blurb: "MiniMax Coding Plan using a reusable OAuth access token.", defaultModel: "minimax-oauth/MiniMax-M3", env: "MINIMAX_API_KEY", note: "paste a current MiniMax OAuth access token or configure a token file in Settings" },
+  { key: "hermes-novita", registryId: "novita", label: "NovitaAI", blurb: "Hosted open models through Novita's OpenAI-compatible endpoint.", defaultModel: "novita/moonshotai/kimi-k2.5", env: "NOVITA_API_KEY", keyUrl: "https://novita.ai" },
+  { key: "hermes-ollama-cloud", registryId: "ollama-cloud", label: "Ollama Cloud · direct", blurb: "Ollama's hosted catalog under the Hermes provider id.", defaultModel: "ollama-cloud/glm-5.2", env: "OLLAMA_API_KEY", keyUrl: "https://ollama.com/settings/keys" },
+  { key: "hermes-openai-codex", registryId: "openai-codex", label: "OpenAI Codex · OAuth", blurb: "Reuse the official Codex CLI login through the Responses backend.", defaultModel: "openai-codex/gpt-5.3-codex", env: "CODEX_API_KEY", note: "run `codex login`; advanced OAuth accounts may also need the account header configured in Settings" },
+  { key: "hermes-openai-api", registryId: "openai-api", label: "OpenAI API · Hermes id", blurb: "Direct OpenAI API access under Hermes-compatible model ids.", defaultModel: "openai-api/gpt-5.5", env: "OPENAI_API_KEY", keyUrl: "https://platform.openai.com/api-keys" },
+  { key: "hermes-gemini", registryId: "gemini", label: "Google AI Studio · Hermes id", blurb: "Gemini models under the Hermes provider id.", defaultModel: "gemini/gemini-3.1-pro-preview", env: "GEMINI_API_KEY", keyUrl: "https://aistudio.google.com/apikey" },
+  { key: "hermes-opencode-zen", registryId: "opencode-zen", label: "OpenCode Zen", blurb: "OpenCode's curated pay-as-you-go model gateway.", defaultModel: "opencode-zen/gpt-5.5", env: "OPENCODE_ZEN_API_KEY", keyUrl: "https://opencode.ai" },
+  { key: "hermes-opencode-go", registryId: "opencode-go", label: "OpenCode Go", blurb: "OpenCode's subscription gateway for open coding models.", defaultModel: "opencode-go/kimi-k2.7-code", env: "OPENCODE_GO_API_KEY", keyUrl: "https://opencode.ai" },
+  { key: "hermes-qwen-oauth", registryId: "qwen-oauth", label: "Qwen Portal", blurb: "Qwen Portal models using a reusable portal token.", defaultModel: "qwen-oauth/qwen3-coder-plus", env: "QWEN_API_KEY" },
+  { key: "hermes-xai-oauth", registryId: "xai-oauth", label: "xAI Grok · OAuth token", blurb: "SuperGrok/Premium+ access using a reusable Hermes OAuth token.", defaultModel: "xai-oauth/grok-4.3", env: "XAI_API_KEY", note: "reuses providers.xai-oauth.tokens.access_token from ~/.hermes/auth.json when available" },
+  { key: "hermes-vertex", registryId: "vertex", label: "Google Vertex AI", blurb: "Vertex models using Google Application Default Credentials.", defaultModel: "vertex/gemini-3.1-pro-preview", localKeyless: true, note: "set project/location and Application Default Credentials in your environment" },
+  { key: "hermes-bedrock", registryId: "bedrock", label: "AWS Bedrock", blurb: "Bedrock Converse models using the standard AWS credential chain.", defaultModel: "bedrock/us.anthropic.claude-sonnet-4-6", localKeyless: true, note: "uses AWS_PROFILE, IAM role, web identity, bearer token, or access-key credentials" },
+];
+
+const curatedRegistryIds = new Set(
+  [...CURATED_PROVIDER_CHOICES, ...HERMES_PROVIDER_CHOICES]
+    .map((choice) => choice.registryId)
+    .filter(Boolean),
+);
+
+/**
+ * Curated first-run choices stay first, then the complete models.dev registry
+ * used by OpenCode is appended. This keeps the common path friendly without
+ * making breadth depend on a hand-maintained UI list. Exact provider ids that
+ * already have curated copy are deduplicated; aliases such as `fireworks` and
+ * models.dev's `fireworks-ai` remain separate because both are valid engine ids.
+ */
+export const PROVIDER_CHOICES: ProviderChoice[] = [
+  ...CURATED_PROVIDER_CHOICES,
+  ...HERMES_PROVIDER_CHOICES,
+  ...PROVIDER_MANIFEST
+    .filter((provider) => !curatedRegistryIds.has(provider.id))
+    .map((provider): ProviderChoice => {
+      const needsEndpoint = provider.baseURL.length === 0;
+      return {
+        key: `catalog:${provider.id}`,
+        registryId: provider.id,
+        label: provider.name,
+        blurb: needsEndpoint
+          ? "Provider-specific endpoint and authentication."
+          : `Models served through ${provider.name}.`,
+        defaultModel: provider.defaultModel ? `${provider.id}/${provider.defaultModel}` : "",
+        env: provider.env[0],
+        requiresBaseURL: needsEndpoint,
+        ...(needsEndpoint ? { note: "enter the endpoint URL required by this provider or deployment" } : {}),
+      };
+    }),
+];
+
 /**
  * Pick the menu entry to highlight first: the first choice whose key already
  * lives in the environment (so an Ollama Cloud user with `OLLAMA_API_KEY` set
@@ -388,13 +452,6 @@ export function providerChoiceAcceptsApiKey(
  * or a keyless/local provider has actually returned at least one live model.
  * A registry's `keyless` flag alone does not prove that Ollama/LM Studio is
  * running, so treating it as ready can strand a clean install without setup. */
-export function hasUsableOnboardingProvider(
-  providers: readonly { configured: boolean; keyless: boolean }[],
-  models: readonly unknown[],
-): boolean {
-  return models.length > 0 || providers.some((provider) => provider.configured && !provider.keyless);
-}
-
 /** Provider ids whose readiness comes from credentials, not merely from a
  * keyless registry definition. Shared ids such as Ollama must not make the
  * cloud onboarding choice skip its API-key field just because local Ollama is

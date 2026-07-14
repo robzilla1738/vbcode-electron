@@ -217,6 +217,10 @@ npm run dev
     Save an invalid provider/model combination and confirm setup remains open
     after bootstrap fails, preserving the form for correction while restoring
     the prior config/runtime so dismissing or quitting cannot strand the app.
+    Search by provider label and exact id; confirm an OpenCode catalog provider,
+    a Hermes alias (`opencode-zen` or `kimi-coding`), and a native cloud route
+    (`bedrock`, `vertex`, or `azure`) expose the correct credential/endpoint
+    requirements without losing the selected model.
     Simulate unavailable/blocked IndexedDB and corrupt cache metadata; startup
     must continue without cache, and a late open handle must be closed.
 18. Exercise File/Tools/Help menu actions: New Session, Open Project, Continue

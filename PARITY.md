@@ -503,10 +503,10 @@ npm run dev
 - [x] NumberInput guards NaN — typing non-numeric text produces `undefined`,
   not `NaN`, preventing an invalid value from bricking the config on the next
   engine load
-- [x] First-run onboarding modal: curated provider catalog (33 choices mirroring
-  the CLI's `PROVIDER_CHOICES`), key entry with "get a key" links, base URL for
-  custom endpoints, model preselect, save → re-bootstrap; replaces the passive
-  hint strip
+- [x] First-run onboarding modal: searchable generated models.dev catalog
+  (OpenCode breadth) plus Hermes-compatible provider ids and native cloud
+  routes; provider-specific credentials/endpoints, model preselect, and
+  transactional save → re-bootstrap replace the passive hint strip
 - [x] `--z-modal` CSS token defined (was referenced by `.keys-overlay-root` but
   never declared — z-index resolved to `auto`)
 - [x] Settings parity gaps closed:

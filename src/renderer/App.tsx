@@ -29,7 +29,7 @@ import {
   HOST_INBOUND_SAFE_BYTES,
   type ProjectSummary,
 } from "../shared/protocol";
-import { hasUsableOnboardingProvider } from "../shared/providers-catalog";
+import { hasUsableOnboardingProvider } from "../shared/provider-readiness";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
 import { lineToCommands, routePendingPermLine } from "../shared/slash";
 import { classifySubmitLine } from "../shared/submit-routing";
@@ -57,7 +57,7 @@ import { Inspector } from "./panels/Inspector";
 import { JobsView } from "./panels/JobsView";
 import { KeysOverlay } from "./panels/KeysOverlay";
 import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
-import { OnboardingModal, type ProviderStatus } from "./panels/OnboardingModal";
+import type { ProviderStatus } from "./panels/OnboardingModal";
 import { ChangedFilesPill } from "./panels/TurnChangesCard";
 import { type CatalogChoice, CatalogModal, type CatalogPickerState } from "./pickers/CatalogModal";
 import {
@@ -83,6 +83,9 @@ const ChangesView = lazy(() =>
 );
 const SettingsView = lazy(() =>
   import("./settings/SettingsPanel").then((module) => ({ default: module.SettingsView })),
+);
+const OnboardingModal = lazy(() =>
+  import("./panels/OnboardingModal").then((module) => ({ default: module.OnboardingModal })),
 );
 
 function pickerMatchesDraft(picker: Picker, draft: string, modelTarget: "main" | "sub"): boolean {
@@ -1927,16 +1930,18 @@ export function App() {
 
             <div className="panels" ref={panelsRef}>
               {showOnboarding && !chrome.perms[0] && !planPending && (
-                <OnboardingModal
-                  providers={onboardingProviders}
-                  onSave={saveOnboarding}
-                  saving={onboardingSaving}
-                  saveError={onboardingError}
-                  onDismiss={() => {
-                    onboardingDismissed.current = true;
-                    setShowOnboarding(false);
-                  }}
-                />
+                <Suspense fallback={null}>
+                  <OnboardingModal
+                    providers={onboardingProviders}
+                    onSave={saveOnboarding}
+                    saving={onboardingSaving}
+                    saveError={onboardingError}
+                    onDismiss={() => {
+                      onboardingDismissed.current = true;
+                      setShowOnboarding(false);
+                    }}
+                  />
+                </Suspense>
               )}
               {showGateBanner && (
                 <div className="notice error gate-banner" role="alert">

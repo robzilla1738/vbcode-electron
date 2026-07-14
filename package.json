@@ -39,7 +39,8 @@
     "dist": "npm run copy-host && npm run build && electron-builder --mac",
     "copy-host": "node scripts/copy-engine-host.mjs",
     "smoke:bridge": "node scripts/smoke-bridge.mjs",
-    "smoke:packaged": "node scripts/smoke-packaged.mjs"
+    "smoke:packaged": "node scripts/smoke-packaged.mjs",
+    "providers:sync": "node scripts/sync-provider-manifest.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

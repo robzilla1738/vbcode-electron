@@ -64,6 +64,29 @@ describe("providers-catalog", () => {
     expect(ids).toContain("custom-endpoint");
   });
 
+  it("covers the complete OpenCode models.dev registry plus Hermes aliases", () => {
+    const providerIds = new Set(PROVIDER_CHOICES.map((choice) => choice.registryId));
+    expect(providerIds.size).toBeGreaterThanOrEqual(166);
+    for (const id of [
+      "amazon-bedrock",
+      "azure",
+      "google-vertex",
+      "github-copilot",
+      "alibaba-coding-plan",
+      "novita-ai",
+      "xiaomi",
+      "stepfun",
+      "opencode",
+    ]) {
+      expect(providerIds.has(id)).toBe(true);
+    }
+  });
+
+  it("marks native deployment providers as requiring an endpoint in onboarding", () => {
+    const azure = PROVIDER_CHOICES.find((choice) => choice.registryId === "azure")!;
+    expect(azure.requiresBaseURL).toBe(true);
+  });
+
   it("keyless choices have localKeyless set", () => {
     const local = PROVIDER_CHOICES.filter((c) => c.localKeyless);
     expect(local.every((c) => !c.keyUrl)).toBe(true);

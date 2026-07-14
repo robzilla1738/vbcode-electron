@@ -19,10 +19,11 @@ const largest = sizes.reduce((max, item) => Math.max(max, item.bytes), 0);
 // xterm is a project-terminal feature and is code-split from chat startup.
 // Keep the initial/largest chunk on the existing budget while allowing the
 // shipped aggregate to include the isolated terminal runtime.
-// Current production-hardening baseline is ~2.667 MB across the startup and
-// lazy activity/settings/terminal chunks. Keep only ~1.25% aggregate headroom;
-// the separate startup/largest-chunk ceiling below remains unchanged.
-const totalBudget = 2_700_000;
+// Current provider-parity baseline is ~2.714 MB across the startup and lazy
+// activity/settings/terminal/provider-catalog chunks. Keep only ~1.35%
+// aggregate headroom; the separate startup/largest-chunk ceiling remains
+// unchanged so the generated provider breadth cannot regress chat startup.
+const totalBudget = 2_750_000;
 const chunkBudget = 2_100_000;
 
 if (total > totalBudget || largest > chunkBudget) {

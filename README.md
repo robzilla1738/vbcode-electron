@@ -211,15 +211,17 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
 
 ## Settings & onboarding
 
-- **First-run onboarding wizard**: curated provider catalog (33 choices mirroring
-  the CLI's `PROVIDER_CHOICES`), key entry with get-a-key links, base URL for
-  custom endpoints, model preselect, and transactional save → re-bootstrap;
+- **First-run onboarding wizard**: searchable provider catalog generated from
+  the same models.dev registry used by OpenCode (166 current catalog providers)
+  plus Hermes-compatible aliases and native Bedrock/Vertex/Azure setup (192
+  choices / 190 provider ids at this sync), key entry with get-a-key links,
+  endpoint prompts where required, model preselect, and transactional save → re-bootstrap;
   setup stays open with recovery guidance until the new engine configuration
   actually starts
 - **Full-workspace settings**: 15 sections covering every config field — Models
   (default, planning, fallbacks, reasoning, turn/stream/queue limits,
   pricing/context-window overrides),
-  Providers (curated dropdown + free-text), MCP Servers (stdio + remote,
+  Providers (full catalog dropdown + free-text), MCP Servers (stdio + remote,
   reversible transport drafts and strict `${VAR}` / `${VAR:-default}` preflight,
   headers/environment, OAuth token-store settings),
   Permissions (tool plus mutually exclusive glob/exact scope and action), Appearance (16 themes + accent

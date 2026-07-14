@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-13 (production-user hardening and v0.5.1 engine lock)
+> Last updated: 2026-07-14 (OpenCode/models.dev and Hermes provider parity)
 > Status: shell product complete for P0 acceptance rows; residual risks and verification methods documented below — do not treat frozen unit/e2e counts as a live baseline
 
 ## Summary
@@ -25,6 +25,7 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 ## Areas
 
 - Engine lifecycle and protocol
+- Provider/model discovery, auth, endpoint, and native-cloud parity
 - Session and project navigation
 - Prompt, plan, approval, and queue control
 - Transcript and streaming

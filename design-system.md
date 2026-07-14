@@ -28,6 +28,11 @@ The design voice is:
 
 ## Surfaces and ownership
 
+The onboarding provider list may be long, so its search field stays pinned to
+the top of the scrolling list. It uses the standard input surface and overlay
+token; provider rows retain the quiet selected/hover treatment rather than
+introducing a second catalog visual language.
+
 The shell has four primary layout regions:
 
 1. **Project rail:** left-edge Projects and Chats navigation, search, project

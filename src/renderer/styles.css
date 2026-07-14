@@ -9945,6 +9945,15 @@ html.electron-transparent .sidebar-heading-row { background: var(--drawer-bg); }
   border-right: 1px solid var(--border-soft);
 }
 
+.onboarding-provider-search {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  width: 100%;
+  margin-bottom: var(--space-sm);
+  background: var(--overlay);
+}
+
 .onboarding-provider-item {
   display: flex;
   flex-direction: column;

@@ -65,6 +65,7 @@ const ALLOW_DECLARATION_DRIFT = new Map([
 ]);
 
 const pairs = [
+  ["packages/providers/src/provider-manifest.ts", "src/shared/provider-manifest.ts", {}],
   ["packages/shared/src/commands.ts", "src/shared/commands.ts", { extras: true }],
   ["packages/shared/src/events.ts", "src/shared/events.ts", {
     extras: true,

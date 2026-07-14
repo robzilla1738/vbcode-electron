@@ -54,6 +54,7 @@ export function OnboardingModal({
   );
 
   const [selectedIdx, setSelectedIdx] = useState(initialIdx);
+  const [providerQuery, setProviderQuery] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseURL, setBaseURL] = useState("");
   const [model, setModel] = useState(PROVIDER_CHOICES[initialIdx]?.defaultModel ?? "");
@@ -62,6 +63,14 @@ export function OnboardingModal({
   useFocusTrap(true, dialogRef, onDismiss);
 
   const choice: ProviderChoice = PROVIDER_CHOICES[selectedIdx] ?? PROVIDER_CHOICES[0]!;
+  const visibleChoices = useMemo(() => {
+    const query = providerQuery.trim().toLocaleLowerCase();
+    return PROVIDER_CHOICES
+      .map((provider, index) => ({ provider, index }))
+      .filter(({ provider }) =>
+        !query || `${provider.label} ${provider.registryId} ${provider.blurb}`.toLocaleLowerCase().includes(query),
+      );
+  }, [providerQuery]);
 
   // Reset key/model when switching provider choice.
   useEffect(() => {
@@ -72,7 +81,7 @@ export function OnboardingModal({
 
   const needsKey = providerChoiceNeedsApiKey(choice, configuredIds);
   const acceptsKey = providerChoiceAcceptsApiKey(choice, configuredIds);
-  const needsBaseURL = choice.customEndpoint === true;
+  const needsBaseURL = choice.customEndpoint === true || choice.requiresBaseURL === true;
   const canSave = model.trim().length > 0 && (!needsKey || apiKey.trim().length > 0) && (!needsBaseURL || baseURL.trim().length > 0);
 
   const handleSave = () => {
@@ -103,7 +112,15 @@ export function OnboardingModal({
 
         <div className="onboarding-modal-body">
           <div className="onboarding-provider-list" ref={listRef}>
-            {PROVIDER_CHOICES.map((c, i) => (
+            <input
+              type="search"
+              className="setting-input onboarding-provider-search"
+              value={providerQuery}
+              onChange={(event) => setProviderQuery(event.target.value)}
+              placeholder={`Search ${PROVIDER_CHOICES.length} providers`}
+              aria-label="Search model providers"
+            />
+            {visibleChoices.map(({ provider: c, index: i }) => (
               <button
                 key={c.key}
                 type="button"
@@ -117,6 +134,9 @@ export function OnboardingModal({
                 )}
               </button>
             ))}
+            {visibleChoices.length === 0 && (
+              <p className="setting-empty">No matching providers.</p>
+            )}
           </div>
 
           <div className="onboarding-provider-detail">
