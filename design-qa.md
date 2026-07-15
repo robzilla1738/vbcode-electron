@@ -92,3 +92,78 @@ focused crop was not needed.
   correction.
 
 final result: passed
+
+## Mode menu and cloud session indicator follow-up — 2026-07-15
+
+- Initial source visual truth: `/var/folders/f4/7r6qlts50lj6_rncg4jffq140000gn/T/TemporaryItems/NSIRD_screencaptureui_iPLcGs/Screenshot 2026-07-15 at 3.24.18 PM.png`
+- User correction source: `/var/folders/f4/7r6qlts50lj6_rncg4jffq140000gn/T/TemporaryItems/NSIRD_screencaptureui_9wjsJU/Screenshot 2026-07-15 at 3.56.36 PM.png`
+- Implementation screenshot: `tools/ui-preview/mode-cloud-implementation.png`
+- Side-by-side comparison: `tools/ui-preview/mode-cloud-comparison.png`
+- Final implementation viewport: 669 × 819
+- State: Vibe Dark, Agent current, mode menu open; one inactive project session has cloud catalog status `running`
+
+## Full-view comparison evidence
+
+The implementation preserves the reference’s useful hierarchy: a question-like
+header, vertically stacked icon/title/description choices, and a trailing check
+on the current choice. It intentionally uses the product’s smaller composer
+anchor, Vibe Dark tokens, existing overlay elevation, Lucide line icons, and
+keyboard shortcut grammar instead of copying the reference modal scale.
+
+After the user correction, each choice is one horizontal line: neutral white
+icon, label, description, and white current check. The icon tiles use one quiet
+neutral surface rather than mode-specific colors.
+
+The cloud session indicator is visible in the project rail as a single static
+cloud glyph beside session metadata. It does not introduce a new rail section,
+status card, emoji, animation, or competing label.
+
+## Focused region comparison evidence
+
+The menu region was checked at native scale. Typography follows the existing
+sans hierarchy; every description remains on the label baseline without clipping
+or overflow; the active check is aligned in a
+fixed trailing column. The cloud glyph remains legible at 12px inside a 20px
+metadata target and session text continues to truncate safely.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing UI font, weights, line heights, and tracking preserved; no clipped labels.
+- Spacing and layout rhythm: responsive 400px token-spaced menu, aligned icon/copy/check columns, compact single-line rows, upward composer anchoring, no viewport overflow.
+- Colors and visual tokens: all surfaces and semantic states derive from Vibe theme tokens; no gradients or literal component colors.
+- Image and icon fidelity: supplied screenshot is reference-only; implementation uses the project’s canonical Lucide wrappers and no substitute image assets or emoji.
+- Copy and content: Plan, Agent, and Yolo each explain their actual engine behavior in plain language.
+
+## Interaction and accessibility evidence
+
+- Opening the compact Agent trigger displays one menu with three options.
+- Selecting Plan closes the menu and updates the trigger to `Mode: Plan`.
+- `aria-selected` identifies the actual current mode rather than keyboard hover.
+- The running cloud session is announced as “Running in Cloud.”
+- Browser console warnings/errors: none.
+
+## Findings
+
+No actionable P0, P1, or P2 differences remain. The smaller scale and absence of
+a Learn more link are intentional product/design-system adaptations rather than
+fidelity defects.
+
+## Comparison history
+
+- User-reported P2: mode-specific icon colors were too decorative and the
+  descriptions wrapped beneath their labels.
+- Fix: all mode and current-state icons now use `--assistant`; rows use a
+  single-line label/description grid and widen responsively up to 620px.
+- Post-fix evidence: all three rows reported matching label/description top
+  coordinates, no description overflow, `rgb(238, 238, 238)` icon/check color,
+  and no browser console warnings or errors.
+- User-reported P2: the corrected single-line menu still occupied too much
+  horizontal space. Fixed by tightening the behavior copy and reducing the
+  responsive maximum first to 480px, then to 400px with tighter 42px rows and
+  24px neutral icon tiles, without restoring wrapping.
+
+## Follow-up polish
+
+No P3 item is required for this focused change.
+
+final result: passed

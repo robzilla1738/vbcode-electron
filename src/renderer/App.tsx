@@ -12,11 +12,11 @@ import {
   skillsPickerFilter,
 } from "../shared/catalog-draft";
 import { sortChangedFilesForDisplay } from "../shared/changed-files";
-import { parseHandoffCommand, resolveHandoffCommandAction } from "../shared/handoff-command";
 import { commandsExpectBusy } from "../shared/command-busy";
 import { applyConfigPatch, buildConfigPatch } from "../shared/config-diff";
 import { contextUsagePercent } from "../shared/context-usage";
 import { densityLabel, nextDensity } from "../shared/density";
+import { parseHandoffCommand, resolveHandoffCommandAction } from "../shared/handoff-command";
 import { planResolutionBlockedReason } from "../shared/plan-resolution";
 import {
   isChatsCwd,
@@ -1905,6 +1905,7 @@ export function App() {
         <div className={`chat-workspace${settingsOpen ? " is-obscured" : ""}`} aria-hidden={settingsOpen || undefined}>
           <ProjectRail
           projects={projects}
+          cloudSessions={cloudSessions}
           chatsCwd={chatsCwd}
           activeCwd={cwd}
           activeSessionId={chrome.sessionId}
@@ -2476,10 +2477,13 @@ export function App() {
           progress={cloudProgress?.sessionId === chrome.sessionId ? cloudProgress : null}
           onWorkingChange={setCloudTransitioning}
           onClose={() => { setCloudSheetOpen(false); setCloudRequest(null); }}
-          onComplete={async (message, resumedCwd) => {
+          onComplete={async ({ message, executionTarget, cwd: resumedCwd, cloudSession }) => {
             setCloudSheetOpen(false);
             setCloudRequest(null);
             setCloudProgress(null);
+            setCloudSessions((current) => executionTarget === "cloud" && cloudSession
+              ? [cloudSession, ...current.filter((item) => item.sessionId !== cloudSession.sessionId)]
+              : current.filter((item) => item.sessionId !== chrome.sessionId));
             const activeCwd = resumedCwd ?? cwd;
             if (normalizeCwd(activeCwd) !== normalizeCwd(cwd)) setCwd(activeCwd);
             const attached = await session.attachCurrent(activeCwd);

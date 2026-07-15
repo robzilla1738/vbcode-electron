@@ -14,7 +14,7 @@ coverage/bridge/packaged-host gates.
 - [x] E2B and Vercel adapters behind one lifecycle contract
 - [x] Cloud settings, protected credential bindings, composer Local/Cloud target, route-and-boundary confirmation, first-class `/handoff` palette choices, status, and bundled skill
 - [x] Desktop close/reopen attaches to the cloud owner without starting a local writer
-- [x] Cloud import and daemon bootstrap share one canonical state root and resume the exact exported session ID
+- [x] Cloud import and daemon bootstrap share one canonical state root and prove the exact session ID, model, mode, subagent model, and conversation survive before ownership commits
 - [x] Only the active model credential is session-scoped into Cloud; missing authentication and local-only routes fail before provisioning
 - [ ] Stable flag removal: fresh live suites for both providers, durable Mac relay, and Vercel broker verification
 
@@ -43,7 +43,7 @@ whose HEAD equals the lock before it will embed a rebuilt host.
 - [x] Project filtering, duplicate-name labels, and relative session time
 - [x] Web-search/source parsing, task windowing, and native light/dark scheme
 - [x] Catalog draft detectors + MCP normalize + provider/agent option builders
-- [x] Theme palette parity: DEFAULT = Graphite (white chrome + white selection), OPENCODE = #eeeeee
+- [x] Theme palette parity: DEFAULT = Vibe Dark (warm chrome on near-black surfaces); legacy `opencode` falls back to default
 - [x] Rich-block richKind routing (chart/line/pie/weather/sources)
 
 ## Core session loop
@@ -202,10 +202,10 @@ npm run dev
 
 ## Additional parity items (session 3)
 
-- [x] Theme palette DEFAULT synced: white selBg/selFg + heading (Graphite chrome); series ramp (source parity)
+- [x] Theme palette DEFAULT synced: warm heading/accent, dark selection band, and series ramp (source parity)
 - [x] CSS :root fallbacks match synced default palette (no first-paint flash)
-- [x] Selection colors: slash menu + catalog rows use --sel-bg/--sel-fg (white band on Graphite; `/accent` remaps)
-- [x] Markdown headings use --heading (white on Graphite; follows `/accent` when set)
+- [x] Selection colors: slash menu + catalog rows use --sel-bg/--sel-fg (dark band on Vibe Dark; `/accent` remaps)
+- [x] Markdown headings use --heading (warm on Vibe Dark; follows `/accent` when set)
 - [x] Table headers use --heading (TUI parity)
 - [x] User message left accent border using --user color (TUI ❯ marker parity)
 - [x] Splash uses one solid, stylized ASCII wordmark whose container-relative scale survives every breakpoint
@@ -290,7 +290,8 @@ npm run dev
 - [x] Empty-home: invariant stylized ASCII wordmark, quiet tagline, centered composer, no automatic suggestions; fluid container-relative scaling; launch restores directly into the main shell, while WelcomeGate remains recovery-only and SessionBoot owns in-shell boot copy
 - [x] ProjectRail: active session surface highlight (no accent bar/dot); always-on search; measured context menus; archive confirm; topbar brand when rail closed
 - [x] Composer: shared transcript/activity/notice/approval/composer measure (`--transcript-measure: 40rem`), taller resting input (`--composer-input-min: 44px`); queue is one card above the composer (flat list, hover steer/dequeue)
-- [x] Mode dropdown Plan / Agent / Yolo (`selectModeAction`); Shift+Tab still cycles; plan-pending guard unchanged
+- [x] Explained mode menu for Plan / Agent / Yolo (icon, behavior, current
+  check, `selectModeAction`); Shift+Tab still cycles and plan-pending stays gated
 - [x] Lucide stroke icons for chrome + composer; tool-row glyphs via renderer `tool-glyph.tsx` (shared unicode `toolIcon` labels unchanged)
 - [x] Sans UI chrome; mono reserved for real code (terminal grids, fences, tool/diff/job bodies, wordmark, rich charts)
 - [x] Streamdown markdown fences use Shiki `CodeBlock` + line numbers; theme follows app palette via `shikiThemeFor` (not hardcoded github)
@@ -329,10 +330,10 @@ npm run dev
 
 ## Current UI consolidation (2026-07-12)
 
-- [x] Default palette aligned to the requested graphite roles: `#111111`,
-  `#1a1a1a`, `#242424`, `#393939`, and `#88b0e0`.
-- [x] Project rail actions are hover/focus revealed, portal-mounted, and
-  overlaid inside rows without a permanent action-column gutter.
+- [x] Default palette is the canonical Vibe Dark palette: `#0a0a0a`,
+  `#141414`, `#1e1e1e`, `#3c3c3c`, and warm `#fab283` chrome.
+- [x] Project rows reveal icon-only new-chat and ⋯ actions on hover/focus; ⋯ owns
+  rename/archive/delete without adding a permanent rail gutter.
 - [x] Session inspector is explicit-toggle only; sending a message does not
   reopen it. Session/Changes/Git/Terminal/Jobs share one mutually exclusive,
   edge-attached activity sidebar without replacing the chat workspace.
@@ -372,6 +373,8 @@ npm run dev
   replacing the previous brain-icon/clamped-preview treatment.
 - [x] Project rail session spinner renders only for the active busy session,
   with a restrained rotating arc and reduced-motion support.
+- [x] Project rail marks every catalog session with exact cloud status `running`
+  using one quiet, accessible cloud glyph.
 - [x] Workspace eyebrow labels use the primary sans typography rather than a
   letter-spaced micro-label treatment.
 

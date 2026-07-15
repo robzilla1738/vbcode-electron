@@ -5,11 +5,10 @@ import { ACCENT_NAMES, ACCENT_PRESETS, THEME_NAMES } from "../../../shared/theme
 
 /** Human-friendly labels for the theme names in THEME_NAMES. */
 const THEME_LABELS: Record<string, string> = {
-  default: "Graphite (default)",
-  dark: "Graphite Dark",
+  default: "Vibe Dark (default)",
+  dark: "Vibe Dark",
   light: "Light",
   contrast: "High Contrast",
-  opencode: "OpenCode",
   tokyonight: "Tokyo Night",
   catppuccin: "Catppuccin",
   gruvbox: "Gruvbox",
@@ -35,7 +34,7 @@ export function AppearanceSection({ config, updateConfig }: SectionProps) {
     <SettingSection title="Appearance" description="Visual theme, accent color, transcript density, and mouse behavior.">
       <SettingField label="Theme" description="Color palette for the UI.">
         <SelectInput
-          value={config.theme ?? "default"}
+          value={THEME_NAMES.includes(config.theme ?? "default") ? (config.theme ?? "default") : "default"}
           onChange={(v) => updateConfig({ theme: v })}
           options={THEMES}
         />

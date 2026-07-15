@@ -8,17 +8,18 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 - `cd ../vibe-codr && bun run build:cloud-runtime`
 - `cd ../vibe-codr && bun run smoke:cloud-runtime` verifies the archive with
   network disabled, loads `node-pty`/`ws`, exports and imports a real engine
-  session into the canonical cloud state root, resumes that exact session ID,
-  starts the daemon, passes authenticated `/health`, and stops cleanly.
+  session into the canonical cloud state root, resumes that exact session ID
+  with a non-default Ollama model and persisted history, starts the daemon,
+  snapshots the same model/history, passes authenticated `/health`, and stops cleanly.
 - Confirm runtime `engineRevision` equals `ENGINE_COMMIT`, outer and internal
   checksums pass in Linux, and `sbom.spdx.json` is present.
 - Confirm packaging rejects dirty engine runtime inputs and outbound handoff
   rejects a portable archive whose session ID or canonical source root differs
   from the active workspace.
-- `npm test -- --run src/main/cloud/cloud-supervision.test.ts src/main/cloud/workspace-transfer.test.ts src/shared/cloud-handoff-ux.test.ts src/main/remote-engine-transport.test.ts src/shared/protocol.test.ts`
+- `npm test -- --run src/main/cloud/cloud-supervision.test.ts src/main/cloud/session-continuity.test.ts src/main/cloud/workspace-transfer.test.ts src/shared/cloud-handoff-ux.test.ts src/main/remote-engine-transport.test.ts src/shared/protocol.test.ts`
   covers protected return paths and Git history, branch/index-only divergence,
   recursive submodule commit restoration, exact mode rollback, remote-session
-  identity, finite-command exits, output redaction/truncation, daemon early exit,
+  identity/model/history continuity before ownership commit, finite-command exits, output redaction/truncation, daemon early exit,
   health timeout, transient retries, session-filtered accessible progress,
   renderer RPC privilege separation, and archive verification.
 - `npm run test:cloud:live` runs the paid, opt-in E2B and Vercel lifecycle
@@ -136,8 +137,8 @@ Visually sweep the scenario matrix (`welcome`, `splash`, `chat`, `table`,
 `docs`, `sources`, `busy`, `permission`, `plan`, `gate`, `mode`, `queue`,
 `onboarding`, `slash`, `catalog`, `catalog-draft`, `mention`, `jobs`,
 `attachments`, `inspector`, `settings`, `git`, `toast`, `density-quiet`,
-`density-verbose`, `ctx-hot`) in the default theme, plus `&theme=light` and one accent theme (e.g.
-`&theme=opencode`). `npm run ui:shots` fails non-zero if any scenario capture
+`density-verbose`, `ctx-hot`) in the default theme, plus `&theme=light` and one alternate theme (e.g.
+`&theme=tokyonight`). `npm run ui:shots` fails non-zero if any scenario capture
 errors (still not a pixel-diff CI gate). Focus rings must be visible
 keyboard-only, overlays must animate (and respect reduced motion), and no
 surface may lose theme colors.

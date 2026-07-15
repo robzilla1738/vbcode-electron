@@ -187,6 +187,18 @@ describe("cloud release invariants", () => {
     expect(attach).toContain("for (const event of queuedEvents) handleEvent(event)");
   });
 
+  it("adopts the returned cloud owner before renderer hydration", () => {
+    const sheet = readFileSync(join(process.cwd(), "src/renderer/panels/CloudHandoffSheet.tsx"), "utf8");
+    const completion = appSource.slice(
+      appSource.indexOf("onComplete={async ({ message, executionTarget"),
+      appSource.indexOf("{session.toast &&"),
+    );
+    expect(sheet).toContain("cloudSession: result.value");
+    expect(completion).toContain('[cloudSession, ...current.filter((item) => item.sessionId !== cloudSession.sessionId)]');
+    expect(completion.indexOf("setCloudSessions((current) => executionTarget"))
+      .toBeLessThan(completion.indexOf("await session.attachCurrent(activeCwd)"));
+  });
+
   it("serializes cloud settings and resolves interrupted ownership structurally", () => {
     expect(manager).toContain("#settingsMutationChain = Promise.resolve()");
     expect(manager).toContain("#mutateSettings(");

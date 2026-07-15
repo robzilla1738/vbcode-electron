@@ -153,7 +153,7 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 ```
 
 - Content max ~130ch; transcript prose, tool activity, notices, approval panels, and the composer share the font-independent `--transcript-measure: 40rem` reading measure
-- **Left rail:** collapsible Projects + Chats sections; section **+** only (add project / new chat); Git & Settings in the footer
+- **Left rail:** collapsible Projects + Chats sections; project rows reveal icon-only new-chat and ⋯ actions on hover/focus; Git & Settings in the footer
 - **Right workspace dock:** full-label Session / Changes / Git / Terminal / Jobs / Files in an equally inset, quietly grey rounded enclosure on the chat surface; compact below ~960px
 - **Shared activity sidebar:** Session, Changes, Git, Terminal, and Jobs open in one full-height, edge-attached right pane with equal switcher tabs, one compact Workspace header, a shared resize handle, and responsive drawer behavior. Horizontal divider rules are omitted; spacing and quiet surface shifts organize the chrome. Changes pairs a recursively expandable file tree with numbered Diff/File review and saturated semantic change colors. It is a structural sibling of chat, never a floating card or overlay on desktop. Files remains a Finder reveal.
 - **Persistent contextual terminal:** project sessions open at the project root;
@@ -170,7 +170,7 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 - Project rail and activity sidebar resize or become drawers at responsive breakpoints; widths persist where resizing is available
 - Projects and session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 16 palettes as OpenTUI); accents via `/accent`
-- Modes: **Plan / Agent / Yolo** dropdown in the composer (Shift+Tab still cycles)
+- Modes: explained **Plan / Agent / Yolo** menu with icons and a current check in the composer (Shift+Tab still cycles)
 - Execution: **Local / Cloud** selection in the composer; changing it opens the same reviewed handoff as `/handoff local|cloud`
 
 ### Design system
@@ -329,7 +329,7 @@ Shell-owned surfaces:
   the chat workspace
 - Project rail and right-side activity panels are responsive, with persisted
   desktop widths where resize handles are present
-- Theme-faithful selection colors, headings, and user-message accent (white band on Graphite; `/accent` remaps)
+- Theme-faithful selection colors, headings, and user-message accent (warm Vibe Dark default; `/accent` remaps)
 - Empty-home splash: the same stylized, fluidly scaled ASCII wordmark at every window size, centered composer, and no automatic prompt suggestions
 - Project rail: rename/archive/delete on hover, titled sessions, working-only spinner for the active busy session
 - Host fatal recovery: **New session** on the boot-error card

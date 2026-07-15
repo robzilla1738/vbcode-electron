@@ -25,6 +25,7 @@ import { CloudCredentialStore } from "./credential-store";
 import { assertPublicProviderDomains } from "./domain-validation";
 import { cloudModelEnvironment, cloudModelRouteHostname, configuredCloudFallbackModels, configuredCloudModels } from "./model-environment";
 import { E2BSandboxProvider, sanitizeCloudCommandOutput, VercelSandboxProvider } from "./providers";
+import { assertCloudSessionContinuity, cloudProjectStateRoot } from "./session-continuity";
 import {
   applyWorkspaceTransfer,
   assembleReturnTransfer,
@@ -216,28 +217,7 @@ export class CloudManager {
     const provider = this.#providers[request.provider];
     const revision = await engineRevision();
     const eventSequence = this.#engineEventSequence;
-    const snapshot = await this.transport.local.rpc("snapshot") as EngineSnapshot;
-    const agents = await this.transport.local.rpc("listAgents");
-    const [globalResult, projectResult] = await Promise.all([
-      readConfigFile(globalConfigPath()),
-      readConfigFile(projectConfigPath(request.cwd)),
-    ]);
-    const requiredModels = [...new Set([
-      snapshot.model,
-      snapshot.subagentModel,
-      ...configuredCloudModels(globalResult?.config, projectResult?.config),
-      ...(Array.isArray(agents)
-        ? agents.map((agent) => agent && typeof agent === "object" && "model" in agent && typeof agent.model === "string" ? agent.model : undefined)
-        : []),
-    ].filter((model): model is string => Boolean(model)))];
-    const modelAccess = await this.#cloudModelEnvironment(
-      settings,
-      requiredModels,
-      request.cwd,
-      configuredCloudFallbackModels(globalResult?.config, projectResult?.config),
-    );
-    const models = modelAccess.models;
-    const modelEnvironment = modelAccess.environment;
+    let snapshot = await this.transport.local.rpc("snapshot") as EngineSnapshot;
     const handoffStartedAt = Date.now();
     this.#emit(snapshot.sessionId, "preparing", "Waiting for a safe engine boundary", 0.05, "waiting", handoffStartedAt);
     let preparation: HandoffPreparation | undefined;
@@ -248,6 +228,32 @@ export class CloudManager {
     let commitAttempted = false;
     try {
       await stageOperation("waiting", "setup-failed", () => this.#waitForEngineIdle(snapshot, eventSequence));
+      const settledSnapshot = await this.transport.local.rpc("snapshot") as EngineSnapshot;
+      if (settledSnapshot.sessionId !== snapshot.sessionId) {
+        throw new Error("The active session changed while Cloud handoff was waiting for engine-idle");
+      }
+      snapshot = settledSnapshot;
+      const agents = await this.transport.local.rpc("listAgents");
+      const [globalResult, projectResult] = await Promise.all([
+        readConfigFile(globalConfigPath()),
+        readConfigFile(projectConfigPath(request.cwd)),
+      ]);
+      const requiredModels = [...new Set([
+        snapshot.model,
+        snapshot.subagentModel,
+        ...configuredCloudModels(globalResult?.config, projectResult?.config),
+        ...(Array.isArray(agents)
+          ? agents.map((agent) => agent && typeof agent === "object" && "model" in agent && typeof agent.model === "string" ? agent.model : undefined)
+          : []),
+      ].filter((model): model is string => Boolean(model)))];
+      const modelAccess = await this.#cloudModelEnvironment(
+        settings,
+        requiredModels,
+        request.cwd,
+        configuredCloudFallbackModels(globalResult?.config, projectResult?.config),
+      );
+      const models = modelAccess.models;
+      const modelEnvironment = modelAccess.environment;
       const prior = await this.#catalog.get(snapshot.sessionId);
       if (prior) {
         const action = isCloudSessionRemoteOwned(prior.status) ? "reconnect or resume it locally" : "delete the retained cloud copy";
@@ -345,6 +351,9 @@ export class CloudManager {
       }, "runtime-incompatible", "verifying");
       this.#emit(snapshot.sessionId, "starting", "Restoring workspace and session state", 0.61, "restoring", handoffStartedAt);
       await runRequired(provider, sandbox.id, `${base}/runtime/bin/node`, ["vibe-cloud-bootstrap.mjs", `${base}/handoff.json`, `${base}/project`, revision], {
+        ...modelEnvironment,
+        VIBE_CLOUD_PROVIDER: request.provider,
+        VIBE_CLOUD_RUNTIME: "1",
         VIBE_STATE_DIR: `${base}/state`,
       }, {
         privileged: true,
@@ -391,6 +400,13 @@ export class CloudManager {
           { preserveLocal: true },
         ),
       );
+      const remoteSnapshot = await this.transport.snapshotForHandoff();
+      assertCloudSessionContinuity(snapshot, remoteSnapshot, {
+        sourceRoot: request.cwd,
+        sourceStateRoot: engine.sourceStateRoot,
+        targetRoot: `${base}/project`,
+        targetStateRoot: cloudProjectStateRoot(`${base}/state`, `${base}/project`),
+      });
       const entry: CloudSessionCatalogEntry = {
         sessionId: snapshot.sessionId,
         model: snapshot.model,

@@ -119,7 +119,12 @@ export class RemoteEngineTransport implements EngineTransport {
       ...(options.model ? { model: options.model } : {}),
       ...(options.mode ? { mode: options.mode } : {}),
     });
-    return this.#waitReady();
+    const sessionId = await this.#waitReady();
+    if (options.resume && sessionId !== options.resume) {
+      await this.stop();
+      throw new Error(`Cloud sandbox session mismatch: expected ${options.resume}, received ${sessionId}`);
+    }
+    return sessionId;
   }
 
   send(command: EngineCommand): void {

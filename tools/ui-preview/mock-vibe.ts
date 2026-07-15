@@ -809,7 +809,24 @@ const mock = {
   testCloudProvider: async () => ({ ok: true as const, value: { ok: true } }),
   saveCloudCredentialBinding: async () => mock.cloudSettings(),
   removeCloudCredentialBinding: async () => mock.cloudSettings(),
-  listCloudSessions: async () => ({ ok: true as const, value: [] }),
+  listCloudSessions: async () => ({
+    ok: true as const,
+    value: scenario === "mode"
+      ? [{
+          sessionId: "sess_flaky01",
+          model: "anthropic/claude-4.6-opus",
+          workspaceId: "preview-acme-web",
+          sourceRoot: CWD,
+          provider: "e2b" as const,
+          sandboxId: "preview-cloud-sandbox",
+          sandboxName: "vibe-preview-cloud",
+          ownershipGeneration: 1,
+          status: "running" as const,
+          baseFingerprint: "preview",
+          updatedAt: Date.now() - 25 * HOUR,
+        }]
+      : [],
+  }),
   deleteCloudSessionCopy: async () => ({ ok: true as const }),
   recoverLostCloudSession: async () => ({ ok: false as const, error: "No missing cloud session" }),
   handoffToCloud: async () => {

@@ -717,22 +717,23 @@ describe("breakpoints", () => {
 });
 
 describe("theme palette parity", () => {
-  it("DEFAULT palette matches the graphite desktop surfaces", async () => {
+  it("DEFAULT palette matches the canonical Vibe Dark surfaces", async () => {
     const { THEMES } = await import("./themes");
     const d = THEMES.default!;
-    expect(d.background).toBe("#111111");
-    expect(d.panel).toBe("#1a1a1a");
-    expect(d.elevated).toBe("#242424");
-    expect(d.border).toBe("#393939");
-    expect(d.code).toBe("#88b0e0");
-    expect(d.primary).toBe("#eeeeee");
-    expect(d.selBg).toBe("#eeeeee");
-    expect(d.heading).toBe("#eeeeee");
+    expect(d.background).toBe("#0a0a0a");
+    expect(d.panel).toBe("#141414");
+    expect(d.elevated).toBe("#1e1e1e");
+    expect(d.border).toBe("#3c3c3c");
+    expect(d.code).toBe("#56b6c2");
+    expect(d.primary).toBe("#fab283");
+    expect(d.selBg).toBe("#2a2a2a");
+    expect(d.heading).toBe("#fab283");
   });
 
-  it("OPENCODE palette has #eeeeee assistant (not #f7f7f8)", async () => {
-    const { THEMES } = await import("./themes");
-    expect(THEMES.opencode!.assistant).toBe("#eeeeee");
+  it("removes the former OpenCode palette name", async () => {
+    const { THEMES, getTheme } = await import("./themes");
+    expect(THEMES.opencode).toBeUndefined();
+    expect(getTheme("opencode")).toBe(THEMES.default);
   });
 
   it("resolveChromeAccent keeps palette selection until /accent overrides", async () => {

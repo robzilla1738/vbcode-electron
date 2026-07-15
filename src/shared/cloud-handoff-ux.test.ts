@@ -61,6 +61,24 @@ describe("cloud handoff progress UX", () => {
     expect(composer).toContain("onExecutionTargetChange(target)");
   });
 
+  test("presents mode choices as explained, keyboard-owned rows with a current check", () => {
+    const composer = readFileSync(join(process.cwd(), "src/renderer/composer/Composer.tsx"), "utf8");
+    const styles = readFileSync(join(process.cwd(), "src/renderer/styles.css"), "utf8");
+    expect(composer).toContain("How should Vibe work?");
+    expect(composer).toContain("Plan before editing");
+    expect(composer).toContain("Edit with approvals");
+    expect(composer).toContain("Run without asking");
+    expect(composer).toContain("<ModeIcon mode={mode} size={16} />");
+    expect(composer).toContain("<IconCheck size={15} strokeWidth={2} />");
+    expect(composer).toContain("aria-selected={active}");
+    expect(composer).toContain("Math.min(400, window.innerWidth - 24)");
+    expect(styles).toMatch(/\.mode-option-copy\s*\{[\s\S]*?grid-template-columns:\s*auto minmax\(0, 1fr\)/);
+    expect(styles).toMatch(/\.mode-option-hint\s*\{[\s\S]*?white-space:\s*nowrap/);
+    expect(styles).toMatch(/\.mode-option-icon\s*\{[\s\S]*?color:\s*var\(--assistant\)/);
+    expect(styles).not.toContain('.mode-option-icon.is-plan');
+    expect(styles).not.toContain('.mode-option-icon.is-yolo');
+  });
+
   test("uses one rounded-rectangle control family across the composer footer", () => {
     const styles = readFileSync(join(process.cwd(), "src/renderer/styles.css"), "utf8");
     expect(styles).toContain("Composer controls share the Local / Cloud geometry");

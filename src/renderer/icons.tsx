@@ -3,30 +3,33 @@ import {
   Archive,
   ArrowRight,
   ArrowUp,
+  Bot,
   Brain,
   Check,
   ChevronRight,
   Cloud,
   Copy,
-  ExternalLink,
   CornerUpLeft,
+  ExternalLink,
   FileText,
   Folder,
   FolderOpen,
   GitBranch,
+  Laptop,
   LayoutDashboard,
   Link,
-  Laptop,
+  ListChecks,
   MessageSquare,
   MoreVertical,
-  Paperclip,
   PanelLeft,
   PanelRight,
+  Paperclip,
   Pencil,
   Plus,
   RotateCcw,
   Search,
   Settings,
+  ShieldAlert,
   Square,
   SquareTerminal,
   Trash2,
@@ -172,6 +175,18 @@ export function IconCheck(props: IconProps) {
 
 export function IconCloud(props: IconProps) {
   return <Cloud {...lucide(props)} />;
+}
+
+export function IconModeAgent(props: IconProps) {
+  return <Bot {...lucide(props)} />;
+}
+
+export function IconModePlan(props: IconProps) {
+  return <ListChecks {...lucide(props)} />;
+}
+
+export function IconModeYolo(props: IconProps) {
+  return <ShieldAlert {...lucide(props)} />;
 }
 
 export function IconLaptop(props: IconProps) {

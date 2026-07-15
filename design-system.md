@@ -26,6 +26,15 @@ rounded-rectangle geometry and surface treatment. Dropdowns, icon utilities,
 status controls, and Send retain semantic emphasis through color and state, not
 through unrelated pill or circle silhouettes.
 
+The mode trigger stays compact; its upward-opening menu may expand to explain
+Plan, Agent, and Yolo. Each row uses a fixed icon column, title, one plain-language
+behavior line, and a trailing current check. Keyboard highlight and current mode
+remain separate states, and the existing Shift+Tab cycle remains visible.
+
+Cloud ownership adds no new rail section. A small accent-tinted cloud glyph sits
+in the existing session metadata slot only while the catalog status is exactly
+`running`; it is static, theme-derived, and backed by accessible session copy.
+
 Cloud errors follow ownership semantics. Retryable failures retain the primary
 Try again action; non-retryable failures replace it with disabled Recovery
 required state plus a Settings → Cloud recovery direction. Old progress is
@@ -47,7 +56,7 @@ feedback without decorative motion.
 
 The design voice is:
 
-- **Quiet:** near-black Graphite chrome, restrained elevation, and no ornamental
+- **Quiet:** near-black Vibe Dark chrome, restrained elevation, and no ornamental
   gradients, sparkle, or badge clouds.
 - **Direct:** short labels, human action names, and controls that explain what
   will happen.
@@ -153,19 +162,19 @@ All renderer colors are semantic. Outside the `:root` fallback block in
 `src/renderer/styles.css`, use `var(--token)` or a `color-mix(in oklab, ...)`
 derivation. Do not add literal component hex values.
 
-### Graphite default
+### Vibe Dark default
 
 The first-paint fallbacks mirror the default palette in
 `src/shared/themes.ts`:
 
-| Role | Token | Graphite value |
+| Role | Token | Vibe Dark value |
 |---|---|---|
-| Background | `--bg` | `#111111` |
-| Rail / panel | `--panel` / `--rail` | `#1a1a1a` |
-| Elevated surface | `--elevated` / `--surface` | `#242424` |
-| Border | `--border` | `#393939` |
+| Background | `--bg` | `#0a0a0a` |
+| Rail / panel | `--panel` / `--rail` | `#141414` |
+| Elevated surface | `--elevated` / `--surface` | `#1e1e1e` |
+| Border | `--border` | `#3c3c3c` |
 | Muted text | `--muted` | `#808080` |
-| Assistant / primary text | `--assistant` / `--primary` | `#eeeeee` |
+| Assistant / primary text | `--assistant` / `--primary` | `#eeeeee` / `#fab283` |
 | User semantic color | `--user` | `#5c9cf5` |
 | Tool | `--tool` | `#56b6c2` |
 | Notice | `--notice` | `#f5a742` |
@@ -175,7 +184,7 @@ The first-paint fallbacks mirror the default palette in
 | Diff deletion | `--del` | `#c53b53` |
 | Addition background | `--add-bg` | `#20303b` |
 | Deletion background | `--del-bg` | `#37222c` |
-| Code / source accent | `--code` | `#88b0e0` |
+| Code / source accent | `--code` | `#56b6c2` |
 
 Dedicated review roles keep vivid code changes separate from generic success and
 error semantics. Dark themes use `--diff-add: #00d26a` and
@@ -188,7 +197,7 @@ The semantic palette is applied at runtime by `applyPalette`. `light` and
 `contrast` are explicit schemes, while the named terminal themes are registered
 in `src/shared/theme-registry.ts` and rendered by `src/shared/themes.ts`:
 
-`default`, `dark`, `light`, `contrast`, `opencode`, `tokyonight`, `catppuccin`,
+`default`, `dark`, `light`, `contrast`, `tokyonight`, `catppuccin`,
 `gruvbox`, `nord`, `one-dark`, `dracula`, `rosepine`, `kanagawa`, `everforest`,
 `flexoki`, and `vesper`.
 
@@ -392,7 +401,7 @@ behind a panel.
 
 When changing renderer presentation:
 
-1. Add or adjust a semantic token in `src/renderer/styles.css`; keep Graphite
+1. Add or adjust a semantic token in `src/renderer/styles.css`; keep Vibe Dark
    fallbacks synchronized with `src/shared/themes.ts`.
 2. Avoid literal component colors, hard-coded shadow stacks, and layout
    transitions.

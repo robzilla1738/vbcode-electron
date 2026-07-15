@@ -1,15 +1,15 @@
 :root {
   color-scheme: dark;
-  /* Graphite fallbacks — mirror the default palette in shared/themes.ts so the
+  /* Vibe Dark fallbacks — mirror the default palette in shared/themes.ts so the
      first paint matches what applyPalette applies a tick later (no flash). */
-  --bg: #111111;
-  --panel: #1a1a1a;
-  --elevated: #242424;
-  --border: #393939;
+  --bg: #0a0a0a;
+  --panel: #141414;
+  --elevated: #1e1e1e;
+  --border: #3c3c3c;
   --muted: #808080;
   --assistant: #eeeeee;
-  --primary: #eeeeee;
-  --accent: #eeeeee;
+  --primary: #fab283;
+  --accent: #fab283;
   --user: #5c9cf5;
   --tool: #56b6c2;
   --notice: #f5a742;
@@ -23,11 +23,11 @@
   --diff-del: #ff4d4f;
   --diff-add-bg: #123522;
   --diff-del-bg: #3b1d22;
-  --gutter: #484848;
-  --heading: #eeeeee;
-  --code: #88b0e0;
-  --sel-bg: #eeeeee;
-  --sel-fg: #111111;
+  --gutter: #544c44;
+  --heading: #fab283;
+  --code: #56b6c2;
+  --sel-bg: #2a2a2a;
+  --sel-fg: #eeeeee;
   --task-done: #808080;
   --task-active: #56b6c2;
   --task-pending: #eeeeee;
@@ -35,7 +35,7 @@
   --task-skipped: var(--muted);
   --ctx: #828bb8;
   --mode: var(--accent);
-  --ring: #eeeeee;
+  --ring: #fab283;
   --shadow-ink: #000000;
   /* opencode-inspired semantic tokens */
   --thinking-opacity: 0.82;
@@ -1156,6 +1156,10 @@ html[data-platform="darwin"] .rail-chrome {
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
 }
 
+.project-new-chat {
+  width: 28px;
+}
+
 .project-more svg { transform: rotate(90deg); }
 
 .project-heading-row:hover .project-row-actions,
@@ -1200,6 +1204,8 @@ html[data-platform="darwin"] .rail-chrome {
 .project-name, .session-title {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+.session-title { min-width: 0; flex: 1 1 auto; }
 
 .project-name { color: inherit; font-size: var(--text-ui); font-weight: var(--weight-medium); }
 
@@ -1276,11 +1282,27 @@ html[data-platform="darwin"] .rail-chrome {
   will-change: transform;
 }
 
+.session-cloud-indicator {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-left: calc(var(--space-2xs) * -1);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--accent) 9%, transparent);
+  color: color-mix(in oklab, var(--accent) 78%, var(--assistant));
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
 .session-row-wrap:hover .session-time,
 .session-row-wrap:focus-within .session-time { opacity: 0; }
 
 .session-row-wrap:hover .session-status-indicator,
-.session-row-wrap:focus-within .session-status-indicator { opacity: 0; }
+.session-row-wrap:focus-within .session-status-indicator,
+.session-row-wrap:hover .session-cloud-indicator,
+.session-row-wrap:focus-within .session-cloud-indicator { opacity: 0; }
 
 .session-row-wrap:hover .session-more,
 .session-row-wrap:focus-within .session-more {
@@ -5144,6 +5166,11 @@ html.electron-transparent .composer-wrap:focus-within {
   padding: 0 8px;
 }
 
+.mode-trigger-icon {
+  display: inline-flex;
+  color: var(--assistant);
+}
+
 .mode-trigger:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .mode-dropdown.is-open .mode-trigger {
@@ -5220,8 +5247,8 @@ html.electron-transparent .composer-wrap:focus-within {
   bottom: calc(100% + 8px);
   left: 0;
   display: grid;
-  min-width: 196px;
-  width: max-content;
+  min-width: 0;
+  max-width: calc(100vw - 24px);
   padding: var(--space-2xs);
   transform-origin: bottom left;
 }
@@ -5239,14 +5266,51 @@ html.electron-transparent .composer-wrap:focus-within {
 .mode-option {
   position: relative;
   display: grid;
-  gap: 1px;
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: var(--space-sm);
   min-width: 0;
+  min-height: 42px;
   padding: var(--space-2xs) var(--space-xs);
-  padding-right: 64px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: var(--muted);
   text-align: left;
   transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
+.mode-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding: var(--space-2xs) var(--space-xs) var(--space-xs);
+  color: var(--text-secondary);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+}
+
+.mode-menu-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--text-subtle);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+}
+
+.mode-menu-shortcut kbd {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
+  border-radius: var(--radius-xs);
+  background: color-mix(in oklab, var(--surface-subtle) 72%, transparent);
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  line-height: 16px;
+  text-align: center;
 }
 
 .mode-option:hover {
@@ -5272,42 +5336,59 @@ html.electron-transparent .composer-wrap:focus-within {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--sel-fg) 16%, transparent);
 }
 
+.mode-option-icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--assistant) 6%, transparent);
+  color: var(--assistant);
+}
+
+.mode-option-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  min-width: 0;
+  gap: var(--space-sm);
+}
+
 .mode-option.selected:hover {
   color: var(--sel-fg);
   background: color-mix(in oklab, var(--sel-bg) 90%, var(--assistant) 4%);
 }
 
 .mode-option-label {
-  font-size: var(--text-label);
+  color: var(--assistant);
+  font-size: var(--text-ui);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-ui);
 }
 
 .mode-option-hint {
+  min-width: 0;
+  overflow: hidden;
   color: color-mix(in oklab, var(--text-subtle) 92%, transparent);
-  font-size: var(--text-caption);
+  font-size: var(--text-label);
   font-weight: var(--weight-regular);
+  line-height: 1.35;
   letter-spacing: 0;
+  text-overflow: ellipsis;
   text-transform: none;
+  white-space: nowrap;
 }
 
 .mode-option.selected .mode-option-hint {
   color: color-mix(in oklab, var(--sel-fg) 78%, transparent);
 }
 
-.mode-option-badge {
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%);
-  color: color-mix(in oklab, var(--text-subtle) 88%, transparent);
-  font-size: var(--text-micro);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-ui);
-}
-
-.mode-option.selected .mode-option-badge {
-  color: color-mix(in oklab, var(--sel-fg) 78%, transparent);
+.mode-option-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--assistant);
 }
 
 /* Insert menu (paperclip) — mention / paste / external editor (I27) */

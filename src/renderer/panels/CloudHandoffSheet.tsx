@@ -31,7 +31,12 @@ export function CloudHandoffSheet({
   initialInstruction?: string;
   progress: CloudStatusEvent | null;
   onClose: () => void;
-  onComplete: (message: string, cwd?: string) => void | Promise<void>;
+  onComplete: (result: {
+    message: string;
+    executionTarget: "local" | "cloud";
+    cwd?: string;
+    cloudSession?: CloudSessionCatalogEntry;
+  }) => void | Promise<void>;
   onWorkingChange?: (working: boolean) => void;
 }) {
   const [settings, setSettings] = useState<CloudSettingsPublic | null>(null);
@@ -83,10 +88,11 @@ export function CloudHandoffSheet({
       try {
         const result = await window.vibe.resumeCloudSessionLocally(sessionId, keepCloudCopy);
         if (!result.ok) { setError(result.error); return; }
-        await onComplete(
-          result.value.divergent ? "Cloud work resumed in a safe review worktree" : "Cloud work synced and resumed locally",
-          result.value.cwd,
-        );
+        await onComplete({
+          message: result.value.divergent ? "Cloud work resumed in a safe review worktree" : "Cloud work synced and resumed locally",
+          executionTarget: "local",
+          cwd: result.value.cwd,
+        });
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Cloud return could not be started");
       } finally {
@@ -101,7 +107,11 @@ export function CloudHandoffSheet({
         setFailure(result.details ?? null);
         return;
       }
-      await onComplete("Session is now running in Cloud");
+      await onComplete({
+        message: "Session is now running in Cloud",
+        executionTarget: "cloud",
+        cloudSession: result.value,
+      });
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Cloud handoff could not be started");
     } finally {

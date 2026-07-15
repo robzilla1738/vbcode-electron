@@ -16,7 +16,6 @@ const SHIKI_BY_THEME: Record<string, ShikiPair> = {
   dark: { dark: "github-dark", light: "github-light" },
   light: { dark: "github-dark", light: "github-light" },
   contrast: { dark: "github-dark-high-contrast", light: "github-light-high-contrast" },
-  opencode: { dark: "one-dark-pro", light: "one-light" },
   tokyonight: { dark: "tokyo-night", light: "github-light" },
   catppuccin: { dark: "catppuccin-mocha", light: "catppuccin-latte" },
   gruvbox: { dark: "gruvbox-dark-medium", light: "gruvbox-light-medium" },

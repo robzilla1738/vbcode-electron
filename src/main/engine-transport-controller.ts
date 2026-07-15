@@ -1,6 +1,8 @@
 import type { EngineCommand } from "../shared/commands";
 import type { HostRpcParams, RpcMethod } from "../shared/protocol";
+import type { EngineSnapshot } from "../shared/types";
 import { estimateJsonUtf8Bytes } from "../shared/json-size";
+import { isEngineSnapshot } from "../shared/runtime-guards";
 import { EngineBridge, type EngineStartOptions } from "./engine-bridge";
 import type { EngineTransport } from "./engine-transport";
 import { RemoteEngineTransport } from "./remote-engine-transport";
@@ -139,6 +141,16 @@ export class EngineTransportController implements EngineTransport {
   }
 
   send(command: EngineCommand): void { this.#active.send(command); }
+
+  /** Read the provisional remote snapshot without releasing activation events.
+   * The renderer's later attach remains the sole hydration boundary. */
+  async snapshotForHandoff(): Promise<EngineSnapshot> {
+    if (this.#active === this.local) throw new Error("Cloud transport is not active");
+    const value = await this.#active.rpc("snapshot");
+    if (!isEngineSnapshot(value)) throw new Error("Cloud session continuity failed: remote snapshot is invalid");
+    return value;
+  }
+
   async rpc(method: RpcMethod, params?: HostRpcParams): Promise<unknown> {
     const transport = this.#active;
     const value = await transport.rpc(method, params);

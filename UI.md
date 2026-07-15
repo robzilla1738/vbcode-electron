@@ -45,8 +45,10 @@ sanitized technical details, and **Try again** only for a manager-confirmed
 retryable state. Non-retryable ownership failures disable the transition action
 and direct the user to Settings → Cloud recovery. Reopening handoff always starts
 with fresh progress, and reconnect failures persist a degraded catalog state
-instead of appearing healthy. Success closes the modal and reconnects the
-existing session automatically.
+instead of appearing healthy. Success is accepted only after the remote snapshot
+matches the local session identity, model, mode, subagent model, and conversation;
+the composer adopts the returned Cloud catalog entry immediately and reconnects
+that existing session automatically.
 
 ## Product shape
 
@@ -144,12 +146,16 @@ without changing the active chat or scroll position.
 - Search forces both sections open so matches stay visible.
 - Chat sessions use the same flat session-row grammar as project sessions
   (title + relative time). Project sessions stay nested under folders.
+- Project rows reveal an icon-only **New chat** action beside the ⋯ menu on
+  hover/focus; ⋯ owns rename, archive, and delete.
 - Empty section copy (“No chats yet.” / “Add a folder…”) sits tight under the
   header, indented past the chevron.
 - Project and session ⋯ menus: portal-mounted, trigger-anchored, flip above
   near the bottom; destructive actions use in-menu confirmation (not
   `window.confirm`).
 - Busy disables navigation with an honest stop-turn reason.
+- A quiet cloud glyph marks catalog sessions whose remote status is `running`;
+  the session label also announces “Running in Cloud” to assistive technology.
 - Desktop resize: pointer + ArrowLeft/ArrowRight + Home/End; width persisted.
 
 ### Workspace dock
@@ -241,6 +247,8 @@ snippet. External links go through `ExternalLink` / host bridge.
   acknowledgements are silent, and warning output stays quiet/collapsible.
 - Finder drag/drop: native path first, then `file://` / plain-text fallbacks.
 - Slash, mention, mode, and catalog menus: floating, keyboard-contained.
+- The mode menu explains Plan, Agent, and Yolo with an icon, behavior summary,
+  and current-state check while the composer trigger stays compact.
 - Empty home has no automatic prompt suggestions.
 
 ### Approval and plan cards

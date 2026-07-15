@@ -8,6 +8,21 @@ const source = readFileSync(
 );
 
 describe("project rail mutation contract", () => {
+  it("offers an icon-only new-chat action beside the hover actions", () => {
+    expect(source).toContain("project-row-actions");
+    expect(source).toContain("onClick={() => onNewProjectChat(project.cwd)}");
+    expect(source).toContain("<IconPlus size={14} />");
+    expect(source).not.toContain("<span>New chat</span>");
+  });
+
+  it("marks only catalog sessions whose cloud status is running", () => {
+    expect(source).toContain('entry.status === "running"');
+    expect(source).toContain("runningCloudSessionIds.has(session.id)");
+    expect(source).toContain('className="session-cloud-indicator"');
+    expect(source).toContain("Running in Cloud.");
+    expect(source).toContain("<IconCloud size={12} />");
+  });
+
   it("preserves rename drafts until the backing operation succeeds", () => {
     expect(source).toContain("if (!renaming || renamePendingRef.current) return");
     expect(source).toContain("ok = await onRenameSession(cwd, id, title)");

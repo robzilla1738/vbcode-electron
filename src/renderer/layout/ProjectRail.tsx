@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { CloudSessionCatalogEntry } from "../../shared/cloud";
 import {
   chatSessions,
   filterChatSessions,
@@ -16,9 +17,11 @@ import {
   SESSION_TITLE_LIMIT,
 } from "../../shared/project-index";
 import type { ProjectSessionSummary, ProjectSummary } from "../../shared/protocol";
+import { BrandMark } from "../branding/BrandMark";
 import {
   IconArchive,
   IconChevron,
+  IconCloud,
   IconDelete,
   IconFolder,
   IconFolderOpen,
@@ -29,7 +32,6 @@ import {
   IconSettings,
   IconSidebar,
 } from "../icons";
-import { BrandMark } from "../branding/BrandMark";
 import { SidebarResizeHandle } from "./SidebarResizeHandle";
 
 type SessionMenu = {
@@ -52,6 +54,7 @@ type RailMenu = SessionMenu | ProjectMenu;
 
 export function ProjectRail({
   projects,
+  cloudSessions,
   chatsCwd,
   activeCwd,
   activeSessionId,
@@ -75,6 +78,8 @@ export function ProjectRail({
   settingsActive,
 }: {
   projects: ProjectSummary[];
+  /** Catalog entries used only to mark sessions actively running in Cloud. */
+  cloudSessions: Pick<CloudSessionCatalogEntry, "sessionId" | "status">[];
   /** Absolute path of the one-off chats workspace (`~/.vibe/chats`). */
   chatsCwd: string | null;
   activeCwd: string | null;
@@ -147,6 +152,10 @@ export function ProjectRail({
     [visibleChats, inChats, activeSessionId],
   );
   const searchIsOpen = searchOpen || query.length > 0;
+  const runningCloudSessionIds = useMemo(
+    () => new Set(cloudSessions.filter((entry) => entry.status === "running").map((entry) => entry.sessionId)),
+    [cloudSessions],
+  );
   // While filtering, keep both sections open so matches stay visible.
   const showProjectsBody = projectsOpen || query.length > 0;
   const showChatsBody = chatsOpen || query.length > 0;
@@ -611,7 +620,7 @@ export function ProjectRail({
                         busyProjectTitle,
                       )}
                     >
-                      <IconRename size={14} />
+                      <IconPlus size={14} />
                     </button>
                   </div>
                 </div>
@@ -627,6 +636,7 @@ export function ProjectRail({
                   {mountedSessions.items.map((session) => {
                     const isRenaming = renaming?.cwd === project.cwd && renaming.id === session.id;
                     const isActive = session.id === activeSessionId;
+                    const isRunningInCloud = runningCloudSessionIds.has(session.id);
                     return (
                       <div
                         key={session.id}
@@ -670,10 +680,10 @@ export function ProjectRail({
                             aria-current={isActive ? "true" : undefined}
                             aria-label={
                               busy
-                                ? `${session.title}. AI is working in this session. ${busyTitle}`
-                                : undefined
+                                ? `${session.title}. AI is working in this session. ${busyTitle}${isRunningInCloud ? " Running in Cloud." : ""}`
+                                : isRunningInCloud ? `${session.title}. Running in Cloud.` : undefined
                             }
-                            title={busy ? busyTitle : `${session.title}\n${session.model}`}
+                            title={busy ? busyTitle : `${session.title}\n${session.model}${isRunningInCloud ? "\nRunning in Cloud" : ""}`}
                           >
                             <span className="session-title">{session.title}</span>
                             <time
@@ -682,6 +692,11 @@ export function ProjectRail({
                             >
                               {relativeSessionTime(session.updatedAt)}
                             </time>
+                            {isRunningInCloud ? (
+                              <span className="session-cloud-indicator" aria-hidden="true">
+                                <IconCloud size={12} />
+                              </span>
+                            ) : null}
                             {isActive && busy ? (
                               <span
                                 className="session-status-indicator is-busy"
@@ -772,6 +787,7 @@ export function ProjectRail({
               {mountedChats.items.map((session) => {
                 const isRenaming = renaming?.cwd === chatsRoot && renaming.id === session.id;
                 const isActive = inChats && session.id === activeSessionId;
+                const isRunningInCloud = runningCloudSessionIds.has(session.id);
                 return (
                   <div
                     key={session.id}
@@ -814,15 +830,20 @@ export function ProjectRail({
                         aria-current={isActive ? "true" : undefined}
                         aria-label={
                           busy
-                            ? `${session.title}. ${busyTitle}`
-                            : session.title
+                            ? `${session.title}. ${busyTitle}${isRunningInCloud ? " Running in Cloud." : ""}`
+                            : `${session.title}${isRunningInCloud ? ". Running in Cloud." : ""}`
                         }
-                        title={busy ? busyTitle : `${session.title}\n${session.model}`}
+                        title={busy ? busyTitle : `${session.title}\n${session.model}${isRunningInCloud ? "\nRunning in Cloud" : ""}`}
                       >
                         <span className="session-title">{session.title}</span>
                         <time className="session-time" dateTime={new Date(session.updatedAt).toISOString()}>
                           {relativeSessionTime(session.updatedAt)}
                         </time>
+                        {isRunningInCloud ? (
+                          <span className="session-cloud-indicator" aria-hidden="true">
+                            <IconCloud size={12} />
+                          </span>
+                        ) : null}
                         {isActive && busy ? (
                           <span className="session-status-indicator is-busy" aria-hidden="true" />
                         ) : null}

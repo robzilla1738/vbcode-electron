@@ -19,15 +19,32 @@ import { modeWord, type UiMode } from "../../shared/modes";
 import { accentNameOf } from "../../shared/themes";
 import { applyAtMention, useAtMention } from "../hooks/useAtMention";
 import { useFloatingAnchor } from "../hooks/useFloatingAnchor";
-import { IconChevron, IconFile, IconPaperclip, IconRemove, IconSend, IconStop } from "../icons";
+import {
+  IconCheck,
+  IconChevron,
+  IconFile,
+  IconModeAgent,
+  IconModePlan,
+  IconModeYolo,
+  IconPaperclip,
+  IconRemove,
+  IconSend,
+  IconStop,
+} from "../icons";
 
 const MODE_OPTIONS: UiMode[] = ["plan", "execute", "yolo"];
 
 const MODE_HINT: Record<UiMode, string> = {
-  plan: "Read-only · propose a plan",
-  execute: "Tools ask before running",
-  yolo: "Tools run without asking",
+  plan: "Plan before editing",
+  execute: "Edit with approvals",
+  yolo: "Run without asking",
 };
+
+function ModeIcon({ mode, size = 15 }: { mode: UiMode; size?: number }) {
+  if (mode === "plan") return <IconModePlan size={size} />;
+  if (mode === "yolo") return <IconModeYolo size={size} />;
+  return <IconModeAgent size={size} />;
+}
 
 /** Matches `--composer-input-max` — keep JS clamp and CSS in sync. */
 const COMPOSER_INPUT_MAX_PX = 320;
@@ -1009,47 +1026,63 @@ export function Composer({
 
   const modeMenu =
     modeOpen && modeBox
-      ? createPortal(
-          <div
-            className="mode-menu mode-menu-portal popover-surface"
-            ref={modeMenuRef}
-            role="listbox"
-            aria-label="Mode"
-            id="composer-mode-menu"
-            style={{
-              left: modeBox.left,
-              bottom: window.innerHeight - modeBox.top + 8,
-              minWidth: Math.max(196, modeBox.width),
-            }}
-          >
-            {MODE_OPTIONS.map((mode, i) => {
-              const active = uiMode === mode;
-              const highlighted = i === modeSel;
-              const label = displayModeLabel(mode);
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  id={`composer-mode-menu-option-${i}`}
-                  role="option"
-                  aria-selected={highlighted}
-                  aria-current={active ? "true" : undefined}
-                  className={`mode-option${highlighted ? " selected" : ""}${active ? " is-active" : ""}`}
-                  onMouseEnter={() => setModeSel(i)}
-                  onClick={() => {
-                    onSelectMode(mode);
-                    setModeOpen(false);
-                  }}
-                >
-                  <span className="mode-option-label">{label}</span>
-                  <span className="mode-option-hint">{MODE_HINT[mode]}</span>
-                  {active ? <span className="mode-option-badge">Current</span> : null}
-                </button>
-              );
-            })}
-          </div>,
-          document.body,
-        )
+      ? (() => {
+          const width = Math.min(400, window.innerWidth - 24);
+          const left = Math.max(12, Math.min(modeBox.left, window.innerWidth - width - 12));
+          return createPortal(
+            <div
+              className="mode-menu mode-menu-portal popover-surface"
+              ref={modeMenuRef}
+              role="listbox"
+              aria-label="Mode"
+              id="composer-mode-menu"
+              style={{
+                left,
+                bottom: window.innerHeight - modeBox.top + 8,
+                width,
+              }}
+            >
+              <div className="mode-menu-header">
+                <span>How should Vibe work?</span>
+                <span className="mode-menu-shortcut"><kbd>⇧</kbd><kbd>Tab</kbd> to cycle</span>
+              </div>
+              {MODE_OPTIONS.map((mode, i) => {
+                const active = uiMode === mode;
+                const highlighted = i === modeSel;
+                const label = displayModeLabel(mode);
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    id={`composer-mode-menu-option-${i}`}
+                    role="option"
+                    aria-selected={active}
+                    className={`mode-option${highlighted ? " selected" : ""}${active ? " is-active" : ""}`}
+                    onMouseEnter={() => setModeSel(i)}
+                    onClick={() => {
+                      onSelectMode(mode);
+                      setModeOpen(false);
+                    }}
+                  >
+                    <span className={`mode-option-icon is-${mode}`} aria-hidden="true">
+                      <ModeIcon mode={mode} size={16} />
+                    </span>
+                    <span className="mode-option-copy">
+                      <span className="mode-option-label">{label}</span>
+                      <span className="mode-option-hint">{MODE_HINT[mode]}</span>
+                    </span>
+                    {active ? (
+                      <span className="mode-option-check" aria-hidden="true">
+                        <IconCheck size={15} strokeWidth={2} />
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          );
+        })()
       : null;
 
   const insertMenu =
@@ -1200,8 +1233,12 @@ export function Composer({
               }
               aria-label={`Mode: ${displayModeLabel(uiMode)}. Shift+Tab to cycle.`}
               title={`${displayModeLabel(uiMode)} mode · Shift+Tab to cycle`}
+              data-mode={uiMode}
               onClick={() => setModeOpen((open) => !open)}
             >
+              <span className="mode-trigger-icon" aria-hidden="true">
+                <ModeIcon mode={uiMode} size={13} />
+              </span>
               <span>{displayModeLabel(uiMode)}</span>
               <IconChevron open={modeOpen} size={12} />
             </button>

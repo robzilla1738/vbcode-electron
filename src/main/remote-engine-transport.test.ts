@@ -49,6 +49,26 @@ describe("RemoteEngineTransport", () => {
     expect(transport.isReady).toBe(false);
   });
 
+  it("rejects a fresh cloud bootstrap that creates a replacement session", async () => {
+    const { server, url } = await cloudAgent((socket) => {
+      socket.send(JSON.stringify({ channel: "agent", type: "ready", engineSessionId: null }));
+      socket.on("message", (data: RawData) => {
+        const frame = JSON.parse(data.toString()) as { channel?: string; payload?: { op?: string } };
+        if (frame.channel === "engine" && frame.payload?.op === "bootstrap") {
+          socket.send(JSON.stringify({
+            channel: "engine",
+            payload: { type: "ready", sessionId: "session-replacement" },
+          }));
+        }
+      });
+    });
+    servers.push(server);
+    const transport = new RemoteEngineTransport({ url, accessToken: "x".repeat(40) });
+    await expect(transport.start({ cwd: "/workspace", resume: "session-expected" }))
+      .rejects.toThrow(/session mismatch.*session-expected.*session-replacement/i);
+    expect(transport.isReady).toBe(false);
+  });
+
   it("terminates a connected socket when the ready handshake times out", async () => {
     let closed!: Promise<void>;
     const { server, url } = await cloudAgent((socket) => {
