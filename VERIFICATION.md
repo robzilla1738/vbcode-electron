@@ -114,7 +114,7 @@ Authenticode signing; without them the workflow clearly warns and produces an
 unsigned installer that may trigger Windows SmartScreen. Local crash
 breadcrumbs remain enabled without upload.
 
-The v0.1.3 source baseline is 551 unit tests and 12 Electron E2E scenarios.
+The v0.1.4 source baseline is 551 unit tests and 12 Electron E2E scenarios.
 Cloud handoff ships behind its experimental setting: ownership, reconnect,
 workspace-return, and recovery contracts are release-gated, while promotion to
 stable still requires the paid E2B/Vercel and durable relay gates in
