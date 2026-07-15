@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff  
-> **Updated:** 2026-07-15 (first-class composer execution target and handoff review)
+> **Updated:** 2026-07-15 (continuity-safe Cloud handoff, grouped commands, and presence motion)
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
@@ -49,6 +49,8 @@ instead of appearing healthy. Success is accepted only after the remote snapshot
 matches the local session identity, model, mode, subagent model, and conversation;
 the composer adopts the returned Cloud catalog entry immediately and reconnects
 that existing session automatically.
+Fresh provisioning removes a stale same-name provisional sandbox before create;
+it never reconnects to an abandoned daemon from an earlier failed attempt.
 
 ## Product shape
 
@@ -115,7 +117,7 @@ without changing the active chat or scroll position.
 - Use the shared sans font for interface copy, tool labels, metadata, notices,
   and prose. Reserve mono for code, terminal grids, diffs, job output, fenced
   blocks, the ASCII wordmark, and rich chart glyphs.
-- Section headers (rail, popovers, slash menu “Commands”) use the same UI sans
+- Section headers (rail and popovers) and slash tabs (Commands / Skills / System) use the same UI sans
   voice — no micro-caps / tracked mono treatment for chrome labels.
 - Use modest radii, hairline borders, and restrained shadows. Avoid gradients,
   decorative side borders on controls, animated dots, sparkle glyphs, and
@@ -125,7 +127,9 @@ without changing the active chat or scroll position.
   controls with no filled chip background.
 - Markdown output is Streamdown-aware: bold is `[data-streamdown="strong"]`,
   headings/lists/code use the matching data attributes.
-- Motion is property-scoped and tokenized. Respect `prefers-reduced-motion`.
+- Motion is property-scoped and tokenized. Rails and dismissible popovers retain
+  only their last presentation for a short exit window, become inert immediately,
+  then unmount. Respect `prefers-reduced-motion`, which skips that delay.
 - Focus is `:focus-visible` only, using the two-layer `--focus-ring` token.
 - Section navigation uses spacing and selected fills; never add bright white
   outline segments or moving white side lines to a selected section.
@@ -157,6 +161,16 @@ without changing the active chat or scroll position.
 - A quiet cloud glyph marks catalog sessions whose remote status is `running`;
   the session label also announces “Running in Cloud” to assistive technology.
 - Desktop resize: pointer + ArrowLeft/ArrowRight + Home/End; width persisted.
+
+### Composer menus
+
+- `/` and ⌘K open one compact palette with Commands, Skills, and System tabs.
+  Tab/Shift+Tab cycle groups; arrows move within the active group; Enter runs;
+  Escape closes. `/model` is the only model selector shown, while legacy aliases
+  remain typeable for compatibility.
+- Slash/mention, mode, insert, and catalog surfaces share the same quiet
+  opacity/translation enter and exit grammar. Closing removes pointer, focus,
+  and accessibility ownership before the visual surface leaves.
 
 ### Workspace dock
 

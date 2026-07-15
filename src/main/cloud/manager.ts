@@ -9,6 +9,8 @@ import type {
   CloudCommandResult,
   CloudFailureDetails,
   CloudProviderId,
+  CloudSandboxCreateOptions,
+  CloudSandboxRecord,
   CloudSessionCatalogEntry,
   CloudSessionStatus,
   CloudSettingsPublic,
@@ -320,7 +322,7 @@ export class CloudManager {
       await this.#catalog.patch(snapshot.sessionId, { sandboxName });
       this.#emit(snapshot.sessionId, "transferring", `Creating ${request.provider === "e2b" ? "E2B" : "Vercel"} sandbox`, 0.26, "creating", handoffStartedAt);
       const sandbox = await stageOperation("creating", "provider-unavailable", async () =>
-        await retryTransient("create sandbox", async (signal) => await provider.findByName(sandboxName) ?? await provider.create({
+        await retryTransient("create sandbox", async (signal) => await createFreshNamedSandbox(provider, {
           name: sandboxName,
           workspaceId: transfer.manifest.workspaceId,
           sessionId: snapshot.sessionId,
@@ -1377,6 +1379,26 @@ export async function runRequired(
     retryable: true,
     ...(diagnostic ? { diagnostic } : {}),
   });
+}
+
+/**
+ * A local-to-cloud handoff has not crossed the ownership boundary yet, so its
+ * sandbox must start clean. Reusing a same-named sandbox can reconnect to an
+ * agent left running by an earlier failed attempt; that agent still owns its
+ * old engine process and can report a replacement session even after the new
+ * portable archive was imported successfully.
+ *
+ * Destroying the stale provisional sandbox is also safe when a provider create
+ * timed out after succeeding remotely: the retry recreates the same isolated
+ * target before any local ownership commit has occurred.
+ */
+export async function createFreshNamedSandbox(
+  provider: SandboxProvider,
+  options: CloudSandboxCreateOptions,
+): Promise<CloudSandboxRecord> {
+  const stale = await provider.findByName(options.name);
+  if (stale) await provider.destroy(stale.id);
+  return provider.create(options);
 }
 
 export async function superviseCloudAgent(

@@ -19,7 +19,9 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 - `npm test -- --run src/main/cloud/cloud-supervision.test.ts src/main/cloud/session-continuity.test.ts src/main/cloud/workspace-transfer.test.ts src/shared/cloud-handoff-ux.test.ts src/main/remote-engine-transport.test.ts src/shared/protocol.test.ts`
   covers protected return paths and Git history, branch/index-only divergence,
   recursive submodule commit restoration, exact mode rollback, remote-session
-  identity/model/history continuity before ownership commit, finite-command exits, output redaction/truncation, daemon early exit,
+  identity/model/history continuity before ownership commit, stale same-name
+  sandbox destruction before fresh create, finite-command exits,
+  output redaction/truncation, daemon early exit,
   health timeout, transient retries, session-filtered accessible progress,
   renderer RPC privilege separation, and archive verification.
 - `npm run test:cloud:live` runs the paid, opt-in E2B and Vercel lifecycle
@@ -116,7 +118,7 @@ Authenticode signing; without them the workflow clearly warns and produces an
 unsigned installer that may trigger Windows SmartScreen. Local crash
 breadcrumbs remain enabled without upload.
 
-The v0.1.5 source baseline is 565 unit tests and 12 Electron E2E
+The v0.1.8 source baseline is 579 unit tests and 12 Electron E2E
 scenarios. The packaged smoke also stops the active host and proves that an idle
 project-index request transparently starts and reaps the bundled helper host;
 the bridge suite applies the same lifecycle to an exact session mutation.
@@ -124,6 +126,11 @@ Cloud handoff ships behind its experimental setting: ownership, reconnect,
 workspace-return, and recovery contracts are release-gated, while promotion to
 stable still requires the paid E2B/Vercel and durable relay gates in
 `ACCEPTANCE.md`.
+
+For interaction motion, the renderer preview must prove slash, mode/catalog,
+and activity-sidebar surfaces enter `is-closing`, remain inert during the short
+exit, and unmount afterward. Repeat with `prefers-reduced-motion: reduce` and
+confirm the presence delay is skipped.
 
 ## UI preview (renderer-only, no engine)
 

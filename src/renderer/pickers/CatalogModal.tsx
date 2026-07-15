@@ -114,6 +114,7 @@ function focusableIn(root: ParentNode | null): HTMLElement[] {
 
 export function CatalogModal({
   picker,
+  closing = false,
   onClose,
   onChoose,
   onToggleModelTarget,
@@ -123,6 +124,7 @@ export function CatalogModal({
   onRetry,
 }: {
   picker: CatalogPickerState;
+  closing?: boolean;
   onClose: () => void;
   onChoose: (choice: CatalogChoice) => void;
   onToggleModelTarget?: () => void;
@@ -214,9 +216,13 @@ export function CatalogModal({
     };
   }, [autoFocusSearch]);
 
+  useEffect(() => {
+    if (closing && autoFocusSearch) triggerRef.current?.focus();
+  }, [autoFocusSearch, closing]);
+
   // Keep keyboard focus inside the catalog (and composer when draft-linked).
   useEffect(() => {
-    if (!box) return;
+    if (!box || closing) return;
 
     const trapTargets = (): HTMLElement[] => {
       const catalog = focusableIn(rootRef.current);
@@ -265,7 +271,7 @@ export function CatalogModal({
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [box, draftLinked, canToggleTarget]);
+  }, [box, draftLinked, canToggleTarget, closing]);
 
   useEffect(() => {
     setQuery(picker.query ?? "");
@@ -339,10 +345,12 @@ export function CatalogModal({
   return createPortal(
     <div
       ref={rootRef}
-      className="catalog-popover popover-surface catalog-popover-portal"
+      className={`catalog-popover popover-surface catalog-popover-portal${closing ? " is-closing" : ""}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="catalog-title"
+      aria-hidden={closing || undefined}
+      inert={closing}
       style={{
         left: box.left,
         width: box.width,

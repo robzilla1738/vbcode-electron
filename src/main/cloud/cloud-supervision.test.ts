@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import type { CloudCommandHandle, CloudCommandResult, SandboxProvider } from "../../shared/cloud";
 import {
   awaitRemoteEngineReady,
+  createFreshNamedSandbox,
   retryTransient,
   rollbackProvisionalHandoff,
   runRequired,
@@ -104,6 +105,26 @@ describe("cloud command supervision", () => {
 
     await expect(retryTransient("create sandbox", operation, [0, 0, 0])).rejects.toThrow("invalid API key");
     expect(operation).toHaveBeenCalledOnce();
+  });
+
+  test("replaces a stale same-name sandbox before a fresh handoff", async () => {
+    const order: string[] = [];
+    const provider = {
+      findByName: vi.fn(async () => ({ id: "stale", name: "vibe-session", state: "running" })),
+      destroy: vi.fn(async (id: string) => { order.push(`destroy:${id}`); }),
+      create: vi.fn(async () => {
+        order.push("create");
+        return { id: "fresh", name: "vibe-session", state: "running" };
+      }),
+    } as unknown as SandboxProvider;
+
+    await expect(createFreshNamedSandbox(provider, {
+      name: "vibe-session",
+      workspaceId: "workspace",
+      sessionId: "ses_expected",
+      timeoutMs: 60_000,
+    })).resolves.toMatchObject({ id: "fresh" });
+    expect(order).toEqual(["destroy:stale", "create"]);
   });
 
   test("aborts a timed-out provider mutation before retrying", async () => {

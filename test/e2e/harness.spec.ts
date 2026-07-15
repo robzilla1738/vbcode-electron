@@ -290,7 +290,7 @@ test("workspace dock keeps Session/Changes/Git/Terminal/Jobs mutually exclusive"
 });
 
 test("opens an interactive project terminal in the shared end-panel lane", async () => {
-  const inheritedPanel = page.locator(".activity-rail");
+  const inheritedPanel = page.locator(".activity-sidebar:not(.is-closing) .activity-rail");
   if (await inheritedPanel.count()) {
     await inheritedPanel.getByRole("button", { name: /^Close/ }).click();
   }
@@ -300,6 +300,9 @@ test("opens an interactive project terminal in the shared end-panel lane", async
 
   const terminalPanel = page.locator(".terminal-activity-rail");
   await expect(terminalPanel).toBeVisible();
+  await expect.poll(async () => page.locator(".activity-sidebar").evaluate((sidebar) =>
+    sidebar.getAnimations().filter((animation) => animation.playState === "running").length,
+  )).toBe(0);
   const geometry = await page.locator(".chat-workspace > .content-inset").evaluate((content) => {
     const pane = content.querySelector<HTMLElement>(".activity-sidebar")!;
     const chat = content.querySelector<HTMLElement>(".main-column")!;

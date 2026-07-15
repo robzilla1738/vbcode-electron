@@ -95,7 +95,8 @@ whose HEAD equals the lock before it will embed a rebuilt host.
 
 ## Catalogs & chrome
 
-- [x] Slash palette (`/` / ⌘K) with enum submenus + custom commands
+- [x] Slash palette (`/` / ⌘K) with enum submenus + custom commands; one
+  discoverable `/model` action and Tab-cycled Commands / Skills / System groups
 - [x] Exact-command input cue via `commandNames`
 - [x] Model picker with main ⇄ subagent target toggle + agent target (`/model agent …`)
 - [x] `subagentModel` tracked from snapshot; Clear → inherit for sub/agent
@@ -593,7 +594,10 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current release gate: 565 unit tests, 12 e2e scenarios, lint, typecheck,
+- [x] Project/activity rails, drawer scrims, slash/mention, mode/insert, and
+  catalog surfaces retain a short inert closing phase so tokenized exit motion
+  completes before unmount; reduced motion skips the delay.
+- [x] Current release gate: 579 unit tests, 12 e2e scenarios, lint, typecheck,
   build, bundle budget, source parity (21 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.
 - [x] Direct macOS/Windows releases publish GitHub-backed updater feeds. Update

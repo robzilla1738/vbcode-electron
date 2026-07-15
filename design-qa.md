@@ -44,6 +44,71 @@ The source and preview contain different transcript copy, so the comparison is l
 
 final result: passed
 
+## Overlay and sidebar motion audit — 2026-07-15
+
+- Implementation screenshot: `tools/ui-preview/shots/motion-slash-open.png`
+- Scenarios exercised: `slash`, `mode`, and `chat` with the Session activity sidebar
+- Visual design remained unchanged: existing Graphite colors, geometry, spacing,
+  Lucide icons, type hierarchy, borders, and elevation tokens were preserved.
+- Slash, mention, mode, insert, and catalog surfaces now retain their last live
+  presentation for a 140ms exit window before unmounting.
+- Project and activity sidebars retain their existing lane/drawer geometry while
+  opacity and translation ease out; narrow drawer scrims fade with them.
+- Browser lifecycle proof: slash menu reported `is-closing` immediately after
+  Escape and zero mounted menus after 180ms; mode menu and activity sidebar
+  passed the same closing-class then unmounted check.
+- Motion uses only opacity and transform with the shared enter/exit curves.
+  Reduced-motion users skip the JavaScript presence delay and retain the global
+  0.01ms CSS collapse.
+- Focus and pointer ownership close immediately; leaving surfaces are inert to
+  pointer input and hidden from the accessibility tree.
+- Focused TypeScript and lint gates passed with no warnings.
+
+No actionable P0, P1, or P2 issue remains in the audited open/close paths.
+
+final result: passed
+
+## Grouped slash palette follow-up — 2026-07-15
+
+### Evidence
+
+- Source visual truth: `/var/folders/f4/7r6qlts50lj6_rncg4jffq140000gn/T/TemporaryItems/NSIRD_screencaptureui_QK7fWU/Screenshot 2026-07-15 at 5.01.21 PM.png`
+- Browser-rendered implementation: `tools/ui-preview/shots/qa-slash-groups.png`
+- Combined focused comparison: `tools/ui-preview/shots/qa-slash-comparison.png`
+- Viewport: 1280 × 720 CSS pixels
+- State: Graphite theme, slash palette open on Commands; Skills and System were exercised with Tab
+
+The source is a focused defect reference rather than a complete target: it
+shows the duplicate `/model` and `/models` actions. The combined comparison
+therefore checks that exact content defect plus the requested grouped browsing
+structure. A separate focused crop was unnecessary because the combined image
+uses the native source and a normalized, readable palette crop.
+
+### Required fidelity surfaces
+
+- Fonts and typography: existing Vibe sans sizing, weight, and row hierarchy are preserved; labels and descriptions remain legible without wrapping regressions.
+- Spacing and layout rhythm: the compact header adds three quiet tabs without increasing the existing popover width or maximum height; content remains scroll-bounded.
+- Colors and visual tokens: tabs, selection, surface, borders, and keyboard hints use existing theme tokens with no new literal colors.
+- Image and icon fidelity: no image assets or icons are introduced by this interaction.
+- Copy and content: `/model` is the sole discoverable model action; `/models` remains only a typed compatibility alias. Commands, Skills, and System are explicit groups with a concise `Tab to cycle` hint.
+
+### Interaction and accessibility evidence
+
+- Tab cycles Commands → Skills → System while the command palette is open; Shift+Tab cycles in reverse.
+- Enter runs or opens the highlighted action; Tab no longer selects a command in grouped command mode.
+- The tablist and selected tab expose `role="tablist"`, `role="tab"`, and `aria-selected`.
+- Commands contained exactly one `/model` option and zero `/models` options.
+- Skills showed only the skill entry points in the preview; System showed configuration and diagnostic commands.
+- Browser console errors: none.
+
+### Findings and comparison history
+
+- User-reported P1: two model selectors exposed overlapping behavior. Fixed by removing `/models` from palette discovery and suppressing legacy aliases from dynamic extras.
+- User-reported P2: one undifferentiated command list was difficult to scan. Fixed with keyboard- and pointer-accessible Commands, Skills, and System groups.
+- Post-fix visual and DOM evidence shows the single `/model` action, selected group semantics, and the compact grouped header. No actionable P0, P1, or P2 differences remain.
+
+final result: passed
+
 ## Editing workspace follow-up — 2026-07-13
 
 - Engine-authored review/gate continuations use compact context rows instead of

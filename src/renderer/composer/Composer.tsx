@@ -10,6 +10,8 @@ import {
 import {
   applyPalette,
   isExactCommand,
+  PALETTE_GROUPS,
+  type PaletteGroup,
   type PaletteState,
   paletteState,
 } from "../../shared/commands-catalog";
@@ -19,6 +21,7 @@ import { modeWord, type UiMode } from "../../shared/modes";
 import { accentNameOf } from "../../shared/themes";
 import { applyAtMention, useAtMention } from "../hooks/useAtMention";
 import { useFloatingAnchor } from "../hooks/useFloatingAnchor";
+import { usePresence, useRetainedValue } from "../hooks/usePresence";
 import {
   IconCheck,
   IconChevron,
@@ -237,12 +240,13 @@ function HighlightedBase({ base, query }: { base: string; query: string }) {
   );
 }
 
-function MenuKeyHints({ action }: { action: string }) {
+function MenuKeyHints({ action, tabAction }: { action: string; tabAction?: string }) {
   return (
     <>
       <kbd className="action-kbd">↑↓</kbd>
       <span>navigate</span>
       <kbd className="action-kbd">Tab</kbd>
+      {tabAction ? <span>{tabAction}</span> : null}
       <kbd className="action-kbd">Enter</kbd>
       <span>{action}</span>
       <kbd className="action-kbd">Esc</kbd>
@@ -335,6 +339,7 @@ export function Composer({
   const dragDepthRef = useRef(0);
   const attachmentsRef = useRef<ComposerAttachment[]>([]);
   const [sel, setSel] = useState(0);
+  const [paletteGroup, setPaletteGroup] = useState<PaletteGroup>("commands");
   const [modeOpen, setModeOpen] = useState(false);
   const [modeSel, setModeSel] = useState(0);
   const [insertOpen, setInsertOpen] = useState(false);
@@ -354,8 +359,8 @@ export function Composer({
   );
   const palette: PaletteState = useMemo(() => {
     if (isCatalogDraft(draft)) return { open: false };
-    return paletteState(draft, commandNames);
-  }, [draft, commandNames]);
+    return paletteState(draft, commandNames, paletteGroup);
+  }, [draft, commandNames, paletteGroup]);
   const exact = isExactCommand(draft, nameSet);
   const { mention: mentionQuery, files, loading: filesLoading, error: filesError } = useAtMention(draft, cwd);
   const atOpen = mentionQuery != null && !palette.open;
@@ -402,6 +407,10 @@ export function Composer({
 
   useEffect(() => {
     setSel(0);
+  }, [draft]);
+
+  useEffect(() => {
+    if (!draft.startsWith("/")) setPaletteGroup("commands");
   }, [draft]);
 
   useEffect(() => {
@@ -567,10 +576,19 @@ export function Composer({
         ? palette.items.length
         : 0;
 
-  const menuVisible = atOpen || (palette.open && itemCount > 0);
-  const slashBox = useFloatingAnchor(wrapRef, menuVisible);
-  const modeBox = useFloatingAnchor(modeTriggerRef, modeOpen);
-  const insertBox = useFloatingAnchor(insertTriggerRef, insertOpen);
+  const menuVisible = atOpen || (palette.open && (palette.mode === "command" || itemCount > 0));
+  const slashPresence = usePresence(menuVisible);
+  const modePresence = usePresence(modeOpen);
+  const insertPresence = usePresence(insertOpen);
+  const liveSlashPresentation = atOpen
+    ? { kind: "mention" as const, files, filesLoading, filesError, mentionQuery }
+    : palette.open && (palette.mode === "command" || itemCount > 0)
+      ? { kind: "palette" as const, palette, paletteGroup, currentValue }
+      : null;
+  const slashPresentation = useRetainedValue(liveSlashPresentation);
+  const slashBox = useFloatingAnchor(wrapRef, slashPresence.mounted);
+  const modeBox = useFloatingAnchor(modeTriggerRef, modePresence.mounted);
+  const insertBox = useFloatingAnchor(insertTriggerRef, insertPresence.mounted);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (modeOpen && ["Enter", "ArrowDown", "ArrowUp", "Escape", "Home", "End"].includes(e.key)) {
@@ -581,12 +599,6 @@ export function Composer({
     if (insertOpen && ["Enter", "ArrowDown", "ArrowUp", "Escape", "Home", "End"].includes(e.key)) {
       // Document listener owns the open insert menu; block composer submit/nav.
       e.preventDefault();
-      return;
-    }
-    if (e.key === "Tab" && e.shiftKey) {
-      e.preventDefault();
-      setModeOpen(false);
-      onCycleMode();
       return;
     }
     if (isCatalogDraft(draft) && catalogOpen) {
@@ -635,6 +647,15 @@ export function Composer({
         return;
       }
     }
+    if (palette.open && palette.mode === "command" && e.key === "Tab") {
+      e.preventDefault();
+      const current = PALETTE_GROUPS.indexOf(paletteGroup);
+      const direction = e.shiftKey ? -1 : 1;
+      const next = (current + direction + PALETTE_GROUPS.length) % PALETTE_GROUPS.length;
+      setPaletteGroup(PALETTE_GROUPS[next]!);
+      setSel(0);
+      return;
+    }
     if (palette.open && itemCount > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -646,7 +667,7 @@ export function Composer({
         setSel((i) => (i - 1 + itemCount) % itemCount);
         return;
       }
-      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+      if ((palette.mode === "value" && e.key === "Tab") || (e.key === "Enter" && !e.shiftKey)) {
         const applied = applyPalette(palette, sel);
         if (applied) {
           e.preventDefault();
@@ -663,6 +684,17 @@ export function Composer({
         setDraft("");
         return;
       }
+    }
+    if (palette.open && e.key === "Escape") {
+      e.preventDefault();
+      setDraft("");
+      return;
+    }
+    if (e.key === "Tab" && e.shiftKey) {
+      e.preventDefault();
+      setModeOpen(false);
+      onCycleMode();
+      return;
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -884,15 +916,20 @@ export function Composer({
   const activeOptionId =
     itemCount > 0 && menuId ? `${menuId}-option-${sel}` : undefined;
 
+  const renderedMention = slashPresentation?.kind === "mention" ? slashPresentation : null;
+  const renderedPaletteView = slashPresentation?.kind === "palette" ? slashPresentation : null;
+
   const slashMenu =
-    atOpen && slashBox
+    slashPresence.mounted && renderedMention && slashBox
       ? createPortal(
           <div
             id="composer-mention-menu"
-            className="slash-menu slash-menu-portal popover-surface"
+            className={`slash-menu slash-menu-portal popover-surface${slashPresence.closing ? " is-closing" : ""}`}
             ref={menuRef}
             role="listbox"
             aria-label="Matching project files"
+            aria-hidden={slashPresence.closing || undefined}
+            inert={slashPresence.closing}
             style={{
               left: slashBox.left,
               width: slashBox.width,
@@ -905,16 +942,16 @@ export function Composer({
               <span className="slash-menu-hint">@</span>
             </div>
             <div className="slash-menu-body popover-body">
-              {filesLoading && <div className="slash-state" role="status">Searching project files…</div>}
-              {!filesLoading && filesError && (
-                <div className="slash-state error" role="status">Couldn’t search files · {filesError}</div>
+              {renderedMention.filesLoading && <div className="slash-state" role="status">Searching project files…</div>}
+              {!renderedMention.filesLoading && renderedMention.filesError && (
+                <div className="slash-state error" role="status">Couldn’t search files · {renderedMention.filesError}</div>
               )}
-              {!filesLoading && !filesError && files.length === 0 && (
+              {!renderedMention.filesLoading && !renderedMention.filesError && renderedMention.files.length === 0 && (
                 <div className="slash-state" role="status">No matching project files.</div>
               )}
-              {files.map((path, i) => {
+              {renderedMention.files.map((path, i) => {
                 const { base, dir } = fileParts(path);
-                const q = mentionQuery ?? "";
+                const q = renderedMention.mentionQuery ?? "";
                 return (
                   <button
                     type="button"
@@ -945,14 +982,16 @@ export function Composer({
           </div>,
           document.body,
         )
-      : palette.open && itemCount > 0 && !atOpen && slashBox
+      : slashPresence.mounted && renderedPaletteView && slashBox
         ? createPortal(
             <div
               id="composer-slash-menu"
-              className={`slash-menu slash-menu-portal slash-menu-${palette.mode === "command" ? "command" : "values"} popover-surface`}
+              className={`slash-menu slash-menu-portal slash-menu-${renderedPaletteView.palette.mode === "command" ? "command" : "values"} popover-surface${slashPresence.closing ? " is-closing" : ""}`}
               ref={menuRef}
               role="listbox"
               aria-label="Slash commands"
+              aria-hidden={slashPresence.closing || undefined}
+              inert={slashPresence.closing}
               style={{
                 left: slashBox.left,
                 width: slashBox.width,
@@ -961,12 +1000,36 @@ export function Composer({
               }}
             >
               <div className="slash-menu-header popover-header">
-                <span>{palette.mode === "value" ? `/${palette.command.name}` : "Commands"}</span>
-                <span className="slash-menu-hint">{palette.mode === "value" ? "options" : "/"}</span>
+                {renderedPaletteView.palette.mode === "command" ? (
+                  <div className="slash-menu-tabs" role="tablist" aria-label="Slash command groups">
+                    {PALETTE_GROUPS.map((group) => (
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={renderedPaletteView.paletteGroup === group}
+                        className={renderedPaletteView.paletteGroup === group ? "active" : ""}
+                        key={group}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          setPaletteGroup(group);
+                          setSel(0);
+                        }}
+                      >
+                        {group.slice(0, 1).toUpperCase() + group.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                ) : <span>/{renderedPaletteView.palette.command.name}</span>}
+                <span className="slash-menu-hint">{renderedPaletteView.palette.mode === "value" ? "options" : "Tab to cycle"}</span>
               </div>
               <div className="slash-menu-body popover-body">
-                {palette.mode === "command" &&
-                  palette.items.map((item, i) => (
+                {renderedPaletteView.palette.mode === "command" && renderedPaletteView.palette.items.length === 0 ? (
+                  <div className="slash-state" role="status">
+                    No matching {renderedPaletteView.paletteGroup === "skills" ? "skills" : renderedPaletteView.paletteGroup}.
+                  </div>
+                ) : null}
+                {renderedPaletteView.palette.mode === "command" &&
+                  renderedPaletteView.palette.items.map((item, i) => (
                     <button
                       type="button"
                       id={`composer-slash-menu-option-${i}`}
@@ -976,7 +1039,7 @@ export function Composer({
                       aria-selected={i === sel}
                       onMouseDown={(ev) => {
                         ev.preventDefault();
-                        const applied = applyPalette(palette, i);
+                        const applied = applyPalette(renderedPaletteView.palette, i);
                         if (!applied) return;
                         if (applied.done) {
                           void submitAndClear(applied.draft);
@@ -989,21 +1052,21 @@ export function Composer({
                       </span>
                     </button>
                   ))}
-                {palette.mode === "value" &&
-                  palette.items.map((value, i) => (
+                {renderedPaletteView.palette.mode === "value" &&
+                  renderedPaletteView.palette.items.map((value, i) => (
                     <button
                       type="button"
                       id={`composer-slash-menu-option-${i}`}
                       key={value}
                       className={`slash-item${i === sel ? " selected" : ""}${
-                        currentValue === value ? " current" : ""
+                        renderedPaletteView.currentValue === value ? " current" : ""
                       }`}
                       role="option"
                       aria-selected={i === sel}
-                      aria-current={currentValue === value ? "true" : undefined}
+                      aria-current={renderedPaletteView.currentValue === value ? "true" : undefined}
                       onMouseDown={(ev) => {
                         ev.preventDefault();
-                        const applied = applyPalette(palette, i);
+                        const applied = applyPalette(renderedPaletteView.palette, i);
                         if (!applied) return;
                         void submitAndClear(applied.draft);
                       }}
@@ -1011,12 +1074,12 @@ export function Composer({
                       <span className="slash-item-copy">
                         <span className="name">{value}</span>
                       </span>
-                      {currentValue === value ? <span className="slash-badge">Current</span> : null}
+                      {renderedPaletteView.currentValue === value ? <span className="slash-badge">Current</span> : null}
                     </button>
                   ))}
               </div>
               <div className="slash-menu-footer popover-footer">
-                <MenuKeyHints action={palette.mode === "command" ? "run" : "select"} />
+                <MenuKeyHints action={renderedPaletteView.palette.mode === "command" ? "run" : "select"} tabAction={renderedPaletteView.palette.mode === "command" ? "groups" : undefined} />
               </div>
             </div>,
             document.body,
@@ -1024,16 +1087,18 @@ export function Composer({
         : null;
 
   const modeMenu =
-    modeOpen && modeBox
+    modePresence.mounted && modeBox
       ? (() => {
           const width = Math.min(400, window.innerWidth - 24);
           const left = Math.max(12, Math.min(modeBox.left, window.innerWidth - width - 12));
           return createPortal(
             <div
-              className="mode-menu mode-menu-portal popover-surface"
+              className={`mode-menu mode-menu-portal popover-surface${modePresence.closing ? " is-closing" : ""}`}
               ref={modeMenuRef}
               role="listbox"
               aria-label="Mode"
+              aria-hidden={modePresence.closing || undefined}
+              inert={modePresence.closing}
               id="composer-mode-menu"
               style={{
                 left,
@@ -1085,13 +1150,15 @@ export function Composer({
       : null;
 
   const insertMenu =
-    insertOpen && insertBox
+    insertPresence.mounted && insertBox
       ? createPortal(
           <div
-            className="insert-menu insert-menu-portal popover-surface"
+            className={`insert-menu insert-menu-portal popover-surface${insertPresence.closing ? " is-closing" : ""}`}
             ref={insertMenuRef}
             role="listbox"
             aria-label="Insert"
+            aria-hidden={insertPresence.closing || undefined}
+            inert={insertPresence.closing}
             id="composer-insert-menu"
             style={{
               left: insertBox.left,

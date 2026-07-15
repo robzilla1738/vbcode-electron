@@ -364,10 +364,27 @@ describe("keys-help", () => {
 
 describe("palette extras", () => {
   it("merges custom command names", () => {
-    const state = paletteState("/run", ["run-tests"]);
+    const state = paletteState("/run", ["run-tests"], "skills");
     expect(
       state.open && state.mode === "command" && state.items.some((i) => i.name === "run-tests"),
     ).toBe(true);
+  });
+
+  it("keeps one model selector and splits the palette into compact groups", () => {
+    const commands = paletteState("/", ["models", "deploy-app"], "commands");
+    const skills = paletteState("/", ["models", "deploy-app"], "skills");
+    const system = paletteState("/", ["models", "deploy-app"], "system");
+    const names = (state: typeof commands) => state.open && state.mode === "command"
+      ? state.items.map((item) => item.name)
+      : [];
+
+    expect(names(commands)).toContain("model");
+    expect(names(commands)).not.toContain("models");
+    expect(names(commands)).not.toContain("deploy-app");
+    expect(names(skills)).toContain("deploy-app");
+    expect(names(skills)).not.toContain("models");
+    expect(names(system)).toContain("settings");
+    expect(names(system)).not.toContain("model");
   });
 
   it("presents handoff as a first-class Local or Cloud choice", () => {

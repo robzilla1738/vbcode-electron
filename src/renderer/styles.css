@@ -771,6 +771,20 @@ html[data-scheme="light"].electron-transparent .project-rail {
   flex-direction: column;
 }
 
+.project-rail.is-closing {
+  width: var(--project-rail-w);
+  flex-basis: var(--project-rail-w);
+  visibility: visible;
+  pointer-events: none;
+  flex-direction: column;
+  animation: project-rail-exit var(--dur-fast) var(--ease-exit) both;
+}
+
+@keyframes project-rail-exit {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-8px); }
+}
+
 .sidebar-resize-handle {
   position: absolute;
   z-index: var(--z-raised);
@@ -5649,6 +5663,11 @@ html.electron-transparent .composer-wrap:focus-within {
   animation: surface-enter var(--dur-standard) var(--ease-enter);
 }
 
+.popover-surface.is-closing {
+  pointer-events: none;
+  animation: surface-exit var(--dur-fast) var(--ease-exit) both;
+}
+
 html.glass :is(.session-menu, .popover-surface, .keys-overlay, .onboarding-modal),
 html.electron-transparent :is(.session-menu, .popover-surface, .keys-overlay, .onboarding-modal) {
   background: var(--glass-overlay-bg);
@@ -5764,10 +5783,30 @@ html.electron-transparent :is(.session-menu, .popover-surface, .keys-overlay, .o
   padding: var(--space-2xs) var(--space-xs);
 }
 
-/* The slash trigger already tells the user what surface they opened. Keep
-   command mode focused on the choices, like a native command palette. Value
-   pickers retain their small context header (e.g. /model → options). */
-.slash-menu-command .slash-menu-header { display: none; }
+.slash-menu-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+.slash-menu-tabs button {
+  padding: 3px var(--space-xs);
+  border-radius: var(--radius-sm);
+  color: var(--text-subtle);
+  font-size: inherit;
+  font-weight: var(--weight-medium);
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
+.slash-menu-tabs button:hover,
+.slash-menu-tabs button.active {
+  color: var(--text);
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+}
+
+.slash-menu-tabs button:focus-visible {
+  box-shadow: var(--focus-ring);
+}
 
 .slash-menu-footer {
   flex-wrap: wrap;
@@ -5895,6 +5934,22 @@ html.electron-transparent :is(.session-menu, .popover-surface, .keys-overlay, .o
   font-family: var(--font-sans);
   transition: background-color var(--dur-standard) var(--ease-standard);
   container-type: inline-size;
+  animation: activity-sidebar-enter var(--dur-standard) var(--ease-enter);
+}
+
+.activity-sidebar.is-closing {
+  pointer-events: none;
+  animation: activity-sidebar-exit var(--dur-fast) var(--ease-exit) both;
+}
+
+@keyframes activity-sidebar-enter {
+  from { opacity: 0; transform: translateX(var(--space-xs)); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes activity-sidebar-exit {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(var(--space-xs)); }
 }
 
 .activity-sidebar-tabs {
@@ -6027,9 +6082,19 @@ html[data-scheme="light"].electron-transparent .activity-sidebar {
   animation: scrim-enter var(--dur-standard) var(--ease-enter);
 }
 
+.drawer-scrim.is-closing {
+  pointer-events: none;
+  animation: scrim-exit var(--dur-fast) var(--ease-exit) both;
+}
+
 @keyframes scrim-enter {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes scrim-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 .inspector-scroll {
@@ -8192,6 +8257,19 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
     box-shadow: var(--shadow-drawer);
   }
 
+  .project-rail.is-closing {
+    position: absolute;
+    z-index: var(--z-drawer);
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--drawer-start-w);
+    flex-basis: var(--drawer-start-w);
+    background: var(--drawer-bg);
+    border-right: 1px solid var(--border-soft);
+    box-shadow: var(--shadow-drawer);
+  }
+
   .sidebar-resize-handle { display: none; }
 
   /* The compact workspace dock owns the top-right chrome at drawer widths.
@@ -8201,6 +8279,11 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
 
   html.glass .project-rail.is-open,
   html.electron-transparent .project-rail.is-open {
+    background: var(--drawer-bg);
+  }
+
+  html.glass .project-rail.is-closing,
+  html.electron-transparent .project-rail.is-closing {
     background: var(--drawer-bg);
   }
 
@@ -8244,7 +8327,7 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
     border-radius: 0;
     background: var(--bg);
     box-shadow: var(--shadow-drawer-end);
-    animation: activity-drawer-enter var(--dur-standard) var(--ease-enter);
+    animation: activity-sidebar-enter var(--dur-standard) var(--ease-enter);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }

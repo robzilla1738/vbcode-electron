@@ -12,6 +12,8 @@ gates in [CLOUD-THREAT-MODEL.md](./CLOUD-THREAT-MODEL.md).
 
 **Privacy:** [PRIVACY.md](./PRIVACY.md)
 
+**Release history:** [CHANGELOG.md](./CHANGELOG.md)
+
 **Visual target:** Codex / Cursor-inspired desktop shell with OpenTUI-faithful behavior — multi-project + chats rail, seamless right workspace dock (Session / Changes / Git / Terminal / Jobs / Files), quiet empty home, terminal themes/accents, resizable sidebars, changed-files chip + master-detail Diff/File review, and one structural activity sidebar for Session / Changes / Git / Terminal / Jobs.
 
 Sibling native shell: [`vbcodrmacos`](https://github.com/robzilla1738/vbcodrmacos) (SwiftUI). This repo is the Electron equivalent.
@@ -64,6 +66,19 @@ Download the latest direct installer from
 Installed macOS and Windows builds check GitHub Releases after launch. Updates
 are never installed silently: Vibe Codr asks before downloading and again
 before restarting, and safely stops the engine and terminal processes first.
+
+### What’s new in 0.1.8
+
+- Fresh Local → Cloud handoffs destroy any stale same-name provisional sandbox
+  before provisioning, preventing an abandoned remote agent from reporting a
+  replacement session ID. Continuity failures stay local.
+- The command palette exposes one `/model` entry and groups discovery into
+  Commands, Skills, and System; Tab and Shift+Tab cycle the groups.
+- Project and activity rails, scrims, slash/mention menus, mode/insert menus,
+  and catalog pickers now complete a short tokenized exit before unmounting.
+  Reduced-motion users skip the presence delay.
+- Project rows retain the minimal hover/focus new-chat icon and running Cloud
+  sessions retain the quiet glanceable cloud indicator.
 
 ## Clone
 
@@ -170,8 +185,10 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 - Project rail and activity sidebar resize or become drawers at responsive breakpoints; widths persist where resizing is available
 - Projects and session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 16 palettes as OpenTUI); accents via `/accent`
-- Modes: explained **Plan / Agent / Yolo** menu with icons and a current check in the composer (Shift+Tab still cycles)
+- Modes: explained **Plan / Agent / Yolo** menu with neutral icons and a current check in the composer (Shift+Tab still cycles)
 - Execution: **Local / Cloud** selection in the composer; changing it opens the same reviewed handoff as `/handoff local|cloud`
+- Slash discovery: one model selector, with compact Commands / Skills / System
+  groups cycled by Tab or selected directly
 
 ### Design system
 
@@ -313,7 +330,8 @@ Shell-owned surfaces:
 
 - Streaming transcript (lightweight plain text while generating; finalized Streamdown GFM with Shiki + line numbers, diffs, tools, thinking, and low-noise notices)
 - Permission + plan approval cards (human titles, soft chrome, deny-reason on demand)
-- Slash palette (builtins + custom `commandNames`), catalog pickers (model context window shown)
+- Slash palette (one `/model` entry; Commands / Skills / System groups plus custom
+  `commandNames`), catalog pickers (model context window shown)
 - Multi-project + Chats rail (collapsible sections, + add project / new chat, resume, filter; Continue Latest via ⇧⌘N)
 - Workspace dock: Session / Changes / Git / Terminal / Jobs / Files on the chat surface;
   Session, Changes, Git, Terminal, and Jobs share one mutually exclusive right-side lane
@@ -352,7 +370,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **565 unit tests**, **12 Electron E2E scenarios**, 21 source
+Current baseline: **579 unit tests**, **12 Electron E2E scenarios**, 21 source
 parity pairs, 40 top-level config fields, Biome, typecheck, production build,
 and renderer bundle budget pass in the current checkout. Settings, Terminal,
 Git, and Changes are isolated from the initial renderer chunk. CI runs `verify` +

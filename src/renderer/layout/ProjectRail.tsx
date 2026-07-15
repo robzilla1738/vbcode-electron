@@ -59,6 +59,7 @@ export function ProjectRail({
   activeCwd,
   activeSessionId,
   open,
+  closing = false,
   loading,
   error,
   busy,
@@ -85,6 +86,7 @@ export function ProjectRail({
   activeCwd: string | null;
   activeSessionId: string;
   open: boolean;
+  closing?: boolean;
   loading: boolean;
   error: string | null;
   busy: boolean;
@@ -437,9 +439,10 @@ export function ProjectRail({
   return (
     <aside
       id="project-rail"
-      className={`project-rail${open ? " is-open" : ""}`}
+      className={`project-rail${open ? " is-open" : ""}${closing ? " is-closing" : ""}`}
       aria-label="Projects and sessions"
       aria-hidden={!open}
+      inert={closing}
     >
       <div className="rail-chrome">
         <button type="button" className="icon-button rail-chrome-toggle no-drag" onClick={onClose} aria-label="Hide project rail">

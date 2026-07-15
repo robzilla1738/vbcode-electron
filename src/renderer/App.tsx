@@ -48,6 +48,7 @@ import { isUIEvent } from "../shared/protocol";
 import { Composer, type ComposerMetric } from "./composer/Composer";
 import { BrandWordmark } from "./branding/BrandWordmark";
 import { RequestGate } from "./hooks/request-gate";
+import { usePresence, useRetainedValue } from "./hooks/usePresence";
 import { useSession } from "./hooks/useSession";
 import { IconSidebar } from "./icons";
 import {
@@ -132,6 +133,8 @@ export function App() {
   const [cwd, setCwd] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [picker, setPicker] = useState<Picker>(null);
+  const pickerPresence = usePresence(Boolean(picker));
+  const renderedPicker = useRetainedValue(picker);
   const [modelTarget, setModelTarget] = useState<"main" | "sub">("main");
   const catalogCache = useRef(new CatalogCache());
   const catalogGeneration = useRef(0);
@@ -186,7 +189,10 @@ export function App() {
         : terminalOpen
           ? "terminal"
           : null;
-  const endPanelOpen = activeEndPanel !== null;
+  const projectRailPresence = usePresence(projectRailOpen);
+  const endPanelPresence = usePresence(activeEndPanel !== null);
+  const renderedEndPanel = useRetainedValue(activeEndPanel);
+  const endPanelOpen = endPanelPresence.mounted;
   const terminalCwd = cwd ? terminalCwdForWorkspace(cwd, chatsCwd, homeCwd) : null;
   const terminalScope = cwd && chatsCwd && isChatsCwd(cwd, chatsCwd) ? "chat" : "project";
   const showToastRef = useRef(session.showToast);
@@ -1865,14 +1871,14 @@ export function App() {
       <nav className="skip-links" aria-label="Skip links">
         <a className="skip-link" href="#main-content">Skip to conversation</a>
         <a className="skip-link" href="#composer">Skip to composer</a>
-        {projectRailOpen ? (
+        {projectRailPresence.mounted ? (
           <a className="skip-link" href="#project-rail">Skip to projects</a>
         ) : null}
         {session.inspectorOpen ? (
           <a className="skip-link" href="#session-panel">Skip to session panel</a>
         ) : null}
       </nav>
-      <div className={`workspace${(settingsOpen || projectRailOpen) ? " rail-open" : ""}${session.inspectorOpen ? " inspector-open" : ""}${settingsOpen ? " settings-mode" : ""}`}>
+      <div className={`workspace${(settingsOpen || projectRailPresence.mounted) ? " rail-open" : ""}${session.inspectorOpen ? " inspector-open" : ""}${settingsOpen ? " settings-mode" : ""}`}>
         {/* Keep Settings mounted (hidden) so form draft + Instructions dirty state
             survive section switches and chat remains in the tree for scroll restore. */}
         {cwd ? (
@@ -1910,6 +1916,7 @@ export function App() {
           activeCwd={cwd}
           activeSessionId={chrome.sessionId}
           open={projectRailOpen}
+          closing={projectRailPresence.closing}
           loading={projectsLoading}
           error={projectsError}
           busy={chrome.busy || session.booting || cloudTransitioning}
@@ -1937,26 +1944,26 @@ export function App() {
           onDeleteSession={(projectCwd, id) => removeSession(projectCwd, id, "delete")}
           onArchiveSession={(projectCwd, id) => removeSession(projectCwd, id, "archive")}
         />
-        {projectRailOpen && (
+        {projectRailPresence.mounted && (
           <button
             type="button"
-            className="drawer-scrim"
+            className={`drawer-scrim${projectRailPresence.closing ? " is-closing" : ""}`}
             data-drawer="start"
             aria-label="Close project rail"
             onClick={() => setProjectRailOpen(false)}
           />
         )}
-        {endPanelOpen && (
+        {endPanelPresence.mounted && (
           <button
             type="button"
-            className="drawer-scrim"
+            className={`drawer-scrim${endPanelPresence.closing ? " is-closing" : ""}`}
             data-drawer="end"
             aria-label="Close activity sidebar"
             onClick={closeActiveEndPanel}
           />
         )}
 
-        <div className={`content-inset${projectRailOpen ? "" : " is-expanded"}${
+        <div className={`content-inset${projectRailPresence.mounted ? "" : " is-expanded"}${
           endPanelOpen ? " end-panel-open" : ""
         }`}>
           <header className="topbar">
@@ -2224,9 +2231,10 @@ export function App() {
                 onSteer={(id) => void session.send({ type: "steer", id })}
                 onDequeue={(id) => void session.send({ type: "dequeue", id })}
               />
-              {picker && (
+              {pickerPresence.mounted && renderedPicker && (
                 <CatalogModal
-                  picker={picker}
+                  picker={renderedPicker}
+                  closing={pickerPresence.closing}
                   anchorRef={composerStackRef}
                   autoFocusSearch={!draft.trim()}
                   draftLinked={!!draft.trim()}
@@ -2237,12 +2245,12 @@ export function App() {
                   onChoose={onCatalogChoose}
                   onRetry={retryCatalog}
                   onToggleModelTarget={
-                    picker.kind === "models" && typeof picker.target === "string"
+                    renderedPicker.kind === "models" && typeof renderedPicker.target === "string"
                       ? () => {
-                          const next: "main" | "sub" = picker.target === "main" ? "sub" : "main";
+                          const next: "main" | "sub" = renderedPicker.target === "main" ? "sub" : "main";
                           setModelTarget(next);
                           setPicker({
-                            ...picker,
+                            ...renderedPicker,
                             target: next,
                             current: currentModelForTarget(
                               next,
@@ -2339,15 +2347,16 @@ export function App() {
             />
           )}
 
-          {activeEndPanel && (
+          {endPanelPresence.mounted && renderedEndPanel && (
             <ActivitySidebar
-              active={activeEndPanel}
+              active={renderedEndPanel}
+              closing={endPanelPresence.closing}
               changedCount={session.transcript.changedFiles.length}
               jobCount={chrome.jobsTotal}
               onSelect={selectActivityTool}
               onClose={closeActiveEndPanel}
             >
-              {session.jobsView && (
+              {renderedEndPanel === "jobs" && (
                 <section
                   className="activity-rail jobs-activity-rail"
                   aria-labelledby="jobs-panel-title"
@@ -2360,7 +2369,7 @@ export function App() {
                 </section>
               )}
 
-              {session.inspectorOpen && inspectorTool === "changes" && (
+              {renderedEndPanel === "changes" && (
                 <Suspense
                   fallback={(
                     <section className="activity-rail changes-activity-rail" aria-label="Loading changes review" />
@@ -2386,7 +2395,7 @@ export function App() {
                 </Suspense>
               )}
 
-              {session.inspectorOpen && inspectorTool === "session" && (
+              {renderedEndPanel === "session" && (
                 <Inspector
                   key={`${inspectorTool}:${inspectorFocusPath ?? ""}`}
                   chrome={chrome}
@@ -2411,7 +2420,7 @@ export function App() {
                 />
               )}
 
-              {gitOpen && cwd && (
+              {renderedEndPanel === "git" && cwd && (
                 <Suspense
                   fallback={(
                     <section
@@ -2429,7 +2438,7 @@ export function App() {
                 </Suspense>
               )}
 
-              {terminalOpen && terminalCwd && (
+              {renderedEndPanel === "terminal" && terminalCwd && (
                 <Suspense
                   fallback={(
                     <section
@@ -2448,15 +2457,15 @@ export function App() {
             </ActivitySidebar>
           )}
 
-          {endPanelOpen && (
+          {endPanelPresence.mounted && renderedEndPanel && (
             <SidebarResizeHandle
               side="end"
-              cssVar={activeEndPanel === "changes" ? "--changes-rail-w" : "--activity-rail-w"}
-              defaultWidth={activeEndPanel === "changes" ? 620 : 320}
-              min={activeEndPanel === "changes" ? 440 : 280}
-              max={activeEndPanel === "changes" ? 800 : 520}
-              storageKey={activeEndPanel === "changes" ? "vibe.changes-rail-width" : "vibe.activity-rail-width"}
-              label={activeEndPanel === "changes" ? "Resize changes sidebar" : "Resize activity sidebar"}
+              cssVar={renderedEndPanel === "changes" ? "--changes-rail-w" : "--activity-rail-w"}
+              defaultWidth={renderedEndPanel === "changes" ? 620 : 320}
+              min={renderedEndPanel === "changes" ? 440 : 280}
+              max={renderedEndPanel === "changes" ? 800 : 520}
+              storageKey={renderedEndPanel === "changes" ? "vibe.changes-rail-width" : "vibe.activity-rail-width"}
+              label={renderedEndPanel === "changes" ? "Resize changes sidebar" : "Resize activity sidebar"}
             />
           )}
         </div>

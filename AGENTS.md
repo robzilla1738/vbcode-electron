@@ -63,7 +63,7 @@ Electron **presentation shell** for [vibe-codr](https://github.com/robzilla1738/
 
 ```bash
 npm run dev            # launch Electron
-npm test               # unit tests (Vitest; 466 at the current baseline)
+npm test               # unit tests (Vitest; 579 at the current baseline)
 npm run test:coverage  # coverage floors (shared + bridge)
 npm run typecheck
 npm run verify         # lint + unit + source/config parity + typecheck + build + bundle

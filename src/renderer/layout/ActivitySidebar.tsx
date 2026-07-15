@@ -13,6 +13,7 @@ const TABS: Array<{ target: ActivitySidebarTarget; label: string }> = [
 
 export function ActivitySidebar({
   active,
+  closing = false,
   changedCount,
   jobCount,
   onSelect,
@@ -20,6 +21,7 @@ export function ActivitySidebar({
   children,
 }: {
   active: ActivitySidebarTarget;
+  closing?: boolean;
   changedCount: number;
   jobCount: number;
   onSelect: (target: ActivitySidebarTarget) => void;
@@ -47,9 +49,11 @@ export function ActivitySidebar({
 
   return (
     <aside
-      className="activity-sidebar"
+      className={`activity-sidebar${closing ? " is-closing" : ""}`}
       data-active={active}
       aria-label="Workspace tools"
+      aria-hidden={closing || undefined}
+      inert={closing}
     >
       <nav className="activity-sidebar-tabs" aria-label="Activity sidebar views">
         {TABS.map((tab) => {

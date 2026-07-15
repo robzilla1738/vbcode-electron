@@ -313,6 +313,11 @@ Transition only transform, opacity, color, or box-shadow; never animate layout
 properties. The global reduced-motion rule collapses motion and JS scroll/rail
 animation must honor the same preference.
 
+Dismissible rails and popovers use a short presence window before unmounting so
+their `--ease-exit` animation can finish. Closing immediately removes logical
+focus/click ownership, retains only the last rendered presentation for the exit,
+and never animates width, grid columns, or other layout properties.
+
 The latest thinking group uses one restrained text shimmer while a turn is
 active (`--dur-thinking-shimmer: 1800ms`); completed groups remain static and
 the global reduced-motion rule collapses the effect. Assistant streaming stays

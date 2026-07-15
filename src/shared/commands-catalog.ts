@@ -15,6 +15,20 @@ export interface PaletteCommand {
   arg?: string;
 }
 
+export type PaletteGroup = "commands" | "skills" | "system";
+
+export const PALETTE_GROUPS: readonly PaletteGroup[] = ["commands", "skills", "system"];
+
+const SKILL_COMMAND_NAMES = new Set(["skill", "skills"]);
+// Legacy aliases remain dispatchable when typed, but their canonical command
+// owns discovery so the palette never presents duplicate actions.
+const HIDDEN_PALETTE_NAMES = new Set(["models", "new", "quit"]);
+const SYSTEM_COMMAND_NAMES = new Set([
+  "status", "cost", "context", "init", "approvals", "mouse", "keys",
+  "settings", "git", "branches", "theme", "accent", "config", "memory",
+  "permissions", "tools", "agents", "commands", "mcp", "doctor", "exit",
+]);
+
 export const PALETTE_COMMANDS: PaletteCommand[] = [
   // Session
   { name: "help", description: "Show available commands" },
@@ -31,7 +45,6 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
   { name: "init", description: "Scaffold .vibe/config.json and VIBE.md" },
   // Model & mode
   { name: "model", description: "Pick the model (Tab: main ⇄ subagents · /model refresh)", arg: "[filter]" },
-  { name: "models", description: "List available models (/models refresh to force-pull)" },
   { name: "providers", description: "Providers + keys (Enter to configure)", arg: "[filter]" },
   { name: "plan", description: "Read-only plan mode — present a plan for approval" },
   { name: "execute", description: "Gated execute — every action asks (AGENT chip)" },
@@ -122,7 +135,7 @@ export function isExactCommand(draft: string, names: ReadonlySet<string>): boole
 
 export type PaletteState =
   | { open: false }
-  | { open: true; mode: "command"; query: string; items: PaletteCommand[] }
+  | { open: true; mode: "command"; group: PaletteGroup; query: string; items: PaletteCommand[] }
   | { open: true; mode: "value"; command: PaletteCommand; query: string; items: string[] };
 
 /**
@@ -147,6 +160,7 @@ export type PaletteState =
 export function paletteState(
   draft: string,
   extraNames: readonly string[] = [],
+  group: PaletteGroup = "commands",
 ): PaletteState {
   if (!draft.startsWith("/")) return { open: false };
   const space = draft.indexOf(" ");
@@ -154,9 +168,13 @@ export function paletteState(
     const query = draft.slice(1).toLowerCase();
     const known = new Set(PALETTE_COMMANDS.map((c) => c.name));
     const extras: PaletteCommand[] = extraNames
-      .filter((n) => n && !known.has(n))
-      .map((name) => ({ name, description: "custom / skill" }));
-    const catalog = [...PALETTE_COMMANDS, ...extras];
+      .filter((n) => n && !known.has(n) && !HIDDEN_PALETTE_NAMES.has(n))
+      .map((name) => ({ name, description: "Skill or custom command" }));
+    const catalog = [...PALETTE_COMMANDS, ...extras].filter((command) => {
+      if (group === "skills") return SKILL_COMMAND_NAMES.has(command.name) || extras.includes(command);
+      if (group === "system") return SYSTEM_COMMAND_NAMES.has(command.name);
+      return !extras.includes(command) && !SKILL_COMMAND_NAMES.has(command.name) && !SYSTEM_COMMAND_NAMES.has(command.name);
+    });
     const tier = (c: PaletteCommand): number => {
       const name = c.name.toLowerCase();
       if (!query || name.startsWith(query)) return 0;
@@ -169,7 +187,7 @@ export function paletteState(
       .filter(({ t }) => t < 3)
       .sort((a, b) => a.t - b.t)
       .map(({ c }) => c);
-    return items.length ? { open: true, mode: "command", query, items } : { open: false };
+    return { open: true, mode: "command", group, query, items };
   }
   const name = draft.slice(1, space).toLowerCase();
   const command = PALETTE_COMMANDS.find((c) => c.name === name);

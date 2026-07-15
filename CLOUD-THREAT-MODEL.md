@@ -55,6 +55,9 @@ SDK. There is no Vibe service in the data path.
   abort cannot be proven.
 - The planned local recovery path and deterministic provider resource name are
   cataloged before their respective mutation/create boundaries.
+- A new handoff never reuses an existing same-name provisional sandbox. The
+  provider-confirmed stale resource is destroyed before a clean create, and the
+  remote session/model/history proof must pass before local ownership commits.
 - A missing provider sandbox is not silently forgotten. Recovery requires the
   provider-confirmed missing state, an explicit destructive confirmation, the
   matching provider, and the exact ownership generation before core returns the

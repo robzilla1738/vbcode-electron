@@ -94,6 +94,12 @@ Every handoff acquires a monotonic ownership generation. The source releases its
 lease only after the destination imports the archive, verifies hashes, starts the
 same session, and returns a valid snapshot. Failed provisional handoffs destroy
 the provisional sandbox and abort back to the unchanged owner.
+Before a fresh handoff creates its deterministic provider resource, any
+same-name provisional sandbox left by an earlier failed or timed-out attempt is
+destroyed. A fresh bootstrap can therefore never reconnect to an abandoned
+daemon with a different session identity. The destination snapshot must still
+match session ID, main/subagent model, mode, and conversation identity before
+local ownership can commit.
 An atomic desktop transition intent is written before engine preparation. If
 the app exits at any later boundary, startup either aborts to the recorded prior
 owner or finishes the generation whose commit already won; provisional
