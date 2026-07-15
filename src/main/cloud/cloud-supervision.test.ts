@@ -83,6 +83,32 @@ describe("cloud command supervision", () => {
     expect(detach).not.toHaveBeenCalled();
   });
 
+  test("surfaces a final-workload resume failure without waiting for timeout", async () => {
+    const server = createServer((_request, response) => {
+      response.statusCode = 503;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ ok: false, error: "requested session not found: ses_expected" }));
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Test server did not bind");
+    const kill = vi.fn(async () => undefined);
+    const daemon: CloudCommandHandle = { wait: () => new Promise(() => undefined), kill, detach: async () => undefined };
+
+    await expect(superviseCloudAgent(
+      daemon,
+      `http://127.0.0.1:${address.port}`,
+      "secret",
+      {},
+      5_000,
+    )).rejects.toMatchObject({
+      message: "Cloud agent rejected the imported session: requested session not found: ses_expected",
+      details: { code: "setup-failed", stage: "checking-health", retryable: false },
+    });
+    expect(kill).toHaveBeenCalledOnce();
+  });
+
   test("keeps daemon supervision through the remote engine handshake", async () => {
     const detach = vi.fn(async () => undefined);
     const daemon: CloudCommandHandle = { wait: () => new Promise(() => undefined), kill: async () => undefined, detach };

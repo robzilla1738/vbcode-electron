@@ -9,8 +9,10 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 - `cd ../vibe-codr && bun run smoke:cloud-runtime` verifies the archive with
   network disabled, loads `node-pty`/`ws`, exports and imports a real engine
   session into the canonical cloud state root, resumes that exact session ID
-  with a non-default Ollama model and persisted history, starts the daemon,
-  snapshots the same model/history, passes authenticated `/health`, and stops cleanly.
+  with a non-default Ollama model and persisted history, starts the daemon under
+  its final isolated workload identity, requires that daemon to preflight the
+  same ID before authenticated `/health` succeeds, snapshots the same
+  model/history, and stops cleanly.
 - Confirm runtime `engineRevision` equals `ENGINE_COMMIT`, outer and internal
   checksums pass in Linux, and `sbom.spdx.json` is present.
 - Confirm packaging rejects dirty engine runtime inputs and outbound handoff
@@ -22,7 +24,8 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
   identity/model/history continuity before ownership commit, stale same-name
   sandbox destruction before fresh create, finite-command exits,
   output redaction/truncation, daemon early exit,
-  health timeout, transient retries, session-filtered accessible progress,
+  health timeout, immediate final-workload resume rejection, transient retries,
+  session-filtered accessible progress,
   renderer RPC privilege separation, and archive verification.
 - `npm run test:cloud:live` runs the paid, opt-in E2B and Vercel lifecycle
   contracts with `E2B_API_KEY`, `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and

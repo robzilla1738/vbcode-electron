@@ -51,6 +51,9 @@ the composer adopts the returned Cloud catalog entry immediately and reconnects
 that existing session automatically.
 Fresh provisioning removes a stale same-name provisional sandbox before create;
 it never reconnects to an abandoned daemon from an earlier failed attempt.
+The permanent isolated workload must preflight the exact imported session before
+health succeeds. Missing resume state is a concrete fail-closed handoff error,
+never a blank replacement chat.
 
 ## Product shape
 

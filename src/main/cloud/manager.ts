@@ -366,6 +366,7 @@ export class CloudManager {
         ...modelEnvironment,
         VIBE_CLOUD_ACCESS_TOKEN: accessToken,
         VIBE_CLOUD_PROVIDER: request.provider,
+        VIBE_CLOUD_EXPECTED_SESSION_ID: snapshot.sessionId,
         VIBE_WORKSPACE_ROOT: `${base}/project`,
         VIBE_CLOUD_AGENT_PORT: String(CLOUD_PORT),
         VIBE_STATE_DIR: `${base}/state`,
@@ -623,6 +624,7 @@ export class CloudManager {
         ...(modelEnvironment ?? {}),
         VIBE_CLOUD_ACCESS_TOKEN: token,
         VIBE_CLOUD_PROVIDER: entry.provider,
+        VIBE_CLOUD_EXPECTED_SESSION_ID: sessionId,
         VIBE_WORKSPACE_ROOT: `${base}/project`,
         VIBE_CLOUD_AGENT_PORT: String(CLOUD_PORT),
         VIBE_STATE_DIR: `${base}/state`,
@@ -1524,8 +1526,20 @@ async function waitForCloudAgent(
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(5_000)]) : AbortSignal.timeout(5_000),
       });
       if (response.ok) return;
+      const payload = await response.json().catch(() => null) as { error?: unknown } | null;
+      if (typeof payload?.error === "string" && payload.error.trim()) {
+        throw new CloudOperationError(`Cloud agent rejected the imported session: ${payload.error.trim()}`, {
+          code: "setup-failed",
+          stage: "checking-health",
+          retryable: false,
+          diagnostic: payload.error.trim(),
+        });
+      }
       lastDiagnostic = `Health endpoint returned HTTP ${response.status}`;
-    } catch (error) { lastDiagnostic = message(error); }
+    } catch (error) {
+      if (error instanceof CloudOperationError) throw error;
+      lastDiagnostic = message(error);
+    }
     if (signal?.aborted) throw signal.reason;
     const remaining = deadline - Date.now();
     if (remaining > 0) await abortableDelay(Math.min(1_000, remaining), signal);

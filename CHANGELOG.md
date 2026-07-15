@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.9 — 2026-07-15
+
+### Fixed
+
+- Cloud handoff now starts the permanent isolated engine on the exact imported
+  session before the daemon can report healthy. A missing explicit resume is a
+  hard failure and can never fall through to a replacement chat.
+- Cloud health failures now surface the concrete final-workload resume error
+  immediately while preserving the original Local session.
+
 ## 0.1.8 — 2026-07-15
 
 ### Fixed

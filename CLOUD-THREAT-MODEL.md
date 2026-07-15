@@ -58,6 +58,10 @@ SDK. There is no Vibe service in the data path.
 - A new handoff never reuses an existing same-name provisional sandbox. The
   provider-confirmed stale resource is destroyed before a clean create, and the
   remote session/model/history proof must pass before local ownership commits.
+- The permanent daemon cannot report healthy until its isolated workload has
+  resumed the exact imported session ID. Explicit resume is fail-closed in the
+  engine host, so missing or unreadable state cannot create a second writer or
+  replacement chat.
 - A missing provider sandbox is not silently forgotten. Recovery requires the
   provider-confirmed missing state, an explicit destructive confirmation, the
   matching provider, and the exact ownership generation before core returns the

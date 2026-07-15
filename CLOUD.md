@@ -100,6 +100,12 @@ destroyed. A fresh bootstrap can therefore never reconnect to an abandoned
 daemon with a different session identity. The destination snapshot must still
 match session ID, main/subagent model, mode, and conversation identity before
 local ownership can commit.
+The permanent daemon is given the expected session ID and bootstraps it under
+the final isolated workload identity before authenticated health can return
+success. An explicit missing resume is fatal in the engine host; it never falls
+through to a newly generated session ID. A final-workload read or ownership
+failure is returned immediately as the handoff error while Local remains the
+owner.
 An atomic desktop transition intent is written before engine preparation. If
 the app exits at any later boundary, startup either aborts to the recorded prior
 owner or finishes the generation whose commit already won; provisional

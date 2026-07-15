@@ -1,7 +1,7 @@
 # CLI ↔ Electron parity checklist
 
 Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated:
-`npm test` (466 unit tests), `npm run test:e2e` (12 scenarios),
+`npm test` (current live suite), `npm run test:e2e` (12 scenarios),
 `npm run verify:source-parity` (19 declaration pairs),
 `npm run verify:config-shape` (40 top-level engine fields), and CI
 coverage/bridge/packaged-host gates.
@@ -15,6 +15,7 @@ coverage/bridge/packaged-host gates.
 - [x] Cloud settings, protected credential bindings, composer Local/Cloud target, route-and-boundary confirmation, first-class `/handoff` palette choices, status, and bundled skill
 - [x] Desktop close/reopen attaches to the cloud owner without starting a local writer
 - [x] Cloud import and daemon bootstrap share one canonical state root and prove the exact session ID, model, mode, subagent model, and conversation survive before ownership commits
+- [x] The permanent isolated Cloud workload preflights the imported session before health succeeds; explicit missing resume fails closed and cannot create a replacement chat
 - [x] Only the active model credential is session-scoped into Cloud; missing authentication and local-only routes fail before provisioning
 - [ ] Stable flag removal: fresh live suites for both providers, durable Mac relay, and Vercel broker verification
 

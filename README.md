@@ -67,18 +67,14 @@ Installed macOS and Windows builds check GitHub Releases after launch. Updates
 are never installed silently: Vibe Codr asks before downloading and again
 before restarting, and safely stops the engine and terminal processes first.
 
-### What’s new in 0.1.8
+### What’s new in 0.1.9
 
-- Fresh Local → Cloud handoffs destroy any stale same-name provisional sandbox
-  before provisioning, preventing an abandoned remote agent from reporting a
-  replacement session ID. Continuity failures stay local.
-- The command palette exposes one `/model` entry and groups discovery into
-  Commands, Skills, and System; Tab and Shift+Tab cycle the groups.
-- Project and activity rails, scrims, slash/mention menus, mode/insert menus,
-  and catalog pickers now complete a short tokenized exit before unmounting.
-  Reduced-motion users skip the presence delay.
-- Project rows retain the minimal hover/focus new-chat icon and running Cloud
-  sessions retain the quiet glanceable cloud indicator.
+- The permanent Cloud engine now resumes the imported session under its final
+  isolated workload identity before the daemon can report healthy.
+- An explicit missing resume fails closed in the shared engine host. It can no
+  longer silently generate a replacement session or blank chat.
+- Final-workload resume failures surface immediately while the original Local
+  session remains intact and available for retry.
 
 ## Clone
 
