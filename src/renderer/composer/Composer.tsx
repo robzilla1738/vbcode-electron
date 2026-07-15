@@ -23,13 +23,12 @@ import {
   IconCheck,
   IconChevron,
   IconFile,
-  IconModeAgent,
-  IconModePlan,
-  IconModeYolo,
   IconPaperclip,
   IconRemove,
   IconSend,
+  IconSettings,
   IconStop,
+  IconTerminal,
 } from "../icons";
 
 const MODE_OPTIONS: UiMode[] = ["plan", "execute", "yolo"];
@@ -41,9 +40,9 @@ const MODE_HINT: Record<UiMode, string> = {
 };
 
 function ModeIcon({ mode, size = 15 }: { mode: UiMode; size?: number }) {
-  if (mode === "plan") return <IconModePlan size={size} />;
-  if (mode === "yolo") return <IconModeYolo size={size} />;
-  return <IconModeAgent size={size} />;
+  if (mode === "plan") return <IconCheck size={size} />;
+  if (mode === "yolo") return <IconTerminal size={size} />;
+  return <IconSettings size={size} />;
 }
 
 /** Matches `--composer-input-max` — keep JS clamp and CSS in sync. */

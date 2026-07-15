@@ -3,7 +3,6 @@ import {
   Archive,
   ArrowRight,
   ArrowUp,
-  Bot,
   Brain,
   Check,
   ChevronRight,
@@ -18,7 +17,6 @@ import {
   Laptop,
   LayoutDashboard,
   Link,
-  ListChecks,
   MessageSquare,
   MoreVertical,
   PanelLeft,
@@ -29,7 +27,6 @@ import {
   RotateCcw,
   Search,
   Settings,
-  ShieldAlert,
   Square,
   SquareTerminal,
   Trash2,
@@ -175,18 +172,6 @@ export function IconCheck(props: IconProps) {
 
 export function IconCloud(props: IconProps) {
   return <Cloud {...lucide(props)} />;
-}
-
-export function IconModeAgent(props: IconProps) {
-  return <Bot {...lucide(props)} />;
-}
-
-export function IconModePlan(props: IconProps) {
-  return <ListChecks {...lucide(props)} />;
-}
-
-export function IconModeYolo(props: IconProps) {
-  return <ShieldAlert {...lucide(props)} />;
 }
 
 export function IconLaptop(props: IconProps) {
