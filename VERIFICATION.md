@@ -6,15 +6,20 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 
 - `cd ../vibe-codr && bun test packages/core/src/portable-session.test.ts packages/core/src/session-tools.test.ts`
 - `cd ../vibe-codr && bun run build:cloud-runtime`
+- `cd ../vibe-codr && bun run smoke:cloud-runtime` verifies the archive with
+  network disabled, loads `node-pty`/`ws`, restores a minimal workspace, starts
+  the daemon, passes authenticated `/health`, and stops cleanly.
 - Confirm runtime `engineRevision` equals `ENGINE_COMMIT`, outer and internal
   checksums pass in Linux, and `sbom.spdx.json` is present.
 - Confirm packaging rejects dirty engine runtime inputs and outbound handoff
   rejects a portable archive whose session ID or canonical source root differs
   from the active workspace.
-- `npm test -- --run src/main/cloud/workspace-transfer.test.ts src/main/remote-engine-transport.test.ts src/shared/protocol.test.ts`
+- `npm test -- --run src/main/cloud/cloud-supervision.test.ts src/main/cloud/workspace-transfer.test.ts src/shared/cloud-handoff-ux.test.ts src/main/remote-engine-transport.test.ts src/shared/protocol.test.ts`
   covers protected return paths and Git history, branch/index-only divergence,
   recursive submodule commit restoration, exact mode rollback, remote-session
-  identity, renderer RPC privilege separation, and archive verification.
+  identity, finite-command exits, output redaction/truncation, daemon early exit,
+  health timeout, transient retries, session-filtered accessible progress,
+  renderer RPC privilege separation, and archive verification.
 - `npm run test:cloud:live` runs the paid, opt-in E2B and Vercel lifecycle
   contracts with `E2B_API_KEY`, `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and
   `VERCEL_PROJECT_ID`. Fresh green output is required within seven days of a

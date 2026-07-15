@@ -23,7 +23,7 @@ import { TtlLruCache } from "../shared/ttl-lru-cache";
 import { type AppUpdaterController, createAppUpdater } from "./app-updater";
 import { registerConfigIpc } from "./config-ipc";
 import { EngineTransportController } from "./engine-transport-controller";
-import { CloudManager } from "./cloud/manager";
+import { cloudFailureDetails, CloudManager } from "./cloud/manager";
 import { registerGitIpc } from "./git-ipc";
 import { enrichedEnv } from "./host-resolver";
 import { assertTrustedIpc, assertTrustedSender, getMainWindow, setMainWindow } from "./ipc-security";
@@ -654,7 +654,14 @@ function registerIpc(): void {
     }
     if (request.provider !== "e2b" && request.provider !== "vercel") return { ok: false as const, error: "Unknown cloud provider" };
     try { return { ok: true as const, value: await cloudManager.handoffToCloud(request) }; }
-    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+    catch (error) {
+      const details = cloudFailureDetails(error);
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : String(error),
+        ...(details ? { details } : {}),
+      };
+    }
   });
 
   ipcMain.handle("cloud:reconnect", async (event, sessionId: unknown) => {

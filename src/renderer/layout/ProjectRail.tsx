@@ -29,6 +29,7 @@ import {
   IconSettings,
   IconSidebar,
 } from "../icons";
+import { BrandMark } from "../branding/BrandMark";
 import { SidebarResizeHandle } from "./SidebarResizeHandle";
 
 type SessionMenu = {
@@ -438,7 +439,9 @@ export function ProjectRail({
       </div>
 
       <div className="rail-title-row">
-        <h1 className="rail-product-name">Vibe Codr</h1>
+        <h1 className="rail-product-name">
+          <BrandMark />
+        </h1>
         <button
           ref={searchTriggerRef}
           type="button"

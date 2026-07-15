@@ -1,6 +1,9 @@
 import { ALL_TRAFFIC, Sandbox as E2BSandbox } from "e2b";
 import { Sandbox as VercelSandbox } from "@vercel/sandbox";
 import type {
+  CloudCommandHandle,
+  CloudCommandOptions,
+  CloudCommandResult,
   CloudSandboxCreateOptions,
   CloudSandboxRecord,
   ProviderCredentials,
@@ -42,6 +45,7 @@ export class E2BSandboxProvider implements SandboxProvider {
       },
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       lifecycle: { onTimeout: "pause", autoResume: true },
+      signal: options.signal,
       metadata: {
         "vibe.workspace": options.workspaceId,
         "vibe.session": options.sessionId,
@@ -88,9 +92,9 @@ export class E2BSandboxProvider implements SandboxProvider {
     }
   }
 
-  async upload(id: string, remotePath: string, data: Uint8Array): Promise<void> {
+  async upload(id: string, remotePath: string, data: Uint8Array, signal?: AbortSignal): Promise<void> {
     const bytes = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
-    await (await this.#handle(id)).files.write(remotePath, bytes);
+    await (await this.#handle(id)).files.write(remotePath, bytes, { signal });
   }
 
   async download(id: string, remotePath: string): Promise<Uint8Array> {
@@ -101,14 +105,47 @@ export class E2BSandboxProvider implements SandboxProvider {
     return (await this.#handle(id)).files.getInfo(remotePath).then((info) => info.size);
   }
 
-  async start(id: string, command: string, args: string[], env?: Record<string, string>, options?: { privileged?: boolean }): Promise<void> {
+  async run(id: string, command: string, args: string[], env?: Record<string, string>, options?: CloudCommandOptions): Promise<CloudCommandResult> {
     const line = [command, ...args].map(shellQuote).join(" ");
-    await (await this.#handle(id)).commands.run(line, {
+    try {
+      const result = await (await this.#handle(id)).commands.run(line, {
+        envs: env,
+        user: options?.privileged ? "root" : undefined,
+        cwd: options?.cwd,
+        timeoutMs: options?.timeoutMs,
+        signal: options?.signal,
+      });
+      return commandResult(result, env);
+    } catch (error) {
+      const result = commandErrorResult(error, env);
+      if (result) return result;
+      throw error;
+    }
+  }
+
+  async start(id: string, command: string, args: string[], env?: Record<string, string>, options?: CloudCommandOptions): Promise<CloudCommandHandle> {
+    const line = [command, ...args].map(shellQuote).join(" ");
+    const handle = await (await this.#handle(id)).commands.run(line, {
       envs: env,
       user: options?.privileged ? "root" : undefined,
+      cwd: options?.cwd,
       background: true,
       timeoutMs: 0,
+      signal: options?.signal,
     });
+    const waiting = (async () => {
+      try { return commandResult(await handle.wait(), env); }
+      catch (error) {
+        const result = commandErrorResult(error, env);
+        if (result) return result;
+        throw error;
+      }
+    })();
+    return {
+      wait: () => waiting,
+      kill: async () => { await handle.kill(); },
+      detach: async () => { await handle.disconnect(); },
+    };
   }
 
   async suspend(id: string): Promise<void> {
@@ -222,6 +259,7 @@ export class VercelSandboxProvider implements SandboxProvider {
       keepLastSnapshots: { count: 1, deleteEvicted: true },
       snapshotExpiration: 7 * 24 * 60 * 60 * 1_000,
       tags: { "vibe-workspace": options.workspaceId, "vibe-session": options.sessionId },
+      signal: options.signal,
     });
     this.#handles.set(name, sandbox);
     return this.#record(sandbox);
@@ -263,8 +301,8 @@ export class VercelSandboxProvider implements SandboxProvider {
     return { ...this.#record(resumed), needsDaemonRestart: true };
   }
 
-  async upload(id: string, remotePath: string, data: Uint8Array): Promise<void> {
-    await (await this.#handle(id)).writeFiles([{ path: remotePath, content: data }]);
+  async upload(id: string, remotePath: string, data: Uint8Array, signal?: AbortSignal): Promise<void> {
+    await (await this.#handle(id)).writeFiles([{ path: remotePath, content: data }], { signal });
   }
 
   async download(id: string, remotePath: string): Promise<Uint8Array> {
@@ -280,8 +318,40 @@ export class VercelSandboxProvider implements SandboxProvider {
     return value;
   }
 
-  async start(id: string, command: string, args: string[], env?: Record<string, string>, options?: { privileged?: boolean }): Promise<void> {
-    await (await this.#handle(id)).runCommand({ cmd: command, args, env, detached: true, sudo: options?.privileged === true });
+  async run(id: string, command: string, args: string[], env?: Record<string, string>, options?: CloudCommandOptions): Promise<CloudCommandResult> {
+    const result = await (await this.#handle(id)).runCommand({
+      cmd: command,
+      args,
+      env,
+      cwd: options?.cwd,
+      sudo: options?.privileged === true,
+      signal: commandSignal(options),
+    });
+    const [stdout, stderr] = await Promise.all([result.stdout(), result.stderr()]);
+    return normalizeCommandResult(result.exitCode, stdout, stderr, env);
+  }
+
+  async start(id: string, command: string, args: string[], env?: Record<string, string>, options?: CloudCommandOptions): Promise<CloudCommandHandle> {
+    const handle = await (await this.#handle(id)).runCommand({
+      cmd: command,
+      args,
+      env,
+      cwd: options?.cwd,
+      detached: true,
+      sudo: options?.privileged === true,
+      signal: commandSignal(options),
+    });
+    const waitController = new AbortController();
+    const waiting = (async () => {
+      const result = await handle.wait({ signal: waitController.signal });
+      const [stdout, stderr] = await Promise.all([result.stdout(), result.stderr()]);
+      return normalizeCommandResult(result.exitCode, stdout, stderr, env);
+    })();
+    return {
+      wait: () => waiting,
+      kill: async () => { await handle.kill(); },
+      detach: async () => { waitController.abort(new Error("Cloud daemon supervision detached")); },
+    };
   }
 
   async suspend(id: string): Promise<void> {
@@ -328,10 +398,58 @@ function normalizeName(value: string): string {
   return clean || `vibe-${Date.now()}`;
 }
 
+function commandSignal(options?: CloudCommandOptions): AbortSignal | undefined {
+  const signals = [
+    options?.signal,
+    options?.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined,
+  ].filter((signal): signal is AbortSignal => signal !== undefined);
+  if (signals.length === 0) return undefined;
+  return signals.length === 1 ? signals[0] : AbortSignal.any(signals);
+}
+
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+const MAX_COMMAND_OUTPUT = 64 * 1024;
+
+function commandResult(result: { exitCode: number; stdout: string; stderr: string }, env?: Record<string, string>): CloudCommandResult {
+  return normalizeCommandResult(result.exitCode, result.stdout, result.stderr, env);
+}
+
+function commandErrorResult(error: unknown, env?: Record<string, string>): CloudCommandResult | null {
+  if (!error || typeof error !== "object") return null;
+  const value = error as { exitCode?: unknown; stdout?: unknown; stderr?: unknown };
+  if (typeof value.exitCode !== "number") return null;
+  return normalizeCommandResult(
+    value.exitCode,
+    typeof value.stdout === "string" ? value.stdout : "",
+    typeof value.stderr === "string" ? value.stderr : message(error),
+    env,
+  );
+}
+
+function normalizeCommandResult(exitCode: number, stdout: string, stderr: string, env?: Record<string, string>): CloudCommandResult {
+  return {
+    exitCode,
+    stdout: sanitizeCloudCommandOutput(stdout, env),
+    stderr: sanitizeCloudCommandOutput(stderr, env),
+  };
+}
+
+export function sanitizeCloudCommandOutput(value: string, env?: Record<string, string>): string {
+  let safe = value;
+  for (const secret of Object.values(env ?? {})) {
+    if (secret.length >= 4) safe = safe.replaceAll(secret, "[redacted]");
+  }
+  safe = safe
+    .replace(/(authorization:\s*bearer\s+)[^\s]+/gi, "$1[redacted]")
+    .replace(/\b(?:e2b|sk|ghp|github_pat)_[A-Za-z0-9_-]{12,}\b/g, "[redacted]");
+  if (Buffer.byteLength(safe, "utf8") <= MAX_COMMAND_OUTPUT) return safe;
+  const tail = Buffer.from(safe).subarray(-MAX_COMMAND_OUTPUT).toString("utf8");
+  return `… output truncated …\n${tail}`;
 }

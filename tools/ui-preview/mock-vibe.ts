@@ -29,6 +29,7 @@
  *   density-quiet / density-verbose — details density cue in composer
  *   ctx-hot     — high context % (topbar warn chip at laptop width)
  *   attachments — composer with dropped image + source file references
+ *   cloud-progress / cloud-failure — supervised handoff progress and diagnostics
  *
  * This file never ships in the app bundle — it is dev tooling only.
  */
@@ -215,10 +216,15 @@ function baseSnapshot(): EngineSnapshot {
 /* ────────────────────────── event bus ────────────────────────── */
 
 const listeners = new Set<EventCb>();
+const cloudStatusListeners = new Set<(event: import("../../src/shared/cloud").CloudStatusEvent) => void>();
 let timelineStarted = false;
 
 function emit(event: UIEvent): void {
   for (const cb of [...listeners]) cb(event);
+}
+
+function emitCloud(event: import("../../src/shared/cloud").CloudStatusEvent): void {
+  for (const cb of [...cloudStatusListeners]) cb(event);
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -710,6 +716,13 @@ async function runTimeline(): Promise<void> {
       await sleep(240);
       previewDropAttachments();
       break;
+    case "cloud-progress":
+    case "cloud-failure":
+      window.dispatchEvent(new CustomEvent("vibe-preview-open-panel", { detail: "cloud" }));
+      await sleep(180);
+      document.querySelector<HTMLButtonElement>(".cloud-handoff-footer .primary")?.click();
+      await sleep(650);
+      break;
     default:
       await chatTurn();
   }
@@ -799,10 +812,24 @@ const mock = {
   listCloudSessions: async () => ({ ok: true as const, value: [] }),
   deleteCloudSessionCopy: async () => ({ ok: true as const }),
   recoverLostCloudSession: async () => ({ ok: false as const, error: "No missing cloud session" }),
-  handoffToCloud: async () => ({ ok: false as const, error: "Cloud handoff is disabled in preview" }),
+  handoffToCloud: async () => {
+    const startedAt = Date.now() - 8_000;
+    emitCloud({ sessionId: SID, status: "starting", message: "Starting the cloud agent", progress: 0.72, stage: "starting-agent", startedAt });
+    await sleep(180);
+    if (scenario === "cloud-failure") {
+      const details = { code: "daemon-exited" as const, stage: "starting-agent" as const, retryable: true, diagnostic: "Error: Cannot find module 'node-pty'" };
+      emitCloud({ sessionId: SID, status: "recoverable-error", message: "Cloud agent exited before it became healthy", progress: 0.72, stage: "starting-agent", startedAt });
+      return { ok: false as const, error: "Cloud agent exited before it became healthy", details };
+    }
+    emitCloud({ sessionId: SID, status: "starting", message: "Checking the authenticated cloud agent", progress: 0.82, stage: "checking-health", startedAt });
+    return await new Promise<never>(() => undefined);
+  },
   reconnectCloudSession: async () => ({ ok: false as const, error: "No cloud session" }),
   resumeCloudSessionLocally: async () => ({ ok: false as const, error: "No cloud session" }),
-  onCloudStatus: () => () => undefined,
+  onCloudStatus: (cb: (event: import("../../src/shared/cloud").CloudStatusEvent) => void) => {
+    cloudStatusListeners.add(cb);
+    return () => cloudStatusListeners.delete(cb);
+  },
   setSettingsDirty: () => undefined,
   openProject: async () => CWD,
   ensureChatsDir: async () => "/Users/rob/.vibe/chats",

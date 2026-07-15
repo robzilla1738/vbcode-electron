@@ -14,6 +14,8 @@ import { isRpcResult } from "../shared/runtime-guards";
 const READY_TIMEOUT_MS = 45_000;
 const RPC_TIMEOUT_MS = 30_000;
 const MAX_FRAME_BYTES = 32 * 1024 * 1024;
+const CONNECT_RETRY_DELAYS_MS = [250, 750];
+const KEEPALIVE_INTERVAL_MS = 15_000;
 
 interface RemoteTransportOptions {
   url: string;
@@ -33,6 +35,8 @@ export class RemoteEngineTransport implements EngineTransport {
   #agentReady: ((sessionId: string | null) => void) | null = null;
   #existingSessionId: string | null | undefined;
   #detachWaiter: { resolve: () => void; reject: (error: Error) => void; timer: NodeJS.Timeout } | null = null;
+  #keepalive: NodeJS.Timeout | null = null;
+  #connecting = false;
 
   onEvent: ((event: unknown) => void) | null = null;
   onFatal: ((message: string) => void) | null = null;
@@ -50,11 +54,31 @@ export class RemoteEngineTransport implements EngineTransport {
 
   async start(options: EngineStartOptions): Promise<string> {
     await this.stop();
+    this.#connecting = true;
+    try {
+      let lastError: unknown;
+      for (let attempt = 0; attempt <= CONNECT_RETRY_DELAYS_MS.length; attempt += 1) {
+        try { return await this.#startAttempt(options); }
+        catch (error) {
+          lastError = error;
+          if (attempt === CONNECT_RETRY_DELAYS_MS.length || !isTransientDisconnect(error)) throw error;
+          await this.#discardSocket();
+          await new Promise((resolve) => setTimeout(resolve, CONNECT_RETRY_DELAYS_MS[attempt]));
+        }
+      }
+      throw lastError;
+    } finally {
+      this.#connecting = false;
+    }
+  }
+
+  async #startAttempt(options: EngineStartOptions): Promise<string> {
     this.#existingSessionId = undefined;
     const socket = new WebSocket(this.options.url, {
       headers: { ...this.options.headers, authorization: `Bearer ${this.options.accessToken}` },
       maxPayload: MAX_FRAME_BYTES,
       handshakeTimeout: this.options.readyTimeoutMs ?? READY_TIMEOUT_MS,
+      perMessageDeflate: false,
     });
     this.#socket = socket;
     socket.on("message", (data) => this.#handleFrame(data.toString()));
@@ -62,13 +86,15 @@ export class RemoteEngineTransport implements EngineTransport {
     socket.on("close", (code, reason) => {
       const expected = this.#socket !== socket;
       if (this.#socket === socket) this.#socket = null;
+      this.#stopKeepalive();
       this.#ready = false;
       this.#rejectAll(new Error(`Cloud engine disconnected (${code})${reason.length ? `: ${reason.toString()}` : ""}`));
-      if (!expected) this.onFatal?.(`Cloud engine disconnected (${code})`);
+      if (!expected && !this.#connecting) this.onFatal?.(`Cloud engine disconnected (${code})`);
     });
     await new Promise<void>((resolve, reject) => {
-      socket.once("open", resolve);
+      socket.once("open", () => { this.#startKeepalive(socket); resolve(); });
       socket.once("error", reject);
+      socket.once("close", (code) => reject(new Error(`Cloud engine disconnected (${code}) during connection`)));
     });
     const existing = await new Promise<string | null>((resolve) => {
       if (this.#existingSessionId !== undefined) { resolve(this.#existingSessionId); return; }
@@ -118,6 +144,7 @@ export class RemoteEngineTransport implements EngineTransport {
     const socket = this.#socket;
     this.#socket = null;
     this.#ready = false;
+    this.#stopKeepalive();
     if (!socket) return;
     if (socket.readyState === WebSocket.OPEN) {
       this.#sendFrame(socket, { channel: "engine", payload: { op: "shutdown" } });
@@ -137,6 +164,7 @@ export class RemoteEngineTransport implements EngineTransport {
     const socket = this.#socket;
     this.#socket = null;
     this.#ready = false;
+    this.#stopKeepalive();
     if (socket) {
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => { socket.terminate(); resolve(); }, 750);
@@ -169,6 +197,7 @@ export class RemoteEngineTransport implements EngineTransport {
     });
     this.#socket = null;
     this.#ready = false;
+    this.#stopKeepalive();
     await new Promise<void>((resolve) => {
       const timer = setTimeout(() => { socket.terminate(); resolve(); }, 1_000);
       socket.once("close", () => { clearTimeout(timer); resolve(); });
@@ -259,9 +288,34 @@ export class RemoteEngineTransport implements EngineTransport {
     const socket = this.#socket;
     this.#socket = null;
     this.#ready = false;
-    this.onFatal?.(message);
+    this.#stopKeepalive();
+    if (!this.#connecting) this.onFatal?.(message);
     this.#rejectAll(new Error(message));
     socket?.terminate();
+  }
+
+  async #discardSocket(): Promise<void> {
+    const socket = this.#socket;
+    this.#socket = null;
+    this.#ready = false;
+    this.#stopKeepalive();
+    if (!socket) return;
+    socket.terminate();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  #startKeepalive(socket: WebSocket): void {
+    this.#stopKeepalive();
+    this.#keepalive = setInterval(() => {
+      if (this.#socket !== socket || socket.readyState !== WebSocket.OPEN) return;
+      this.#sendFrame(socket, { channel: "ping", at: Date.now() });
+    }, KEEPALIVE_INTERVAL_MS);
+    this.#keepalive.unref();
+  }
+
+  #stopKeepalive(): void {
+    if (this.#keepalive) clearInterval(this.#keepalive);
+    this.#keepalive = null;
   }
 
   #rejectAll(error: Error): void {
@@ -274,4 +328,9 @@ export class RemoteEngineTransport implements EngineTransport {
       this.#detachWaiter = null;
     }
   }
+}
+
+function isTransientDisconnect(error: unknown): boolean {
+  const value = error instanceof Error ? error.message : String(error);
+  return /\b1006\b|ECONNRESET|EPIPE|socket hang up|unexpected server response|network/i.test(value);
 }

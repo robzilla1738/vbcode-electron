@@ -104,11 +104,58 @@ export interface CloudSandboxCreateOptions {
   vcpus?: number;
   timeoutMs?: number;
   allowedDomains?: string[];
+  signal?: AbortSignal;
 }
 
 export interface CloudConnectionEndpoint {
   url: string;
   headers?: Record<string, string>;
+}
+
+export type CloudStartupStage =
+  | "waiting"
+  | "packaging"
+  | "creating"
+  | "uploading"
+  | "verifying"
+  | "restoring"
+  | "starting-agent"
+  | "checking-health"
+  | "connecting";
+
+export interface CloudStatusEvent {
+  sessionId?: string;
+  status: CloudSessionStatus;
+  message: string;
+  progress?: number;
+  stage?: CloudStartupStage;
+  startedAt?: number;
+}
+
+export interface CloudFailureDetails {
+  code: "provider-unavailable" | "runtime-incompatible" | "setup-failed" | "daemon-exited" | "health-timeout" | "cleanup-pending";
+  stage: CloudStartupStage;
+  retryable: boolean;
+  diagnostic?: string;
+}
+
+export interface CloudCommandOptions {
+  privileged?: boolean;
+  cwd?: string;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+export interface CloudCommandResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+export interface CloudCommandHandle {
+  wait(): Promise<CloudCommandResult>;
+  kill(): Promise<void>;
+  detach(): Promise<void>;
 }
 
 export interface SandboxProvider {
@@ -119,10 +166,11 @@ export interface SandboxProvider {
   get(id: string): Promise<CloudSandboxRecord | null>;
   findByName(name: string): Promise<CloudSandboxRecord | null>;
   resume(id: string, timeoutMs?: number): Promise<CloudSandboxRecord | null>;
-  upload(id: string, remotePath: string, data: Uint8Array): Promise<void>;
+  upload(id: string, remotePath: string, data: Uint8Array, signal?: AbortSignal): Promise<void>;
   size(id: string, remotePath: string): Promise<number>;
   download(id: string, remotePath: string): Promise<Uint8Array>;
-  start(id: string, command: string, args: string[], env?: Record<string, string>, options?: { privileged?: boolean }): Promise<void>;
+  run(id: string, command: string, args: string[], env?: Record<string, string>, options?: CloudCommandOptions): Promise<CloudCommandResult>;
+  start(id: string, command: string, args: string[], env?: Record<string, string>, options?: CloudCommandOptions): Promise<CloudCommandHandle>;
   suspend(id: string): Promise<void>;
   destroy(id: string): Promise<void>;
   domain(id: string, port: number): Promise<CloudConnectionEndpoint>;

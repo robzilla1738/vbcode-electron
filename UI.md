@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff  
-> **Updated:** 2026-07-14 (provider onboarding and catalog parity)
+> **Updated:** 2026-07-15 (supervised cloud handoff progress and diagnostics)
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
@@ -17,6 +17,15 @@ Settings → Cloud. Confirmation is a modal preflight over the existing chat
 surface; status stays in topbar metadata and never adds a rail or persistent
 floating panel. Normal chrome says Local, Cloud, Cloud paused, or Needs your Mac;
 provider names remain in setup, diagnostics, and cost details.
+
+While ownership is changing, the modal is non-dismissible and presents the
+session-scoped stages Safe boundary, Package workspace, Create sandbox, Upload,
+Verify runtime, Restore session, Start agent, Health check, and Connect. The
+current stage, elapsed time, and progress are exposed through a polite live
+region. A failure keeps the modal open with a plain-language alert, expandable
+sanitized technical details, and **Try again** only for a manager-confirmed
+retryable state. Success closes the modal and reconnects the existing session
+automatically.
 
 ## Product shape
 

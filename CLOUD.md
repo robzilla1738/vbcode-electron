@@ -63,6 +63,31 @@ This is logical migration at `engine-idle`, not migration of macOS processes to
 Linux. Portable jobs restart from recorded commands. Local PTYs and macOS-only
 processes do not move.
 
+## Provisioning and diagnostics
+
+The handoff sheet follows one session-scoped sequence: **Safe boundary → Package
+workspace → Create sandbox → Upload → Verify runtime → Restore session → Start
+agent → Health check → Connect**. It shows elapsed time and announces each stage
+through an accessible live region. Events from other sessions are ignored.
+
+Provider calls have a 60-second deadline, upload/runtime bootstrap has a
+five-minute deadline, and authenticated agent health has a two-minute deadline.
+Only safe transient provider failures are retried, at most three times, with
+1/2/4-second backoff. Finite setup commands retain a bounded, redacted output
+tail and exit code. Agent health is raced against the supervised daemon, so an
+early crash is reported immediately instead of becoming a generic readiness
+timeout. Failures show a plain-language cause, expandable stage/code/output
+details, and **Try again** only after local ownership rollback and provisional
+sandbox cleanup are confirmed. Ambiguous ownership or cleanup remains
+fail-closed and routes through Cloud recovery.
+
+The runtime archive is built on pinned Linux and already contains its own Node
+24.18.0 binary, complete production dependency tree, and Linux `node-pty` addon,
+so provider base-image Node versions do not affect startup. Sandbox setup
+only extracts the archive, verifies checksums/platform/ABI, restores the
+workspace, and starts the daemon; it performs no registry access or native
+compilation.
+
 ## Ownership and return
 
 Every handoff acquires a monotonic ownership generation. The source releases its
@@ -134,6 +159,9 @@ the sandbox or catalog record can be removed.
   are never persisted as plaintext fallback.
 - **Runtime missing or revision mismatch:** in `vibe-codr`, run
   `bun run build:cloud-runtime`; its revision must equal Electron `ENGINE_COMMIT`.
+- **A provisioning stage fails:** expand **Technical details** for the sanitized
+  stage/code/output tail. **Try again** appears only when rollback and cleanup
+  completed safely.
 - **Transfer rejected:** review limits, `.vibe/cloudignore`, escaping symlinks,
   and excluded credential material in the preflight.
 - **Reconnect fails:** confirm the sandbox still exists and this is the desktop
@@ -148,6 +176,7 @@ the sandbox or catalog record can be removed.
 ## Developer verification
 
 The local release gate remains `npm run verify:ci` plus packaged smoke. Cloud
-adds `bun run build:cloud-runtime`, checksum/SBOM inspection, portable round-trip
-tests, workspace transfer tests, and paid opt-in E2B/Vercel lifecycle suites.
+adds `bun run build:cloud-runtime`, the network-disabled `bun run
+smoke:cloud-runtime`, checksum/SBOM inspection, supervision and portable
+round-trip tests, workspace transfer tests, and paid opt-in E2B/Vercel lifecycle suites.
 Never run paid live suites implicitly in CI.

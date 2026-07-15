@@ -9,6 +9,9 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const revision = readFileSync(join(root, "ENGINE_COMMIT"), "utf8").trim();
 if (!/^[0-9a-f]{40}$/i.test(revision)) throw new Error("ENGINE_COMMIT must contain a 40-character git commit");
+const prebuiltRuntimeDir = process.env.VIBE_CLOUD_RUNTIME_DIR?.trim()
+  ? resolve(process.env.VIBE_CLOUD_RUNTIME_DIR)
+  : undefined;
 
 const candidates = [
   process.env.VIBE_CODR_ROOT && resolve(process.env.VIBE_CODR_ROOT),
@@ -17,7 +20,7 @@ const candidates = [
   join(homedir(), "code", "vibe-codr"),
 ].filter(Boolean);
 const engineRoot = candidates.find((candidate) => existsSync(join(candidate, "package.json")));
-if (!engineRoot) throw new Error("vibe-codr checkout not found; set VIBE_CODR_ROOT before packaging");
+if (!prebuiltRuntimeDir && !engineRoot) throw new Error("vibe-codr checkout not found; set VIBE_CODR_ROOT or VIBE_CLOUD_RUNTIME_DIR before packaging");
 
 const CLOUD_RUNTIME_BUILD_INPUT_PATHS = [
   "bun.lock",
@@ -45,30 +48,32 @@ const CLOUD_RUNTIME_BUILD_INPUT_PATHS = [
   "packages/tools/src",
 ];
 
-const checkoutRevision = execFileSync("git", ["-C", engineRoot, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-if (checkoutRevision !== revision) {
-  throw new Error(`Refusing to stage cloud runtime ${checkoutRevision}; Electron locks ${revision}`);
-}
-const dirtyRuntime = execFileSync(
-  "git",
-  ["-C", engineRoot, "status", "--porcelain", "--untracked-files=all", "--", ...CLOUD_RUNTIME_BUILD_INPUT_PATHS],
-  { encoding: "utf8", maxBuffer: 4 * 1024 * 1024 },
-).trim();
-if (dirtyRuntime) {
-  throw new Error(
-    `Refusing to stage a runtime-dirty engine checkout at ${engineRoot}:\n${dirtyRuntime}\n` +
-    "Commit the engine changes, update ENGINE_COMMIT, and retry.",
-  );
-}
+if (!prebuiltRuntimeDir) {
+  const checkoutRevision = execFileSync("git", ["-C", engineRoot, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  if (checkoutRevision !== revision) {
+    throw new Error(`Refusing to stage cloud runtime ${checkoutRevision}; Electron locks ${revision}`);
+  }
+  const dirtyRuntime = execFileSync(
+    "git",
+    ["-C", engineRoot, "status", "--porcelain", "--untracked-files=all", "--", ...CLOUD_RUNTIME_BUILD_INPUT_PATHS],
+    { encoding: "utf8", maxBuffer: 4 * 1024 * 1024 },
+  ).trim();
+  if (dirtyRuntime) {
+    throw new Error(
+      `Refusing to stage a runtime-dirty engine checkout at ${engineRoot}:\n${dirtyRuntime}\n` +
+      "Commit the engine changes, update ENGINE_COMMIT, and retry.",
+    );
+  }
 
-execFileSync("bun", ["run", "build:cloud-runtime"], {
-  cwd: engineRoot,
-  env: { ...process.env, VIBE_ENGINE_COMMIT: revision },
-  stdio: "inherit",
-});
+  execFileSync("bun", ["run", "build:cloud-runtime"], {
+    cwd: engineRoot,
+    env: { ...process.env, VIBE_ENGINE_COMMIT: revision },
+    stdio: "inherit",
+  });
+}
 
 const name = `vibe-cloud-runtime-${revision.slice(0, 12)}.tar.gz`;
-const sourceDir = join(engineRoot, "dist", "cloud-runtime");
+const sourceDir = prebuiltRuntimeDir ?? join(engineRoot, "dist", "cloud-runtime");
 const archive = join(sourceDir, name);
 const checksum = `${archive}.sha256`;
 if (!existsSync(archive) || !existsSync(checksum)) throw new Error("Cloud runtime build did not produce its archive and checksum");
@@ -81,4 +86,4 @@ rmSync(destination, { recursive: true, force: true });
 mkdirSync(destination, { recursive: true });
 copyFileSync(archive, join(destination, name));
 copyFileSync(checksum, join(destination, `${name}.sha256`));
-console.log(`Staged revision-locked cloud runtime ${revision} → ${destination}`);
+console.log(`Staged revision-locked cloud runtime ${revision} from ${sourceDir} → ${destination}`);

@@ -1,5 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import type { CloudProviderId, CloudSessionCatalogEntry, CloudSettingsPublic } from "../../shared/cloud";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import type {
+  CloudFailureDetails,
+  CloudProviderId,
+  CloudSessionCatalogEntry,
+  CloudSettingsPublic,
+  CloudStatusEvent,
+} from "../../shared/cloud";
+import { CLOUD_STARTUP_STAGES, cloudHandoffActionLabel } from "../../shared/cloud-progress";
 
 export function CloudHandoffSheet({
   cwd,
@@ -9,6 +16,7 @@ export function CloudHandoffSheet({
   requestedTarget,
   requestedProvider,
   initialInstruction,
+  progress,
   onClose,
   onComplete,
   onWorkingChange,
@@ -20,6 +28,7 @@ export function CloudHandoffSheet({
   requestedTarget?: "cloud" | "local";
   requestedProvider?: CloudProviderId;
   initialInstruction?: string;
+  progress: CloudStatusEvent | null;
   onClose: () => void;
   onComplete: (message: string, cwd?: string) => void | Promise<void>;
   onWorkingChange?: (working: boolean) => void;
@@ -30,6 +39,8 @@ export function CloudHandoffSheet({
   const [keepCloudCopy, setKeepCloudCopy] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<CloudFailureDetails | null>(null);
+  const [now, setNow] = useState(Date.now());
   const dialogRef = useRef<HTMLElement>(null);
   const resumeLocal = requestedTarget === "local" || (requestedTarget === undefined && cloudSession !== null);
 
@@ -41,6 +52,12 @@ export function CloudHandoffSheet({
     onWorkingChange?.(working);
     return () => onWorkingChange?.(false);
   }, [onWorkingChange, working]);
+
+  useEffect(() => {
+    if (!working) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [working]);
 
   useEffect(() => {
     void window.vibe.cloudSettings().then((result) => {
@@ -55,26 +72,44 @@ export function CloudHandoffSheet({
   const go = async () => {
     setWorking(true);
     setError(null);
+    setFailure(null);
     if (resumeLocal) {
       if (!cloudSession) {
         setWorking(false);
         setError("This session is already running locally");
         return;
       }
-      const result = await window.vibe.resumeCloudSessionLocally(sessionId, keepCloudCopy);
-      setWorking(false);
-      if (!result.ok) { setError(result.error); return; }
-      await onComplete(
-        result.value.divergent ? "Cloud work resumed in a safe review worktree" : "Cloud work synced and resumed locally",
-        result.value.cwd,
-      );
+      try {
+        const result = await window.vibe.resumeCloudSessionLocally(sessionId, keepCloudCopy);
+        if (!result.ok) { setError(result.error); return; }
+        await onComplete(
+          result.value.divergent ? "Cloud work resumed in a safe review worktree" : "Cloud work synced and resumed locally",
+          result.value.cwd,
+        );
+      } catch (requestError) {
+        setError(requestError instanceof Error ? requestError.message : "Cloud return could not be started");
+      } finally {
+        setWorking(false);
+      }
       return;
     }
-    const result = await window.vibe.handoffToCloud({ cwd, provider, instruction: instruction.trim() || undefined });
-    setWorking(false);
-    if (!result.ok) { setError(result.error); return; }
-    await onComplete("Session is now running in Cloud");
+    try {
+      const result = await window.vibe.handoffToCloud({ cwd, provider, instruction: instruction.trim() || undefined });
+      if (!result.ok) {
+        setError(result.error);
+        setFailure(result.details ?? null);
+        return;
+      }
+      await onComplete("Session is now running in Cloud");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Cloud handoff could not be started");
+    } finally {
+      setWorking(false);
+    }
   };
+
+  const activeStageIndex = progress?.stage ? CLOUD_STARTUP_STAGES.findIndex((stage) => stage.id === progress.stage) : -1;
+  const elapsedSeconds = working && progress?.startedAt ? Math.max(0, Math.floor((now - progress.startedAt) / 1_000)) : 0;
 
   return (
     <div className="modal-overlay cloud-handoff-backdrop">
@@ -129,12 +164,42 @@ export function CloudHandoffSheet({
           {!settings?.experimentalEnabled && !resumeLocal && <p className="settings-save-error" role="alert">Enable experimental Cloud in Settings → Cloud first.</p>}
           {!configured && !resumeLocal && <p className="settings-save-error" role="alert">Connect and test {provider === "e2b" ? "E2B" : "Vercel"} in Settings → Cloud first.</p>}
           {error && <p className="settings-save-error" role="alert">{error}</p>}
+          {failure && (
+            <details className="cloud-failure-details">
+              <summary>Technical details</summary>
+              <pre>{`Stage: ${failure.stage}\nCode: ${failure.code}${failure.diagnostic ? `\n\n${failure.diagnostic}` : ""}`}</pre>
+            </details>
+          )}
+          {!resumeLocal && working && (
+            <section className="cloud-startup-progress" aria-label="Cloud handoff progress">
+              <div className="cloud-progress-heading" role="status" aria-live="polite" aria-atomic="true">
+                {working && <span className="spinner" aria-hidden />}
+                <div>
+                  <strong>{working ? progress?.message ?? "Starting cloud handoff…" : error ? "Cloud handoff stopped" : "Cloud handoff ready"}</strong>
+                  {working && <span>{elapsedSeconds}s elapsed</span>}
+                </div>
+              </div>
+              <div className="cloud-progress-track" aria-hidden>
+                <span style={{ "--cloud-progress": progress?.progress ?? 0.03 } as CSSProperties} />
+              </div>
+              <ol className="cloud-stage-list">
+                {CLOUD_STARTUP_STAGES.map((stage, index) => (
+                  <li key={stage.id} className={index < activeStageIndex ? "is-complete" : index === activeStageIndex ? "is-active" : undefined}>
+                    <span aria-hidden>{index < activeStageIndex ? "✓" : index === activeStageIndex ? "•" : ""}</span>
+                    {stage.label}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
         </div>
 
         <footer className="cloud-handoff-footer">
           <button type="button" className="button" disabled={working} onClick={onClose}>Cancel</button>
           <button type="button" className="button primary" disabled={working || (resumeLocal ? !cloudSession : (!settings?.experimentalEnabled || !configured))} onClick={() => void go()}>
-            {working ? (resumeLocal ? "Verifying and syncing…" : "Preparing handoff…") : resumeLocal ? "Verify and resume locally" : "Confirm and continue in Cloud"}
+            {resumeLocal
+              ? working ? "Verifying and syncing…" : "Verify and resume locally"
+              : cloudHandoffActionLabel(working, error, failure)}
           </button>
         </footer>
       </section>

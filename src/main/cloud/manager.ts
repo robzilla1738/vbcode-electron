@@ -4,10 +4,15 @@ import { dirname, join, resolve } from "node:path";
 import { app } from "electron";
 import { isCloudSessionRemoteOwned } from "../../shared/cloud";
 import type {
+  CloudCommandHandle,
+  CloudCommandResult,
+  CloudFailureDetails,
   CloudProviderId,
   CloudSessionCatalogEntry,
   CloudSessionStatus,
   CloudSettingsPublic,
+  CloudStartupStage,
+  CloudStatusEvent,
   ProviderCredentials,
   SandboxProvider,
 } from "../../shared/cloud";
@@ -16,7 +21,7 @@ import type { HandoffPreparation, PortableSessionArchiveV1 } from "../../shared/
 import type { EngineTransportController } from "../engine-transport-controller";
 import { CloudSessionCatalog } from "./catalog";
 import { CloudCredentialStore } from "./credential-store";
-import { E2BSandboxProvider, VercelSandboxProvider } from "./providers";
+import { E2BSandboxProvider, sanitizeCloudCommandOutput, VercelSandboxProvider } from "./providers";
 import {
   applyWorkspaceTransfer,
   assembleReturnTransfer,
@@ -27,8 +32,10 @@ import {
 } from "./workspace-transfer";
 
 const CLOUD_PORT = 8787;
-const MAX_READY_FILE_BYTES = 64 * 1024;
 const MAX_RETURN_SNAPSHOT_BYTES = 256 * 1024 * 1024;
+const PROVIDER_REQUEST_TIMEOUT_MS = 60_000;
+const SETUP_TIMEOUT_MS = 5 * 60_000;
+const AGENT_HEALTH_TIMEOUT_MS = 120_000;
 const DEFAULT_DOMAINS = [
   "registry.npmjs.org",
   "nodejs.org",
@@ -61,7 +68,7 @@ export class CloudManager {
   #idleWaiters = new Map<string, Set<() => void>>();
   #settingsMutationChain = Promise.resolve();
 
-  onStatus: ((event: { sessionId?: string; status: CloudSessionStatus; message: string; progress?: number }) => void) | null = null;
+  onStatus: ((event: CloudStatusEvent) => void) | null = null;
 
   constructor(private readonly transport: EngineTransportController, userData = app.getPath("userData")) {
     this.#catalog = new CloudSessionCatalog(join(userData, "cloud", "sessions.json"));
@@ -207,12 +214,8 @@ export class CloudManager {
     const revision = await engineRevision();
     const eventSequence = this.#engineEventSequence;
     const snapshot = await this.transport.local.rpc("snapshot") as EngineSnapshot;
-    await this.#waitForEngineIdle(snapshot, eventSequence);
-    const prior = await this.#catalog.get(snapshot.sessionId);
-    if (prior) {
-      const action = isCloudSessionRemoteOwned(prior.status) ? "reconnect or resume it locally" : "delete the retained cloud copy";
-      throw new Error(`This session already has a cloud record; ${action} before starting another handoff`);
-    }
+    const handoffStartedAt = Date.now();
+    this.#emit(snapshot.sessionId, "preparing", "Waiting for a safe engine boundary", 0.05, "waiting", handoffStartedAt);
     let preparation: HandoffPreparation | undefined;
     let sandboxId: string | undefined;
     let accessToken: string | undefined;
@@ -220,7 +223,12 @@ export class CloudManager {
     let ownershipCommitted = false;
     let commitAttempted = false;
     try {
-      this.#emit(snapshot.sessionId, "preparing", "Waiting for a safe engine boundary", 0.05);
+      await stageOperation("waiting", "setup-failed", () => this.#waitForEngineIdle(snapshot, eventSequence));
+      const prior = await this.#catalog.get(snapshot.sessionId);
+      if (prior) {
+        const action = isCloudSessionRemoteOwned(prior.status) ? "reconnect or resume it locally" : "delete the retained cloud copy";
+        throw new Error(`This session already has a cloud record; ${action} before starting another handoff`);
+      }
       await this.#catalog.put({
         sessionId: snapshot.sessionId,
         workspaceId: createHash("sha256").update(resolve(request.cwd)).digest("hex").slice(0, 24),
@@ -261,7 +269,7 @@ export class CloudManager {
       if (engine.sessionId !== snapshot.sessionId || resolve(engine.sourceRoot) !== resolve(request.cwd)) {
         throw new Error("The active engine session does not belong to the selected workspace");
       }
-      this.#emit(snapshot.sessionId, "transferring", "Building a verified workspace package", 0.18);
+      this.#emit(snapshot.sessionId, "transferring", "Building a verified workspace package", 0.14, "packaging", handoffStartedAt);
       const transfer = await createWorkspaceTransfer({
         cwd: request.cwd,
         sessionId: snapshot.sessionId,
@@ -275,49 +283,81 @@ export class CloudManager {
       const runtime = await findRuntimeArtifact(revision);
       const sandboxName = `vibe-${transfer.manifest.workspaceId}-${snapshot.sessionId.slice(-8)}`;
       await this.#catalog.patch(snapshot.sessionId, { sandboxName });
-      const sandbox = await provider.findByName(sandboxName) ?? await provider.create({
-        name: sandboxName,
-        workspaceId: transfer.manifest.workspaceId,
-        sessionId: snapshot.sessionId,
-        timeoutMs: settings.autoPauseMinutes * 60 * 1_000,
-        allowedDomains: [...new Set([...DEFAULT_DOMAINS, ...settings.allowedDomains])],
-      });
+      this.#emit(snapshot.sessionId, "transferring", `Creating ${request.provider === "e2b" ? "E2B" : "Vercel"} sandbox`, 0.26, "creating", handoffStartedAt);
+      const sandbox = await stageOperation("creating", "provider-unavailable", async () =>
+        await retryTransient("create sandbox", async (signal) => await provider.findByName(sandboxName) ?? await provider.create({
+          name: sandboxName,
+          workspaceId: transfer.manifest.workspaceId,
+          sessionId: snapshot.sessionId,
+          timeoutMs: settings.autoPauseMinutes * 60 * 1_000,
+          allowedDomains: [...new Set([...DEFAULT_DOMAINS, ...settings.allowedDomains])],
+          signal,
+        })),
+      );
       sandboxId = sandbox.id;
       await this.#catalog.patch(snapshot.sessionId, { sandboxId: sandbox.id, sandboxName: sandbox.name });
       const base = request.provider === "e2b" ? "/home/user/vibe" : "/vercel/sandbox/vibe";
-      this.#emit(snapshot.sessionId, "transferring", `Uploading to ${request.provider === "e2b" ? "E2B" : "Vercel"}`, 0.38);
-      await provider.upload(sandbox.id, `${base}/runtime.tar.gz`, runtime.data);
-      await provider.upload(sandbox.id, `${base}/handoff.json`, Buffer.from(JSON.stringify(transfer)));
+      this.#emit(snapshot.sessionId, "transferring", `Uploading verified runtime and workspace`, 0.36, "uploading", handoffStartedAt);
+      await stageOperation(
+        "uploading",
+        "provider-unavailable",
+        () => Promise.all([
+          retryTransient("upload runtime", (signal) => provider.upload(sandbox.id, `${base}/runtime.tar.gz`, runtime.data, signal)),
+          retryTransient("upload workspace", (signal) => provider.upload(sandbox.id, `${base}/handoff.json`, Buffer.from(JSON.stringify(transfer)), signal)),
+        ]).then(() => undefined),
+      );
       accessToken = randomBytes(36).toString("base64url");
       await this.#credentials.setSessionSecret(snapshot.sessionId, accessToken);
-      const script = [
-        `set -eu`,
-        `mkdir -p '${base}/runtime'`,
-        `tar -xzf '${base}/runtime.tar.gz' -C '${base}/runtime'`,
-        `cd '${base}/runtime'`,
-        `sh install-runtime.sh`,
-        `node vibe-cloud-bootstrap.mjs '${base}/handoff.json' '${base}/project' '${revision}'`,
-        `printf '%s' '{"ok":true}' > '${base}/ready.json'`,
-        `exec sh start.sh`,
-      ].join("\n");
-      this.#emit(snapshot.sessionId, "starting", "Starting the cloud engine", 0.58);
-      await provider.start(sandbox.id, "sh", ["-lc", script], {
+      this.#emit(snapshot.sessionId, "starting", "Verifying the cloud runtime", 0.48, "verifying", handoffStartedAt);
+      await runRequired(provider, sandbox.id, "sh", ["-lc", `set -eu; rm -rf '${base}/runtime'; mkdir -p '${base}/runtime'; tar -xzf '${base}/runtime.tar.gz' -C '${base}/runtime'; cd '${base}/runtime'; sh install-runtime.sh`], undefined, {
+        privileged: true,
+        timeoutMs: SETUP_TIMEOUT_MS,
+      }, "runtime-incompatible", "verifying");
+      this.#emit(snapshot.sessionId, "starting", "Restoring workspace and session state", 0.61, "restoring", handoffStartedAt);
+      await runRequired(provider, sandbox.id, `${base}/runtime/bin/node`, ["vibe-cloud-bootstrap.mjs", `${base}/handoff.json`, `${base}/project`, revision], undefined, {
+        privileged: true,
+        cwd: `${base}/runtime`,
+        timeoutMs: SETUP_TIMEOUT_MS,
+      }, "setup-failed", "restoring");
+      const daemonEnvironment = {
         ...await this.#boundEnvironment(settings),
         VIBE_CLOUD_ACCESS_TOKEN: accessToken,
         VIBE_CLOUD_PROVIDER: request.provider,
         VIBE_WORKSPACE_ROOT: `${base}/project`,
         VIBE_CLOUD_AGENT_PORT: String(CLOUD_PORT),
         VIBE_STATE_DIR: `${base}/state`,
-      }, { privileged: true });
-      await waitForRemoteFile(provider, sandbox.id, `${base}/ready.json`, 120_000, MAX_READY_FILE_BYTES);
-      const endpoint = await provider.domain(sandbox.id, CLOUD_PORT);
-      await waitForCloudAgent(endpoint.url, accessToken, endpoint.headers);
+      };
+      this.#emit(snapshot.sessionId, "starting", "Starting the cloud agent", 0.72, "starting-agent", handoffStartedAt);
+      const daemon = await stageOperation(
+        "starting-agent",
+        "provider-unavailable",
+        () => withAbortDeadline(
+          (signal) => provider.start(sandbox.id, "sh", ["start.sh"], daemonEnvironment, {
+            privileged: true,
+            cwd: `${base}/runtime`,
+            timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS,
+            signal,
+          }),
+          PROVIDER_REQUEST_TIMEOUT_MS,
+          "Cloud agent start request timed out",
+        ),
+      );
+      const endpoint = await stageOperation(
+        "checking-health",
+        "provider-unavailable",
+        () => withDeadline(provider.domain(sandbox.id, CLOUD_PORT), PROVIDER_REQUEST_TIMEOUT_MS, "Cloud endpoint request timed out"),
+      );
+      this.#emit(snapshot.sessionId, "starting", "Checking the authenticated cloud agent", 0.82, "checking-health", handoffStartedAt);
+      await superviseCloudAgent(daemon, endpoint.url, accessToken, endpoint.headers);
       const url = endpoint.url.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
-      this.#emit(snapshot.sessionId, "starting", "Restoring the same session in cloud", 0.78);
-      await this.transport.switchToRemote(
-        { url, accessToken, ...(endpoint.headers ? { headers: endpoint.headers } : {}) },
-        { cwd: `${base}/project`, resume: snapshot.sessionId },
-        { preserveLocal: true },
+      this.#emit(snapshot.sessionId, "starting", "Connecting this window to the cloud session", 0.91, "connecting", handoffStartedAt);
+      await awaitRemoteEngineReady(
+        daemon,
+        this.transport.switchToRemote(
+          { url, accessToken, ...(endpoint.headers ? { headers: endpoint.headers } : {}) },
+          { cwd: `${base}/project`, resume: snapshot.sessionId },
+          { preserveLocal: true },
+        ),
       );
       const entry: CloudSessionCatalogEntry = {
         sessionId: snapshot.sessionId,
@@ -359,9 +399,10 @@ export class CloudManager {
         this.transport.send({ type: "submit-prompt", text: request.instruction.trim() });
       }
       const running = await this.#catalog.patch(snapshot.sessionId, { status: "running", error: undefined, handoffTransition: undefined });
-      this.#emit(snapshot.sessionId, "running", "Cloud session is ready", 1);
+      this.#emit(snapshot.sessionId, "running", "Cloud session is ready", 1, "connecting", handoffStartedAt);
       return running;
     } catch (error) {
+      let reportedError: unknown = error;
       if (ownershipCommitted) {
         // The cloud side is authoritative now. Never destroy it or roll the
         // generation back because a late UI/catalog operation failed.
@@ -370,48 +411,64 @@ export class CloudManager {
           await this.#catalog.patch(snapshot.sessionId, { status: "recoverable-error", error: message(error) }).catch(() => undefined);
         }
       } else if (!commitAttempted) {
-        let preparationAborted = !preparation;
-        if (preparation) {
-          try {
-            await this.transport.local.rpc("abortHandoff", {
-              cwd: request.cwd,
-              sessionId: snapshot.sessionId,
-              nonce: preparation.nonce,
-            });
-            preparationAborted = true;
-          } catch {
+        const provisionalSandboxId = sandboxId;
+        const rollback = await rollbackProvisionalHandoff(
+          async () => {
+            if (!preparation) return true;
             try {
-              const recovery = await this.transport.abortInterruptedLocalHandoff(
-                request.cwd,
-                snapshot.sessionId,
-                { kind: "cloud", provider: request.provider },
-                preparation.ownershipGeneration,
-              );
-              preparationAborted = recovery.outcome === "aborted";
-            } catch { /* preserve both sides for startup recovery */ }
-          }
-        }
+              await this.transport.local.rpc("abortHandoff", {
+                cwd: request.cwd,
+                sessionId: snapshot.sessionId,
+                nonce: preparation.nonce,
+              });
+              return true;
+            } catch {
+              try {
+                const recovery = await this.transport.abortInterruptedLocalHandoff(
+                  request.cwd,
+                  snapshot.sessionId,
+                  { kind: "cloud", provider: request.provider },
+                  preparation.ownershipGeneration,
+                );
+                return recovery.outcome === "aborted";
+              } catch { return false; }
+            }
+          },
+          provisionalSandboxId ? () => provider.destroy(provisionalSandboxId) : undefined,
+        );
+        const preparationAborted = rollback.ownershipAborted;
         if (preparationAborted) {
           if (this.transport.isRemote) await this.transport.stop().catch(() => undefined);
-          let sandboxDestroyed = !sandboxId;
-          if (sandboxId) {
-            try { await provider.destroy(sandboxId); sandboxDestroyed = true; }
-            catch (cleanupError) {
-              if (catalogPersisted) {
-                await this.#catalog.patch(snapshot.sessionId, {
-                  status: "cleanup-pending",
-                  handoffTransition: undefined,
-                  error: `Provisional sandbox cleanup needs retry: ${message(cleanupError)}`,
-                }).catch(() => undefined);
-              }
+          if (rollback.cleanupError) {
+            const cleanupError = rollback.cleanupError;
+            const prior = cloudFailureDetails(error);
+            reportedError = new CloudOperationError(`Cloud handoff stopped, but provisional sandbox cleanup still needs attention: ${message(cleanupError)}`, {
+              code: "cleanup-pending",
+              stage: prior?.stage ?? "creating",
+              retryable: false,
+              diagnostic: message(cleanupError),
+            });
+            if (catalogPersisted) {
+              await this.#catalog.patch(snapshot.sessionId, {
+                status: "cleanup-pending",
+                handoffTransition: undefined,
+                error: `Provisional sandbox cleanup needs retry: ${message(cleanupError)}`,
+              }).catch(() => undefined);
             }
           }
-          if (sandboxDestroyed) {
+          if (rollback.sandboxDestroyed) {
             if (catalogPersisted) await this.#catalog.remove(snapshot.sessionId).catch(() => undefined);
             if (accessToken) await this.#credentials.removeSessionSecret(snapshot.sessionId).catch(() => undefined);
           }
         } else if (catalogPersisted) {
           this.#ownershipUnresolved = true;
+          const prior = cloudFailureDetails(error);
+          reportedError = new CloudOperationError("Cloud handoff stopped before local ownership rollback could be confirmed. Use Cloud recovery before trying again.", {
+            code: "cleanup-pending",
+            stage: prior?.stage ?? "waiting",
+            retryable: false,
+            diagnostic: message(error),
+          });
           await this.#catalog.patch(snapshot.sessionId, {
             status: "handoff-interrupted",
             error: `Local ownership preparation needs recovery: ${message(error)}`,
@@ -433,8 +490,16 @@ export class CloudManager {
         this.#ownershipUnresolved = unresolved?.handoffTransition !== undefined;
         if (!unresolved && this.transport.isRemote) await this.transport.stop().catch(() => undefined);
       }
-      this.#emit(snapshot.sessionId, "recoverable-error", message(error));
-      throw error;
+      const failure = cloudFailureDetails(reportedError);
+      this.#emit(
+        snapshot.sessionId,
+        "recoverable-error",
+        message(reportedError),
+        failure ? progressForStage(failure.stage) : undefined,
+        failure?.stage,
+        handoffStartedAt,
+      );
+      throw reportedError;
     }
   }
 
@@ -459,26 +524,26 @@ export class CloudManager {
       throw new Error(error);
     }
     const base = entry.provider === "e2b" ? "/home/user/vibe" : "/vercel/sandbox/vibe";
+    let daemon: CloudCommandHandle | undefined;
     if (sandbox.needsDaemonRestart) {
-      await provider.start(entry.sandboxId, "sh", ["-lc", `cd '${base}/runtime' && exec sh start.sh`], {
+      daemon = await provider.start(entry.sandboxId, "sh", ["start.sh"], {
         ...await this.#boundEnvironment(settings),
         VIBE_CLOUD_ACCESS_TOKEN: token,
         VIBE_CLOUD_PROVIDER: entry.provider,
         VIBE_WORKSPACE_ROOT: `${base}/project`,
         VIBE_CLOUD_AGENT_PORT: String(CLOUD_PORT),
         VIBE_STATE_DIR: `${base}/state`,
-      }, { privileged: true });
+      }, { privileged: true, cwd: `${base}/runtime`, timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS });
     }
     const endpoint = await provider.domain(entry.sandboxId, CLOUD_PORT);
-    if (sandbox.needsDaemonRestart) {
-      await waitForCloudAgent(endpoint.url, token, endpoint.headers);
-    }
+    if (daemon) await superviseCloudAgent(daemon, endpoint.url, token, endpoint.headers);
     const url = endpoint.url.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
-    const id = await this.transport.switchToRemote(
+    const reconnect = this.transport.switchToRemote(
       { url, accessToken: token, ...(endpoint.headers ? { headers: endpoint.headers } : {}) },
       { cwd: `${base}/project`, resume: sessionId },
       { preserveLocal: entry.handoffTransition?.direction === "cloud-to-local" },
     );
+    const id = daemon ? await awaitRemoteEngineReady(daemon, reconnect) : await reconnect;
     if (entry.handoffTransition?.direction === "cloud-to-local") {
       const recovered = await this.#recoverInterruptedReturn(entry, id);
       this.#ownershipUnresolved = false;
@@ -556,8 +621,11 @@ export class CloudManager {
       }
       const output = `${base}/return-${preparation.ownershipGeneration}.json`;
       this.#emit(sessionId, "syncing-back", "Packaging cloud workspace changes", 0.22);
-      await provider.start(entry.sandboxId, "sh", ["-lc", `cd '${base}/runtime' && node vibe-cloud-export.mjs '${base}/project' '${base}/handoff.json' '${output}'`]);
-      const data = await waitForRemoteFile(provider, entry.sandboxId, output, 120_000, MAX_RETURN_SNAPSHOT_BYTES);
+      await runRequired(provider, entry.sandboxId, `${base}/runtime/bin/node`, ["vibe-cloud-export.mjs", `${base}/project`, `${base}/handoff.json`, output], undefined, {
+        cwd: `${base}/runtime`,
+        timeoutMs: SETUP_TIMEOUT_MS,
+      }, "setup-failed", "packaging");
+      const data = await waitForRemoteFile(provider, entry.sandboxId, output, 120_000, MAX_RETURN_SNAPSHOT_BYTES, "cloud return package");
       const remote = JSON.parse(Buffer.from(data).toString("utf8")) as RemoteWorkspaceSnapshotV1;
       const transfer = assembleReturnTransfer({
         snapshot: remote,
@@ -1014,8 +1082,22 @@ export class CloudManager {
     return environment;
   }
 
-  #emit(sessionId: string, status: CloudSessionStatus, messageText: string, progress?: number): void {
-    this.onStatus?.({ sessionId, status, message: messageText, ...(progress === undefined ? {} : { progress }) });
+  #emit(
+    sessionId: string,
+    status: CloudSessionStatus,
+    messageText: string,
+    progress?: number,
+    stage?: CloudStartupStage,
+    startedAt?: number,
+  ): void {
+    this.onStatus?.({
+      sessionId,
+      status,
+      message: messageText,
+      ...(progress === undefined ? {} : { progress }),
+      ...(stage === undefined ? {} : { stage }),
+      ...(startedAt === undefined ? {} : { startedAt }),
+    });
   }
 
   async #readSettings(): Promise<CloudSettingsFileV1> {
@@ -1070,7 +1152,172 @@ export class CloudManager {
   }
 }
 
-async function waitForRemoteFile(provider: SandboxProvider, id: string, path: string, timeoutMs: number, maxBytes: number): Promise<Uint8Array> {
+export class CloudOperationError extends Error {
+  constructor(messageText: string, readonly details: CloudFailureDetails) {
+    super(messageText);
+    this.name = "CloudOperationError";
+  }
+}
+
+export function cloudFailureDetails(error: unknown): CloudFailureDetails | undefined {
+  return error instanceof CloudOperationError ? error.details : undefined;
+}
+
+export async function rollbackProvisionalHandoff(
+  abortOwnership: () => Promise<boolean>,
+  destroySandbox?: () => Promise<void>,
+): Promise<{ ownershipAborted: boolean; sandboxDestroyed: boolean; cleanupError?: unknown }> {
+  let ownershipAborted = false;
+  try { ownershipAborted = await abortOwnership(); }
+  catch { return { ownershipAborted: false, sandboxDestroyed: false }; }
+  if (!ownershipAborted) return { ownershipAborted: false, sandboxDestroyed: false };
+  if (!destroySandbox) return { ownershipAborted: true, sandboxDestroyed: true };
+  try {
+    await destroySandbox();
+    return { ownershipAborted: true, sandboxDestroyed: true };
+  } catch (cleanupError) {
+    return { ownershipAborted: true, sandboxDestroyed: false, cleanupError };
+  }
+}
+
+async function stageOperation<T>(
+  stage: CloudStartupStage,
+  code: CloudFailureDetails["code"],
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof CloudOperationError) throw error;
+    throw new CloudOperationError(`Cloud ${stageLabel(stage)} failed: ${message(error)}`, {
+      code,
+      stage,
+      retryable: true,
+      diagnostic: message(error),
+    });
+  }
+}
+
+export async function runRequired(
+  provider: SandboxProvider,
+  id: string,
+  command: string,
+  args: string[],
+  env: Record<string, string> | undefined,
+  options: Parameters<SandboxProvider["run"]>[4],
+  code: CloudFailureDetails["code"],
+  stage: CloudStartupStage,
+): Promise<CloudCommandResult> {
+  let result: CloudCommandResult;
+  try {
+    result = await provider.run(id, command, args, env, options);
+  } catch (error) {
+    throw new CloudOperationError(`Cloud ${stageLabel(stage)} failed: ${message(error)}`, {
+      code,
+      stage,
+      retryable: true,
+      diagnostic: message(error),
+    });
+  }
+  if (result.exitCode === 0) return result;
+  const diagnostic = commandDiagnostic(result);
+  throw new CloudOperationError(`Cloud ${stageLabel(stage)} failed${diagnostic ? `: ${lastMeaningfulLine(diagnostic)}` : ` with exit code ${result.exitCode}`}`, {
+    code,
+    stage,
+    retryable: true,
+    ...(diagnostic ? { diagnostic } : {}),
+  });
+}
+
+export async function superviseCloudAgent(
+  daemon: CloudCommandHandle,
+  endpoint: string,
+  accessToken: string,
+  providerHeaders: Record<string, string> = {},
+  healthTimeoutMs = AGENT_HEALTH_TIMEOUT_MS,
+): Promise<void> {
+  const healthController = new AbortController();
+  const exited = daemon.wait().then(
+    (result) => ({ kind: "exit" as const, result }),
+    (error) => ({ kind: "wait-error" as const, error }),
+  );
+  const healthy = waitForCloudAgent(endpoint, accessToken, providerHeaders, healthTimeoutMs, healthController.signal).then(
+    () => ({ kind: "healthy" as const }),
+    (error) => ({ kind: "health-error" as const, error }),
+  );
+  const outcome = await Promise.race([exited, healthy]);
+  if (outcome.kind === "healthy") return;
+  healthController.abort();
+  if (outcome.kind === "health-error") {
+    await daemon.kill().catch(() => undefined);
+    throw outcome.error;
+  }
+  if (outcome.kind === "wait-error") {
+    throw new CloudOperationError(`Cloud agent stopped before it became healthy: ${message(outcome.error)}`, {
+      code: "daemon-exited",
+      stage: "starting-agent",
+      retryable: true,
+      diagnostic: message(outcome.error),
+    });
+  }
+  const diagnostic = commandDiagnostic(outcome.result);
+  throw new CloudOperationError(`Cloud agent exited before it became healthy${diagnostic ? `: ${lastMeaningfulLine(diagnostic)}` : ` with exit code ${outcome.result.exitCode}`}`, {
+    code: "daemon-exited",
+    stage: "starting-agent",
+    retryable: true,
+    ...(diagnostic ? { diagnostic } : {}),
+  });
+}
+
+export async function awaitRemoteEngineReady<T>(daemon: CloudCommandHandle, remoteReady: Promise<T>): Promise<T> {
+  const outcome = await Promise.race([
+    remoteReady.then(
+      (value) => ({ kind: "ready" as const, value }),
+      (error) => ({ kind: "remote-error" as const, error }),
+    ),
+    daemon.wait().then(
+      (result) => ({ kind: "exit" as const, result }),
+      (error) => ({ kind: "wait-error" as const, error }),
+    ),
+  ]);
+  if (outcome.kind === "ready") {
+    try { await daemon.detach(); }
+    catch (error) {
+      throw new CloudOperationError(`Cloud agent connected, but startup supervision could not detach safely: ${message(error)}`, {
+        code: "provider-unavailable",
+        stage: "connecting",
+        retryable: true,
+        diagnostic: message(error),
+      });
+    }
+    return outcome.value;
+  }
+  if (outcome.kind === "remote-error") throw outcome.error;
+  if (outcome.kind === "wait-error") {
+    throw new CloudOperationError(`Cloud agent stopped during the engine connection: ${message(outcome.error)}`, {
+      code: "daemon-exited",
+      stage: "connecting",
+      retryable: true,
+      diagnostic: message(outcome.error),
+    });
+  }
+  const diagnostic = commandDiagnostic(outcome.result);
+  throw new CloudOperationError(`Cloud agent exited during the engine connection${diagnostic ? `: ${lastMeaningfulLine(diagnostic)}` : ` with exit code ${outcome.result.exitCode}`}`, {
+    code: "daemon-exited",
+    stage: "connecting",
+    retryable: true,
+    ...(diagnostic ? { diagnostic } : {}),
+  });
+}
+
+async function waitForRemoteFile(
+  provider: SandboxProvider,
+  id: string,
+  path: string,
+  timeoutMs: number,
+  maxBytes: number,
+  label: string,
+): Promise<Uint8Array> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -1084,27 +1331,132 @@ async function waitForRemoteFile(provider: SandboxProvider, id: string, path: st
       await new Promise((resolve) => setTimeout(resolve, 1_000));
     }
   }
-  throw new Error("Cloud runtime did not become ready in time");
+  throw new Error(`Timed out waiting for ${label}`);
 }
 
 async function waitForCloudAgent(
   endpoint: string,
   accessToken: string,
   providerHeaders: Record<string, string> = {},
+  timeoutMs = AGENT_HEALTH_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<void> {
   const health = new URL("/health", endpoint);
-  const deadline = Date.now() + 120_000;
+  const deadline = Date.now() + timeoutMs;
+  let lastDiagnostic = "The health endpoint did not respond";
   while (Date.now() < deadline) {
+    if (signal?.aborted) throw signal.reason;
     try {
       const response = await fetch(health, {
         headers: { ...providerHeaders, authorization: `Bearer ${accessToken}` },
-        signal: AbortSignal.timeout(5_000),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(5_000)]) : AbortSignal.timeout(5_000),
       });
       if (response.ok) return;
-    } catch { /* daemon is still cold-starting */ }
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+      lastDiagnostic = `Health endpoint returned HTTP ${response.status}`;
+    } catch (error) { lastDiagnostic = message(error); }
+    if (signal?.aborted) throw signal.reason;
+    const remaining = deadline - Date.now();
+    if (remaining > 0) await abortableDelay(Math.min(1_000, remaining), signal);
   }
-  throw new Error("Cloud agent did not restart after sandbox resume");
+  throw new CloudOperationError("Cloud agent did not become healthy in time", {
+    code: "health-timeout",
+    stage: "checking-health",
+    retryable: true,
+    diagnostic: lastDiagnostic,
+  });
+}
+
+function abortableDelay(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, delayMs));
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(done, delayMs);
+    const abort = () => { clearTimeout(timer); cleanup(); reject(signal.reason); };
+    function cleanup() { signal?.removeEventListener("abort", abort); }
+    function done() { cleanup(); resolve(); }
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
+export async function retryTransient<T>(
+  label: string,
+  operation: (signal: AbortSignal) => Promise<T>,
+  delays = [1_000, 2_000, 4_000],
+  timeoutMs = PROVIDER_REQUEST_TIMEOUT_MS,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+    try {
+      return await withAbortDeadline(operation, timeoutMs, `${label} timed out`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === delays.length || !isTransientCloudError(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    }
+  }
+  throw lastError;
+}
+
+function withAbortDeadline<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error(timeoutMessage)), timeoutMs);
+  timeout.unref?.();
+  return operation(controller.signal).finally(() => clearTimeout(timeout));
+}
+
+function withDeadline<T>(operation: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolvePromise, rejectPromise) => {
+    const timeout = setTimeout(() => rejectPromise(new Error(timeoutMessage)), timeoutMs);
+    timeout.unref?.();
+    operation.then(
+      (value) => { clearTimeout(timeout); resolvePromise(value); },
+      (error) => { clearTimeout(timeout); rejectPromise(error); },
+    );
+  });
+}
+
+function isTransientCloudError(error: unknown): boolean {
+  return /\b(?:429|5\d\d)\b|timed? ?out|econn|etimedout|temporar|unavailable|rate.?limit|socket|network/i.test(message(error));
+}
+
+function commandDiagnostic(result: CloudCommandResult): string {
+  return (result.stderr.trim() || result.stdout.trim()).slice(-64 * 1024);
+}
+
+function lastMeaningfulLine(value: string): string {
+  return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).at(-1)?.slice(0, 500) || "unknown error";
+}
+
+function stageLabel(stage: CloudStartupStage): string {
+  return ({
+    waiting: "engine-idle wait",
+    packaging: "workspace packaging",
+    creating: "sandbox creation",
+    uploading: "upload",
+    verifying: "runtime verification",
+    restoring: "workspace restore",
+    "starting-agent": "agent startup",
+    "checking-health": "health check",
+    connecting: "connection",
+  })[stage];
+}
+
+function progressForStage(stage: CloudStartupStage): number {
+  return ({
+    waiting: 0.05,
+    packaging: 0.14,
+    creating: 0.26,
+    uploading: 0.36,
+    verifying: 0.48,
+    restoring: 0.61,
+    "starting-agent": 0.72,
+    "checking-health": 0.82,
+    connecting: 0.91,
+  })[stage];
 }
 
 async function findRuntimeArtifact(revision: string): Promise<{ path: string; data: Buffer }> {
@@ -1138,4 +1490,6 @@ async function engineRevision(): Promise<string> {
   throw new Error("ENGINE_COMMIT is missing from the desktop package");
 }
 
-function message(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+function message(error: unknown): string {
+  return sanitizeCloudCommandOutput(error instanceof Error ? error.message : String(error));
+}

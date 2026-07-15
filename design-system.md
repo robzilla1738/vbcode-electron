@@ -339,6 +339,7 @@ Panels must remain predictable:
 | Changes review | `src/renderer/panels/ChangesView.tsx`, `DiffPreview.tsx` | Searchable nested file navigator, compact totals, persistent Diff/File review, navigation, copy, and Reveal |
 | Changed-files footer | `src/renderer/panels/TurnChangesCard.tsx` | Compact file summary beside Jump to latest; Review opens Changes |
 | Settings | `src/renderer/settings/SettingsPanel.tsx` | Full-workspace section navigation, engine-shape-validated saved config, mounted Instructions draft |
+| Cloud handoff | `src/renderer/panels/CloudHandoffSheet.tsx` | Blocking ownership-transition modal with ordered session-scoped progress, elapsed state, polite live announcements, sanitized expandable failure detail, and safe retry |
 | Git | `src/renderer/git/GitPanel.tsx` | Full Git content inside the shared right-side activity rail |
 | Icons | `src/renderer/icons.tsx`, `src/renderer/tool-glyph.tsx` | Lucide stroke wrappers with stable sizing and labels |
 
@@ -349,6 +350,9 @@ keep hit targets usable at narrow widths and 200% zoom. Catalogs and menus trap
 focus only while open, restore focus when dismissed, and expose empty/error
 states. The transcript is scrollable and keyboard reachable but is not a live
 region; narrow busy/idle status is the live status.
+Cloud handoff is also a polite atomic live region while provisioning. Its close
+and cancel controls are disabled only while ownership is changing, and failure
+alerts keep keyboard focus inside the still-open dialog for inspection or retry.
 
 The project rail becomes a start drawer at tablet widths. The activity sidebar becomes
 an end drawer at compact widths. Dock navigation switches to icon-only mode at

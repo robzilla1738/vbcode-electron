@@ -40,18 +40,21 @@ async function exercise(
     await expect(provider.findByName(sandbox.name)).resolves.toMatchObject({ id: sandbox.id });
     await provider.upload(sandbox.id, "/tmp/vibe-provider-input.txt", Buffer.from("cloud-provider-contract"));
     expect(Buffer.from(await provider.download(sandbox.id, "/tmp/vibe-provider-input.txt")).toString()).toBe("cloud-provider-contract");
-    await provider.start(sandbox.id, "sh", ["-lc", "printf resumed >/tmp/vibe-provider-output.txt"]);
-    await waitForFile(provider, sandbox.id, "/tmp/vibe-provider-output.txt");
-    await provider.start(sandbox.id, "sh", ["-lc", "id -u >/tmp/vibe-provider-control-uid.txt"], undefined, { privileged: true });
+    expect(await provider.run(sandbox.id, "sh", ["-lc", "printf resumed >/tmp/vibe-provider-output.txt"])).toMatchObject({ exitCode: 0 });
+    expect(Buffer.from(await waitForFile(provider, sandbox.id, "/tmp/vibe-provider-output.txt")).toString()).toBe("resumed");
+    expect(await provider.run(sandbox.id, "sh", ["-lc", "id -u >/tmp/vibe-provider-control-uid.txt"], undefined, { privileged: true })).toMatchObject({ exitCode: 0 });
     expect(Buffer.from(await waitForFile(provider, sandbox.id, "/tmp/vibe-provider-control-uid.txt")).toString().trim()).toBe("0");
-    await provider.start(sandbox.id, "node", ["-e", "fetch('https://registry.npmjs.org/ws').then(r=>{if(!r.ok)throw Error(String(r.status));require('fs').writeFileSync('/tmp/vibe-provider-egress.txt','allowed')}).catch(e=>{console.error(e);process.exit(1)})"]);
+    expect(await provider.run(sandbox.id, "node", ["-e", "fetch('https://registry.npmjs.org/ws').then(r=>{if(!r.ok)throw Error(String(r.status));require('fs').writeFileSync('/tmp/vibe-provider-egress.txt','allowed')}).catch(e=>{console.error(e);process.exit(1)})"])).toMatchObject({ exitCode: 0 });
     expect(Buffer.from(await waitForFile(provider, sandbox.id, "/tmp/vibe-provider-egress.txt")).toString()).toBe("allowed");
+    const daemon = await provider.start(sandbox.id, "sh", ["-lc", "trap 'exit 0' TERM INT; while :; do sleep 1; done"]);
+    await daemon.kill();
+    await expect(daemon.wait()).resolves.toMatchObject({ exitCode: expect.any(Number) });
     expect((await provider.domain(sandbox.id, 8787)).url).toMatch(/^https:\/\//);
     expect(await provider.get(sandbox.id)).not.toBeNull();
 
     await provider.suspend(sandbox.id);
     expect(await provider.resume(sandbox.id)).not.toBeNull();
-    await provider.start(sandbox.id, "sh", ["-lc", "printf again >/tmp/vibe-provider-resumed.txt"]);
+    expect(await provider.run(sandbox.id, "sh", ["-lc", "printf again >/tmp/vibe-provider-resumed.txt"])).toMatchObject({ exitCode: 0 });
     const resumed = await waitForFile(provider, sandbox.id, "/tmp/vibe-provider-resumed.txt");
     expect(Buffer.from(resumed).toString()).toBe("again");
   } finally {

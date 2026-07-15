@@ -47,15 +47,18 @@ describe("cloud release invariants", () => {
   it("restarts and health-checks the daemon after a Vercel cold resume", () => {
     expect(providers).toContain("needsDaemonRestart: true");
     expect(manager).toContain("if (sandbox.needsDaemonRestart)");
-    expect(manager).toContain("exec sh start.sh");
-    expect(manager).toContain("await waitForCloudAgent(endpoint.url, token, endpoint.headers)");
+    expect(manager).toContain('provider.start(entry.sandboxId, "sh", ["start.sh"]');
+    expect(manager).toContain("await superviseCloudAgent(daemon, endpoint.url, token, endpoint.headers)");
   });
 
   it("health-checks the daemon before the initial remote transport switch", () => {
-    const health = manager.indexOf("await waitForCloudAgent(endpoint.url, accessToken, endpoint.headers)");
-    const remoteSwitch = manager.indexOf("await this.transport.switchToRemote(", health);
+    const health = manager.indexOf("await superviseCloudAgent(daemon, endpoint.url, accessToken, endpoint.headers)");
+    const supervisedSwitch = manager.indexOf("await awaitRemoteEngineReady(", health);
+    const remoteSwitch = manager.indexOf("this.transport.switchToRemote(", supervisedSwitch);
     expect(health).toBeGreaterThan(-1);
-    expect(remoteSwitch).toBeGreaterThan(health);
+    expect(supervisedSwitch).toBeGreaterThan(health);
+    expect(remoteSwitch).toBeGreaterThan(supervisedSwitch);
+    expect(manager).not.toContain("ready.json");
   });
 
   it("uses non-resuming E2B APIs for inspection, rediscovery, and deletion", () => {
@@ -178,7 +181,7 @@ describe("cloud release invariants", () => {
   });
 
   it("isolates the cloud control plane from project workloads", () => {
-    expect(manager).toContain("{ privileged: true }");
+    expect(manager).toContain("privileged: true");
     expect(manager).toContain("VIBE_STATE_DIR:");
     expect(manager).toContain("base}/state");
     expect(providers).toContain('user: options?.privileged ? "root" : undefined');

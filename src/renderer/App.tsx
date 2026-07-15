@@ -41,9 +41,11 @@ import type {
   ProviderInfo,
   SkillInfo,
 } from "../shared/types";
-import { isCloudSessionRemoteOwned, latestRemoteOwnedCloudSession, type CloudProviderId, type CloudSessionCatalogEntry, type CloudSessionStatus, type PendingCapabilityRequest } from "../shared/cloud";
+import { isCloudSessionRemoteOwned, latestRemoteOwnedCloudSession, type CloudProviderId, type CloudSessionCatalogEntry, type CloudStatusEvent, type PendingCapabilityRequest } from "../shared/cloud";
+import { cloudStatusBelongsToSession } from "../shared/cloud-progress";
 import { isUIEvent } from "../shared/protocol";
 import { Composer, type ComposerMetric } from "./composer/Composer";
+import { BrandWordmark } from "./branding/BrandWordmark";
 import { RequestGate } from "./hooks/request-gate";
 import { useSession } from "./hooks/useSession";
 import { IconSidebar } from "./icons";
@@ -156,7 +158,7 @@ export function App() {
   const [cloudTransitioning, setCloudTransitioning] = useState(false);
   const [cloudRequest, setCloudRequest] = useState<{ target?: "cloud" | "local"; provider?: CloudProviderId; instruction?: string } | null>(null);
   const [cloudSessions, setCloudSessions] = useState<CloudSessionCatalogEntry[]>([]);
-  const [cloudProgress, setCloudProgress] = useState<{ status: CloudSessionStatus; message: string; progress?: number } | null>(null);
+  const [cloudProgress, setCloudProgress] = useState<CloudStatusEvent | null>(null);
   const [pendingLocalCapability, setPendingLocalCapability] = useState<PendingCapabilityRequest | null>(null);
   /** Bumped on N so PermissionCard can open deny-reason then confirm (card parity). */
   const [permDenyKick, setPermDenyKick] = useState(0);
@@ -208,7 +210,8 @@ export function App() {
   useEffect(() => {
     void refreshCloudSessions();
     return window.vibe.onCloudStatus((event) => {
-      setCloudProgress({ status: event.status, message: event.message, progress: event.progress });
+      if (!cloudStatusBelongsToSession(event, activeSessionIdRef.current)) return;
+      setCloudProgress(event);
       if (event.status === "running" || event.status === "needs-local" || event.status === "suspended" || event.status === "cleanup-pending" || event.status === "handoff-interrupted" || event.status === "lost" || event.status === "recoverable-error") void refreshCloudSessions();
     });
   }, [refreshCloudSessions]);
@@ -464,13 +467,17 @@ export function App() {
   }, [activeEndPanel, session]);
 
   // Preview harness: auto-open a panel when a `vibe-preview-open-panel` event
-  // is dispatched (used by `npm run ui:preview ?scenario=settings|git|changes`).
+  // is dispatched (used by `npm run ui:preview ?scenario=settings|git|changes|cloud-*`).
   useEffect(() => {
     const onOpenPanel = (event: Event) => {
       const detail = (event as CustomEvent<string>).detail;
       if (detail === "settings") openSettings();
       if (detail === "git") openGit();
       if (detail === "changes") openWorkspaceDock("changes");
+      if (detail === "cloud") {
+        setCloudRequest({ target: "cloud", provider: "e2b" });
+        setCloudSheetOpen(true);
+      }
     };
     window.addEventListener("vibe-preview-open-panel", onOpenPanel);
     return () => window.removeEventListener("vibe-preview-open-panel", onOpenPanel);
@@ -1955,9 +1962,7 @@ export function App() {
                 </button>
               )}
               {!projectRailOpen && (
-                <span className="topbar-brand" aria-hidden={false}>
-                  Vibe Codr
-                </span>
+                <BrandWordmark className="topbar-brand" />
               )}
               <h1 className="topbar-title" title={`${cwd}\n${activeSessionTitle}`}>
                 <span className="topbar-project">
@@ -2460,6 +2465,7 @@ export function App() {
           requestedTarget={cloudRequest?.target}
           requestedProvider={cloudRequest?.provider}
           initialInstruction={cloudRequest?.instruction}
+          progress={cloudProgress?.sessionId === chrome.sessionId ? cloudProgress : null}
           onWorkingChange={setCloudTransitioning}
           onClose={() => { setCloudSheetOpen(false); setCloudRequest(null); }}
           onComplete={async (message, resumedCwd) => {

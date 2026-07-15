@@ -1,4 +1,4 @@
-import { WORDMARK } from "../../shared/wordmark";
+import { BrandWordmark } from "../branding/BrandWordmark";
 
 export function Splash() {
   return (
@@ -8,7 +8,7 @@ export function Splash() {
           Vibe Codr
         </h1>
         <div className="splash-brand" aria-hidden>
-          <pre className="splash-wordmark">{WORDMARK.join("\n")}</pre>
+          <BrandWordmark className="splash-wordmark" />
         </div>
 
         <p className="splash-tagline">Ask Vibe Codr to plan, build, or review this project.</p>

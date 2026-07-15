@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { BrandWordmark } from "../branding/BrandWordmark";
 import type { ProjectSummary } from "../../shared/protocol";
 import { projectLabel, relativeSessionTime } from "../../shared/project-index";
 
@@ -78,7 +79,7 @@ export function WelcomeGate({
         <div className="content-inset gate-inset">
           <header className="topbar gate-topbar">
             <div className="topbar-leading">
-              <span className="gate-product-name">Vibe Codr</span>
+              <BrandWordmark className="gate-product-name" />
             </div>
           </header>
 
