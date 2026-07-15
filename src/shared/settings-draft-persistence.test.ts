@@ -29,7 +29,7 @@ describe("settings draft persistence contract", () => {
   );
 
   it("keeps config sections mounted across navigation", () => {
-    expect(panel).toContain('CONFIG_SECTIONS.filter(({ id }) => id !== "instructions").map');
+    expect(panel).toContain('SETTINGS_SECTIONS.filter(({ id }) => id !== "instructions").map');
     expect(panel).toContain("hidden={activeSection !== id}");
   });
 

@@ -1,8 +1,26 @@
 import type { EngineCommand } from "./commands";
 import type { UIEvent } from "./events";
+import type { ExecutionTarget } from "./cloud";
+import type { PortableSessionArchiveV1 } from "./handoff";
 
 // Re-export for exhaustiveness tests that compare against the type unions.
 export type { EngineCommand, UIEvent };
+
+export interface HostRpcParams {
+  cwd?: string;
+  id?: string;
+  name?: string;
+  title?: string;
+  sessionId?: string;
+  target?: ExecutionTarget;
+  expectedGeneration?: number;
+  ownershipGeneration?: number;
+  nonce?: string;
+  engineRevision?: string;
+  archive?: PortableSessionArchiveV1;
+  archivePath?: string;
+  provisional?: boolean;
+}
 
 /** Electron main → vibecodr-engine-host (mirrors macos-bridge protocol). */
 export type HostInbound =
@@ -33,13 +51,17 @@ export type HostInbound =
         | "deleteProject"
         | "renameSession"
         | "deleteSession"
-        | "archiveSession";
-      params?: {
-        cwd?: string;
-        id?: string;
-        name?: string;
-        title?: string;
-      };
+        | "archiveSession"
+        | "prepareHandoff"
+        | "exportPortableSession"
+        | "importPortableSession"
+        | "commitPortableImport"
+        | "abortPortableImport"
+        | "recoverLostCloudOwnership"
+        | "abortInterruptedHandoff"
+        | "commitHandoff"
+        | "abortHandoff";
+      params?: HostRpcParams;
     }
   | { op: "shutdown" };
 
@@ -73,6 +95,7 @@ export type RpcMethod = Extract<HostInbound, { op: "rpc" }>["method"];
 const RPC_METHODS = new Set<RpcMethod>([
   "snapshot", "listModels", "listProviders", "listAgents", "listSkills", "listMcp",
   "finalize", "listSessions", "listProjects", "renameProject", "archiveProject", "deleteProject", "renameSession", "deleteSession", "archiveSession",
+  "prepareHandoff", "exportPortableSession", "importPortableSession", "commitPortableImport", "abortPortableImport", "recoverLostCloudOwnership", "abortInterruptedHandoff", "commitHandoff", "abortHandoff",
 ]);
 
 /** Exhaustive map — TypeScript fails compile if a command type is missing. */
@@ -91,6 +114,8 @@ const ENGINE_COMMAND_TYPE_MAP = {
   dequeue: 1,
   steer: 1,
   compact: 1,
+  "request-runtime-handoff": 1,
+  "resolve-external-capability": 1,
   "resolve-permission": 1,
   "resolve-plan": 1,
   shutdown: 1,
@@ -133,6 +158,9 @@ const UI_EVENT_TYPE_MAP = {
   "verify-started": 1,
   "verify-finished": 1,
   compacted: 1,
+  "runtime-handoff-requested": 1,
+  "external-capability-pending": 1,
+  "external-capability-resolved": 1,
   "subagent-started": 1,
   "subagent-activity": 1,
   "subagent-finished": 1,
@@ -167,6 +195,7 @@ const SESSION_EVENT_TYPES = new Set<UIEvent["type"]>([
   "permission-settled", "tasks-updated", "orchestration-task", "file-changed", "compacted",
   "subagent-started", "subagent-activity", "subagent-finished", "turn-finished",
   "session-idle", "engine-idle",
+  "runtime-handoff-requested", "external-capability-pending", "external-capability-resolved",
 ]);
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -214,6 +243,24 @@ function nonNegativeNumber(value: unknown): boolean {
 
 function optionalNonNegativeNumber(value: unknown): boolean {
   return optionalNumber(value) && (value === undefined || nonNegativeNumber(value));
+}
+
+function optionalSafeNonNegativeInteger(value: unknown): boolean {
+  return value === undefined || (Number.isSafeInteger(value) && (value as number) >= 0);
+}
+
+function executionTarget(value: unknown): boolean {
+  const target = record(value);
+  return !!target && (target.kind === "local" || (target.kind === "cloud" && (target.provider === "e2b" || target.provider === "vercel")));
+}
+
+function portableArchive(value: unknown): boolean {
+  const archive = record(value);
+  return !!archive && archive.schemaVersion === 1 && isRuntimeIdentifier(archive.sessionId)
+    && typeof archive.sourceRoot === "string" && typeof archive.sourceStateRoot === "string"
+    && Number.isSafeInteger(archive.ownershipGeneration) && typeof archive.engineRevision === "string"
+    && executionTarget(archive.executionTarget) && Array.isArray(archive.files)
+    && typeof archive.archiveSha256 === "string";
 }
 
 function stringArray(value: unknown): boolean {
@@ -308,6 +355,9 @@ function engineCommand(value: unknown): value is EngineCommand {
     case "steer": return isRuntimeIdentifier(command.id);
     case "resolve-permission": return isRuntimeIdentifier(command.id) && ["once", "always", "always-project", "deny"].includes(String(command.decision)) && optionalString(command.feedback);
     case "resolve-plan": return ["accept", "edit", "keep-planning"].includes(String(command.decision)) && optionalString(command.edit) && (command.approvals === undefined || command.approvals === "auto");
+    case "request-runtime-handoff": return executionTarget(command.target) && optionalString(command.instruction);
+    case "resolve-external-capability": return isRuntimeIdentifier(command.id)
+      && (command.decision === "approve" || command.decision === "deny") && optionalString(command.error);
     default: return true;
   }
 }
@@ -367,6 +417,15 @@ export function isUIEvent(value: unknown): value is UIEvent {
     case "verify-started": return typeof event.command === "string";
     case "verify-finished": return typeof event.ok === "boolean" && typeof event.output === "string";
     case "compacted": return nonNegativeNumber(event.freedTokens);
+    case "runtime-handoff-requested": return executionTarget(event.target) && optionalString(event.instruction);
+    case "external-capability-pending": {
+      const request = record(event.request);
+      return !!request && isRuntimeIdentifier(request.id) && typeof request.integration === "string"
+        && typeof request.toolName === "string" && isRuntimeIdentifier(request.originatingTurn)
+        && nonNegativeNumber(request.createdAt);
+    }
+    case "external-capability-resolved": return isRuntimeIdentifier(event.id)
+      && (event.status === "denied" || event.status === "resolved");
     case "subagent-started": return isRuntimeIdentifier(event.subagentId) && typeof event.prompt === "string";
     case "subagent-activity": return isRuntimeIdentifier(event.subagentId) && typeof event.label === "string";
     case "subagent-finished": return isRuntimeIdentifier(event.subagentId) && typeof event.result === "string";
@@ -403,17 +462,30 @@ export function decodeInbound(line: string): HostInbound | null {
       (!optionalString(params.cwd) ||
         !optionalString(params.id) ||
         !optionalString(params.title) ||
-        !optionalString(params.name))
+        !optionalString(params.name) ||
+        !optionalString(params.sessionId) ||
+        !optionalString(params.nonce) ||
+        !optionalString(params.engineRevision) ||
+        !optionalString(params.archivePath) ||
+        !optionalBoolean(params.provisional) ||
+        !optionalSafeNonNegativeInteger(params.expectedGeneration) ||
+        !optionalSafeNonNegativeInteger(params.ownershipGeneration) ||
+        (params.target !== undefined && !executionTarget(params.target)) ||
+        (params.archive !== undefined && !portableArchive(params.archive)))
     ) {
       return null;
     }
     if (params) {
-      const allowed = new Set(["cwd", "id", "title", "name"]);
+      const allowed = new Set(["cwd", "id", "title", "name", "sessionId", "nonce", "engineRevision", "expectedGeneration", "ownershipGeneration", "target", "archive", "archivePath"]);
       if (Object.keys(params).some((key) => !allowed.has(key))) return null;
       if ((typeof params.cwd === "string" && (params.cwd.length > 32_768 || params.cwd.includes("\0")))
         || (typeof params.id === "string" && (params.id.length > 1_024 || params.id.includes("\0")))
         || (typeof params.title === "string" && params.title.length > 1_024)
-        || (typeof params.name === "string" && params.name.length > 1_024)) return null;
+        || (typeof params.name === "string" && params.name.length > 1_024)
+        || (typeof params.sessionId === "string" && (params.sessionId.length > 1_024 || params.sessionId.includes("\0")))
+        || (typeof params.nonce === "string" && params.nonce.length > 1_024)
+        || (typeof params.engineRevision === "string" && params.engineRevision.length > 256)
+        || (typeof params.archivePath === "string" && (params.archivePath.length > 32_768 || params.archivePath.includes("\0")))) return null;
     }
     return value as HostInbound;
   }

@@ -28,7 +28,18 @@ describe("RPC runtime guards", () => {
     expect(isEngineSnapshot({ ...snapshot, usage: { ...snapshot.usage, costEstimated: "yes" } })).toBe(false);
     expect(isEngineSnapshot({ ...snapshot, usage: { ...snapshot.usage, costUSD: -1 } })).toBe(false);
     expect(isEngineSnapshot({ ...snapshot, git: { branch: "main", dirty: -1, ahead: 0, behind: 0, worktree: false } })).toBe(false);
+    expect(isEngineSnapshot({
+      ...snapshot,
+      pendingCapabilities: [{
+        id: "cap_1", integration: "mac", toolName: "open", arguments: {},
+        approvalScope: "once", originatingTurn: "turn_1", status: "pending", createdAt: 1,
+      }],
+    })).toBe(true);
+    expect(isEngineSnapshot({ ...snapshot, pendingCapabilities: [{ id: 4 }] })).toBe(false);
     expect(isRpcResult("snapshot", snapshot)).toBe(true);
+    expect(isRpcResult("abortInterruptedHandoff", { outcome: "aborted", generation: 0 })).toBe(true);
+    expect(isRpcResult("abortInterruptedHandoff", { outcome: "already-committed", generation: 2 })).toBe(true);
+    expect(isRpcResult("abortInterruptedHandoff", 0)).toBe(false);
   });
 
   it("validates project and catalog result shapes", () => {

@@ -1,6 +1,13 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { EngineCommand } from "../shared/commands";
 import type {
+  CloudProviderId,
+  CloudSessionCatalogEntry,
+  CloudSessionStatus,
+  CloudSettingsPublic,
+  ProviderCredentials,
+} from "../shared/cloud";
+import type {
   ConfigReadResult,
   ConfigScope,
   ConfigWriteRequest,
@@ -67,6 +74,20 @@ export interface VibeApi {
   onReady(cb: (sessionId: string) => void): () => void;
   onFatal(cb: (message: string) => void): () => void;
   onMenuAction(cb: (action: MenuAction) => void): () => void;
+  cloudSettings(): Promise<{ ok: true; value: CloudSettingsPublic } | { ok: false; error: string }>;
+  updateCloudSettings(patch: Partial<CloudSettingsPublic>): Promise<{ ok: true; value: CloudSettingsPublic } | { ok: false; error: string }>;
+  connectCloudProvider<P extends CloudProviderId>(provider: P, credentials: NonNullable<ProviderCredentials[P]>): Promise<{ ok: true; value: CloudSettingsPublic } | { ok: false; error: string }>;
+  disconnectCloudProvider(provider: CloudProviderId): Promise<{ ok: true; value: CloudSettingsPublic } | { ok: false; error: string }>;
+  testCloudProvider(provider: CloudProviderId): Promise<{ ok: true; value: { ok: boolean; error?: string } } | { ok: false; error: string }>;
+  saveCloudCredentialBinding(input: { id?: string; label: string; kind: "environment"; value: string }): Promise<{ ok: true; value: CloudSettingsPublic } | { ok: false; error: string }>;
+  removeCloudCredentialBinding(id: string): Promise<{ ok: true; value: CloudSettingsPublic } | { ok: false; error: string }>;
+  listCloudSessions(): Promise<{ ok: true; value: CloudSessionCatalogEntry[] } | { ok: false; error: string }>;
+  deleteCloudSessionCopy(sessionId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  recoverLostCloudSession(sessionId: string): Promise<{ ok: true; value: { sessionId: string; cwd: string } } | { ok: false; error: string }>;
+  handoffToCloud(request: { cwd: string; provider: CloudProviderId; instruction?: string }): Promise<{ ok: true; value: CloudSessionCatalogEntry } | { ok: false; error: string }>;
+  reconnectCloudSession(sessionId: string): Promise<{ ok: true; sessionId: string } | { ok: false; error: string }>;
+  resumeCloudSessionLocally(sessionId: string, keepCloudCopy?: boolean): Promise<{ ok: true; value: { sessionId: string; cwd: string; divergent: boolean; recoveryPath?: string } } | { ok: false; error: string }>;
+  onCloudStatus(cb: (event: { sessionId?: string; status: CloudSessionStatus; message: string; progress?: number }) => void): () => void;
   /** Synchronize unsaved Settings/Instructions state for native close/quit guards. */
   setSettingsDirty(dirty: boolean): void;
   openProject(): Promise<string | null>;
@@ -163,6 +184,24 @@ const api: VibeApi = {
     };
     ipcRenderer.on("menu:action", handler);
     return () => ipcRenderer.removeListener("menu:action", handler);
+  },
+  cloudSettings: () => ipcRenderer.invoke("cloud:settings"),
+  updateCloudSettings: (patch) => ipcRenderer.invoke("cloud:updateSettings", patch),
+  connectCloudProvider: (provider, credentials) => ipcRenderer.invoke("cloud:connect", provider, credentials),
+  disconnectCloudProvider: (provider) => ipcRenderer.invoke("cloud:disconnect", provider),
+  testCloudProvider: (provider) => ipcRenderer.invoke("cloud:test", provider),
+  saveCloudCredentialBinding: (input) => ipcRenderer.invoke("cloud:saveBinding", input),
+  removeCloudCredentialBinding: (id) => ipcRenderer.invoke("cloud:removeBinding", id),
+  listCloudSessions: () => ipcRenderer.invoke("cloud:listSessions"),
+  deleteCloudSessionCopy: (sessionId) => ipcRenderer.invoke("cloud:deleteCopy", sessionId),
+  recoverLostCloudSession: (sessionId) => ipcRenderer.invoke("cloud:recoverLost", sessionId),
+  handoffToCloud: (request) => ipcRenderer.invoke("cloud:handoff", request),
+  reconnectCloudSession: (sessionId) => ipcRenderer.invoke("cloud:reconnect", sessionId),
+  resumeCloudSessionLocally: (sessionId, keepCloudCopy) => ipcRenderer.invoke("cloud:resumeLocal", sessionId, keepCloudCopy),
+  onCloudStatus: (cb) => {
+    const handler = (_: Electron.IpcRendererEvent, status: Parameters<typeof cb>[0]) => cb(status);
+    ipcRenderer.on("cloud:status", handler);
+    return () => ipcRenderer.removeListener("cloud:status", handler);
   },
   setSettingsDirty: (dirty) => ipcRenderer.send("settings:dirty", dirty),
   openProject: () => ipcRenderer.invoke("dialog:openProject"),

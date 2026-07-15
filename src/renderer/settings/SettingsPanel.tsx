@@ -21,6 +21,7 @@ import { AppearanceSection } from "./sections/AppearanceSection";
 import { BehaviorSection } from "./sections/BehaviorSection";
 import { BudgetSection } from "./sections/BudgetSection";
 import { BuildSection } from "./sections/BuildSection";
+import { CloudSection } from "./sections/CloudSection";
 import { CompactionSection } from "./sections/CompactionSection";
 import { HooksSection } from "./sections/HooksSection";
 import { InstructionsSection } from "./sections/InstructionsSection";
@@ -34,10 +35,13 @@ import { SubagentsSection } from "./sections/SubagentsSection";
 
 export type SectionId = (typeof CONFIG_SECTIONS)[number]["id"];
 
+const CLOUD_SECTION = { id: "cloud", label: "Cloud", description: "E2B, Vercel, credentials, lifecycle, transfer policy" } as const;
+const SETTINGS_SECTIONS = [...CONFIG_SECTIONS, CLOUD_SECTION] as const;
+
 const SETTINGS_GROUPS: ReadonlyArray<{ label: string; ids: readonly SectionId[] }> = [
   { label: "Core", ids: ["models", "providers", "mcp", "permissions"] },
   { label: "Agent", ids: ["appearance", "behavior", "subagents", "build"] },
-  { label: "Runtime", ids: ["memory", "search", "compaction", "budget", "hooks"] },
+  { label: "Runtime", ids: ["cloud", "memory", "search", "compaction", "budget", "hooks"] },
   { label: "Project", ids: ["instructions", "advanced"] },
 ];
 
@@ -81,14 +85,14 @@ function SettingsSidebar({
 }) {
   const [query, setQuery] = useState("");
   const normalizedQuery = query.trim().toLowerCase();
-  const sectionsById = useMemo(() => new Map(CONFIG_SECTIONS.map((section) => [section.id, section])), []);
+  const sectionsById = useMemo(() => new Map(SETTINGS_SECTIONS.map((section) => [section.id, section])), []);
   const visibleGroups = useMemo(
     () => SETTINGS_GROUPS
       .map((group) => ({
         ...group,
         sections: group.ids
           .map((id) => sectionsById.get(id))
-          .filter((section): section is (typeof CONFIG_SECTIONS)[number] => Boolean(section))
+          .filter((section): section is (typeof SETTINGS_SECTIONS)[number] => Boolean(section))
           .filter((section) => !normalizedQuery || `${section.label} ${section.description}`.toLowerCase().includes(normalizedQuery)),
       }))
       .filter((group) => group.sections.length > 0),
@@ -165,6 +169,7 @@ function SettingsFormArea({
   cwd,
   onClose,
   showToast,
+  onCloudSessionRecovered,
   onBindClose,
   onBindDirty,
 }: {
@@ -174,6 +179,7 @@ function SettingsFormArea({
   cwd: string | null;
   onClose: () => void;
   showToast: (message: string, severity?: "info" | "warn" | "error") => void;
+  onCloudSessionRecovered?: (sessionId: string, cwd: string) => void | Promise<void>;
   /** Lets the shell (sidebar / topbar) run the same dirty-aware close path. */
   onBindClose?: (requestClose: () => void) => void;
   /** Lets the shell guard Global↔Project scope switches while dirty. */
@@ -190,6 +196,9 @@ function SettingsFormArea({
   /** Instructions section dirty (kept mounted while settings is open). */
   const instructionsDirtyRef = useRef<() => boolean>(() => false);
   const [instructionsDirty, setInstructionsDirty] = useState(false);
+  const cloudDirtyRef = useRef(false);
+  const [cloudDirty, setCloudDirty] = useState(false);
+  cloudDirtyRef.current = cloudDirty;
   const invalidDraftsRef = useRef<Set<string>>(new Set());
   const [invalidDrafts, setInvalidDrafts] = useState<Set<string>>(() => new Set());
   const [draftResetVersion, setDraftResetVersion] = useState(0);
@@ -198,10 +207,10 @@ function SettingsFormArea({
   const discardAcceptedRef = useRef(false);
 
   const shellIsDirty = useCallback(
-    () => dirtyRef.current || instructionsDirtyRef.current() || invalidDraftsRef.current.size > 0,
+    () => dirtyRef.current || instructionsDirtyRef.current() || cloudDirtyRef.current || invalidDraftsRef.current.size > 0,
     [],
   );
-  const combinedDirty = state.dirty || instructionsDirty || invalidDrafts.size > 0;
+  const combinedDirty = state.dirty || instructionsDirty || cloudDirty || invalidDrafts.size > 0;
 
   useEffect(() => {
     window.vibe.setSettingsDirty(combinedDirty);
@@ -408,11 +417,12 @@ function SettingsFormArea({
       case "hooks": return <HooksSection {...sectionProps} />;
       case "advanced": return <AdvancedSection {...sectionProps} />;
       case "instructions": return null;
+      case "cloud": return <CloudSection showToast={showToast} onSessionRecovered={onCloudSessionRecovered} onDirtyChange={setCloudDirty} />;
       default: return null;
     }
   };
 
-  const activeMeta = CONFIG_SECTIONS.find((s) => s.id === activeSection);
+  const activeMeta = SETTINGS_SECTIONS.find((s) => s.id === activeSection);
 
   return (
     <div className="main-column settings-main" id="main-content">
@@ -449,7 +459,7 @@ function SettingsFormArea({
                 onDirtyChange={setInstructionsDirty}
               />
             </div>
-            {CONFIG_SECTIONS.filter(({ id }) => id !== "instructions").map(({ id }) => (
+            {SETTINGS_SECTIONS.filter(({ id }) => id !== "instructions").map(({ id }) => (
               <div key={id} hidden={activeSection !== id} aria-hidden={activeSection !== id}>
                 {renderConfigSection(id)}
               </div>
@@ -459,7 +469,7 @@ function SettingsFormArea({
         )}
       </div>
 
-      {!state.loading && !state.error && activeSection !== "instructions" && (
+      {!state.loading && !state.error && activeSection !== "instructions" && activeSection !== "cloud" && (
         <div className="settings-save-bar">
           <div className="settings-save-status">
             {invalidDrafts.size > 0
@@ -487,12 +497,14 @@ export function SettingsView({
   cwd,
   onClose,
   showToast,
+  onCloudSessionRecovered,
   onBindDirty,
 }: {
   active: boolean;
   cwd: string | null;
   onClose: () => void;
   showToast: (message: string, severity?: "info" | "warn" | "error") => void;
+  onCloudSessionRecovered?: (sessionId: string, cwd: string) => void | Promise<void>;
   /** Lets the shell confirm before unmounting settings (⌘,, git, inspector, slash). */
   onBindDirty?: (isDirty: () => boolean) => void;
 }) {
@@ -521,13 +533,14 @@ export function SettingsView({
   }, []);
 
   const trySetScope = useCallback((next: ConfigScope) => {
+    if (activeSection === "cloud") return;
     if (next === scope) return;
     if (isDirtyRef.current()) {
       const ok = window.confirm("Discard unsaved settings changes?");
       if (!ok) return;
     }
     setScope(next);
-  }, [scope]);
+  }, [activeSection, scope]);
 
   // Note: project/cwd switches are gated in App via onBindDirty so resume/open
   // never unmounts dirty settings silently.
@@ -548,7 +561,7 @@ export function SettingsView({
             <h1 className="topbar-title">
               <span className="topbar-project">Settings</span>
               <span className="topbar-separator" aria-hidden>/</span>
-              <span className="topbar-session">{scope === "global" ? "Global" : "Project"}</span>
+              <span className="topbar-session">{activeSection === "cloud" ? "This Mac" : scope === "global" ? "Global" : "Project"}</span>
             </h1>
           </div>
           <div className="topbar-actions no-drag">
@@ -564,6 +577,7 @@ export function SettingsView({
           cwd={cwd}
           onClose={onClose}
           showToast={showToast}
+          onCloudSessionRecovered={onCloudSessionRecovered}
           onBindClose={bindClose}
           onBindDirty={bindDirty}
         />

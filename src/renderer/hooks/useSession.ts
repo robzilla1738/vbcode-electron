@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { shouldClearBusyOnSendFailure } from "../../shared/busy-on-send-failure";
+import type { PendingCapabilityRequest } from "../../shared/cloud";
 import type { EngineCommand } from "../../shared/commands";
 import type { UIEvent } from "../../shared/events";
 import { GLYPH } from "../../shared/glyphs";
@@ -122,6 +123,7 @@ export function useSession(cwd: string | null) {
   const [bootError, setBootError] = useState<string | null>(null);
   const [booting, setBooting] = useState(false);
   const [ready, setReady] = useState(false);
+  const [pendingCapabilities, setPendingCapabilities] = useState<PendingCapabilityRequest[]>([]);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const deltaBuf = useRef("");
   const progressBuf = useRef<Map<string, string>>(new Map());
@@ -479,6 +481,15 @@ export function useSession(cwd: string | null) {
             });
           }
           break;
+        case "external-capability-pending":
+          setPendingCapabilities((current) => [
+            ...current.filter((request) => request.id !== event.request.id),
+            event.request,
+          ]);
+          break;
+        case "external-capability-resolved":
+          setPendingCapabilities((current) => current.filter((request) => request.id !== event.id));
+          break;
         case "subagent-finished":
           // Retain the bounded stream for Inspector drill-in after completion.
           // It is cleared when the session changes or /clear|/new resets locally.
@@ -558,6 +569,7 @@ export function useSession(cwd: string | null) {
       flushTimer.current = null;
     }
     dispatchTranscript({ type: "reset" });
+    setPendingCapabilities([]);
     dispatchChrome({ type: "clear-session-overlays" });
     setFoldedTurns(new Set());
     setRevealTurns(0);
@@ -648,6 +660,7 @@ export function useSession(cwd: string | null) {
       const snap: EngineSnapshot = snapRes.value;
       activeSessionId.current = snap.sessionId;
       lastSnap.current = snap;
+      setPendingCapabilities(snap.pendingCapabilities ?? []);
       // Commit the new session atomically after bootstrap + snapshot succeed.
       // Until this point the previous transcript remains visible behind the
       // compact boot status, so switching chats feels continuous.
@@ -703,6 +716,70 @@ export function useSession(cwd: string | null) {
     },
     [handleEvent],
   );
+
+  /** Hydrate the renderer from an already-running transport (cloud reconnect).
+   * Unlike bootstrap this never starts or replaces the engine owner. */
+  const attachCurrent = useCallback(async (attachCwd: string): Promise<boolean> => {
+    const request = bootstrapGate.current.begin();
+    bootstrapHandoff.current = true;
+    bootstrapEvents.current = [];
+    bootstrapEventBytes.current = 0;
+    bootstrapEventsTruncated.current = false;
+    setBooting(true);
+    setBootError(null);
+    try {
+      const response = await window.vibe.rpc("snapshot");
+      if (!bootstrapGate.current.isCurrent(request)) return false;
+      if (!response.ok) throw new Error(response.error);
+      if (!isEngineSnapshot(response.value)) throw new Error("Engine snapshot failed validation");
+      const snap = response.value;
+      lastSnap.current = snap;
+      activeSessionId.current = snap.sessionId;
+      setPendingCapabilities(snap.pendingCapabilities ?? []);
+      dispatchChrome({ type: "reset", cwd: attachCwd });
+      dispatchTranscript({ type: "reset" });
+      dispatchChrome({ type: "seed", snap, cwd: attachCwd });
+      if (snap.history?.length) {
+        const hydrated = hydrateFromHistory(snap.history);
+        const cached = await loadTranscriptCache(attachCwd, snap.sessionId);
+        if (!bootstrapGate.current.isCurrent(request)) return false;
+        dispatchTranscript({
+          type: "replace",
+          state: cached && transcriptConversationSignature(cached) === transcriptConversationSignature(hydrated) ? cached : hydrated,
+        });
+      }
+      const queuedEvents = bootstrapEvents.current.filter(
+        ({ event }) => "sessionId" in event && event.sessionId === snap.sessionId,
+      ).map(({ event }) => event);
+      const eventsTruncated = bootstrapEventsTruncated.current;
+      bootstrapEvents.current = [];
+      bootstrapEventBytes.current = 0;
+      bootstrapEventsTruncated.current = false;
+      bootstrapHandoff.current = false;
+      for (const event of queuedEvents) handleEvent(event);
+      if (eventsTruncated) {
+        dispatchTranscript({
+          type: "notice",
+          text: "Some live output during cloud reconnection was omitted to keep memory bounded.",
+          level: "warn",
+        });
+      }
+      try { localStorage.setItem("vibe.lastCwd", attachCwd); } catch { /* optional */ }
+      setReady(true);
+      setBooting(false);
+      return true;
+    } catch (error) {
+      if (!bootstrapGate.current.isCurrent(request)) return false;
+      bootstrapHandoff.current = false;
+      bootstrapEvents.current = [];
+      bootstrapEventBytes.current = 0;
+      bootstrapEventsTruncated.current = false;
+      setBootError(error instanceof Error ? error.message : String(error));
+      setReady(false);
+      setBooting(false);
+      return false;
+    }
+  }, [handleEvent]);
 
   useEffect(() => {
     const offEvent = window.vibe.onEvent(handleEvent);
@@ -900,6 +977,7 @@ export function useSession(cwd: string | null) {
     () => ({
       chrome,
       transcript,
+      pendingCapabilities,
       dispatchTranscript,
       foldedTurns,
       setFoldedTurns,
@@ -925,6 +1003,7 @@ export function useSession(cwd: string | null) {
       send,
       sendMany,
       bootstrap,
+      attachCurrent,
       cycleMode,
       selectMode,
       dispatchChrome,
@@ -937,6 +1016,7 @@ export function useSession(cwd: string | null) {
     [
       chrome,
       transcript,
+      pendingCapabilities,
       foldedTurns,
       foldAllTurns,
       revealEarlier,
@@ -956,6 +1036,7 @@ export function useSession(cwd: string | null) {
       send,
       sendMany,
       bootstrap,
+      attachCurrent,
       cycleMode,
       selectMode,
       clearSessionLocal,

@@ -1,4 +1,5 @@
 import type { GitInfo, GoalRunInfo, JobInfo, Mode, QueuedItem, SessionUsage, Task, Usage } from "./types";
+import type { ExecutionTarget, PendingCapabilityRequest } from "./cloud";
 
 /**
  * Events emitted by the engine and consumed by any UI (TUI, headless printer).
@@ -155,6 +156,9 @@ export type UIEvent =
   | { type: "verify-started"; command: string }
   | { type: "verify-finished"; ok: boolean; output: string }
   | { type: "compacted"; sessionId: string; freedTokens: number }
+  | { type: "runtime-handoff-requested"; sessionId: string; target: ExecutionTarget; instruction?: string }
+  | { type: "external-capability-pending"; sessionId: string; request: PendingCapabilityRequest }
+  | { type: "external-capability-resolved"; sessionId: string; id: string; status: "denied" | "resolved" }
   | { type: "subagent-started"; sessionId: string; subagentId: string; prompt: string }
   /** Live one-line activity from a RUNNING subagent (its bus is otherwise
    * isolated): "$ bun test", "edit src/app.js", … — so a minutes-long fan-out

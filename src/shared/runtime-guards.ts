@@ -137,8 +137,21 @@ export function isEngineSnapshot(value: unknown): value is EngineSnapshot {
     && (snap.subagentModel === undefined || typeof snap.subagentModel === "string")
     && (snap.reasoning === undefined || typeof snap.reasoning === "string")
     && (snap.git === undefined || gitInfo(snap.git))
+    && (snap.pendingCapabilities === undefined || (Array.isArray(snap.pendingCapabilities) && snap.pendingCapabilities.every(pendingCapability)))
     && (snap.goalRun === undefined || goalRun(snap.goalRun))
     && Array.isArray(snap.commandNames) && snap.commandNames.every((item) => typeof item === "string");
+}
+
+function pendingCapability(value: unknown): boolean {
+  const item = record(value);
+  return !!item
+    && isRuntimeIdentifier(item.id)
+    && boundedString(item.integration)
+    && boundedString(item.toolName)
+    && isRuntimeIdentifier(item.originatingTurn)
+    && (item.approvalScope === "once" || item.approvalScope === "session" || item.approvalScope === "integration")
+    && (item.status === "pending" || item.status === "approved" || item.status === "denied" || item.status === "resolved")
+    && nonNegative(item.createdAt);
 }
 
 export function isProjectSummaryArray(value: unknown): value is ProjectSummary[] {
@@ -176,6 +189,33 @@ export function isRpcResult(method: RpcMethod, value: unknown): boolean {
     case "deleteSession":
     case "archiveSession": return isRuntimeIdentifier(record(value)?.id);
     case "finalize": return value === null;
+    case "prepareHandoff": {
+      const item = record(value);
+      return !!item && isRuntimeIdentifier(item.sessionId)
+        && Number.isSafeInteger(item.ownershipGeneration)
+        && Number.isSafeInteger(item.previousGeneration)
+        && isRuntimeIdentifier(item.nonce)
+        && finite(item.preparedAt);
+    }
+    case "exportPortableSession": {
+      const item = record(value);
+      return !!item && item.schemaVersion === 1 && isRuntimeIdentifier(item.sessionId)
+        && Number.isSafeInteger(item.ownershipGeneration) && typeof item.engineRevision === "string"
+        && Array.isArray(item.files) && typeof item.archiveSha256 === "string";
+    }
+    case "importPortableSession": return isRuntimeIdentifier(record(value)?.sessionId);
+    case "commitPortableImport":
+    case "abortPortableImport":
+    case "commitHandoff":
+    case "abortHandoff": return value === null;
+    case "recoverLostCloudOwnership": return Number.isSafeInteger(value) && (value as number) >= 1;
+    case "abortInterruptedHandoff": {
+      const result = record(value);
+      return !!result
+        && (result.outcome === "aborted" || result.outcome === "already-committed")
+        && Number.isSafeInteger(result.generation)
+        && (result.generation as number) >= 0;
+    }
   }
 }
 

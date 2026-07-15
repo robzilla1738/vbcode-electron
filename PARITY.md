@@ -6,6 +6,16 @@ Manual smoke against OpenTUI / `vibecodr` in the **same project cwd**. Automated
 `npm run verify:config-shape` (40 top-level engine fields), and CI
 coverage/bridge/packaged-host gates.
 
+## Experimental Local ↔ Cloud
+
+- [x] Provider-neutral local-process and authenticated remote-WebSocket transports
+- [x] Portable engine export/import with revision lock and monotonic ownership generations
+- [x] Deterministic workspace transfer, staged/unstaged Git state, hashes, exclusions, and divergent safe return
+- [x] E2B and Vercel adapters behind one lifecycle contract
+- [x] Cloud settings, protected credential bindings, creation target, confirmation, status, `/handoff`, and bundled skill
+- [x] Desktop close/reopen attaches to the cloud owner without starting a local writer
+- [ ] Stable flag removal: fresh live suites for both providers, durable Mac relay, and Vercel broker verification
+
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
 The parity scripts compare declaration/config ASTs with the exact revision in

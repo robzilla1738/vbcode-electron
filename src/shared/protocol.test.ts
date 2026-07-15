@@ -15,6 +15,12 @@ describe("NDJSON protocol runtime validation", () => {
     expect(decodeInbound(JSON.stringify({ op: "rpc", id: 0, method: "snapshot" }))).toBeNull();
     expect(decodeInbound(JSON.stringify({ op: "send", command: { type: "bogus" } }))).toBeNull();
     expect(decodeInbound(JSON.stringify({ op: "send", command: { type: "submit-prompt", text: 7 } }))).toBeNull();
+    expect(decodeInbound(JSON.stringify({
+      op: "rpc",
+      id: 1,
+      method: "importPortableSession",
+      params: { provisional: "true" },
+    }))).toBeNull();
   });
 
   it("accepts bootstrap continue flag and rejects non-boolean continue", () => {

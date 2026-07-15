@@ -28,6 +28,8 @@ describe("session view preservation contract", () => {
     expect(transcriptSrc).toContain("sessionScrollPositions");
     expect(transcriptSrc).toContain("sessionScrollPositions.get(sessionId)");
     expect(transcriptSrc).toContain("sessionScrollPositions.set(sessionId, element.scrollTop)");
-    expect(appSrc.match(/sessionId=\{chrome\.sessionId\}/g)).toHaveLength(2);
+    // Two transcript branches plus the Cloud handoff sheet receive the stable
+    // id; transcript scroll remains keyed by session rather than position.
+    expect(appSrc.match(/sessionId=\{chrome\.sessionId\}/g)).toHaveLength(3);
   });
 });

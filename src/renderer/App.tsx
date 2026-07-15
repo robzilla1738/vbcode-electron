@@ -12,6 +12,7 @@ import {
   skillsPickerFilter,
 } from "../shared/catalog-draft";
 import { sortChangedFilesForDisplay } from "../shared/changed-files";
+import { parseHandoffCommand, resolveHandoffCommandAction } from "../shared/handoff-command";
 import { commandsExpectBusy } from "../shared/command-busy";
 import { applyConfigPatch, buildConfigPatch } from "../shared/config-diff";
 import { contextUsagePercent } from "../shared/context-usage";
@@ -40,6 +41,8 @@ import type {
   ProviderInfo,
   SkillInfo,
 } from "../shared/types";
+import { isCloudSessionRemoteOwned, latestRemoteOwnedCloudSession, type CloudProviderId, type CloudSessionCatalogEntry, type CloudSessionStatus, type PendingCapabilityRequest } from "../shared/cloud";
+import { isUIEvent } from "../shared/protocol";
 import { Composer, type ComposerMetric } from "./composer/Composer";
 import { RequestGate } from "./hooks/request-gate";
 import { useSession } from "./hooks/useSession";
@@ -59,6 +62,7 @@ import { KeysOverlay } from "./panels/KeysOverlay";
 import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
 import type { ProviderStatus } from "./panels/OnboardingModal";
 import { ChangedFilesPill } from "./panels/TurnChangesCard";
+import { CloudHandoffSheet } from "./panels/CloudHandoffSheet";
 import { type CatalogChoice, CatalogModal, type CatalogPickerState } from "./pickers/CatalogModal";
 import {
   formatChromeSummary,
@@ -146,6 +150,14 @@ export function App() {
   const onboardingProbeGate = useRef(new RequestGate());
   const [keysOpen, setKeysOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [welcomeExecutionTarget, setWelcomeExecutionTarget] = useState<"local" | "cloud">("local");
+  const pendingCloudAfterBootstrap = useRef(false);
+  const [cloudSheetOpen, setCloudSheetOpen] = useState(false);
+  const [cloudTransitioning, setCloudTransitioning] = useState(false);
+  const [cloudRequest, setCloudRequest] = useState<{ target?: "cloud" | "local"; provider?: CloudProviderId; instruction?: string } | null>(null);
+  const [cloudSessions, setCloudSessions] = useState<CloudSessionCatalogEntry[]>([]);
+  const [cloudProgress, setCloudProgress] = useState<{ status: CloudSessionStatus; message: string; progress?: number } | null>(null);
+  const [pendingLocalCapability, setPendingLocalCapability] = useState<PendingCapabilityRequest | null>(null);
   /** Bumped on N so PermissionCard can open deny-reason then confirm (card parity). */
   const [permDenyKick, setPermDenyKick] = useState(0);
   const [gitOpen, setGitOpen] = useState(false);
@@ -177,6 +189,57 @@ export function App() {
   const terminalScope = cwd && chatsCwd && isChatsCwd(cwd, chatsCwd) ? "chat" : "project";
   const showToastRef = useRef(session.showToast);
   showToastRef.current = session.showToast;
+  const activeSessionIdRef = useRef(session.chrome.sessionId);
+  activeSessionIdRef.current = session.chrome.sessionId;
+  const cloudSessionsRef = useRef(cloudSessions);
+  cloudSessionsRef.current = cloudSessions;
+
+  useEffect(() => {
+    setPendingLocalCapability(
+      session.pendingCapabilities.find((request) => request.status === "pending") ?? null,
+    );
+  }, [session.pendingCapabilities]);
+
+  const refreshCloudSessions = useCallback(async () => {
+    const result = await window.vibe.listCloudSessions();
+    if (result.ok) setCloudSessions(result.value);
+  }, []);
+
+  useEffect(() => {
+    void refreshCloudSessions();
+    return window.vibe.onCloudStatus((event) => {
+      setCloudProgress({ status: event.status, message: event.message, progress: event.progress });
+      if (event.status === "running" || event.status === "needs-local" || event.status === "suspended" || event.status === "cleanup-pending" || event.status === "handoff-interrupted" || event.status === "lost" || event.status === "recoverable-error") void refreshCloudSessions();
+    });
+  }, [refreshCloudSessions]);
+
+  useEffect(() => window.vibe.onEvent((event) => {
+    if (!isUIEvent(event)) return;
+    if (event.type === "external-capability-pending") {
+      setPendingLocalCapability(event.request);
+      setCloudProgress({ status: "needs-local", message: `Needs your Mac for ${event.request.integration}` });
+      return;
+    }
+    if (event.type === "external-capability-resolved") {
+      setPendingLocalCapability((current) => current?.id === event.id ? null : current);
+      return;
+    }
+    if (event.type !== "runtime-handoff-requested") return;
+    const target = event.target.kind;
+    const cloudOwned = cloudSessionsRef.current.some((item) =>
+      item.sessionId === activeSessionIdRef.current && isCloudSessionRemoteOwned(item.status));
+    const action = resolveHandoffCommandAction({ target }, cloudOwned);
+    if (action === "already-local" || action === "already-cloud") {
+      showToastRef.current(action === "already-local" ? "Session is already running locally" : "Session is already running in Cloud", "info");
+      return;
+    }
+    setCloudRequest({
+      target: action,
+      ...(event.target.kind === "cloud" ? { provider: event.target.provider } : {}),
+      ...(event.instruction ? { instruction: event.instruction } : {}),
+    });
+    setCloudSheetOpen(true);
+  }), []);
 
   const revealPath = useCallback((path: string) => {
     void window.vibe.showItem(path).catch((error: unknown) => {
@@ -490,6 +553,31 @@ export function App() {
       if (!confirmLeaveSettings()) return;
       if (wasDirty) setSettingsOpen(false);
       invalidateCatalogs();
+      const cloud = await window.vibe.listCloudSessions();
+      if (!cloud.ok) {
+        session.showToast(`Couldn’t verify cloud ownership: ${cloud.error}`, "error");
+        return;
+      }
+      const cloudList = cloud.value;
+      const projectList = await refreshProjects() ?? projects;
+      const localSessions = projectList.find((item) => normalizeCwd(item.cwd) === normalizeCwd(path))?.sessions ?? [];
+      const cloudOwned = latestRemoteOwnedCloudSession(
+        cloudList.filter((item) => normalizeCwd(item.sourceRoot) === normalizeCwd(path)),
+        localSessions,
+      );
+      if (cloudOwned) {
+        pendingCloudAfterBootstrap.current = false;
+        const connected = await window.vibe.reconnectCloudSession(cloudOwned.sessionId);
+        if (connected.ok) {
+          setCwd(path);
+          setCloudSessions(cloudList);
+          await session.attachCurrent(path);
+          await refreshProjects();
+          return;
+        }
+        session.showToast(connected.error, "error");
+        return;
+      }
       const ok = await session.bootstrap({ cwd: path });
       if (ok) {
         setCwd(path);
@@ -523,7 +611,7 @@ export function App() {
         }
       }
     },
-    [session, refreshProjects, invalidateCatalogs, confirmLeaveSettings],
+    [session, refreshProjects, projects, invalidateCatalogs, confirmLeaveSettings],
   );
 
   const saveOnboarding = useCallback(
@@ -673,6 +761,23 @@ export function App() {
       if (!confirmLeaveSettings()) return;
       if (wasDirty) setSettingsOpen(false);
       invalidateCatalogs();
+      const cloud = await window.vibe.listCloudSessions();
+      if (!cloud.ok) {
+        session.showToast(`Couldn’t verify cloud ownership: ${cloud.error}`, "error");
+        return;
+      }
+      const cloudList = cloud.value;
+      const cloudOwned = cloudList.find((item) => item.sessionId === id && isCloudSessionRemoteOwned(item.status));
+      if (cloudOwned) {
+        const connected = await window.vibe.reconnectCloudSession(id);
+        if (connected.ok) {
+          setCwd(projectCwd);
+          setCloudSessions(cloudList);
+          await session.attachCurrent(projectCwd);
+          await refreshProjects();
+        } else session.showToast(connected.error, "error");
+        return;
+      }
       const ok = await session.bootstrap({ cwd: projectCwd, resume: id });
       if (ok) {
         setCwd(projectCwd);
@@ -692,9 +797,30 @@ export function App() {
     if (!confirmLeaveSettings()) return;
     if (wasDirty) setSettingsOpen(false);
     invalidateCatalogs();
+    const cloud = await window.vibe.listCloudSessions();
+    if (!cloud.ok) {
+      session.showToast(`Couldn’t verify cloud ownership: ${cloud.error}`, "error");
+      return;
+    }
+    const projectList = await refreshProjects() ?? projects;
+    const localSessions = projectList.find((item) => normalizeCwd(item.cwd) === normalizeCwd(cwd))?.sessions ?? [];
+    const cloudOwned = latestRemoteOwnedCloudSession(
+      cloud.value.filter((item) => normalizeCwd(item.sourceRoot) === normalizeCwd(cwd)),
+      localSessions,
+    );
+    if (cloudOwned) {
+      const connected = await window.vibe.reconnectCloudSession(cloudOwned.sessionId);
+      if (!connected.ok) session.showToast(connected.error, "error");
+      else {
+        setCloudSessions(cloud.value);
+        await session.attachCurrent(cwd);
+        await refreshProjects();
+      }
+      return;
+    }
     const ok = await session.bootstrap({ cwd, continueLatest: true });
     if (ok) await refreshProjects();
-  }, [cwd, session, refreshProjects, invalidateCatalogs, confirmLeaveSettings]);
+  }, [cwd, session, refreshProjects, projects, invalidateCatalogs, confirmLeaveSettings]);
 
   const newSession = useCallback(async () => {
     if (!cwd) return false;
@@ -1147,6 +1273,10 @@ export function App() {
     async (line: string): Promise<boolean> => {
       const trimmed = line.trim();
       if (!trimmed) return false;
+      if (cloudTransitioning) {
+        session.showToast("Session handoff is in progress; wait for it to finish before sending", "warn");
+        return false;
+      }
       const catalogRequestGeneration = catalogGeneration.current;
 
       const localRoute = classifySubmitLine(trimmed);
@@ -1166,6 +1296,23 @@ export function App() {
       if (localRoute.kind === "git") {
         if (!cwd) return false;
         openGit();
+        return true;
+      }
+      const handoff = parseHandoffCommand(trimmed);
+      if (handoff) {
+        const cloudOwned = cloudSessions.some((item) =>
+          item.sessionId === session.chrome.sessionId && isCloudSessionRemoteOwned(item.status));
+        const action = resolveHandoffCommandAction(handoff, cloudOwned);
+        if (action === "already-local" || action === "already-cloud") {
+          session.showToast(action === "already-local" ? "Session is already running locally" : "Session is already running in Cloud", "info");
+          return true;
+        }
+        setCloudRequest({
+          target: action,
+          ...(handoff.provider ? { provider: handoff.provider } : {}),
+          ...(handoff.instruction ? { instruction: handoff.instruction } : {}),
+        });
+        setCloudSheetOpen(true);
         return true;
       }
 
@@ -1270,7 +1417,7 @@ export function App() {
       if (!sent && expectBusy) session.setBusy(false);
       return sent;
     },
-    [session, cwd, answerPerm, answerPlan, commandFitsInboundLimit, openModelsPicker, presentCatalog, openSettings, openGit, openWorkspaceDock, dismissCatalog],
+    [session, cwd, cloudTransitioning, cloudSessions, answerPerm, answerPlan, commandFitsInboundLimit, openModelsPicker, presentCatalog, openSettings, openGit, openWorkspaceDock, dismissCatalog],
   );
 
   // Live draft catalogs — open/update pickers while typing (TUI parity).
@@ -1626,7 +1773,16 @@ export function App() {
   const activeSessionTitle =
     activeProject?.sessions.find((item) => item.id === chrome.sessionId)?.title ??
     (chrome.goal || "New session");
+  const currentCloudSession = cloudSessions.find((item) => item.sessionId === chrome.sessionId && isCloudSessionRemoteOwned(item.status)) ?? null;
+  const executionLabel = currentCloudSession
+    ? cloudProgress?.status === "needs-local" || currentCloudSession.status === "needs-local"
+      ? "Needs your Mac"
+      : cloudProgress && cloudProgress.status !== "running"
+        ? cloudProgress.status === "suspended" ? "Cloud paused" : "Cloud"
+        : "Cloud"
+    : "Local";
   const topbarMetaChips = [
+    { key: "execution", label: executionLabel, tone: executionLabel === "Needs your Mac" ? "warn" as const : "neutral" as const },
     chrome.queuePendingTotal
       ? { key: "queue", label: `queued ${chrome.queuePendingTotal}`, tone: "neutral" as const }
       : null,
@@ -1655,6 +1811,13 @@ export function App() {
     }
   }, [session.ready, chrome.busy, projects.length, activeSessionIndexed, refreshProjects]);
 
+  useEffect(() => {
+    if (!pendingCloudAfterBootstrap.current || !session.ready || !cwd || !chrome.sessionId) return;
+    pendingCloudAfterBootstrap.current = false;
+    setCloudRequest(null);
+    setCloudSheetOpen(true);
+  }, [session.ready, cwd, chrome.sessionId]);
+
   if (!cwd) {
     return (
       <WelcomeGate
@@ -1664,8 +1827,16 @@ export function App() {
         recentProjects={projects}
         projectsLoading={projectsLoading}
         projectsError={projectsError}
-        onOpenProject={() => void openProject()}
-        onOpenRecent={(path) => void openProjectAt(path)}
+        executionTarget={welcomeExecutionTarget}
+        onExecutionTargetChange={setWelcomeExecutionTarget}
+        onOpenProject={() => {
+          pendingCloudAfterBootstrap.current = welcomeExecutionTarget === "cloud";
+          void openProject();
+        }}
+        onOpenRecent={(path) => {
+          pendingCloudAfterBootstrap.current = welcomeExecutionTarget === "cloud";
+          void openProjectAt(path);
+        }}
         onRetryProjects={() => void refreshProjects()}
       />
     );
@@ -1702,6 +1873,12 @@ export function App() {
                 cwd={cwd}
                 onClose={() => setSettingsOpen(false)}
                 showToast={session.showToast}
+                onCloudSessionRecovered={async (_sessionId, recoveredCwd) => {
+                  setSettingsOpen(false);
+                  setCwd(recoveredCwd);
+                  await session.attachCurrent(recoveredCwd);
+                  await Promise.all([refreshCloudSessions(), refreshProjects()]);
+                }}
                 onBindDirty={bindSettingsDirty}
               />
             </Suspense>
@@ -1716,7 +1893,7 @@ export function App() {
           open={projectRailOpen}
           loading={projectsLoading}
           error={projectsError}
-          busy={chrome.busy || session.booting}
+          busy={chrome.busy || session.booting || cloudTransitioning}
           onClose={() => setProjectRailOpen(false)}
           onOpenSettings={openSettings}
           settingsActive={settingsOpen}
@@ -1806,9 +1983,18 @@ export function App() {
                 </div>
               )}
             </div>
-
+            <div className="topbar-actions no-drag">
+              <button
+                type="button"
+                className={`button cloud-execution-button${executionLabel === "Needs your Mac" ? " is-warn" : ""}`}
+                onClick={() => { setCloudRequest(null); setCloudSheetOpen(true); }}
+                title={currentCloudSession ? "Resume this session locally" : "Continue this session in Cloud"}
+              >
+                {currentCloudSession ? (executionLabel === "Needs your Mac" ? "Needs your Mac" : "Resume locally") : "Continue in Cloud"}
+              </button>
+            </div>
           </header>
-          <div className="main-column" id="main-content">
+        <div className="main-column" id="main-content">
             <main
               className={`chat-column${
                 !session.booting &&
@@ -1948,6 +2134,25 @@ export function App() {
                   Verify gate failed — review the last turn before continuing
                 </div>
               )}
+              {pendingLocalCapability && (
+                <div className="notice warning gate-banner cloud-capability-card" role="alert">
+                  <div>
+                    <strong>Needs your Mac · {pendingLocalCapability.integration}</strong>
+                    <p>{pendingLocalCapability.toolName} is local-only. The experimental relay is disabled, so Vibe will not substitute a cloud tool.</p>
+                    <code>{JSON.stringify(pendingLocalCapability.arguments)}</code>
+                  </div>
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => void session.send({
+                      type: "resolve-external-capability",
+                      id: pendingLocalCapability.id,
+                      decision: "deny",
+                      error: "Local capability relay is not enabled in this experimental build",
+                    })}
+                  >Deny and continue</button>
+                </div>
+              )}
               {chrome.perms[0] && (
                 <PermissionCard
                   perm={chrome.perms[0]}
@@ -2052,7 +2257,7 @@ export function App() {
                 catalogOpen={pickerMatchesDraft(picker, draft, modelTarget)}
                 onCycleMode={session.cycleMode}
                 onSelectMode={session.selectMode}
-                disabled={!session.ready || session.booting}
+                disabled={!session.ready || session.booting || cloudTransitioning}
                 commandNames={chrome.commandNames}
                 cwd={cwd}
                 model={chrome.model}
@@ -2245,6 +2450,32 @@ export function App() {
       </div>
 
       {keysOpen && <KeysOverlay onClose={() => setKeysOpen(false)} />}
+
+      {cloudSheetOpen && cwd && chrome.sessionId && (
+        <CloudHandoffSheet
+          cwd={cwd}
+          sessionId={chrome.sessionId}
+          cloudSession={currentCloudSession}
+          busy={chrome.busy}
+          requestedTarget={cloudRequest?.target}
+          requestedProvider={cloudRequest?.provider}
+          initialInstruction={cloudRequest?.instruction}
+          onWorkingChange={setCloudTransitioning}
+          onClose={() => { setCloudSheetOpen(false); setCloudRequest(null); }}
+          onComplete={async (message, resumedCwd) => {
+            setCloudSheetOpen(false);
+            setCloudRequest(null);
+            const activeCwd = resumedCwd ?? cwd;
+            if (normalizeCwd(activeCwd) !== normalizeCwd(cwd)) setCwd(activeCwd);
+            const attached = await session.attachCurrent(activeCwd);
+            session.showToast(
+              attached ? message : "Handoff completed, but the session view needs to reconnect",
+              attached ? "info" : "error",
+            );
+            await Promise.all([refreshCloudSessions(), refreshProjects()]);
+          }}
+        />
+      )}
 
       {session.toast && (
         <div

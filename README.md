@@ -4,6 +4,10 @@
 
 macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/vibe-codr) with **1:1 engine parity** via the existing NDJSON `vibecodr-engine-host`. Same brain as the CLI TUI — presentation and chrome only live here.
 
+Experimental BYO E2B/Vercel execution and verified Local ↔ Cloud handoff are
+documented in [CLOUD.md](./CLOUD.md), with trust boundaries and remaining stable
+gates in [CLOUD-THREAT-MODEL.md](./CLOUD-THREAT-MODEL.md).
+
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 **Privacy:** [PRIVACY.md](./PRIVACY.md)

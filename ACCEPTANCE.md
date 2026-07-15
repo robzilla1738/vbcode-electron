@@ -8,6 +8,16 @@
 
 Vibe Codr Electron is a presentation shell over the same `@vibe/core` engine used by the CLI. Parity means every user-visible CLI workflow that can sensibly exist in a desktop shell has equivalent behavior, state transitions, keyboard access, failure handling, and persistence without forking engine logic. Terminal-cell rendering and mouse-capture details are intentionally excluded; semantic themes and harness behavior are not.
 
+## Experimental Local ↔ Cloud acceptance
+
+The implementation may ship behind the experimental flag when local contract,
+transfer, runtime, and recovery suites are green. Stable release additionally
+requires paid live E2B and Vercel suites within seven days, no data loss or dual
+writer in desktop E2E, no secret crossing preload, a green durable Needs-your-Mac
+relay suite, and verified Vercel credential brokering. Until then the flag must
+remain and UI/docs must label the incomplete stable items without substituting
+behavior.
+
 ## Residual risks (honest automation gaps)
 
 Rows marked `pass` below may still rely on **review** or **manual** verification for some sub-behaviors. Known residual automation gaps (not product non-goals):

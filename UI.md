@@ -9,6 +9,15 @@ live code before changing behavior; the engine remains owned by
 `vibe-codr` and this repository is responsible for presentation, IPC wiring,
 and desktop interaction.
 
+## Execution environment
+
+New-project setup exposes a Local/Cloud target. Existing sessions use the compact
+topbar action and `/handoff`. Provider setup lives only in full-workspace
+Settings → Cloud. Confirmation is a modal preflight over the existing chat
+surface; status stays in topbar metadata and never adds a rail or persistent
+floating panel. Normal chrome says Local, Cloud, Cloud paused, or Needs your Mac;
+provider names remain in setup, diagnostics, and cost details.
+
 ## Product shape
 
 First-run provider onboarding is searchable: common curated choices stay first,

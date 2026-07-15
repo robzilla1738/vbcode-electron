@@ -15,13 +15,15 @@ import { listProjectFiles, rankPaths } from "../shared/file-fuzzy";
 import type { MenuAction } from "../shared/menu-actions";
 import { resolvePathInsideRoot, resolveWritablePathInsideRoot } from "../shared/path-safe";
 import { chatsCwdFromHome } from "../shared/project-index";
+import { isRendererRpcMethod } from "../shared/renderer-rpc";
 import type { ProjectSummary } from "../shared/protocol";
 import { decodeInbound, type HostInbound, type RpcMethod } from "../shared/protocol";
 import { isProjectSummaryArray } from "../shared/runtime-guards";
 import { TtlLruCache } from "../shared/ttl-lru-cache";
 import { type AppUpdaterController, createAppUpdater } from "./app-updater";
 import { registerConfigIpc } from "./config-ipc";
-import { EngineBridge } from "./engine-bridge";
+import { EngineTransportController } from "./engine-transport-controller";
+import { CloudManager } from "./cloud/manager";
 import { registerGitIpc } from "./git-ipc";
 import { enrichedEnv } from "./host-resolver";
 import { assertTrustedIpc, assertTrustedSender, getMainWindow, setMainWindow } from "./ipc-security";
@@ -30,7 +32,8 @@ import { TerminalManager } from "./terminal-manager";
 let mainWindow: BrowserWindow | null = null;
 let settingsDirty = false;
 let appUpdater: AppUpdaterController | null = null;
-const bridge = new EngineBridge();
+const bridge = new EngineTransportController();
+const cloudManager = new CloudManager(bridge);
 
 function confirmDiscardSettings(parent?: BrowserWindow | null): boolean {
   if (!settingsDirty) return true;
@@ -63,6 +66,12 @@ const PROJECT_INDEX_MUTATIONS = new Set<RpcMethod>([
   "renameSession",
   "deleteSession",
   "archiveSession",
+]);
+const HANDOFF_CONTROL_COMMANDS = new Set<EngineCommand["type"]>([
+  "abort",
+  "resolve-permission",
+  "resolve-plan",
+  "resolve-external-capability",
 ]);
 
 /**
@@ -437,9 +446,13 @@ function sendMenuAction(action: MenuAction): void {
 const terminalManager = new TerminalManager((event) => sendToRenderer("terminal:event", event));
 
 function wireBridge(): void {
-  bridge.onEvent = (event) => sendToRenderer("engine:event", event);
+  bridge.onEvent = (event) => {
+    cloudManager.observeEngineEvent(event);
+    sendToRenderer("engine:event", event);
+  };
   bridge.onFatal = (message) => sendToRenderer("engine:fatal", message);
   bridge.onReady = (sessionId) => sendToRenderer("engine:ready", sessionId);
+  cloudManager.onStatus = (status) => sendToRenderer("cloud:status", status);
 }
 
 function registerIpc(): void {
@@ -461,6 +474,9 @@ function registerIpc(): void {
       },
     ) => {
       assertTrustedIpc(event);
+      if (cloudManager.ownershipTransitioning) {
+        return { ok: false as const, error: "Session handoff is in progress; wait for it to finish before switching sessions" };
+      }
       // Map renderer `continueLatest` → host protocol field `continue`.
       // Spreading opts leaves `continueLatest` on the object; decodeInbound only
       // understands `continue`, so the flag was previously always dropped.
@@ -512,6 +528,9 @@ function registerIpc(): void {
 
   ipcMain.handle("engine:send", (event, command: EngineCommand) => {
     assertTrustedIpc(event);
+    if (cloudManager.ownershipTransitioning && !HANDOFF_CONTROL_COMMANDS.has(command?.type)) {
+      return { ok: false as const, error: "Session handoff is in progress; your message was not sent" };
+    }
     const message = inbound({ op: "send", command });
     if (message?.op !== "send") return { ok: false as const, error: "Invalid engine command" };
     try {
@@ -526,6 +545,9 @@ function registerIpc(): void {
     assertTrustedIpc(event);
     const message = inbound({ op: "rpc", id: 1, method, ...(params ? { params } : {}) });
     if (message?.op !== "rpc") return { ok: false as const, error: "Invalid RPC request" };
+    if (!isRendererRpcMethod(message.method)) {
+      return { ok: false as const, error: "This engine RPC is restricted to the main-process handoff controller" };
+    }
     try {
       if (PROJECT_INDEX_MUTATIONS.has(message.method)) {
         const cwd = message.params?.cwd;
@@ -549,6 +571,114 @@ function registerIpc(): void {
     assertTrustedIpc(event);
     await bridge.stop();
     return { ok: true as const };
+  });
+
+  ipcMain.handle("cloud:settings", async (event) => {
+    assertTrustedIpc(event);
+    try { return { ok: true as const, value: await cloudManager.settings() }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:updateSettings", async (event, patch) => {
+    assertTrustedIpc(event);
+    try { return { ok: true as const, value: await cloudManager.updateSettings(patch ?? {}) }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:connect", async (event, provider: unknown, credentials: unknown) => {
+    assertTrustedIpc(event);
+    if (provider !== "e2b" && provider !== "vercel") return { ok: false as const, error: "Unknown cloud provider" };
+    if (!credentials || typeof credentials !== "object") return { ok: false as const, error: "Credentials are required" };
+    try { return { ok: true as const, value: await cloudManager.connect(provider, credentials as never) }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:disconnect", async (event, provider: unknown) => {
+    assertTrustedIpc(event);
+    if (provider !== "e2b" && provider !== "vercel") return { ok: false as const, error: "Unknown cloud provider" };
+    try { return { ok: true as const, value: await cloudManager.disconnect(provider) }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:test", async (event, provider: unknown) => {
+    assertTrustedIpc(event);
+    if (provider !== "e2b" && provider !== "vercel") return { ok: false as const, error: "Unknown cloud provider" };
+    try { return { ok: true as const, value: await cloudManager.test(provider) }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:saveBinding", async (event, input: unknown) => {
+    assertTrustedIpc(event);
+    if (!input || typeof input !== "object") return { ok: false as const, error: "Credential binding is required" };
+    const value = input as { id?: string; label?: unknown; kind?: unknown; value?: unknown };
+    if (typeof value.label !== "string" || value.kind !== "environment" || typeof value.value !== "string") return { ok: false as const, error: "Invalid credential binding" };
+    try { return { ok: true as const, value: await cloudManager.saveCredentialBinding({ id: value.id, label: value.label, kind: "environment", value: value.value }) }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:removeBinding", async (event, id: unknown) => {
+    assertTrustedIpc(event);
+    if (typeof id !== "string" || !id) return { ok: false as const, error: "Credential binding ID is required" };
+    try { return { ok: true as const, value: await cloudManager.removeCredentialBinding(id) }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:listSessions", async (event) => {
+    assertTrustedIpc(event);
+    try { return { ok: true as const, value: await cloudManager.listSessions() }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:deleteCopy", async (event, sessionId: unknown) => {
+    assertTrustedIpc(event);
+    if (typeof sessionId !== "string" || !sessionId) return { ok: false as const, error: "Session ID is required" };
+    try {
+      await cloudManager.deleteCloudCopy(sessionId);
+      return { ok: true as const };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle("cloud:recoverLost", async (event, sessionId: unknown) => {
+    assertTrustedIpc(event);
+    if (typeof sessionId !== "string" || !sessionId) return { ok: false as const, error: "Session ID is required" };
+    try { return { ok: true as const, value: await cloudManager.recoverLostSession(sessionId) }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:handoff", async (event, request) => {
+    assertTrustedIpc(event);
+    if (!request || typeof request.cwd !== "string" || !isAllowedCwd(request.cwd)) {
+      return { ok: false as const, error: "Cloud handoff is limited to the active authorized project" };
+    }
+    if (request.provider !== "e2b" && request.provider !== "vercel") return { ok: false as const, error: "Unknown cloud provider" };
+    try { return { ok: true as const, value: await cloudManager.handoffToCloud(request) }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:reconnect", async (event, sessionId: unknown) => {
+    assertTrustedIpc(event);
+    if (typeof sessionId !== "string" || !sessionId) return { ok: false as const, error: "Session ID is required" };
+    if (cloudManager.ownershipTransitionActive) {
+      return { ok: false as const, error: "Session handoff is in progress; wait for it to finish before reconnecting" };
+    }
+    try { return { ok: true as const, sessionId: await cloudManager.reconnect(sessionId) }; }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  ipcMain.handle("cloud:resumeLocal", async (event, sessionId: unknown, keepCloudCopy: unknown) => {
+    assertTrustedIpc(event);
+    if (typeof sessionId !== "string" || !sessionId) return { ok: false as const, error: "Session ID is required" };
+    try {
+      const value = await cloudManager.resumeLocally(sessionId, keepCloudCopy === true);
+      // This path is created and verified by the main-process manager. Admit it
+      // only after a successful return so protected project IPC remains usable
+      // when divergence intentionally resumes in a review worktree.
+      projectCwdAllowlist.add(value.cwd);
+      return { ok: true as const, value };
+    }
+    catch (error) { return { ok: false as const, error: error instanceof Error ? error.message : String(error) }; }
   });
 
   ipcMain.handle("dialog:openProject", async (event) => {
@@ -995,11 +1125,10 @@ app.on("before-quit", async (e) => {
 });
 
 app.on("window-all-closed", () => {
-  // On macOS, closing the last window traditionally keeps the app alive — but
-  // an engine host with no UI sink can burn API. Stop the agent host; persistent
-  // user terminals remain main-owned and replay when the window is reopened.
+  // Local engines are finalized, while a cloud-owned session is disconnected
+  // without sending shutdown so its turn, PTYs, jobs, and replay keep running.
   if (process.platform === "darwin") {
-    void bridge.stop().catch(() => undefined);
+    void bridge.disposeForQuit().catch(() => undefined);
     return;
   }
   app.quit();

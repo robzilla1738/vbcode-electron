@@ -1,3 +1,5 @@
+import type { PendingCapabilityRequest } from "./cloud";
+
 /**
  * Core domain types shared across every vibe-codr package.
  * This module is intentionally dependency-light (only `zod`) so it can sit at
@@ -202,6 +204,8 @@ export interface EngineSnapshot {
   reasoning?: string;
   /** Working-tree git state, when in a repo. */
   git?: GitInfo;
+  /** Durable machine-bound requests waiting for this desktop. */
+  pendingCapabilities?: PendingCapabilityRequest[];
 }
 
 /** MCP server roster entry for the `/mcp` picker (host `listMcp` shape). */

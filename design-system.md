@@ -7,6 +7,11 @@
 > `src/shared/themes.ts` and `src/shared/theme-registry.ts` own palette and
 > theme semantics. Update this document when those contracts change.
 
+Cloud handoff reuses the existing modal elevation, setting cards, buttons,
+status chips, warning tone, spacing, focus-visible rings, and reduced-motion
+collapse. It introduces no new palette, rail, full-height tint, or floating
+desktop panel.
+
 ## Product character
 
 Vibe Codr is a native-feeling macOS and Windows Electron presentation shell for the `vibe-codr`

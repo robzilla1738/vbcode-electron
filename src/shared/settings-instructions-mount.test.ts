@@ -22,7 +22,7 @@ describe("settings instructions mount contract", () => {
     expect(panelSrc).toMatch(/<InstructionsSection/);
     // Config sections use the same mounted/hidden pattern rather than an
     // exclusive render branch that would unmount local drafts.
-    expect(panelSrc).toContain('CONFIG_SECTIONS.filter(({ id }) => id !== "instructions").map');
+    expect(panelSrc).toContain('SETTINGS_SECTIONS.filter(({ id }) => id !== "instructions").map');
     expect(panelSrc).toContain("hidden={activeSection !== id}");
   });
 

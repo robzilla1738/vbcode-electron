@@ -6,6 +6,7 @@ dist
 release
 resources/vibecodr-engine-host
 resources/vibecodr-engine-host.exe
+resources/cloud-runtime/
 *.tsbuildinfo
 .DS_Store
 *.log

@@ -31,6 +31,8 @@ export function WelcomeGate({
   onOpenRecent,
   onRetry,
   onRetryProjects,
+  executionTarget = "local",
+  onExecutionTargetChange,
 }: {
   booting: boolean;
   bootError: string | null;
@@ -44,6 +46,8 @@ export function WelcomeGate({
   onOpenRecent?: (cwd: string) => void;
   onRetry?: () => void;
   onRetryProjects?: () => void;
+  executionTarget?: "local" | "cloud";
+  onExecutionTargetChange?: (target: "local" | "cloud") => void;
 }) {
   const label = pendingCwd ? folderLabel(pendingCwd) : null;
   const title = booting
@@ -165,6 +169,12 @@ export function WelcomeGate({
 
               {!booting && (
                 <div className="gate-actions">
+                  {!bootError && onExecutionTargetChange && (
+                    <div className="settings-scope-toggle" role="radiogroup" aria-label="Session environment">
+                      <button type="button" role="radio" aria-checked={executionTarget === "local"} className={`settings-scope-btn${executionTarget === "local" ? " active" : ""}`} onClick={() => onExecutionTargetChange("local")}>Local</button>
+                      <button type="button" role="radio" aria-checked={executionTarget === "cloud"} className={`settings-scope-btn${executionTarget === "cloud" ? " active" : ""}`} onClick={() => onExecutionTargetChange("cloud")}>Cloud</button>
+                    </div>
+                  )}
                   {bootError && pendingCwd && onRetry && (
                     <button ref={retryRef} type="button" className="button" onClick={onRetry}>
                       Retry

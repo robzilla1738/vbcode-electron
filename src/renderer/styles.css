@@ -3411,6 +3411,25 @@ html[data-scheme="light"] .md .md-streaming-pre {
   overflow-wrap: anywhere;
 }
 
+.cloud-capability-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cloud-capability-card p {
+  margin: var(--space-1) 0;
+}
+
+.cloud-capability-card code {
+  display: block;
+  max-width: 40rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .earlier {
   display: inline-flex;
   min-height: var(--transcript-compact-row-h);
@@ -9909,6 +9928,87 @@ html.electron-transparent .sidebar-heading-row { background: var(--drawer-bg); }
   background: var(--bg-menu);
   box-shadow: var(--shadow-modal);
   animation: surface-enter var(--dur-standard) var(--ease-enter);
+}
+
+/* ── Local / Cloud handoff ───────────────────────────────────────────── */
+.cloud-execution-button {
+  min-height: 28px;
+  padding-inline: var(--space-sm);
+  white-space: nowrap;
+}
+
+.cloud-execution-button.is-warn {
+  color: var(--warning);
+  border-color: color-mix(in oklab, var(--warning) 38%, var(--border-soft));
+}
+
+.cloud-handoff-sheet {
+  width: min(720px, 100%);
+  max-height: min(88vh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--bg-menu);
+  box-shadow: var(--shadow-modal);
+  animation: surface-enter var(--dur-standard) var(--ease-enter);
+}
+
+.cloud-handoff-header,
+.cloud-handoff-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-base);
+  padding: var(--space-md) var(--space-base);
+}
+
+.cloud-handoff-header { border-bottom: 1px solid var(--border-soft); }
+.cloud-handoff-footer { align-items: center; justify-content: flex-end; border-top: 1px solid var(--border-soft); }
+.cloud-handoff-header h2 { margin: 0; font: var(--weight-semibold) var(--text-heading)/1.25 var(--font-sans); }
+.cloud-handoff-header p { margin: 4px 0 0; color: var(--text-subtle); font-size: var(--text-ui); }
+.cloud-handoff-body { min-height: 0; overflow: auto; padding: var(--space-base); }
+
+.cloud-provider-choice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-base);
+}
+
+.cloud-provider-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  color: var(--text);
+  text-align: left;
+}
+
+.cloud-provider-option span { color: var(--text-subtle); font-size: var(--text-ui); }
+.cloud-provider-option.selected { border-color: color-mix(in oklab, var(--accent) 55%, var(--border-soft)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 24%, transparent); }
+
+.cloud-preflight-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.32fr) minmax(0, 1fr);
+  gap: var(--space-xs) var(--space-base);
+  padding: var(--space-sm);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  font-size: var(--text-ui);
+}
+
+.cloud-preflight-grid span { color: var(--text-subtle); }
+.cloud-preflight-grid strong { min-width: 0; overflow-wrap: anywhere; font-weight: var(--weight-medium); }
+.cloud-check-row { display: flex; gap: var(--space-xs); align-items: flex-start; margin-top: var(--space-base); font-size: var(--text-ui); }
+.cloud-instruction-field { display: grid; gap: var(--space-xs); margin-top: var(--space-base); }
+
+@media (max-width: 640px) {
+  .cloud-provider-choice { grid-template-columns: 1fr; }
+  .cloud-preflight-grid { grid-template-columns: 1fr; }
+  .cloud-handoff-footer { flex-wrap: wrap; }
 }
 
 .onboarding-modal-header {

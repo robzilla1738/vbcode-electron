@@ -2,6 +2,47 @@
 
 Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
+## Experimental cloud gate
+
+- `cd ../vibe-codr && bun test packages/core/src/portable-session.test.ts packages/core/src/session-tools.test.ts`
+- `cd ../vibe-codr && bun run build:cloud-runtime`
+- Confirm runtime `engineRevision` equals `ENGINE_COMMIT`, outer and internal
+  checksums pass in Linux, and `sbom.spdx.json` is present.
+- Confirm packaging rejects dirty engine runtime inputs and outbound handoff
+  rejects a portable archive whose session ID or canonical source root differs
+  from the active workspace.
+- `npm test -- --run src/main/cloud/workspace-transfer.test.ts src/main/remote-engine-transport.test.ts src/shared/protocol.test.ts`
+  covers protected return paths and Git history, branch/index-only divergence,
+  recursive submodule commit restoration, exact mode rollback, remote-session
+  identity, renderer RPC privilege separation, and archive verification.
+- `npm run test:cloud:live` runs the paid, opt-in E2B and Vercel lifecycle
+  contracts with `E2B_API_KEY`, `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and
+  `VERCEL_PROJECT_ID`. Fresh green output is required within seven days of a
+  release; the default unit suite skips these resource-creating tests.
+- The E2B live contract must fetch its allowlisted registry domain while using
+  the required `allowOut` plus `denyOut: [ALL_TRAFFIC]` policy, then prove
+  pause/resume and destruction. This is the regression gate for E2B's 400
+  network-policy response.
+- Paid opt-in suites must additionally cover the packaged runtime's authenticated
+  PTY and preview channels before stable release.
+- Both provider contracts must prove privileged control startup (`id -u` is 0),
+  while runtime tests prove engine/PTY children receive the dedicated non-root
+  UID/GID and cannot inherit the control bearer or one-shot file path.
+- Vercel cold-resume coverage must prove the daemon is relaunched and healthy
+  before Electron switches transport; workspace tests must cover both
+  file-to-directory and directory-to-file return replacements.
+- Reconnect coverage must prove live events survive transcript hydration, a
+  disconnected remote is resumed before cloud-to-local export, catalog writes
+  are durably flushed, and interrupted ownership cannot invoke cloud deletion.
+- Core recovery must return structured aborted/already-committed ownership
+  results; tests must cover the snapshot/engine-idle lost-wakeup window and the
+  Settings mutation/draft guards.
+- Reopen coverage must restore a durable Needs-your-Mac request from snapshot,
+  replay events held during remote activation, and authorize only the verified
+  divergent worktree returned by the main-process manager.
+- Never remove the experimental flag while either provider suite or the durable
+  local-capability relay acceptance suite is missing.
+
 ## Automated
 
 ```bash

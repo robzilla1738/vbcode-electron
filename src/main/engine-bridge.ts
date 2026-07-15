@@ -1,15 +1,20 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { EngineCommand } from "../shared/commands";
 import {
   decodeOutbound,
   encodeInbound,
   HOST_INBOUND_SAFE_BYTES,
   type HostInbound,
+  type HostRpcParams,
   type RpcMethod,
 } from "../shared/protocol";
 import { isRenderableUIEvent, isRpcResult } from "../shared/runtime-guards";
 import { StdinWriteQueue } from "../shared/stdin-write-queue";
 import { enrichedEnv, type HostLaunch, resolveHostLaunch } from "./host-resolver";
+import type { EngineTransport } from "./engine-transport";
 
 const READY_TIMEOUT_MS = 45_000;
 const RPC_TIMEOUT_MS = 20_000;
@@ -49,7 +54,7 @@ export interface EngineStartOptions {
   mode?: "plan" | "execute" | "yolo";
 }
 
-export class EngineBridge {
+export class EngineBridge implements EngineTransport {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private generation = 0;
   private startRequest = 0;
@@ -138,6 +143,133 @@ export class EngineBridge {
         // `lifecycle` prevents a later bootstrap from spawning until this
         // cleanup completes. The identity guard avoids stopping unrelated work
         // if the host exited while answering the RPC.
+        if (this.proc === proc) await this.stopCurrent();
+      }
+    });
+  }
+
+  importPortableSession(
+    cwd: string,
+    archive: import("../shared/handoff").PortableSessionArchiveV1,
+    engineRevision: string,
+    provisional = false,
+  ): Promise<void> {
+    const request = ++this.startRequest;
+    this.generation += 1;
+    this.failReady(new Error("Engine host stopped"));
+    this.failAllRpc(new Error("Engine host stopped"));
+    return this.schedule(async () => {
+      if (request !== this.startRequest) throw new Error("Engine host stopped");
+      if (this.hasOwnedChild()) await this.stopCurrent();
+      const proc = this.spawnCurrent();
+      const temp = await mkdtemp(join(tmpdir(), "vibe-portable-import-"));
+      const archivePath = join(temp, "archive.json");
+      try {
+        await writeFile(archivePath, JSON.stringify(archive), { mode: 0o600 });
+        await this.rpcUnlocked("importPortableSession", { cwd, archivePath, engineRevision, provisional });
+      } finally {
+        if (this.proc === proc) await this.stopCurrent();
+        await rm(temp, { recursive: true, force: true });
+      }
+    });
+  }
+
+  commitPortableImport(cwd: string, sessionId: string, ownershipGeneration: number): Promise<void> {
+    if (this.isReady) {
+      return this.rpc("commitPortableImport", { cwd, sessionId, ownershipGeneration }).then(() => undefined);
+    }
+    return this.portableImportAction("commitPortableImport", cwd, sessionId, ownershipGeneration);
+  }
+
+  abortPortableImport(cwd: string, sessionId: string, ownershipGeneration: number): Promise<void> {
+    return this.portableImportAction("abortPortableImport", cwd, sessionId, ownershipGeneration);
+  }
+
+  recoverLostCloudOwnership(
+    cwd: string,
+    sessionId: string,
+    provider: "e2b" | "vercel",
+    expectedGeneration: number,
+  ): Promise<number> {
+    const request = ++this.startRequest;
+    this.generation += 1;
+    this.failReady(new Error("Engine host stopped"));
+    this.failAllRpc(new Error("Engine host stopped"));
+    return this.schedule(async () => {
+      if (request !== this.startRequest) throw new Error("Engine host stopped");
+      if (this.hasOwnedChild()) await this.stopCurrent();
+      const proc = this.spawnCurrent();
+      try {
+        const value = await this.rpcUnlocked("recoverLostCloudOwnership", {
+          cwd,
+          sessionId,
+          target: { kind: "cloud", provider },
+          expectedGeneration,
+        });
+        if (typeof value !== "number" || !Number.isSafeInteger(value)) throw new Error("Invalid ownership recovery response");
+        return value;
+      } finally {
+        if (this.proc === proc) await this.stopCurrent();
+      }
+    });
+  }
+
+  abortInterruptedHandoff(
+    cwd: string,
+    sessionId: string,
+    target: import("../shared/cloud").ExecutionTarget,
+    expectedGeneration?: number,
+  ): Promise<{ outcome: "aborted" | "already-committed"; generation: number }> {
+    const request = ++this.startRequest;
+    this.generation += 1;
+    this.failReady(new Error("Engine host stopped"));
+    this.failAllRpc(new Error("Engine host stopped"));
+    return this.schedule(async () => {
+      if (request !== this.startRequest) throw new Error("Engine host stopped");
+      if (this.hasOwnedChild()) await this.stopCurrent();
+      const proc = this.spawnCurrent();
+      try {
+        const value = await this.rpcUnlocked("abortInterruptedHandoff", {
+          cwd,
+          sessionId,
+          target,
+          ...(expectedGeneration === undefined ? {} : { expectedGeneration }),
+        });
+        if (
+          !value || typeof value !== "object"
+          || !("outcome" in value)
+          || (value.outcome !== "aborted" && value.outcome !== "already-committed")
+          || !("generation" in value)
+          || typeof value.generation !== "number"
+          || !Number.isSafeInteger(value.generation)
+          || value.generation < 0
+        ) {
+          throw new Error("Invalid interrupted handoff recovery response");
+        }
+        return value as { outcome: "aborted" | "already-committed"; generation: number };
+      } finally {
+        if (this.proc === proc) await this.stopCurrent();
+      }
+    });
+  }
+
+  private portableImportAction(
+    method: "commitPortableImport" | "abortPortableImport",
+    cwd: string,
+    sessionId: string,
+    ownershipGeneration: number,
+  ): Promise<void> {
+    const request = ++this.startRequest;
+    this.generation += 1;
+    this.failReady(new Error("Engine host stopped"));
+    this.failAllRpc(new Error("Engine host stopped"));
+    return this.schedule(async () => {
+      if (request !== this.startRequest) throw new Error("Engine host stopped");
+      if (this.hasOwnedChild()) await this.stopCurrent();
+      const proc = this.spawnCurrent();
+      try {
+        await this.rpcUnlocked(method, { cwd, sessionId, ownershipGeneration });
+      } finally {
         if (this.proc === proc) await this.stopCurrent();
       }
     });
@@ -320,6 +452,29 @@ export class EngineBridge {
     return this.schedule(() => this.stopCurrent());
   }
 
+  /** Ownership has already been committed elsewhere. Reap the local host
+   * without sending shutdown/finalize, which could write a post-commit digest
+   * from the old owner. Portable state was flushed by prepareHandoff. */
+  detachForHandoff(): Promise<void> {
+    this.startRequest += 1;
+    this.generation += 1;
+    this.failReady(new Error("Engine ownership transferred"));
+    this.failAllRpc(new Error("Engine ownership transferred"));
+    return this.schedule(async () => {
+      const proc = this.proc;
+      this.proc = null;
+      this.didReady = false;
+      this.stdinQueue.clear();
+      if (!proc || proc.exitCode !== null || proc.signalCode !== null) return;
+      this.killOwned(proc, "SIGTERM");
+      await this.waitForExit(proc, this.options.stopTimeoutMs ?? STOP_TIMEOUT_MS);
+      if (proc.exitCode === null && proc.signalCode === null) {
+        this.killOwned(proc, "SIGKILL");
+        await this.waitForExit(proc, this.options.killWaitMs ?? KILL_WAIT_MS);
+      }
+    });
+  }
+
   /**
    * App-quit path: best-effort short finalize (only if ready), then always reap
    * the child with SIGTERM→SIGKILL. Never leave an orphan host.
@@ -446,14 +601,14 @@ export class EngineBridge {
     this.write({ op: "send", command });
   }
 
-  async rpc(method: RpcMethod, params?: Record<string, unknown>): Promise<unknown> {
+  async rpc(method: RpcMethod, params?: HostRpcParams): Promise<unknown> {
     if (!this.hasOwnedChild()) throw new Error("Engine host not running");
     if (!this.didReady) throw new Error("Engine host not ready");
     return this.rpcUnlocked(method, params);
   }
 
   /** RPC without the ready gate — used only for quit finalize after isReady check. */
-  private rpcUnlocked(method: RpcMethod, params?: Record<string, unknown>): Promise<unknown> {
+  private rpcUnlocked(method: RpcMethod, params?: HostRpcParams): Promise<unknown> {
     if (!this.hasOwnedChild()) throw new Error("Engine host not running");
     const id = this.nextRpcId++;
     return new Promise((resolve, reject) => {
