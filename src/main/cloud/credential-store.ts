@@ -55,8 +55,32 @@ export class CloudCredentialStore {
     return encoded ? safeStorage.decryptString(Buffer.from(encoded, "base64")) : undefined;
   }
 
+  async setSessionEnvironment(sessionId: string, environment: Record<string, string>): Promise<void> {
+    if (!this.isAvailable()) throw new Error("OS-protected storage is unavailable");
+    await this.#mutate((file) => {
+      file.values[`session-environment:${sessionId}`] = safeStorage.encryptString(JSON.stringify(environment)).toString("base64");
+    });
+  }
+
+  async getSessionEnvironment(sessionId: string): Promise<Record<string, string> | undefined> {
+    if (!this.isAvailable()) return undefined;
+    const encoded = (await this.#readCurrent()).values[`session-environment:${sessionId}`];
+    if (!encoded) return undefined;
+    try {
+      const value = JSON.parse(safeStorage.decryptString(Buffer.from(encoded, "base64"))) as unknown;
+      if (!value || typeof value !== "object" || Array.isArray(value)
+        || Object.values(value).some((item) => typeof item !== "string")) throw new Error();
+      return value as Record<string, string>;
+    } catch {
+      throw new Error("Cloud session model access could not be decrypted; return the session to Local");
+    }
+  }
+
   async removeSessionSecret(sessionId: string): Promise<void> {
-    await this.#mutate((file) => { delete file.values[`session:${sessionId}`]; });
+    await this.#mutate((file) => {
+      delete file.values[`session:${sessionId}`];
+      delete file.values[`session-environment:${sessionId}`];
+    });
   }
 
   async setBinding(id: string, value: string): Promise<void> {

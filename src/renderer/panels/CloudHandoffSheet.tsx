@@ -186,8 +186,8 @@ export function CloudHandoffSheet({
               <section className="cloud-handoff-section cloud-boundary-section" aria-labelledby="cloud-boundary-title">
                 <div className="cloud-section-heading"><div><span className="cloud-section-kicker">Transfer boundary</span><h3 id="cloud-boundary-title">Only portable project state moves</h3></div></div>
                 <div className="cloud-boundary-columns">
-                  <div><strong>Moves to Cloud</strong><ul><li>Conversation and session state</li><li>Git state and project files</li><li>Portable job commands</li></ul></div>
-                  <div><strong>Stays on this Mac</strong><ul><li>Ignored files and .env files</li><li>SSH keys and local credentials</li><li>Mac-only processes and tools</li></ul></div>
+                  <div><strong>Moves to Cloud</strong><ul><li>Conversation and session state</li><li>Git state and project files</li><li>Configured model access for this session</li><li>Explicit Cloud credential bindings</li><li>Portable job commands</li></ul></div>
+                  <div><strong>Stays on this Mac</strong><ul><li>Ignored files and .env files</li><li>SSH keys and unbound credentials</li><li>Mac-only processes and tools</li></ul></div>
                 </div>
               </section>
               <label className="setting-field cloud-instruction-field">

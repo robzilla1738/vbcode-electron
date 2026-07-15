@@ -179,6 +179,11 @@ export interface SandboxProvider {
 
 export interface CloudSessionCatalogEntry {
   sessionId: string;
+  model?: string;
+  models?: string[];
+  optionalModels?: string[];
+  credentialEnvironment?: string[];
+  providerDomains?: string[];
   workspaceId: string;
   sourceRoot: string;
   provider: CloudProviderId;

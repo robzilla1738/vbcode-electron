@@ -127,7 +127,17 @@ export class EngineBridge implements EngineTransport {
    * bootstrap starts a clean host.
    */
   listProjectsForIndex(): Promise<unknown> {
-    if (this.isReady) return this.rpc("listProjects");
+    return this.rpcWithTemporaryHost("listProjects");
+  }
+
+  /**
+   * Run a host RPC even when no project session is active. Project/session
+   * history actions are available on the launch surface, where the indexing
+   * host has already exited by design. Own and reap a short-lived host rather
+   * than exposing that internal lifecycle detail to the user.
+   */
+  rpcWithTemporaryHost(method: RpcMethod, params?: HostRpcParams): Promise<unknown> {
+    if (this.isReady) return this.rpc(method, params);
     const request = ++this.startRequest;
     this.generation += 1;
     this.failReady(new Error("Engine host stopped"));
@@ -138,7 +148,7 @@ export class EngineBridge implements EngineTransport {
       if (request !== this.startRequest) throw new Error("Engine host stopped");
       const proc = this.spawnCurrent();
       try {
-        return await this.rpcUnlocked("listProjects");
+        return await this.rpcUnlocked(method, params);
       } finally {
         // `lifecycle` prevents a later bootstrap from spawning until this
         // cleanup completes. The identity guard avoids stopping unrelated work

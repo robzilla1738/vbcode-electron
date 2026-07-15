@@ -59,6 +59,17 @@ try {
   await composer.press("Enter");
   await page.waitForFunction(() => document.documentElement.style.colorScheme === "light");
   process.stdout.write("packaged smoke ok: bundled host booted, project opened, command applied\n");
+
+  // The launch surface intentionally reaps its short-lived indexing host.
+  // Stop the active engine, then prove the installed-style build can launch
+  // and reap the bundled helper host again without a developer checkout.
+  await page.evaluate(async () => {
+    await window.vibe.stop();
+    const indexed = await window.vibe.listProjects();
+    if (!indexed.ok) throw new Error(indexed.error);
+    if (!Array.isArray(indexed.value)) throw new Error("Packaged project index is invalid");
+  });
+  process.stdout.write("packaged smoke ok: idle project index auto-launched the bundled host\n");
 } finally {
   await app?.close();
   // Best-effort orphan check: after close, no child host should remain for this userData run.

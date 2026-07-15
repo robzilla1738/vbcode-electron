@@ -11,6 +11,7 @@ export class EngineTransportController implements EngineTransport {
   #remote: RemoteEngineTransport | null = null;
   #remoteActivationEvents: Array<{ event: unknown; bytes: number }> | null = null;
   #remoteActivationBytes = 0;
+  #localLifecycleTail: Promise<void> = Promise.resolve();
 
   onEvent: ((event: unknown) => void) | null = null;
   onFatal: ((message: string) => void) | null = null;
@@ -24,16 +25,20 @@ export class EngineTransportController implements EngineTransport {
   get lastLaunchDescription(): string { return this.isRemote ? "Cloud agent" : this.local.lastLaunchDescription; }
   get lastStderr(): string { return this.isRemote ? "" : this.local.lastStderr; }
 
-  async start(options: EngineStartOptions): Promise<string> {
-    // A project/session switch only detaches this desktop. The cloud owner,
-    // its PTYs, and jobs continue until an explicit return or destroy action.
-    if (this.#remote) await this.#remote.disposeForQuit();
-    this.#remote = null;
-    this.#remoteActivationEvents = null;
-    this.#remoteActivationBytes = 0;
-    this.#active = this.local;
-    this.#wire(this.local);
-    return this.local.start(options);
+  start(options: EngineStartOptions): Promise<string> {
+    const operation = this.#localLifecycleTail.then(async () => {
+      // A project/session switch only detaches this desktop. The cloud owner,
+      // its PTYs, and jobs continue until an explicit return or destroy action.
+      if (this.#remote) await this.#remote.disposeForQuit();
+      this.#remote = null;
+      this.#remoteActivationEvents = null;
+      this.#remoteActivationBytes = 0;
+      this.#active = this.local;
+      this.#wire(this.local);
+      return this.local.start(options);
+    });
+    this.#localLifecycleTail = operation.then(() => undefined, () => undefined);
+    return operation;
   }
 
   async switchToRemote(
@@ -83,8 +88,12 @@ export class EngineTransportController implements EngineTransport {
   }
 
   startProvisionalLocal(options: EngineStartOptions): Promise<string> {
-    this.#wire(this.local);
-    return this.local.start(options);
+    const operation = this.#localLifecycleTail.then(() => {
+      this.#wire(this.local);
+      return this.local.start(options);
+    });
+    this.#localLifecycleTail = operation.then(() => undefined, () => undefined);
+    return operation;
   }
 
   importPortableSession(cwd: string, archive: import("../shared/handoff").PortableSessionArchiveV1, revision: string, provisional = false): Promise<void> {
@@ -143,6 +152,16 @@ export class EngineTransportController implements EngineTransport {
       for (const { event } of events) this.onEvent?.(event);
     }
     return value;
+  }
+  projectIndexRpc(method: RpcMethod, params?: HostRpcParams): Promise<unknown> {
+    const operation = this.#localLifecycleTail.then(async () => {
+      if (this.local.isReady) return this.local.rpc(method, params);
+      const helper = new EngineBridge();
+      try { return await helper.rpcWithTemporaryHost(method, params); }
+      finally { await helper.disposeForQuit().catch(() => undefined); }
+    });
+    this.#localLifecycleTail = operation.then(() => undefined, () => undefined);
+    return operation;
   }
   listProjectsForIndex(): Promise<unknown> { return this.local.listProjectsForIndex(); }
 

@@ -14,6 +14,12 @@ Moves/Stays boundary create hierarchy without nested cards. The Local/Cloud
 segmented control lives in the composer beside mode because execution location
 changes how the next message runs. It introduces no new palette, rail,
 full-height tint, or floating desktop panel.
+The boundary copy explicitly states that access for models configured in this
+session moves alongside explicit Cloud bindings while unbound credentials stay local. Provider validation happens
+before provisioning so an invalid route never degrades into a generic remote
+connection error after a sandbox has been created.
+Model changes while Cloud-owned direct the user back to Local because credential
+scope is fixed and disclosed at the ownership boundary.
 
 All composer-footer controls inherit that segmented control's compact
 rounded-rectangle geometry and surface treatment. Dropdowns, icon utilities,

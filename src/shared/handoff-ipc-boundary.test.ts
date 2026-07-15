@@ -18,6 +18,18 @@ describe("handoff IPC boundary", () => {
     expect(source).toContain("!HANDOFF_CONTROL_COMMANDS.has(command?.type)");
   });
 
+  it("keeps cloud model credentials fixed to the reviewed handoff boundary", () => {
+    expect(source).toContain("bridge.isRemote");
+    expect(source).toContain('message.command.type === "set-model"');
+    expect(source).toContain('message.command.type === "set-subagent-model"');
+    expect(source).toContain('message.command.type === "set-agent-model"');
+    expect(source).toContain('message.command.name === "model"');
+    expect(source).toContain('!/^(?:|refresh(?:\\s|$))/i.test(message.command.args.trim())');
+    expect(source).toContain('message.command.name === "vision"');
+    expect(source).toContain('/^model(?:\\s|$)/i.test(message.command.args.trim())');
+    expect(source).toContain("Return this session to Local before changing model access");
+  });
+
   it("blocks cloud reconnect while ownership is changing", () => {
     const handler = source.slice(source.indexOf('ipcMain.handle("cloud:reconnect"'), source.indexOf('ipcMain.handle("cloud:resumeLocal"'));
     expect(handler).toContain("cloudManager.ownershipTransitionActive");
@@ -49,12 +61,21 @@ describe("cloud release invariants", () => {
     expect(manager).toContain("if (sandbox.needsDaemonRestart)");
     expect(manager).toContain('provider.start(entry.sandboxId, "sh", ["start.sh"]');
     expect(manager).toContain("await superviseCloudAgent(daemon, endpoint.url, token, endpoint.headers)");
+    expect(manager).toContain("getSessionEnvironment(sessionId)");
+    expect(manager).toContain("entry.providerDomains");
+    expect(manager).not.toContain("refreshedEnvironment");
   });
 
   it("durably surfaces reconnect failures without surrendering cloud ownership", () => {
     expect(manager).toContain("#reconnectTracked");
     expect(manager).toContain('current?.handoffTransition ? "handoff-interrupted" : "recoverable-error"');
     expect(manager).toContain("instead of leaving a stale \"running\" catalog row behind");
+  });
+
+  it("serializes launch-surface project history RPCs through one controller queue", () => {
+    expect(controller).toContain("#localLifecycleTail: Promise<void>");
+    expect(controller).toContain("this.#localLifecycleTail.then(async () =>");
+    expect(controller).toContain("this.#localLifecycleTail = operation.then");
   });
 
   it("health-checks the daemon before the initial remote transport switch", () => {

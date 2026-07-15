@@ -93,6 +93,31 @@ describe("EngineBridge lifecycle", () => {
     await bridge.stop();
   });
 
+  it("runs project history mutations without an active session and reaps the temporary host", async () => {
+    const child = String.raw`
+      const readline = require("node:readline");
+      const rl = readline.createInterface({ input: process.stdin });
+      rl.on("line", (line) => {
+        const msg = JSON.parse(line);
+        if (msg.op === "rpc" && msg.method === "deleteSession") {
+          process.stdout.write(JSON.stringify({
+            type: "resp",
+            id: msg.id,
+            ok: true,
+            value: { id: msg.params.id },
+          }) + "\n");
+        } else if (msg.op === "shutdown") process.exit(0);
+      });
+    `;
+    const bridge = bridgeFor(child);
+
+    await expect(bridge.rpcWithTemporaryHost("deleteSession", {
+      cwd: process.cwd(),
+      id: "ses_fixture",
+    })).resolves.toEqual({ id: "ses_fixture" });
+    expect(bridge.isRunning).toBe(false);
+  });
+
   it("bootstraps, forwards events, resolves RPC, and shuts down", async () => {
     const child = String.raw`
       const readline = require("node:readline");

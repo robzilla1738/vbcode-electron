@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, readdir, rename, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { app } from "electron";
+import { globalConfigPath, projectConfigPath, readConfigFile } from "../../shared/config-io";
 import { isCloudSessionRemoteOwned } from "../../shared/cloud";
 import type {
   CloudCommandHandle,
@@ -21,6 +22,8 @@ import type { HandoffPreparation, PortableSessionArchiveV1 } from "../../shared/
 import type { EngineTransportController } from "../engine-transport-controller";
 import { CloudSessionCatalog } from "./catalog";
 import { CloudCredentialStore } from "./credential-store";
+import { assertPublicProviderDomains } from "./domain-validation";
+import { cloudModelEnvironment, cloudModelRouteHostname, configuredCloudFallbackModels, configuredCloudModels } from "./model-environment";
 import { E2BSandboxProvider, sanitizeCloudCommandOutput, VercelSandboxProvider } from "./providers";
 import {
   applyWorkspaceTransfer,
@@ -214,6 +217,27 @@ export class CloudManager {
     const revision = await engineRevision();
     const eventSequence = this.#engineEventSequence;
     const snapshot = await this.transport.local.rpc("snapshot") as EngineSnapshot;
+    const agents = await this.transport.local.rpc("listAgents");
+    const [globalResult, projectResult] = await Promise.all([
+      readConfigFile(globalConfigPath()),
+      readConfigFile(projectConfigPath(request.cwd)),
+    ]);
+    const requiredModels = [...new Set([
+      snapshot.model,
+      snapshot.subagentModel,
+      ...configuredCloudModels(globalResult?.config, projectResult?.config),
+      ...(Array.isArray(agents)
+        ? agents.map((agent) => agent && typeof agent === "object" && "model" in agent && typeof agent.model === "string" ? agent.model : undefined)
+        : []),
+    ].filter((model): model is string => Boolean(model)))];
+    const modelAccess = await this.#cloudModelEnvironment(
+      settings,
+      requiredModels,
+      request.cwd,
+      configuredCloudFallbackModels(globalResult?.config, projectResult?.config),
+    );
+    const models = modelAccess.models;
+    const modelEnvironment = modelAccess.environment;
     const handoffStartedAt = Date.now();
     this.#emit(snapshot.sessionId, "preparing", "Waiting for a safe engine boundary", 0.05, "waiting", handoffStartedAt);
     let preparation: HandoffPreparation | undefined;
@@ -231,6 +255,11 @@ export class CloudManager {
       }
       await this.#catalog.put({
         sessionId: snapshot.sessionId,
+        model: snapshot.model,
+        models,
+        optionalModels: modelAccess.optionalModels,
+        credentialEnvironment: Object.keys(modelEnvironment).sort(),
+        providerDomains: modelAccess.domains,
         workspaceId: createHash("sha256").update(resolve(request.cwd)).digest("hex").slice(0, 24),
         sourceRoot: request.cwd,
         provider: request.provider,
@@ -290,7 +319,7 @@ export class CloudManager {
           workspaceId: transfer.manifest.workspaceId,
           sessionId: snapshot.sessionId,
           timeoutMs: settings.autoPauseMinutes * 60 * 1_000,
-          allowedDomains: [...new Set([...DEFAULT_DOMAINS, ...settings.allowedDomains])],
+          allowedDomains: [...new Set([...DEFAULT_DOMAINS, ...settings.allowedDomains, ...modelAccess.domains])],
           signal,
         })),
       );
@@ -308,19 +337,22 @@ export class CloudManager {
       );
       accessToken = randomBytes(36).toString("base64url");
       await this.#credentials.setSessionSecret(snapshot.sessionId, accessToken);
+      await this.#credentials.setSessionEnvironment(snapshot.sessionId, modelEnvironment);
       this.#emit(snapshot.sessionId, "starting", "Verifying the cloud runtime", 0.48, "verifying", handoffStartedAt);
       await runRequired(provider, sandbox.id, "sh", ["-lc", `set -eu; rm -rf '${base}/runtime'; mkdir -p '${base}/runtime'; tar -xzf '${base}/runtime.tar.gz' -C '${base}/runtime'; cd '${base}/runtime'; sh install-runtime.sh`], undefined, {
         privileged: true,
         timeoutMs: SETUP_TIMEOUT_MS,
       }, "runtime-incompatible", "verifying");
       this.#emit(snapshot.sessionId, "starting", "Restoring workspace and session state", 0.61, "restoring", handoffStartedAt);
-      await runRequired(provider, sandbox.id, `${base}/runtime/bin/node`, ["vibe-cloud-bootstrap.mjs", `${base}/handoff.json`, `${base}/project`, revision], undefined, {
+      await runRequired(provider, sandbox.id, `${base}/runtime/bin/node`, ["vibe-cloud-bootstrap.mjs", `${base}/handoff.json`, `${base}/project`, revision], {
+        VIBE_STATE_DIR: `${base}/state`,
+      }, {
         privileged: true,
         cwd: `${base}/runtime`,
         timeoutMs: SETUP_TIMEOUT_MS,
       }, "setup-failed", "restoring");
       const daemonEnvironment = {
-        ...await this.#boundEnvironment(settings),
+        ...modelEnvironment,
         VIBE_CLOUD_ACCESS_TOKEN: accessToken,
         VIBE_CLOUD_PROVIDER: request.provider,
         VIBE_WORKSPACE_ROOT: `${base}/project`,
@@ -361,6 +393,11 @@ export class CloudManager {
       );
       const entry: CloudSessionCatalogEntry = {
         sessionId: snapshot.sessionId,
+        model: snapshot.model,
+        models,
+        optionalModels: modelAccess.optionalModels,
+        credentialEnvironment: Object.keys(modelEnvironment).sort(),
+        providerDomains: modelAccess.domains,
         workspaceId: transfer.manifest.workspaceId,
         sourceRoot: request.cwd,
         provider: request.provider,
@@ -507,9 +544,9 @@ export class CloudManager {
     return this.#withOwnershipTransition(() => this.#reconnectTracked(sessionId), true);
   }
 
-  async #reconnectTracked(sessionId: string): Promise<string> {
+  async #reconnectTracked(sessionId: string, allowLegacyCredentialless = false): Promise<string> {
     try {
-      return await this.#reconnect(sessionId);
+      return await this.#reconnect(sessionId, allowLegacyCredentialless);
     } catch (error) {
       // Reconnect failures do not transfer ownership back to this Mac. Keep the
       // cloud session authoritative, but make its degraded state durable and
@@ -522,7 +559,7 @@ export class CloudManager {
     }
   }
 
-  async #reconnect(sessionId: string): Promise<string> {
+  async #reconnect(sessionId: string, allowLegacyCredentialless = false): Promise<string> {
     await this.#recoverInterruptedOutboundHandoffs(true);
     const entry = await this.#catalog.get(sessionId);
     if (!entry) throw new Error("Cloud session is not in this desktop's catalog");
@@ -541,8 +578,31 @@ export class CloudManager {
     const base = entry.provider === "e2b" ? "/home/user/vibe" : "/vercel/sandbox/vibe";
     let daemon: CloudCommandHandle | undefined;
     if (sandbox.needsDaemonRestart) {
+      const models = entry.models?.length ? entry.models : entry.model ? [entry.model] : [];
+      if (!models.length && !allowLegacyCredentialless) {
+        throw new Error("This Cloud session predates scoped model access. Return it to Local from Settings → Cloud before reconnecting.");
+      }
+      if (!entry.credentialEnvironment?.length && !allowLegacyCredentialless) {
+        throw new Error("This Cloud session predates reviewed credential scope. Return it to Local from Settings → Cloud before reconnecting.");
+      }
+      const modelEnvironment = allowLegacyCredentialless
+        ? {}
+        : await this.#credentials.getSessionEnvironment(sessionId);
+      if (!allowLegacyCredentialless && !modelEnvironment) {
+        throw new Error("This Cloud session does not have a protected model-access snapshot. Return it to Local before reconnecting.");
+      }
+      if (!allowLegacyCredentialless && !entry.providerDomains?.length) {
+        throw new Error("This Cloud session does not have a reviewed provider route. Return it to Local before reconnecting.");
+      }
+      const approvedEnvironment = [...(entry.credentialEnvironment ?? [])].sort();
+      const pinnedEnvironment = Object.keys(modelEnvironment ?? {}).sort();
+      if (!allowLegacyCredentialless && (approvedEnvironment.length !== pinnedEnvironment.length
+        || approvedEnvironment.some((name, index) => name !== pinnedEnvironment[index]))) {
+        throw new Error("The protected Cloud model-access snapshot no longer matches the reviewed handoff. Return it to Local before reconnecting.");
+      }
+      if (!allowLegacyCredentialless) await assertPublicProviderDomains(entry.providerDomains ?? []);
       daemon = await provider.start(entry.sandboxId, "sh", ["start.sh"], {
-        ...await this.#boundEnvironment(settings),
+        ...(modelEnvironment ?? {}),
         VIBE_CLOUD_ACCESS_TOKEN: token,
         VIBE_CLOUD_PROVIDER: entry.provider,
         VIBE_WORKSPACE_ROOT: `${base}/project`,
@@ -578,7 +638,7 @@ export class CloudManager {
     if (!entry) throw new Error("Cloud session is not in this desktop's catalog");
     const settings = await this.#readSettings();
     const preserveCloudCopy = keepCloudCopy || !settings.deleteOnReturn;
-    if (!this.transport.isRemote || !this.transport.isReady) await this.#reconnectTracked(sessionId);
+    if (!this.transport.isRemote || !this.transport.isReady) await this.#reconnectTracked(sessionId, true);
     await this.#loadProvider(entry.provider);
     const provider = this.#providers[entry.provider];
     const revision = await engineRevision();
@@ -1095,6 +1155,65 @@ export class CloudManager {
       if (value) environment[binding.label] = value;
     }
     return environment;
+  }
+
+  async #cloudModelEnvironment(
+    settings: CloudSettingsPublic,
+    models: string[],
+    cwd: string,
+    optionalModels: string[] = [],
+  ): Promise<{ environment: Record<string, string>; models: string[]; optionalModels: string[]; domains: string[] }> {
+    if (!models.length) throw new Error("Cloud handoff requires at least one configured model");
+    const [bound, globalResult, projectResult] = await Promise.all([
+      this.#boundEnvironment(settings),
+      readConfigFile(globalConfigPath()),
+      readConfigFile(projectConfigPath(cwd)),
+    ]);
+    const environment: Record<string, string> = {};
+    const domains = new Set<string>();
+    const resolveModel = (model: string): { candidate: Record<string, string>; hostname: string } => {
+      const candidate = cloudModelEnvironment(model, globalResult?.config, projectResult?.config, bound);
+      for (const [name, value] of Object.entries(candidate)) {
+        if (environment[name] !== undefined && environment[name] !== value) {
+          throw new Error(`Configured models require conflicting values for ${name}. Return to Local and use one credential scope before handing off.`);
+        }
+      }
+      const hostname = cloudModelRouteHostname(model, globalResult?.config, projectResult?.config, candidate);
+      if (!hostname) {
+        throw new Error(`${model.split("/", 1)[0]} does not expose a fixed HTTPS endpoint for Cloud egress. Choose a provider with an explicit cloud endpoint before handing off.`);
+      }
+      return { candidate, hostname };
+    };
+    const mergeModel = ({ candidate, hostname }: { candidate: Record<string, string>; hostname: string }): void => {
+      for (const [name, value] of Object.entries(candidate)) {
+        environment[name] = value;
+      }
+      domains.add(hostname);
+    };
+    const validatedDomains = new Set<string>();
+    const validateModel = async (model: string): Promise<ReturnType<typeof resolveModel>> => {
+      const resolved = resolveModel(model);
+      if (!validatedDomains.has(resolved.hostname)) {
+        await assertPublicProviderDomains([resolved.hostname]);
+        validatedDomains.add(resolved.hostname);
+      }
+      return resolved;
+    };
+    for (const model of models) mergeModel(await validateModel(model));
+    const resolvedModels = [...models];
+    const resolvedOptionalModels: string[] = [];
+    for (const model of optionalModels) {
+      if (resolvedModels.includes(model)) continue;
+      try {
+        mergeModel(await validateModel(model));
+        resolvedModels.push(model);
+        resolvedOptionalModels.push(model);
+      } catch {
+        // Fallbacks are intentionally optional in the engine. An unavailable
+        // fallback must not block a usable primary Cloud route.
+      }
+    }
+    return { environment, models: resolvedModels, optionalModels: resolvedOptionalModels, domains: [...domains] };
   }
 
   #emit(

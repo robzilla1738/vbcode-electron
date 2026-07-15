@@ -533,6 +533,19 @@ function registerIpc(): void {
     }
     const message = inbound({ op: "send", command });
     if (message?.op !== "send") return { ok: false as const, error: "Invalid engine command" };
+    if (bridge.isRemote && (
+      message.command.type === "set-model"
+      || message.command.type === "set-subagent-model"
+      || message.command.type === "set-agent-model"
+      || message.command.type === "run-slash"
+        && message.command.name === "model"
+        && !/^(?:|refresh(?:\s|$))/i.test(message.command.args.trim())
+      || message.command.type === "run-slash"
+        && message.command.name === "vision"
+        && /^model(?:\s|$)/i.test(message.command.args.trim())
+    )) {
+      return { ok: false as const, error: "Return this session to Local before changing model access" };
+    }
     try {
       bridge.send(message.command);
       return { ok: true as const };
@@ -558,9 +571,14 @@ function registerIpc(): void {
           };
         }
       }
-      const value = message.method === "listProjects"
-        ? authorizeProjectIndex(await bridge.listProjectsForIndex())
+      const isProjectIndexRpc = message.method === "listProjects"
+        || PROJECT_INDEX_MUTATIONS.has(message.method);
+      const rawValue = isProjectIndexRpc
+        ? await bridge.projectIndexRpc(message.method, message.params)
         : await bridge.rpc(message.method, message.params);
+      const value = message.method === "listProjects"
+        ? authorizeProjectIndex(rawValue)
+        : rawValue;
       return { ok: true as const, value };
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : String(err) };

@@ -14,6 +14,8 @@ coverage/bridge/packaged-host gates.
 - [x] E2B and Vercel adapters behind one lifecycle contract
 - [x] Cloud settings, protected credential bindings, composer Local/Cloud target, route-and-boundary confirmation, first-class `/handoff` palette choices, status, and bundled skill
 - [x] Desktop close/reopen attaches to the cloud owner without starting a local writer
+- [x] Cloud import and daemon bootstrap share one canonical state root and resume the exact exported session ID
+- [x] Only the active model credential is session-scoped into Cloud; missing authentication and local-only routes fail before provisioning
 - [ ] Stable flag removal: fresh live suites for both providers, durable Mac relay, and Vercel broker verification
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
@@ -588,8 +590,8 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current release gate: 551 unit tests, 12 e2e scenarios, lint, typecheck,
-  build, bundle budget, source parity (20 pairs), config-shape parity (40
+- [x] Current release gate: 565 unit tests, 12 e2e scenarios, lint, typecheck,
+  build, bundle budget, source parity (21 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.
 - [x] Direct macOS/Windows releases publish GitHub-backed updater feeds. Update
   downloads and restarts require consent, and installation waits for the same

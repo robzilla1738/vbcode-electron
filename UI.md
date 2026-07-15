@@ -27,6 +27,12 @@ separate pill or circle shapes; state and contrast carry their hierarchy.
 The Cloud review begins with a Local → Cloud route, then uses flat provider rows,
 an explicit Moves/Stays boundary, an optional next-task field, and one billing
 note. It does not use a grid of rounded selection cards or repeat policy prose.
+Credentials for the main, subagent, and named-agent models configured for the
+session are transferred only for that cloud session; unrelated credentials
+remain local unless the user explicitly saved them as Cloud bindings. Missing cloud authentication and local-only providers are rejected
+before a sandbox is created, with a direct setup action.
+Changing main, subagent, or named-agent model access requires returning Local so
+the running cloud daemon never gains an undisclosed credential mid-session.
 Returning to Local mirrors the route and explains verified sync plus the safe
 review-worktree fallback before files change.
 

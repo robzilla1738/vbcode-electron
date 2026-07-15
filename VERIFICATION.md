@@ -7,8 +7,9 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 - `cd ../vibe-codr && bun test packages/core/src/portable-session.test.ts packages/core/src/session-tools.test.ts`
 - `cd ../vibe-codr && bun run build:cloud-runtime`
 - `cd ../vibe-codr && bun run smoke:cloud-runtime` verifies the archive with
-  network disabled, loads `node-pty`/`ws`, restores a minimal workspace, starts
-  the daemon, passes authenticated `/health`, and stops cleanly.
+  network disabled, loads `node-pty`/`ws`, exports and imports a real engine
+  session into the canonical cloud state root, resumes that exact session ID,
+  starts the daemon, passes authenticated `/health`, and stops cleanly.
 - Confirm runtime `engineRevision` equals `ENGINE_COMMIT`, outer and internal
   checksums pass in Linux, and `sbom.spdx.json` is present.
 - Confirm packaging rejects dirty engine runtime inputs and outbound handoff
@@ -114,7 +115,10 @@ Authenticode signing; without them the workflow clearly warns and produces an
 unsigned installer that may trigger Windows SmartScreen. Local crash
 breadcrumbs remain enabled without upload.
 
-The v0.1.4 source baseline is 551 unit tests and 12 Electron E2E scenarios.
+The v0.1.5 source baseline is 565 unit tests and 12 Electron E2E
+scenarios. The packaged smoke also stops the active host and proves that an idle
+project-index request transparently starts and reaps the bundled helper host;
+the bridge suite applies the same lifecycle to an exact session mutation.
 Cloud handoff ships behind its experimental setting: ownership, reconnect,
 workspace-return, and recovery contracts are release-gated, while promotion to
 stable still requires the paid E2B/Vercel and durable relay gates in
