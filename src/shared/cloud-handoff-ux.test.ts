@@ -33,7 +33,7 @@ describe("cloud handoff progress UX", () => {
     const retryable: CloudFailureDetails = { code: "daemon-exited", stage: "starting-agent", retryable: true, diagnostic: "missing module" };
     expect(cloudHandoffActionLabel(false, "Cloud agent stopped", retryable)).toBe("Try again");
     expect(cloudHandoffActionLabel(true, null, null)).toBe("Preparing handoff…");
-    expect(cloudHandoffActionLabel(false, "Cleanup unresolved", { ...retryable, retryable: false })).toBe("Confirm and continue in Cloud");
+    expect(cloudHandoffActionLabel(false, "Cleanup unresolved", { ...retryable, retryable: false })).toBe("Recovery required");
   });
 
   test("keeps the transition dialog keyboard-safe and announces live status and failures", () => {
@@ -45,5 +45,27 @@ describe("cloud handoff progress UX", () => {
     expect(sheet).toContain('role="alert"');
     expect(sheet).toContain("disabled={working}");
     expect(sheet).toContain("Technical details");
+    expect(sheet).toContain("Close and recover in Settings");
+    expect(sheet).toContain("working || recoveryRequired");
+    expect(sheet).toContain("Move work to Cloud");
+    expect(sheet).toContain("Only portable project state moves");
+    expect(sheet).toContain("Stays on this Mac");
+    expect(sheet).toContain('role="radiogroup"');
+  });
+
+  test("keeps Local and Cloud selection in the main composer", () => {
+    const composer = readFileSync(join(process.cwd(), "src/renderer/composer/Composer.tsx"), "utf8");
+    expect(composer).toContain('className="execution-target-toggle"');
+    expect(composer).toContain('role="radiogroup"');
+    expect(composer).toContain('(["local", "cloud"] as const)');
+    expect(composer).toContain("onExecutionTargetChange(target)");
+  });
+
+  test("uses one rounded-rectangle control family across the composer footer", () => {
+    const styles = readFileSync(join(process.cwd(), "src/renderer/styles.css"), "utf8");
+    expect(styles).toContain("Composer controls share the Local / Cloud geometry");
+    expect(styles).toMatch(/\.composer-chip,[\s\S]*?border-radius:\s*var\(--radius-sm\);[\s\S]*?background:\s*color-mix\(in oklab, var\(--surface-subtle\) 68%, transparent\);/);
+    expect(styles).toMatch(/\.composer-ghost\s*\{[\s\S]*?border-radius:\s*var\(--radius-sm\);/);
+    expect(styles).toMatch(/\.composer-submit\s*\{[\s\S]*?border-radius:\s*var\(--radius-sm\);/);
   });
 });

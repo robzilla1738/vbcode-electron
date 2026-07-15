@@ -114,6 +114,12 @@ Authenticode signing; without them the workflow clearly warns and produces an
 unsigned installer that may trigger Windows SmartScreen. Local crash
 breadcrumbs remain enabled without upload.
 
+The v0.1.3 source baseline is 551 unit tests and 12 Electron E2E scenarios.
+Cloud handoff ships behind its experimental setting: ownership, reconnect,
+workspace-return, and recovery contracts are release-gated, while promotion to
+stable still requires the paid E2B/Vercel and durable relay gates in
+`ACCEPTANCE.md`.
+
 ## UI preview (renderer-only, no engine)
 
 ```bash
@@ -144,7 +150,8 @@ Confirm the Environment dock has equal top/right inset and a quiet grey fill
 inside its rounded hairline in both full-label and compact icon layouts. At
 empty-state viewports on both sides of the 720px breakpoint, verify the strip
 remains 184px wide with 24px controls and 11px icons; confirm non-empty compact
-navigation retains its larger responsive targets.
+navigation retains its larger responsive targets. Below 900px, confirm no
+topbar metadata text is visible underneath the compact dock.
 Open Session, Changes, Git, Terminal, and Jobs in turn. Each must use the same
 full-height edge-attached sidebar with one left divider, no outer radius/shadow,
 and no desktop scrim. Confirm each view has the same Workspace eyebrow,
@@ -189,7 +196,8 @@ launch proof; public artifacts use the signed/notarized release path. Verify
 `release/mac-arm64/Vibe Codr.app` (or `release/win-unpacked/Vibe Codr.exe`)
 launches with the renderer sandbox enabled,
 uses `Contents/Resources/vibecodr-engine-host`, shows the optically padded VC
-app icon at a comparable size to neighboring macOS icons in Dock/Finder, and
+app icon at a comparable size to neighboring macOS icons in Dock/Finder, with
+transparent outer padding and a native-looking squircle silhouette, and
 does not require `VIBE_CODR_ROOT`. The smoke grants its fixture through the
 native Open Project path; renderer `localStorage` is not treated as a cwd
 capability. Its final plist must keep
@@ -207,7 +215,9 @@ successful relaunch on the new version.
 npm run dev
 ```
 
-1. Open a project (or confirm last-cwd restore).
+1. Launch the app and confirm it enters the main shell automatically: the last
+   authorized workspace wins, then the newest usable recent, with Chats as the
+   fresh-install fallback. Project selection appears only if all restore paths fail.
 2. Confirm projects and titled sessions load; switch projects and resume one session.
    A session containing thinking and tool calls must retain those expandable
    rows after an app restart rather than merging them into assistant prose.

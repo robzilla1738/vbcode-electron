@@ -1,6 +1,6 @@
 {
   "name": "vbcode-electron",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "author": "robzilla1738",
   "license": "MIT",
@@ -151,7 +151,10 @@
       {
         "from": "resources/cloud-runtime",
         "to": "cloud-runtime",
-        "filter": ["*.tar.gz", "*.sha256"]
+        "filter": [
+          "*.tar.gz",
+          "*.sha256"
+        ]
       }
     ]
   }

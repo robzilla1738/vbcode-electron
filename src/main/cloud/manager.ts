@@ -504,7 +504,22 @@ export class CloudManager {
   }
 
   reconnect(sessionId: string): Promise<string> {
-    return this.#withOwnershipTransition(() => this.#reconnect(sessionId), true);
+    return this.#withOwnershipTransition(() => this.#reconnectTracked(sessionId), true);
+  }
+
+  async #reconnectTracked(sessionId: string): Promise<string> {
+    try {
+      return await this.#reconnect(sessionId);
+    } catch (error) {
+      // Reconnect failures do not transfer ownership back to this Mac. Keep the
+      // cloud session authoritative, but make its degraded state durable and
+      // visible instead of leaving a stale "running" catalog row behind.
+      const current = await this.#catalog.get(sessionId).catch(() => null);
+      const status = current?.handoffTransition ? "handoff-interrupted" : "recoverable-error";
+      await this.#catalog.patch(sessionId, { status, error: message(error) }).catch(() => undefined);
+      this.#emit(sessionId, status, message(error));
+      throw error;
+    }
   }
 
   async #reconnect(sessionId: string): Promise<string> {
@@ -563,7 +578,7 @@ export class CloudManager {
     if (!entry) throw new Error("Cloud session is not in this desktop's catalog");
     const settings = await this.#readSettings();
     const preserveCloudCopy = keepCloudCopy || !settings.deleteOnReturn;
-    if (!this.transport.isRemote || !this.transport.isReady) await this.#reconnect(sessionId);
+    if (!this.transport.isRemote || !this.transport.isReady) await this.#reconnectTracked(sessionId);
     await this.#loadProvider(entry.provider);
     const provider = this.#providers[entry.provider];
     const revision = await engineRevision();

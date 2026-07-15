@@ -263,6 +263,9 @@ export function Composer({
   onEditInEditor,
   emptyHome = false,
   planPending = false,
+  executionTarget = "local",
+  executionStatus,
+  onExecutionTargetChange,
 }: {
   uiMode: UiMode;
   draft: string;
@@ -299,6 +302,12 @@ export function Composer({
   emptyHome?: boolean;
   /** Plan approval pending — composer submits revise the plan. */
   planPending?: boolean;
+  /** The runtime currently responsible for this session. */
+  executionTarget?: "local" | "cloud";
+  /** More specific cloud state for the accessible label and tooltip. */
+  executionStatus?: string;
+  /** Requests a reviewed ownership transition; selecting the active target is inert. */
+  onExecutionTargetChange?: (target: "local" | "cloud") => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -1198,6 +1207,35 @@ export function Composer({
             </button>
             {modeMenu}
           </div>
+          {onExecutionTargetChange ? (
+            <div
+              className="execution-target-toggle"
+              role="radiogroup"
+              aria-label={`Execution location${executionStatus ? `: ${executionStatus}` : ""}`}
+            >
+              {(["local", "cloud"] as const).map((target) => {
+                const active = executionTarget === target;
+                const label = target === "local" ? "Local" : "Cloud";
+                return (
+                  <button
+                    key={target}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    className={`execution-target-option${active ? " is-active" : ""}`}
+                    disabled={disabled}
+                    title={active ? `${executionStatus ?? label} is active` : `Move this session to ${label}`}
+                    onClick={() => {
+                      if (!active) onExecutionTargetChange(target);
+                    }}
+                  >
+                    <span className="execution-target-dot" aria-hidden />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
         <div className="composer-status-trailing">
           <div

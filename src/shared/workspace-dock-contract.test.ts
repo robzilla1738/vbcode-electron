@@ -137,6 +137,9 @@ describe("workspace dock design contract", () => {
     expect(styles).toMatch(
       /\.workspace-dock\[data-empty-home="true"\] \.workspace-dock-row-icon svg\s*\{[\s\S]*?width:\s*11px;[\s\S]*?height:\s*11px;/,
     );
+    expect(styles).toMatch(
+      /@media \(max-width: 900px\)[\s\S]*?\.topbar-meta\s*\{\s*display:\s*none;\s*\}/,
+    );
     expect(styles).toMatch(/\.activity-sidebar\s*\{[\s\S]*?-webkit-app-region:\s*no-drag;/);
   });
 });

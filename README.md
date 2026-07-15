@@ -81,7 +81,10 @@ npm install
 npm run dev
 ```
 
-On first open: **Open Project** (or last cwd restores automatically). Use the same providers/keys as `vibecodr`.
+The app opens directly into the main workspace. It restores the last authorized
+project, falls through recent projects when needed, and uses the dedicated Chats
+workspace on a fresh install. The folder picker is a recovery and project-switching
+tool, not a launch gate. Use the same providers/keys as `vibecodr`.
 
 ### UI preview (renderer only, no engine)
 
@@ -168,6 +171,7 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 - Projects and session titles come from the host's read-only `listProjects` index; Electron never parses vibe-codr state directly
 - Themes via `/theme` (same 16 palettes as OpenTUI); accents via `/accent`
 - Modes: **Plan / Agent / Yolo** dropdown in the composer (Shift+Tab still cycles)
+- Execution: **Local / Cloud** selection in the composer; changing it opens the same reviewed handoff as `/handoff local|cloud`
 
 ### Design system
 
@@ -335,7 +339,7 @@ Shell-owned surfaces:
 - Engine-owned gate/review/verification continuations: compact expandable context rows, visually distinct from user messages and without user Copy/Edit actions
 - Lucide icons across chrome, composer, and tool-row glyphs
 - Accessibility: ARIA combobox pattern in composer/catalog, labeled regions, keyboard-focusable scrollable output, narrow busy/idle live status (transcript is not live), hover/focus copy and edit icons with keyboard focus (touch keeps them visible), busy-disabled rail labels, skip links to conversation/composer/projects/session panel, catalog focus trap
-- App icon: `assets/icon.png` → `npm run build:icon` → `assets/icon.icns` for packaged builds; the master includes macOS-style optical safe-area padding, and the unpackaged macOS dock uses the PNG via `app.dock.setIcon`
+- App icon: `assets/icon.png` → `npm run build:icon` → `assets/icon.icns` for packaged builds; the master uses an Apple-style transparent safe area, squircle silhouette, optical scale, and edge highlight, and the unpackaged macOS dock uses the PNG via `app.dock.setIcon`
 
 ## Parity & verification
 
@@ -348,7 +352,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **470 unit tests**, **12 Electron E2E scenarios**, 20 source
+Current baseline: **551 unit tests**, **12 Electron E2E scenarios**, 20 source
 parity pairs, 40 top-level config fields, Biome, typecheck, production build,
 and renderer bundle budget pass in the current checkout. Settings, Terminal,
 Git, and Changes are isolated from the initial renderer chunk. CI runs `verify` +

@@ -7,12 +7,31 @@
 > `src/shared/themes.ts` and `src/shared/theme-registry.ts` own palette and
 > theme semantics. Update this document when those contracts change.
 
-Cloud handoff reuses the existing modal elevation, setting cards, buttons,
-status chips, warning tone, spacing, focus-visible rings, and reduced-motion
-collapse. It introduces no new palette, rail, full-height tint, or floating
-desktop panel.
+Cloud handoff reuses the existing modal elevation, buttons, status roles,
+spacing, focus-visible rings, and reduced-motion collapse. Provider choice is a
+flat divided list, not rounded setting cards. A route summary and paired
+Moves/Stays boundary create hierarchy without nested cards. The Local/Cloud
+segmented control lives in the composer beside mode because execution location
+changes how the next message runs. It introduces no new palette, rail,
+full-height tint, or floating desktop panel.
+
+All composer-footer controls inherit that segmented control's compact
+rounded-rectangle geometry and surface treatment. Dropdowns, icon utilities,
+status controls, and Send retain semantic emphasis through color and state, not
+through unrelated pill or circle silhouettes.
+
+Cloud errors follow ownership semantics. Retryable failures retain the primary
+Try again action; non-retryable failures replace it with disabled Recovery
+required state plus a Settings → Cloud recovery direction. Old progress is
+cleared whenever the review opens so a prior successful stage never flashes as
+current work.
 
 ## Product character
+
+Launch is a short transition into the working shell, not a destination page.
+Automatic restore uses the last workspace, recent workspaces, and finally Chats;
+the centered project gate is recovery-only. Execution location is selected in
+the composer after the shell opens.
 
 Vibe Codr is a native-feeling macOS and Windows Electron presentation shell for the `vibe-codr`
 engine. The interface is a quiet, dense workspace for building, reviewing, and
@@ -119,6 +138,8 @@ layouts across that compact range use a restrained 184px-wide toolbar with
 `720px`. Non-empty navigation retains its larger responsive targets. Jobs
 remains reachable through `/jobs`, and the activity drawer remains available
 through the responsive layout rules.
+Below the `tablet` breakpoint, topbar metadata is hidden so the absolute compact
+dock owns its chrome region without overlap; Local/Cloud remains in the composer.
 
 ## Color system
 

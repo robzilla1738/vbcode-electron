@@ -23,5 +23,6 @@ export function cloudHandoffActionLabel(
 ): string {
   if (working) return "Preparing handoff…";
   if (error && failure?.retryable) return "Try again";
+  if (error && failure && !failure.retryable) return "Recovery required";
   return "Confirm and continue in Cloud";
 }

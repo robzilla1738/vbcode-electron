@@ -22,6 +22,7 @@ import {
   isChatsCwd,
   normalizeCwd,
   projectLabel,
+  startupProjectCandidates,
   terminalCwdForWorkspace,
 } from "../shared/project-index";
 import {
@@ -143,6 +144,7 @@ export function App() {
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [initialProjectRestoreSettled, setInitialProjectRestoreSettled] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [projectOpenError, setProjectOpenError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   /** "Skip for now" lasts only for this renderer session, not forever. */
   const onboardingDismissed = useRef(false);
@@ -152,8 +154,6 @@ export function App() {
   const onboardingProbeGate = useRef(new RequestGate());
   const [keysOpen, setKeysOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [welcomeExecutionTarget, setWelcomeExecutionTarget] = useState<"local" | "cloud">("local");
-  const pendingCloudAfterBootstrap = useRef(false);
   const [cloudSheetOpen, setCloudSheetOpen] = useState(false);
   const [cloudTransitioning, setCloudTransitioning] = useState(false);
   const [cloudRequest, setCloudRequest] = useState<{ target?: "cloud" | "local"; provider?: CloudProviderId; instruction?: string } | null>(null);
@@ -241,6 +241,7 @@ export function App() {
       ...(event.target.kind === "cloud" ? { provider: event.target.provider } : {}),
       ...(event.instruction ? { instruction: event.instruction } : {}),
     });
+    setCloudProgress(null);
     setCloudSheetOpen(true);
   }), []);
 
@@ -476,6 +477,7 @@ export function App() {
       if (detail === "changes") openWorkspaceDock("changes");
       if (detail === "cloud") {
         setCloudRequest({ target: "cloud", provider: "e2b" });
+        setCloudProgress(null);
         setCloudSheetOpen(true);
       }
     };
@@ -553,17 +555,20 @@ export function App() {
   }, []);
 
   const openProjectAt = useCallback(
-    async (path: string) => {
+    async (path: string): Promise<boolean> => {
       // Project switch reloads settings (even Global scope uses cwd in load deps).
       // Never wipe dirty config/instructions without an explicit discard.
       const wasDirty = settingsDirtyRef.current();
-      if (!confirmLeaveSettings()) return;
+      if (!confirmLeaveSettings()) return false;
       if (wasDirty) setSettingsOpen(false);
+      setProjectOpenError(null);
       invalidateCatalogs();
       const cloud = await window.vibe.listCloudSessions();
       if (!cloud.ok) {
-        session.showToast(`Couldn’t verify cloud ownership: ${cloud.error}`, "error");
-        return;
+        const message = `Couldn’t verify cloud ownership: ${cloud.error}`;
+        setProjectOpenError(message);
+        session.showToast(message, "error");
+        return false;
       }
       const cloudList = cloud.value;
       const projectList = await refreshProjects() ?? projects;
@@ -573,50 +578,53 @@ export function App() {
         localSessions,
       );
       if (cloudOwned) {
-        pendingCloudAfterBootstrap.current = false;
         const connected = await window.vibe.reconnectCloudSession(cloudOwned.sessionId);
         if (connected.ok) {
           setCwd(path);
           setCloudSessions(cloudList);
           await session.attachCurrent(path);
           await refreshProjects();
-          return;
+          return true;
         }
+        setProjectOpenError(connected.error);
         session.showToast(connected.error, "error");
-        return;
+        return false;
       }
       const ok = await session.bootstrap({ cwd: path });
-      if (ok) {
-        setCwd(path);
-        await refreshProjects();
-        const onboardingProbe = onboardingProbeGate.current.begin();
-        try {
-          const [prov, models] = await Promise.all([
-            window.vibe.rpc("listProviders"),
-            window.vibe.rpc("listModels"),
-          ]);
-          if (!onboardingProbeGate.current.isCurrent(onboardingProbe)) return;
-          if (!prov.ok) {
-            setOnboardingProviders([]);
-            setShowOnboarding(false);
-            return;
-          }
-          const items = (prov.value as ProviderInfo[]) ?? [];
-          const modelItems = models.ok ? (models.value as ModelSummary[]) : [];
-          catalogCache.current.set("providers", items);
-          if (models.ok) catalogCache.current.set("models", modelItems);
-          setOnboardingProviders(items as ProviderStatus[]);
-          setShowOnboarding(
-            !hasUsableOnboardingProvider(items, modelItems)
-              && !onboardingDismissed.current,
-          );
-        } catch {
-          if (!onboardingProbeGate.current.isCurrent(onboardingProbe)) return;
-          // Unknown provider state must not open a misleading first-run modal.
+      if (!ok) {
+        setProjectOpenError(session.bootError ?? "The engine could not open this workspace.");
+        return false;
+      }
+      setCwd(path);
+      await refreshProjects();
+      const onboardingProbe = onboardingProbeGate.current.begin();
+      try {
+        const [prov, models] = await Promise.all([
+          window.vibe.rpc("listProviders"),
+          window.vibe.rpc("listModels"),
+        ]);
+        if (!onboardingProbeGate.current.isCurrent(onboardingProbe)) return true;
+        if (!prov.ok) {
           setOnboardingProviders([]);
           setShowOnboarding(false);
+          return true;
         }
+        const items = (prov.value as ProviderInfo[]) ?? [];
+        const modelItems = models.ok ? (models.value as ModelSummary[]) : [];
+        catalogCache.current.set("providers", items);
+        if (models.ok) catalogCache.current.set("models", modelItems);
+        setOnboardingProviders(items as ProviderStatus[]);
+        setShowOnboarding(
+          !hasUsableOnboardingProvider(items, modelItems)
+            && !onboardingDismissed.current,
+        );
+      } catch {
+        if (!onboardingProbeGate.current.isCurrent(onboardingProbe)) return true;
+        // Unknown provider state must not open a misleading first-run modal.
+        setOnboardingProviders([]);
+        setShowOnboarding(false);
       }
+      return true;
     },
     [session, refreshProjects, projects, invalidateCatalogs, confirmLeaveSettings],
   );
@@ -716,7 +724,8 @@ export function App() {
 
   // Application menu actions — single subscription (continueLatest included once defined).
 
-  // Restore last project on launch; otherwise load recent projects for the welcome gate.
+  // Launch directly into a safe workspace. Project selection is a recovery
+  // path, not a required onboarding screen.
   useEffect(() => {
     if (didRestoreProject.current) return;
     didRestoreProject.current = true;
@@ -729,19 +738,34 @@ export function App() {
         } catch {
           /* ignore */
         }
-        if (!last || !recent) return;
-        const normalized = normalizeCwd(last);
-        const authorized = recent.find((project) => normalizeCwd(project.cwd) === normalized);
-        if (authorized) {
-          await openProjectAt(authorized.cwd);
-          return;
+        if (recent) {
+          for (const project of startupProjectCandidates(recent, last)) {
+            if (await openProjectAt(project.cwd)) return;
+          }
         }
-        // Remove a stale or forged restore hint only after the host index loaded
-        // successfully. Transient host failures must not erase useful recents.
+        if (last && recent && !recent.some(
+          (project) => normalizeCwd(project.cwd) === normalizeCwd(last),
+        )) {
+          // Remove a stale or forged restore hint only after the host index
+          // loaded successfully. Transient host failures must not erase it.
+          try {
+            localStorage.removeItem("vibe.lastCwd");
+          } catch {
+            /* ignore */
+          }
+        }
+
+        // A fresh install still has a useful main view: the dedicated Chats
+        // workspace is created and authorized by the host, then bootstrapped
+        // through the same ownership-safe path as a project.
         try {
-          localStorage.removeItem("vibe.lastCwd");
-        } catch {
-          /* ignore */
+          const chats = await window.vibe.ensureChatsDir();
+          setChatsCwd(chats);
+          if (await openProjectAt(chats)) return;
+        } catch (error) {
+          setProjectOpenError(
+            error instanceof Error ? error.message : "Couldn’t open the Chats workspace.",
+          );
         }
       } finally {
         setInitialProjectRestoreSettled(true);
@@ -1319,6 +1343,7 @@ export function App() {
           ...(handoff.provider ? { provider: handoff.provider } : {}),
           ...(handoff.instruction ? { instruction: handoff.instruction } : {}),
         });
+        setCloudProgress(null);
         setCloudSheetOpen(true);
         return true;
       }
@@ -1818,32 +1843,18 @@ export function App() {
     }
   }, [session.ready, chrome.busy, projects.length, activeSessionIndexed, refreshProjects]);
 
-  useEffect(() => {
-    if (!pendingCloudAfterBootstrap.current || !session.ready || !cwd || !chrome.sessionId) return;
-    pendingCloudAfterBootstrap.current = false;
-    setCloudRequest(null);
-    setCloudSheetOpen(true);
-  }, [session.ready, cwd, chrome.sessionId]);
-
   if (!cwd) {
     return (
       <WelcomeGate
-        booting={session.booting}
-        bootError={session.bootError}
+        booting={!initialProjectRestoreSettled || session.booting}
+        restoring={!initialProjectRestoreSettled}
+        bootError={initialProjectRestoreSettled ? (session.bootError ?? projectOpenError) : null}
         pendingCwd={null}
         recentProjects={projects}
         projectsLoading={projectsLoading}
         projectsError={projectsError}
-        executionTarget={welcomeExecutionTarget}
-        onExecutionTargetChange={setWelcomeExecutionTarget}
-        onOpenProject={() => {
-          pendingCloudAfterBootstrap.current = welcomeExecutionTarget === "cloud";
-          void openProject();
-        }}
-        onOpenRecent={(path) => {
-          pendingCloudAfterBootstrap.current = welcomeExecutionTarget === "cloud";
-          void openProjectAt(path);
-        }}
+        onOpenProject={() => void openProject()}
+        onOpenRecent={(path) => void openProjectAt(path)}
         onRetryProjects={() => void refreshProjects()}
       />
     );
@@ -1987,16 +1998,6 @@ export function App() {
                   ))}
                 </div>
               )}
-            </div>
-            <div className="topbar-actions no-drag">
-              <button
-                type="button"
-                className={`button cloud-execution-button${executionLabel === "Needs your Mac" ? " is-warn" : ""}`}
-                onClick={() => { setCloudRequest(null); setCloudSheetOpen(true); }}
-                title={currentCloudSession ? "Resume this session locally" : "Continue this session in Cloud"}
-              >
-                {currentCloudSession ? (executionLabel === "Needs your Mac" ? "Needs your Mac" : "Resume locally") : "Continue in Cloud"}
-              </button>
             </div>
           </header>
         <div className="main-column" id="main-content">
@@ -2291,6 +2292,13 @@ export function App() {
                 onOpenInspector={() => openSessionReview()}
                 onEditInEditor={() => void composeInEditor()}
                 planPending={planPending}
+                executionTarget={currentCloudSession ? "cloud" : "local"}
+                executionStatus={executionLabel}
+                onExecutionTargetChange={(target) => {
+                  setCloudRequest({ target });
+                  setCloudProgress(null);
+                  setCloudSheetOpen(true);
+                }}
                 emptyHome={
                   session.transcript.blocks.length === 0 &&
                   !chrome.busy
@@ -2471,6 +2479,7 @@ export function App() {
           onComplete={async (message, resumedCwd) => {
             setCloudSheetOpen(false);
             setCloudRequest(null);
+            setCloudProgress(null);
             const activeCwd = resumedCwd ?? cwd;
             if (normalizeCwd(activeCwd) !== normalizeCwd(cwd)) setCwd(activeCwd);
             const attached = await session.attachCurrent(activeCwd);

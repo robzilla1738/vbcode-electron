@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-14 (direct macOS/Windows distribution and updates)
+> Last updated: 2026-07-15 (v0.1.3 direct-workspace and Cloud handoff release)
 > Status: shell product complete for P0 acceptance rows; residual risks and verification methods documented below — do not treat frozen unit/e2e counts as a live baseline
 
 ## Summary
@@ -134,11 +134,12 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | 2026-07-13 | Codex | 36/36 | 4/4 | Production safety closeout: validated pre-bootstrap project discovery and cwd capabilities; symlink-safe writes; prototype-key rejection; scope-pinned, draft-preserving Settings/MCP/provider editors; semantic config diffs; comprehensive live-state ceilings; conflict-free application shortcuts; redacted Git remote credentials; guaranteed Git/gh timeout settlement; and parity/packaging pinned to the exact clean engine lock. 336 unit tests pass; final consolidated gate is recorded below. |
 | 2026-07-13 | Codex | 36/36 | 4/4 | Production-readiness review: structured thinking/tool/diff history survives restart with cache validation limited to exactly host-reconstructible content; reasoning retains stream order; folded edit cursors settle correctly; replacement-host events are session-scoped and byte-bounded; transcript caching preflights aggregate serialized size; contextual terminals recover and persist; nested/deleted/untracked Git diffs are authoritative even with benign no-index warnings and oversized diffs fail closed; narrow dock controls and lazy subagent disclosures remain keyboard-operable; configuration preserves intentional empty objects and independently guards malformed provider/MCP drafts; session/project deletion purges presentation replicas; credentials are redacted across URL-style Git transports; packaging locks every real engine build input including the root TypeScript base config; empty project indexes settle without refresh loops; every dynamic send route respects the host byte ceiling; and bounded compact diffs retain omission metadata. Iterative autoreview passes accepted and fixed every actionable finding. Final gates: 360 unit tests, 12 Electron scenarios, source/config parity, typecheck, production build, bundle budgets, locked bridge smoke, and clean diff checks. |
 | 2026-07-14 | Codex | 36/36 | 4/4 | Final production and review-workspace closeout: uniform divider-free activity chrome, compact empty-home dock controls, nested Changes explorer, numbered file view, saturated dedicated diff roles, typed menu IPC, secure native-path packaged smoke, and hidden Settings keyboard isolation. Final gates: 463 unit tests, 12 Electron scenarios, 19 source pairs, 40 config fields, coverage floors, bridge smoke, production pack, packaged-host smoke, and bundle budgets all pass. |
+| 2026-07-15 | Codex | 36/36 | 4/4 | v0.1.3 release closeout: direct-to-workspace launch, macOS-native icon, uniform composer Local/Cloud controls, reviewed handoff/return UI, durable degraded reconnect state, stale-progress reset, and recovery-only handling for non-retryable ownership failures. 551 unit + 12 e2e scenarios at the source baseline; Cloud remains experimental pending the paid-provider stable gates above. |
 
-**Current verification snapshot (2026-07-14):**
+**Current verification snapshot (2026-07-15):**
 
 ```text
-npm test                         # 466/466 pass
+npm test                         # 551/551 pass
 npm run test:coverage            # floors on shared + bridge modules
 npm run lint                     # clean
 npm run typecheck                # pass

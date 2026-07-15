@@ -7,6 +7,7 @@ import type {
   CloudStatusEvent,
 } from "../../shared/cloud";
 import { CLOUD_STARTUP_STAGES, cloudHandoffActionLabel } from "../../shared/cloud-progress";
+import { IconArrowRight, IconCheck, IconCloud, IconLaptop } from "../icons";
 
 export function CloudHandoffSheet({
   cwd,
@@ -110,14 +111,17 @@ export function CloudHandoffSheet({
 
   const activeStageIndex = progress?.stage ? CLOUD_STARTUP_STAGES.findIndex((stage) => stage.id === progress.stage) : -1;
   const elapsedSeconds = working && progress?.startedAt ? Math.max(0, Math.floor((now - progress.startedAt) / 1_000)) : 0;
+  const providerName = provider === "e2b" ? "E2B" : "Vercel";
+  const recoveryRequired = error !== null && failure !== null && !failure.retryable;
 
   return (
     <div className="modal-overlay cloud-handoff-backdrop">
       <section ref={dialogRef} tabIndex={-1} className="cloud-handoff-sheet" role="dialog" aria-modal="true" aria-labelledby="cloud-handoff-title">
         <header className="cloud-handoff-header">
           <div>
-            <h2 id="cloud-handoff-title">{resumeLocal ? "Resume locally" : "Continue in Cloud"}</h2>
-            <p>{resumeLocal ? "Verify the cloud delta before changing local files." : "Review what crosses the local/cloud boundary."}</p>
+            <span className="cloud-handoff-eyebrow">Session handoff</span>
+            <h2 id="cloud-handoff-title">{resumeLocal ? "Bring work back to this Mac" : "Move work to Cloud"}</h2>
+            <p>{resumeLocal ? "Review the return path before local files change." : "Keep the same conversation and continue on remote compute."}</p>
           </div>
           <button type="button" className="icon-button" aria-label="Close" onClick={onClose} disabled={working}>×</button>
         </header>
@@ -125,39 +129,73 @@ export function CloudHandoffSheet({
         <div className="cloud-handoff-body">
           {resumeLocal && cloudSession ? (
             <>
-              <div className="cloud-preflight-grid">
-                <span>Session</span><strong>{sessionId}</strong>
-                <span>Provider</span><strong>{cloudSession.provider === "e2b" ? "E2B" : "Vercel"}</strong>
-                <span>Destination</span><strong>{cwd}</strong>
-                <span>Conflict policy</span><strong>Safe worktree on any divergence</strong>
+              <div className="cloud-route" aria-label="Cloud to Local handoff route">
+                <div className="cloud-route-endpoint">
+                  <span className="cloud-route-icon"><IconCloud size={18} /></span>
+                  <span><small>Current runtime</small><strong>{cloudSession.provider === "e2b" ? "E2B Cloud" : "Vercel Cloud"}</strong></span>
+                </div>
+                <span className="cloud-route-arrow" aria-hidden><IconArrowRight size={16} /></span>
+                <div className="cloud-route-endpoint is-destination">
+                  <span className="cloud-route-icon"><IconLaptop size={18} /></span>
+                  <span><small>Destination</small><strong>This Mac</strong></span>
+                </div>
               </div>
-              <label className="cloud-check-row"><input type="checkbox" checked={keepCloudCopy} onChange={(event) => setKeepCloudCopy(event.target.checked)} /><span>Keep the remote sandbox after the verified local start</span></label>
+              <section className="cloud-handoff-section" aria-labelledby="return-safety-title">
+                <div className="cloud-section-heading">
+                  <div><span className="cloud-section-kicker">Safety</span><h3 id="return-safety-title">Your local workspace is protected</h3></div>
+                </div>
+                <ul className="cloud-boundary-list">
+                  <li><IconCheck size={13} /><span><strong>Verified sync</strong><small>Cloud changes are checked before they touch {cwd}</small></span></li>
+                  <li><IconCheck size={13} /><span><strong>No silent overwrite</strong><small>Divergent work opens in a separate review worktree</small></span></li>
+                </ul>
+              </section>
+              <label className="cloud-check-row"><input type="checkbox" checked={keepCloudCopy} onChange={(event) => setKeepCloudCopy(event.target.checked)} /><span><strong>Keep the cloud sandbox</strong><small>Leave the remote copy available after this Mac takes over.</small></span></label>
             </>
           ) : (
             <>
-              <div className="cloud-provider-choice" role="radiogroup" aria-label="Cloud provider">
-                {(["e2b", "vercel"] as const).map((id) => (
-                  <button key={id} type="button" role="radio" aria-checked={provider === id} className={`setting-card cloud-provider-option${provider === id ? " selected" : ""}`} onClick={() => setProvider(id)}>
-                    <strong>{id === "e2b" ? "E2B" : "Vercel"}</strong>
-                    <span>{settings?.providers[id].configured ? "Connected" : "Setup required"}</span>
-                  </button>
-                ))}
+              <div className="cloud-route" aria-label={`Local to ${providerName} handoff route`}>
+                <div className="cloud-route-endpoint">
+                  <span className="cloud-route-icon"><IconLaptop size={18} /></span>
+                  <span><small>Current runtime</small><strong>This Mac</strong></span>
+                </div>
+                <span className="cloud-route-arrow" aria-hidden><IconArrowRight size={16} /></span>
+                <div className="cloud-route-endpoint is-destination">
+                  <span className="cloud-route-icon"><IconCloud size={18} /></span>
+                  <span><small>Destination</small><strong>{providerName} Cloud</strong></span>
+                </div>
               </div>
-              <div className="cloud-preflight-grid">
-                <span>Boundary</span><strong>{busy ? "Queues until engine-idle" : "Engine is idle"}</strong>
-                <span>Workspace</span><strong>{cwd}</strong>
-                <span>Included</span><strong>Git state, project files, portable session state</strong>
-                <span>Excluded</span><strong>Ignored files, .env*, SSH and credential material</strong>
-                <span>Mac-only tools</span><strong>Explicit relay or durable Needs your Mac pause</strong>
-                <span>Remote processes</span><strong>Portable jobs restart from recorded commands</strong>
-              </div>
+              <section className="cloud-handoff-section" aria-labelledby="cloud-runtime-title">
+                <div className="cloud-section-heading">
+                  <div><span className="cloud-section-kicker">Cloud runtime</span><h3 id="cloud-runtime-title">Choose where Vibe keeps working</h3></div>
+                  <span className={`cloud-boundary-state${busy ? " is-waiting" : ""}`}>{busy ? "Moves when idle" : "Ready to move"}</span>
+                </div>
+                <div className="cloud-provider-choice" role="radiogroup" aria-label="Cloud provider">
+                  {(["e2b", "vercel"] as const).map((id) => {
+                    const selected = provider === id;
+                    const connected = settings?.providers[id].configured ?? false;
+                    return (
+                      <button key={id} type="button" role="radio" aria-checked={selected} className={`cloud-provider-option${selected ? " selected" : ""}`} onClick={() => setProvider(id)}>
+                        <span className="cloud-provider-radio" aria-hidden>{selected ? <span /> : null}</span>
+                        <span className="cloud-provider-copy"><strong>{id === "e2b" ? "E2B" : "Vercel"}</strong><small>{id === "e2b" ? "Persistent sandbox with pause and resume" : "Ephemeral compute through Vercel"}</small></span>
+                        <span className={`cloud-provider-state${connected ? " is-connected" : ""}`}>{connected ? "Connected" : "Setup required"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+              <section className="cloud-handoff-section cloud-boundary-section" aria-labelledby="cloud-boundary-title">
+                <div className="cloud-section-heading"><div><span className="cloud-section-kicker">Transfer boundary</span><h3 id="cloud-boundary-title">Only portable project state moves</h3></div></div>
+                <div className="cloud-boundary-columns">
+                  <div><strong>Moves to Cloud</strong><ul><li>Conversation and session state</li><li>Git state and project files</li><li>Portable job commands</li></ul></div>
+                  <div><strong>Stays on this Mac</strong><ul><li>Ignored files and .env files</li><li>SSH keys and local credentials</li><li>Mac-only processes and tools</li></ul></div>
+                </div>
+              </section>
               <label className="setting-field cloud-instruction-field">
-                <span className="setting-label">Continue with (optional)</span>
-                <textarea className="setting-textarea" rows={3} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="What should the cloud session do next?" />
+                <span className="setting-label">Next task in Cloud <small>Optional</small></span>
+                <textarea className="setting-textarea" rows={3} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="What should Vibe do after the handoff?" />
+                <small className="cloud-field-help">Leave this empty to continue from the current conversation without starting a new task.</small>
               </label>
-              {provider === "e2b" && <p className="setting-empty" role="note">E2B pause can retain guest memory. Use revocable, sandbox-scoped keys.</p>}
-              {provider === "vercel" && <p className="setting-empty" role="note">Credential brokering is used when the connected Vercel plan supports it; otherwise the app warns before narrowly scoped injection.</p>}
-              <p className="setting-empty" role="note">Your provider may continue billing until this sandbox auto-pauses or is deleted.</p>
+              <p className="cloud-cost-note" role="note"><strong>{providerName} usage may be billed</strong><span>The sandbox follows your Cloud auto-pause and deletion settings.</span></p>
             </>
           )}
           {resumeLocal && !cloudSession && <p className="settings-save-error" role="alert">This session is already running locally.</p>}
@@ -169,6 +207,11 @@ export function CloudHandoffSheet({
               <summary>Technical details</summary>
               <pre>{`Stage: ${failure.stage}\nCode: ${failure.code}${failure.diagnostic ? `\n\n${failure.diagnostic}` : ""}`}</pre>
             </details>
+          )}
+          {recoveryRequired && (
+            <p className="cloud-recovery-note" role="status">
+              Close this review and open Settings → Cloud to resolve ownership safely before trying another handoff.
+            </p>
           )}
           {!resumeLocal && working && (
             <section className="cloud-startup-progress" aria-label="Cloud handoff progress">
@@ -195,8 +238,8 @@ export function CloudHandoffSheet({
         </div>
 
         <footer className="cloud-handoff-footer">
-          <button type="button" className="button" disabled={working} onClick={onClose}>Cancel</button>
-          <button type="button" className="button primary" disabled={working || (resumeLocal ? !cloudSession : (!settings?.experimentalEnabled || !configured))} onClick={() => void go()}>
+          <button type="button" className="button" disabled={working} onClick={onClose}>{recoveryRequired ? "Close and recover in Settings" : resumeLocal ? "Keep running in Cloud" : "Keep running locally"}</button>
+          <button type="button" className="button primary" disabled={working || recoveryRequired || (resumeLocal ? !cloudSession : (!settings?.experimentalEnabled || !configured))} onClick={() => void go()}>
             {resumeLocal
               ? working ? "Verifying and syncing…" : "Verify and resume locally"
               : cloudHandoffActionLabel(working, error, failure)}

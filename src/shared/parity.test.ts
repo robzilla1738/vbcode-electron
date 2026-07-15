@@ -28,6 +28,7 @@ import {
   partitionProjects,
   projectLabel,
   relativeSessionTime,
+  startupProjectCandidates,
   terminalCwdForWorkspace,
 } from "./project-index";
 import { decodeOutbound, encodeInbound } from "./protocol";
@@ -368,6 +369,17 @@ describe("palette extras", () => {
       state.open && state.mode === "command" && state.items.some((i) => i.name === "run-tests"),
     ).toBe(true);
   });
+
+  it("presents handoff as a first-class Local or Cloud choice", () => {
+    const command = paletteState("/handoff", ["handoff"]);
+    expect(command.open && command.mode === "command" && command.items[0]).toMatchObject({
+      name: "handoff",
+      description: "Move this session between Local and Cloud",
+      values: ["cloud", "local"],
+    });
+    const values = paletteState("/handoff ", ["handoff"]);
+    expect(values.open && values.mode === "value" ? values.items : []).toEqual(["cloud", "local"]);
+  });
 });
 
 describe("history hydrate", () => {
@@ -469,6 +481,15 @@ describe("project rail", () => {
   it("disambiguates duplicate project names and formats recency", () => {
     expect(projectLabel(projects[0]!, projects)).toBe("app — alpha");
     expect(relativeSessionTime(1_000, 121_000)).toBe("2m");
+  });
+
+  it("restores the last authorized workspace before newer recents", () => {
+    expect(startupProjectCandidates(projects, "/work/beta/app").map((project) => project.cwd))
+      .toEqual(["/work/beta/app", "/work/alpha/app"]);
+    expect(startupProjectCandidates(projects, "/missing").map((project) => project.cwd))
+      .toEqual(["/work/alpha/app", "/work/beta/app"]);
+    expect(startupProjectCandidates(projects, null).map((project) => project.cwd))
+      .toEqual(["/work/alpha/app", "/work/beta/app"]);
   });
 
   it("resolves chats cwd under home and partitions chats from projects", () => {

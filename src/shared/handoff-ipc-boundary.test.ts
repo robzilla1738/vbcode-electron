@@ -51,6 +51,12 @@ describe("cloud release invariants", () => {
     expect(manager).toContain("await superviseCloudAgent(daemon, endpoint.url, token, endpoint.headers)");
   });
 
+  it("durably surfaces reconnect failures without surrendering cloud ownership", () => {
+    expect(manager).toContain("#reconnectTracked");
+    expect(manager).toContain('current?.handoffTransition ? "handoff-interrupted" : "recoverable-error"');
+    expect(manager).toContain("instead of leaving a stale \"running\" catalog row behind");
+  });
+
   it("health-checks the daemon before the initial remote transport switch", () => {
     const health = manager.indexOf("await superviseCloudAgent(daemon, endpoint.url, accessToken, endpoint.headers)");
     const supervisedSwitch = manager.indexOf("await awaitRemoteEngineReady(", health);

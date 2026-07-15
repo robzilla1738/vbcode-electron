@@ -1,7 +1,7 @@
 # UI.md — Current interaction and visual contract
 
 > **Status:** current-state handoff  
-> **Updated:** 2026-07-15 (supervised cloud handoff progress and diagnostics)
+> **Updated:** 2026-07-15 (first-class composer execution target and handoff review)
 > **Repository:** [vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
 This is the renderer-facing design contract for the Electron shell. Re-check the
@@ -11,12 +11,24 @@ and desktop interaction.
 
 ## Execution environment
 
-New-project setup exposes a Local/Cloud target. Existing sessions use the compact
-topbar action and `/handoff`. Provider setup lives only in full-workspace
-Settings → Cloud. Confirmation is a modal preflight over the existing chat
-surface; status stays in topbar metadata and never adds a rail or persistent
-floating panel. Normal chrome says Local, Cloud, Cloud paused, or Needs your Mac;
-provider names remain in setup, diagnostics, and cost details.
+New-project setup and the main composer expose the same Local/Cloud target.
+Changing the composer target opens a reviewed ownership transition; the active
+target is never changed optimistically. `/handoff` is a first-class palette entry
+with Local and Cloud choices and opens that same review. Provider setup lives in
+full-workspace Settings → Cloud. Confirmation is a modal preflight over the
+existing chat surface; status stays in topbar metadata and never adds a rail or
+persistent floating panel. Normal chrome says Local, Cloud, Cloud paused, or
+Needs your Mac; provider names remain in setup, diagnostics, and cost details.
+The complete composer footer uses the Local/Cloud control geometry: one height,
+compact rounded-rectangle silhouette, quiet border, and consistent surface.
+Mode, attachment, density, context, model, Stop, and Send do not introduce
+separate pill or circle shapes; state and contrast carry their hierarchy.
+
+The Cloud review begins with a Local → Cloud route, then uses flat provider rows,
+an explicit Moves/Stays boundary, an optional next-task field, and one billing
+note. It does not use a grid of rounded selection cards or repeat policy prose.
+Returning to Local mirrors the route and explains verified sync plus the safe
+review-worktree fallback before files change.
 
 While ownership is changing, the modal is non-dismissible and presents the
 session-scoped stages Safe boundary, Package workspace, Create sandbox, Upload,
@@ -24,10 +36,19 @@ Verify runtime, Restore session, Start agent, Health check, and Connect. The
 current stage, elapsed time, and progress are exposed through a polite live
 region. A failure keeps the modal open with a plain-language alert, expandable
 sanitized technical details, and **Try again** only for a manager-confirmed
-retryable state. Success closes the modal and reconnects the existing session
-automatically.
+retryable state. Non-retryable ownership failures disable the transition action
+and direct the user to Settings → Cloud recovery. Reopening handoff always starts
+with fresh progress, and reconnect failures persist a degraded catalog state
+instead of appearing healthy. Success closes the modal and reconnects the
+existing session automatically.
 
 ## Product shape
+
+App launch is direct-to-workspace. The renderer tries the last successfully
+bootstrapped authorized workspace, then host-ordered recents, then the dedicated
+Chats root. The normal launch path never stops at project selection; the picker
+is reserved for switching projects or recovering when every automatic path
+fails. Local/Cloud selection belongs to the main composer, not a launch gate.
 
 First-run provider onboarding is searchable: common curated choices stay first,
 followed by the generated models.dev/OpenCode registry and Hermes aliases.
@@ -137,6 +158,8 @@ without changing the active chat or scroll position.
   section labels or decorative divider rules inside the dock nav.
 - Switches to icon-only navigation at `max-width: 960px` (Jobs still via
   `/jobs`).
+- Below the `900px` drawer breakpoint, topbar metadata yields to the compact
+  dock instead of rendering beneath it; Local/Cloud remains in the composer.
 - Session, Changes, Git, Terminal, and Jobs are mutually exclusive views in one shared
   right-side activity lane. Opening one closes the previous active view instead
   of replacing the whole workspace or jumping the conversation.

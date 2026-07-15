@@ -25,12 +25,10 @@ test.beforeAll(async () => {
     },
   });
   page = await app.firstWindow();
-  // Enter through the main-authorized recent-project capability. Renderer
-  // storage is intentionally only a restore hint and must not self-authorize a
-  // filesystem root.
-  await expect(page.getByRole("list", { name: "Recent projects" })).toBeVisible();
-  await page.getByRole("button", { name: /^project/ }).click();
+  // The host-authorized recent project opens automatically. Renderer storage
+  // remains only a restore hint and never self-authorizes a filesystem root.
   await expect(page.getByRole("textbox", { name: "Task message" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Open a project" })).toHaveCount(0);
 });
 
 test.afterAll(async () => {
@@ -105,7 +103,7 @@ test("streams reasoning, tools, diffs, markdown, telemetry, and engine-idle", as
   await page.locator("details.thinking-group > summary").first().click();
   await expect(page.getByRole("button", { name: /edited src\/example\.ts/ })).toBeVisible();
   await expect(page.getByText("fixture:stream")).toBeVisible();
-  await expect(page.getByText(/15 tok/)).toBeVisible();
+  await expect(page.locator(".composer-metric", { hasText: "15 tok · $0.0010" })).toBeAttached();
   await expect(page.locator('.ctx-ring')).toContainText('10%');
   await expect(page.getByText("Vibe Codr is idle")).toBeAttached();
   await page.getByRole("button", { name: /Expand .*src\/example\.ts/ }).click();

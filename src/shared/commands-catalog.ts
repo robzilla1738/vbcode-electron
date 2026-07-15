@@ -48,6 +48,11 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
   { name: "settings", description: "Open the settings panel (models, providers, MCP, permissions)" },
   { name: "git", description: "Open the git panel (branches, changes, history, PRs)" },
   { name: "branches", description: "Alias for /git" },
+  {
+    name: "handoff",
+    description: "Move this session between Local and Cloud",
+    values: ["cloud", "local"],
+  },
   // Values derive from the palette registry so a new theme/accent shows up here
   // automatically ("dark" is an alias of default — hidden to keep the menu tight).
   { name: "theme", description: "Set the UI theme", values: THEME_NAMES.filter((n) => n !== "dark") },

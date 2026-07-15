@@ -83,6 +83,27 @@ export function normalizeCwd(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+$/, "") || "/";
 }
 
+/**
+ * Order safe, host-authorized workspaces for automatic launch. The last
+ * successful workspace wins when it still exists; otherwise the host's
+ * newest-first recent order is preserved.
+ */
+export function startupProjectCandidates(
+  projects: readonly ProjectSummary[],
+  lastCwd: string | null,
+): ProjectSummary[] {
+  if (!lastCwd) return [...projects];
+  const normalizedLast = normalizeCwd(lastCwd);
+  const lastProject = projects.find(
+    (project) => normalizeCwd(project.cwd) === normalizedLast,
+  );
+  if (!lastProject) return [...projects];
+  return [
+    lastProject,
+    ...projects.filter((project) => project !== lastProject),
+  ];
+}
+
 export function isChatsCwd(cwd: string, chatsRoot: string): boolean {
   return normalizeCwd(cwd) === normalizeCwd(chatsRoot);
 }

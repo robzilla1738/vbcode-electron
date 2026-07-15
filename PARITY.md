@@ -12,7 +12,7 @@ coverage/bridge/packaged-host gates.
 - [x] Portable engine export/import with revision lock and monotonic ownership generations
 - [x] Deterministic workspace transfer, staged/unstaged Git state, hashes, exclusions, and divergent safe return
 - [x] E2B and Vercel adapters behind one lifecycle contract
-- [x] Cloud settings, protected credential bindings, creation target, confirmation, status, `/handoff`, and bundled skill
+- [x] Cloud settings, protected credential bindings, composer Local/Cloud target, route-and-boundary confirmation, first-class `/handoff` palette choices, status, and bundled skill
 - [x] Desktop close/reopen attaches to the cloud owner without starting a local writer
 - [ ] Stable flag removal: fresh live suites for both providers, durable Mac relay, and Vercel broker verification
 
@@ -47,8 +47,9 @@ whose HEAD equals the lock before it will embed a rebuilt host.
 ## Core session loop
 
 - [x] Open project → engine bootstrap → wait for `ready` → snapshot
-- [x] Last-cwd restore on launch; a workspace is persisted only after bootstrap
-  and snapshot validation succeed
+- [x] Direct-to-workspace launch: try the last authorized cwd, then host-ordered
+  recents, then the authorized Chats workspace; a workspace is persisted only
+  after bootstrap and snapshot validation succeed
 - [x] Resume restores structured thinking/tool/output history through the host's
   authoritative session record, falls back to `snapshot.history` with older
   hosts, and reuses an exact bounded IndexedDB presentation cache when the
@@ -284,7 +285,7 @@ npm run dev
 
 ## Agent-home polish + typography (session 6)
 
-- [x] Empty-home: invariant stylized ASCII wordmark, quiet tagline, centered composer, no automatic suggestions; fluid container-relative scaling; WelcomeGate + SessionBoot shared boot copy; recent projects on cold start
+- [x] Empty-home: invariant stylized ASCII wordmark, quiet tagline, centered composer, no automatic suggestions; fluid container-relative scaling; launch restores directly into the main shell, while WelcomeGate remains recovery-only and SessionBoot owns in-shell boot copy
 - [x] ProjectRail: active session surface highlight (no accent bar/dot); always-on search; measured context menus; archive confirm; topbar brand when rail closed
 - [x] Composer: shared transcript/activity/notice/approval/composer measure (`--transcript-measure: 40rem`), taller resting input (`--composer-input-min: 44px`); queue is one card above the composer (flat list, hover steer/dequeue)
 - [x] Mode dropdown Plan / Agent / Yolo (`selectModeAction`); Shift+Tab still cycles; plan-pending guard unchanged
@@ -345,7 +346,7 @@ npm run dev
 
 ## Presentation polish (2026-07-11 evening)
 
-- [x] App icon: optically padded `assets/icon.png` source → `build:icon` →
+- [x] App icon: Apple-style transparent safe area + squircle-composed `assets/icon.png` source → `build:icon` →
   `icon.icns`; unpackaged macOS dock via `app.dock.setIcon`
 - [x] Queue: one quiet card, “N Queued” header, flat list, hover steer/dequeue
 - [x] Continuous composer frost + chat-column veil so transcript is blurred
@@ -587,7 +588,7 @@ npm run dev
   prohibited; section state uses spacing, fill, and keyboard-only focus rings.
 - [x] `design-system.md` documents the live color, type, spacing, radius, blur,
   shadow, motion, breakpoint, panel, and accessibility contracts.
-- [x] Current release gate: 470 unit tests, 12 e2e scenarios, lint, typecheck,
+- [x] Current release gate: 551 unit tests, 12 e2e scenarios, lint, typecheck,
   build, bundle budget, source parity (20 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.
 - [x] Direct macOS/Windows releases publish GitHub-backed updater feeds. Update

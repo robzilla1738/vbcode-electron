@@ -5073,7 +5073,8 @@ html.electron-transparent .composer-wrap:focus-within {
   text-transform: lowercase;
 }
 
-/* Composer status chips — one size / type / chrome for the whole strip */
+/* Composer controls share the Local / Cloud geometry. Labels, dropdowns,
+   utilities, and the primary action differ by state — never by silhouette. */
 .composer-chip,
 .mode-trigger,
 .ctx-ring,
@@ -5089,9 +5090,9 @@ html.electron-transparent .composer-wrap:focus-within {
   margin: 0;
   padding: 0 8px;
   gap: var(--space-2xs);
-  border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
-  border-radius: var(--radius-pill);
-  background: color-mix(in oklab, var(--surface) 42%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface-subtle) 68%, transparent);
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--text-caption);
@@ -5109,9 +5110,10 @@ html.electron-transparent .composer-wrap:focus-within {
 .ctx-ring:hover,
 .composer-model:hover,
 .composer-density:hover {
-  border-color: color-mix(in oklab, var(--border) 40%, transparent);
+  border-color: color-mix(in oklab, var(--border) 42%, transparent);
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 68%, transparent);
+  background: var(--surface);
+  box-shadow: var(--edge-highlight);
 }
 
 .composer-metric {
@@ -5147,8 +5149,61 @@ html.electron-transparent .composer-wrap:focus-within {
 .mode-dropdown.is-open .mode-trigger {
   border-color: color-mix(in oklab, var(--border) 48%, transparent);
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 82%, transparent);
+  background: var(--surface);
+  box-shadow: var(--edge-highlight);
 }
+
+.execution-target-toggle {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: var(--composer-chip-h);
+  padding: 2px;
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface-subtle) 68%, transparent);
+}
+
+.execution-target-option {
+  display: inline-flex;
+  min-width: 58px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  padding: 0 7px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  transition:
+    color var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.execution-target-option:hover:not(:disabled) { color: var(--assistant); }
+.execution-target-option:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.execution-target-option.is-active {
+  color: var(--assistant);
+  background: var(--surface);
+  box-shadow: var(--edge-highlight);
+}
+
+.execution-target-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, currentColor 38%, transparent);
+}
+
+.execution-target-option.is-active .execution-target-dot { background: var(--accent); }
+
+/* Execution ownership is the higher-priority composer decision. Usage remains
+   available in the topbar summary instead of colliding with this control. */
+.composer-status:has(.execution-target-toggle) .composer-metrics-slot { display: none; }
 
 .mode-trigger .icon-chevron {
   opacity: 0.55;
@@ -5330,7 +5385,7 @@ html.electron-transparent .composer-wrap:focus-within {
   color: color-mix(in oklab, var(--sel-fg) 78%, transparent);
 }
 
-/* Ghost actions — same height as status chips */
+/* Utility actions use the same quiet control surface as labeled controls. */
 .composer-ghost {
   display: inline-flex;
   width: var(--composer-chip-h);
@@ -5338,10 +5393,10 @@ html.electron-transparent .composer-wrap:focus-within {
   min-height: var(--composer-chip-h);
   align-items: center;
   justify-content: center;
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  border-radius: var(--radius-sm);
   color: color-mix(in oklab, var(--muted) 72%, transparent);
-  background: transparent;
+  background: color-mix(in oklab, var(--surface-subtle) 68%, transparent);
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
   line-height: 1;
@@ -5351,8 +5406,9 @@ html.electron-transparent .composer-wrap:focus-within {
 .composer-ghost:hover,
 .composer-ghost.is-open {
   color: var(--assistant);
-  border-color: color-mix(in oklab, var(--border) 22%, transparent);
-  background: color-mix(in oklab, var(--surface) 42%, transparent);
+  border-color: color-mix(in oklab, var(--border) 42%, transparent);
+  background: var(--surface);
+  box-shadow: var(--edge-highlight);
 }
 
 .composer-ghost:disabled { opacity: var(--opacity-disabled); }
@@ -5431,7 +5487,7 @@ html.electron-transparent .composer-wrap:focus-within {
   margin: 0;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   color: var(--bg);
   background: var(--assistant);
   font-family: var(--font-sans);
@@ -5466,10 +5522,10 @@ html.electron-transparent .composer-wrap:focus-within {
   min-height: var(--composer-chip-h);
   padding: 0 8px;
   gap: var(--space-2xs);
-  border: 1px solid color-mix(in oklab, var(--border) 22%, transparent);
-  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in oklab, var(--border) 28%, transparent);
+  border-radius: var(--radius-sm);
   color: var(--assistant);
-  background: color-mix(in oklab, var(--surface) 42%, transparent);
+  background: color-mix(in oklab, var(--surface-subtle) 68%, transparent);
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
   letter-spacing: var(--tracking-ui);
@@ -8057,6 +8113,11 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
 
   .sidebar-resize-handle { display: none; }
 
+  /* The compact workspace dock owns the top-right chrome at drawer widths.
+     Execution remains available in the composer, so duplicate metadata yields
+     instead of sitting underneath the dock. */
+  .topbar-meta { display: none; }
+
   html.glass .project-rail.is-open,
   html.electron-transparent .project-rail.is-open {
     background: var(--drawer-bg);
@@ -9942,20 +10003,10 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
 }
 
 /* ── Local / Cloud handoff ───────────────────────────────────────────── */
-.cloud-execution-button {
-  min-height: 28px;
-  padding-inline: var(--space-sm);
-  white-space: nowrap;
-}
-
-.cloud-execution-button.is-warn {
-  color: var(--warning);
-  border-color: color-mix(in oklab, var(--warning) 38%, var(--border-soft));
-}
 
 .cloud-handoff-sheet {
-  width: min(720px, 100%);
-  max-height: min(88vh, 760px);
+  width: min(680px, 100%);
+  max-height: min(90dvh, 820px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -9972,49 +10023,137 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-base);
-  padding: var(--space-md) var(--space-base);
+  padding: var(--space-md);
 }
 
 .cloud-handoff-header { border-bottom: 1px solid var(--border-soft); }
 .cloud-handoff-footer { align-items: center; justify-content: flex-end; border-top: 1px solid var(--border-soft); }
-.cloud-handoff-header h2 { margin: 0; font: var(--weight-semibold) var(--text-heading)/1.25 var(--font-sans); }
+.cloud-handoff-eyebrow,
+.cloud-section-kicker {
+  display: block;
+  margin-bottom: var(--space-2xs);
+  color: var(--text-subtle);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.cloud-handoff-header h2 { margin: 0; color: var(--assistant); font: var(--weight-semibold) var(--text-display-sm)/1.2 var(--font-sans); letter-spacing: -0.015em; }
 .cloud-handoff-header p { margin: 4px 0 0; color: var(--text-subtle); font-size: var(--text-ui); }
-.cloud-handoff-body { min-height: 0; overflow: auto; padding: var(--space-base); }
+.cloud-handoff-body { min-height: 0; overflow: auto; padding: var(--space-md); }
 
-.cloud-provider-choice {
+.cloud-route {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-sm);
-  margin-bottom: var(--space-base);
-}
-
-.cloud-provider-option {
-  display: flex;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-  color: var(--text);
-  text-align: left;
-}
-
-.cloud-provider-option span { color: var(--text-subtle); font-size: var(--text-ui); }
-.cloud-provider-option.selected { border-color: color-mix(in oklab, var(--accent) 55%, var(--border-soft)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 24%, transparent); }
-
-.cloud-preflight-grid {
-  display: grid;
-  grid-template-columns: minmax(120px, 0.32fr) minmax(0, 1fr);
-  gap: var(--space-xs) var(--space-base);
-  padding: var(--space-sm);
+  gap: var(--space-base);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-sm) var(--space-base);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
   background: var(--surface-subtle);
-  font-size: var(--text-ui);
+  box-shadow: var(--edge-highlight);
 }
 
-.cloud-preflight-grid span { color: var(--text-subtle); }
-.cloud-preflight-grid strong { min-width: 0; overflow-wrap: anywhere; font-weight: var(--weight-medium); }
-.cloud-check-row { display: flex; gap: var(--space-xs); align-items: flex-start; margin-top: var(--space-base); font-size: var(--text-ui); }
-.cloud-instruction-field { display: grid; gap: var(--space-xs); margin-top: var(--space-base); }
+.cloud-route-endpoint {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.cloud-route-endpoint.is-destination { justify-content: flex-end; text-align: right; }
+.cloud-route-endpoint.is-destination > span:last-child { order: -1; }
+.cloud-route-icon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--assistant);
+}
+.cloud-route-endpoint > span:last-child { display: grid; min-width: 0; gap: 2px; }
+.cloud-route-endpoint small { color: var(--text-subtle); font-size: var(--text-micro); }
+.cloud-route-endpoint strong { overflow: hidden; color: var(--assistant); font-size: var(--text-ui); font-weight: var(--weight-medium); text-overflow: ellipsis; white-space: nowrap; }
+.cloud-route-arrow { color: var(--accent); }
+
+.cloud-handoff-section + .cloud-handoff-section,
+.cloud-handoff-section + .cloud-instruction-field { margin-top: var(--space-lg); }
+
+.cloud-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-base);
+  margin-bottom: var(--space-sm);
+}
+.cloud-section-heading h3 { margin: 0; color: var(--assistant); font-size: var(--text-title); font-weight: var(--weight-medium); line-height: 1.3; }
+.cloud-boundary-state { color: var(--success); font-size: var(--text-caption); white-space: nowrap; }
+.cloud-boundary-state.is-waiting { color: var(--warning); }
+
+.cloud-provider-choice {
+  display: flex;
+  flex-direction: column;
+  border-block: 1px solid var(--border-soft);
+}
+
+.cloud-provider-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  min-height: 56px;
+  padding: var(--space-sm) var(--space-xs);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+.cloud-provider-option + .cloud-provider-option { border-top: 1px solid var(--border-soft); }
+.cloud-provider-option:hover { background: color-mix(in oklab, var(--surface-subtle) 62%, transparent); }
+.cloud-provider-option:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+.cloud-provider-option.selected { background: color-mix(in oklab, var(--surface) 72%, transparent); }
+.cloud-provider-radio { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); }
+.cloud-provider-radio > span { width: 8px; height: 8px; border-radius: inherit; background: var(--accent); }
+.cloud-provider-copy { display: grid; gap: 2px; min-width: 0; }
+.cloud-provider-copy strong { color: var(--assistant); font-size: var(--text-ui); font-weight: var(--weight-medium); }
+.cloud-provider-copy small { overflow: hidden; color: var(--text-subtle); font-size: var(--text-caption); text-overflow: ellipsis; white-space: nowrap; }
+.cloud-provider-state { color: var(--warning); font-size: var(--text-caption); white-space: nowrap; }
+.cloud-provider-state.is-connected { color: var(--success); }
+
+.cloud-boundary-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-block: 1px solid var(--border-soft); }
+.cloud-boundary-columns > div { padding: var(--space-sm) var(--space-xs); }
+.cloud-boundary-columns > div + div { border-left: 1px solid var(--border-soft); padding-left: var(--space-base); }
+.cloud-boundary-columns strong { color: var(--assistant); font-size: var(--text-ui); font-weight: var(--weight-medium); }
+.cloud-boundary-columns ul { display: grid; gap: var(--space-xs); margin: var(--space-sm) 0 0; padding: 0; list-style: none; }
+.cloud-boundary-columns li { position: relative; padding-left: var(--space-sm); color: var(--text-subtle); font-size: var(--text-caption); line-height: 1.4; }
+.cloud-boundary-columns li::before { position: absolute; top: 0.62em; left: 0; width: 4px; height: 4px; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--text-subtle) 62%, transparent); content: ""; }
+
+.cloud-boundary-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-base); margin: 0; padding: var(--space-sm) 0 0; border-top: 1px solid var(--border-soft); list-style: none; }
+.cloud-boundary-list li { display: flex; gap: var(--space-xs); color: var(--success); }
+.cloud-boundary-list li > span { display: grid; gap: 3px; color: var(--text); }
+.cloud-boundary-list strong { color: var(--assistant); font-size: var(--text-ui); font-weight: var(--weight-medium); }
+.cloud-boundary-list small { color: var(--text-subtle); font-size: var(--text-caption); line-height: 1.4; }
+
+.cloud-check-row { display: flex; gap: var(--space-sm); align-items: flex-start; margin-top: var(--space-lg); padding-top: var(--space-base); border-top: 1px solid var(--border-soft); font-size: var(--text-ui); }
+.cloud-check-row > span { display: grid; gap: 2px; }
+.cloud-check-row strong { color: var(--assistant); font-weight: var(--weight-medium); }
+.cloud-check-row small { color: var(--text-subtle); font-size: var(--text-caption); }
+.cloud-instruction-field { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-xs); }
+.cloud-instruction-field .setting-label { color: var(--assistant); }
+.cloud-instruction-field .setting-label small { margin-left: var(--space-2xs); color: var(--text-subtle); font-weight: var(--weight-regular); }
+.cloud-field-help { color: var(--text-subtle); font-size: var(--text-caption); line-height: 1.4; }
+.cloud-cost-note { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-base); margin: var(--space-lg) 0 0; padding-top: var(--space-sm); border-top: 1px solid var(--border-soft); font-size: var(--text-caption); }
+.cloud-cost-note strong { color: var(--text); font-weight: var(--weight-medium); }
+.cloud-cost-note span { color: var(--text-subtle); text-align: right; }
 
 .cloud-startup-progress {
   display: grid;
@@ -10096,9 +10235,28 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
   overflow-wrap: anywhere;
 }
 
+.cloud-recovery-note {
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-sm) var(--space-base);
+  border: 1px solid color-mix(in oklab, var(--notice) 28%, var(--border));
+  border-radius: var(--radius-md);
+  color: var(--notice);
+  background: color-mix(in oklab, var(--notice) 7%, transparent);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+}
+
 @media (max-width: 640px) {
-  .cloud-provider-choice { grid-template-columns: 1fr; }
-  .cloud-preflight-grid { grid-template-columns: 1fr; }
+  .cloud-handoff-body { padding: var(--space-base); }
+  .cloud-route { gap: var(--space-xs); padding-inline: var(--space-sm); }
+  .cloud-route-icon { width: 30px; height: 30px; flex-basis: 30px; }
+  .cloud-route-endpoint small { display: none; }
+  .cloud-boundary-columns,
+  .cloud-boundary-list { grid-template-columns: 1fr; }
+  .cloud-boundary-columns > div + div { border-top: 1px solid var(--border-soft); border-left: 0; padding-left: var(--space-xs); }
+  .cloud-provider-copy small { white-space: normal; }
+  .cloud-cost-note { align-items: flex-start; flex-direction: column; gap: var(--space-2xs); }
+  .cloud-cost-note span { text-align: left; }
   .cloud-stage-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cloud-handoff-footer { flex-wrap: wrap; }
 }

@@ -6,6 +6,7 @@ import {
   Brain,
   Check,
   ChevronRight,
+  Cloud,
   Copy,
   ExternalLink,
   CornerUpLeft,
@@ -15,6 +16,7 @@ import {
   GitBranch,
   LayoutDashboard,
   Link,
+  Laptop,
   MessageSquare,
   MoreVertical,
   Paperclip,
@@ -166,6 +168,14 @@ export function IconCopy(props: IconProps) {
 
 export function IconCheck(props: IconProps) {
   return <Check {...lucide(props)} />;
+}
+
+export function IconCloud(props: IconProps) {
+  return <Cloud {...lucide(props)} />;
+}
+
+export function IconLaptop(props: IconProps) {
+  return <Laptop {...lucide(props)} />;
 }
 
 export function IconSettings(props: IconProps) {

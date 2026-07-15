@@ -23,6 +23,7 @@ export const BOOT_ERROR_DETAIL =
 
 export function WelcomeGate({
   booting,
+  restoring = false,
   bootError,
   pendingCwd,
   recentProjects = [],
@@ -36,6 +37,8 @@ export function WelcomeGate({
   onExecutionTargetChange,
 }: {
   booting: boolean;
+  /** Automatic launch restore; never presents project selection as onboarding. */
+  restoring?: boolean;
   bootError: string | null;
   pendingCwd: string | null;
   recentProjects?: ProjectSummary[];
@@ -52,12 +55,12 @@ export function WelcomeGate({
 }) {
   const label = pendingCwd ? folderLabel(pendingCwd) : null;
   const title = booting
-    ? bootHeading(label)
+    ? restoring ? "Restoring workspace" : bootHeading(label)
     : bootError
       ? BOOT_ERROR_TITLE
       : "Open a project";
   const detail = booting
-    ? bootDetail(label)
+    ? restoring ? "Opening your most recent workspace…" : bootDetail(label)
     : bootError
       ? BOOT_ERROR_DETAIL
       : "Pick a folder to start coding with the same engine as the CLI.";
