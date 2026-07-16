@@ -129,6 +129,8 @@ const ENGINE_COMMAND_TYPE_MAP = {
   "resolve-external-capability": 1,
   "resolve-permission": 1,
   "resolve-plan": 1,
+  "resolve-question": 1,
+  "cancel-activity": 1,
   shutdown: 1,
 } as const satisfies Record<EngineCommand["type"], 1>;
 
@@ -150,6 +152,10 @@ const UI_EVENT_TYPE_MAP = {
   "model-changed": 1,
   "goal-changed": 1,
   "goal-run": 1,
+  "plan-state-changed": 1,
+  "question-request": 1,
+  "question-settled": 1,
+  "activities-changed": 1,
   "theme-changed": 1,
   "accent-changed": 1,
   "details-changed": 1,
@@ -202,7 +208,7 @@ const SESSION_EVENT_TYPES = new Set<UIEvent["type"]>([
   "session-start", "user-message", "assistant-text-delta", "reasoning-delta",
   "tool-call-started", "tool-call-progress", "tool-call-finished", "step-finished",
   "usage-updated", "context-updated", "mode-changed", "model-changed", "goal-changed",
-  "goal-run", "git-updated", "jobs-changed", "plan-presented", "permission-request",
+  "goal-run", "plan-state-changed", "question-request", "question-settled", "activities-changed", "git-updated", "jobs-changed", "plan-presented", "permission-request",
   "permission-settled", "tasks-updated", "orchestration-task", "file-changed", "compacted",
   "subagent-started", "subagent-activity", "subagent-finished", "turn-finished",
   "session-idle", "engine-idle",
@@ -366,6 +372,8 @@ function engineCommand(value: unknown): value is EngineCommand {
     case "steer": return isRuntimeIdentifier(command.id);
     case "resolve-permission": return isRuntimeIdentifier(command.id) && ["once", "always", "always-project", "deny"].includes(String(command.decision)) && optionalString(command.feedback);
     case "resolve-plan": return ["accept", "edit", "keep-planning"].includes(String(command.decision)) && optionalString(command.edit) && (command.approvals === undefined || command.approvals === "auto");
+    case "resolve-question": return isRuntimeIdentifier(command.id) && stringArray(command.answers) && optionalString(command.freeform);
+    case "cancel-activity": return isRuntimeIdentifier(command.id);
     case "request-runtime-handoff": return executionTarget(command.target) && optionalString(command.instruction);
     case "resolve-external-capability": return isRuntimeIdentifier(command.id)
       && (command.decision === "approve" || command.decision === "deny") && optionalString(command.error);
@@ -400,6 +408,23 @@ export function isUIEvent(value: unknown): value is UIEvent {
     case "model-changed": return typeof event.model === "string";
     case "goal-changed": return event.goal === null || typeof event.goal === "string";
     case "goal-run": return uiGoalRun(event.run);
+    case "plan-state-changed": {
+      const state = record(event.state);
+      return !!state && ["inactive", "active", "pending", "exit_pending"].includes(String(state.status))
+        && optionalString(state.plan) && nonNegativeNumber(state.updatedAt);
+    }
+    case "question-request": {
+      const question = record(event.question);
+      return !!question && isRuntimeIdentifier(question.id) && typeof question.question === "string"
+        && Array.isArray(question.choices) && typeof question.multiple === "boolean"
+        && typeof question.allowFreeform === "boolean" && nonNegativeNumber(question.createdAt);
+    }
+    case "question-settled": return isRuntimeIdentifier(event.id) && ["answered", "aborted", "shutdown", "timeout"].includes(String(event.reason));
+    case "activities-changed": return Array.isArray(event.activities) && event.activities.every((value) => {
+      const activity = record(value);
+      return !!activity && isRuntimeIdentifier(activity.id) && ["shell", "subagent", "tasks", "monitor"].includes(String(activity.kind))
+        && typeof activity.label === "string" && ["queued", "running", "completed", "failed", "cancelled"].includes(String(activity.status));
+    });
     case "theme-changed": return typeof event.theme === "string";
     case "accent-changed": return typeof event.accent === "string";
     case "details-changed": return event.details === "quiet" || event.details === "normal" || event.details === "verbose";

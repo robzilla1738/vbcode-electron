@@ -11,6 +11,13 @@ const HOOK_EVENTS: { value: HookConfig["event"]; label: string }[] = [
   { value: "assistant.message", label: "assistant.message" },
   { value: "session.idle", label: "session.idle" },
   { value: "session.end", label: "session.end" },
+  { value: "subagent.start", label: "subagent.start" },
+  { value: "subagent.stop", label: "subagent.stop" },
+  { value: "permission.denied", label: "permission.denied" },
+  { value: "compact.before", label: "compact.before" },
+  { value: "compact.after", label: "compact.after" },
+  { value: "goal.transition", label: "goal.transition" },
+  { value: "turn.failure", label: "turn.failure" },
 ];
 
 export function HooksSection({ config, updateConfig }: SectionProps) {

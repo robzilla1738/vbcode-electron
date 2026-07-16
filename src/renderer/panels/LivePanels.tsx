@@ -6,7 +6,7 @@ import {
   permissionKind,
   permissionPreview,
 } from "../../shared/tool-icons";
-import type { QueuedItem } from "../../shared/types";
+import type { QueuedItem, StructuredQuestion } from "../../shared/types";
 import { CopyButton } from "../CopyButton";
 import { IconRemove, IconSteer } from "../icons";
 import { ExternalLink } from "../primitives";
@@ -341,6 +341,88 @@ export function PlanCard({
         >
           <span className="action-label">Accept + auto-approve</span>
           <ActionKbd>⌘Y</ActionKbd>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function QuestionCard({
+  question,
+  onAnswer,
+}: {
+  question: StructuredQuestion;
+  onAnswer: (answers: string[], freeform?: string) => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [freeform, setFreeform] = useState("");
+  const firstRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setSelected([]);
+    setFreeform("");
+    firstRef.current?.focus({ preventScroll: true });
+  }, [question.id]);
+
+  const toggle = (label: string) => {
+    setSelected((current) => question.multiple
+      ? current.includes(label) ? current.filter((value) => value !== label) : [...current, label]
+      : [label]);
+  };
+  const canSubmit = selected.length > 0 || (question.allowFreeform && freeform.trim().length > 0);
+
+  return (
+    <div className="card plan" role="group" aria-labelledby="question-card-title">
+      <header className="card-head">
+        <h3 id="question-card-title">{question.header || "Quick question"}</h3>
+      </header>
+      <div className="plan-review-scroll">
+        <div className="plan-text"><p>{question.question}</p></div>
+        {question.choices.length > 0 ? (
+          <div className="card-actions" role={question.multiple ? "group" : "radiogroup"} aria-label="Answer choices">
+            {question.choices.map((choice, index) => {
+              const active = selected.includes(choice.label);
+              return (
+                <button
+                  ref={index === 0 ? firstRef : undefined}
+                  key={choice.label}
+                  type="button"
+                  className={`chip${active ? " primary" : ""}`}
+                  role={question.multiple ? "checkbox" : "radio"}
+                  aria-checked={active}
+                  onClick={() => toggle(choice.label)}
+                  title={choice.description}
+                >
+                  {choice.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        {question.allowFreeform ? (
+          <label className="permission-feedback">
+            <span>Additional context</span>
+            <input
+              value={freeform}
+              onChange={(event) => setFreeform(event.target.value)}
+              placeholder="Type an answer"
+              aria-label="Free-form answer"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && canSubmit) onAnswer(selected, freeform.trim() || undefined);
+              }}
+            />
+          </label>
+        ) : null}
+      </div>
+      <div className="card-actions plan-actions">
+        <button
+          type="button"
+          className="chip primary"
+          disabled={!canSubmit}
+          onClick={() => onAnswer(selected, freeform.trim() || undefined)}
+        >
+          <span className="action-label">Continue</span>
+          <ActionKbd>Enter</ActionKbd>
         </button>
       </div>
     </div>

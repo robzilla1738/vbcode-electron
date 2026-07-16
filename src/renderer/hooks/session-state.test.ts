@@ -5,6 +5,7 @@ import {
   MAX_RETAINED_TASK_ITEMS,
 } from "../../shared/chrome-state-bounds";
 import type { UIEvent } from "../../shared/events";
+import type { EngineSnapshot } from "../../shared/types";
 import { initialChrome, reduceChrome } from "./session-state";
 
 function event(state: ReturnType<typeof initialChrome>, value: UIEvent) {
@@ -361,5 +362,48 @@ describe("large agent payload retention", () => {
     expect(state.subagents[0]?.result).toHaveLength(256 * 1024);
     expect(state.subagents[0]?.result).toContain("earlier content omitted");
     expect(state.subagents[0]?.result?.endsWith("new")).toBe(true);
+  });
+});
+
+describe("durable orchestration state", () => {
+  it("rehydrates a pending plan and structured question from the snapshot", () => {
+    const snap: EngineSnapshot = {
+      sessionId: "s",
+      model: "provider/model",
+      mode: "plan",
+      goal: null,
+      history: [],
+      tasks: [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUSD: 0 },
+      busy: false,
+      theme: "default",
+      accentColor: "",
+      details: "normal",
+      mouse: true,
+      approvalMode: "ask",
+      commandNames: [],
+      planState: { status: "pending", plan: "- [ ] ship", updatedAt: 1 },
+      pendingQuestion: {
+        id: "question_1",
+        question: "Which path?",
+        choices: [{ label: "A" }, { label: "B" }],
+        multiple: false,
+        allowFreeform: true,
+        createdAt: 1,
+      },
+    };
+    const state = reduceChrome(initialChrome("/repo"), { type: "seed", snap, cwd: "/repo" });
+    expect(state.plan?.text).toBe("- [ ] ship");
+    expect(state.question?.id).toBe("question_1");
+  });
+
+  it("retains worker transcript/metrics and unified activities", () => {
+    let state = initialChrome("/repo");
+    state = event(state, { type: "subagent-started", sessionId: "s", subagentId: "sub1", prompt: "inspect", agent: "review", startedAt: 10 });
+    state = event(state, { type: "subagent-activity", sessionId: "s", subagentId: "sub1", label: "read app.ts", transcriptDelta: "[tool] read app.ts", metrics: { turns: 1, toolCalls: 1 } });
+    state = event(state, { type: "subagent-finished", sessionId: "s", subagentId: "sub1", result: "REVIEW-CLEAN", transcript: "full transcript", metrics: { turns: 1, toolCalls: 1, inputTokens: 100 } });
+    state = event(state, { type: "activities-changed", sessionId: "s", activities: [{ id: "sub1", kind: "subagent", label: "inspect", status: "completed" }] });
+    expect(state.subagents[0]).toMatchObject({ agent: "review", transcript: "full transcript", metrics: { inputTokens: 100 } });
+    expect(state.activities[0]?.kind).toBe("subagent");
   });
 });

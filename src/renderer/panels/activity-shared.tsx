@@ -153,6 +153,17 @@ function SubagentDetailRow({ subagent, now }: { subagent: Subagent; now: number 
           <span className="subagent-detail-label">Task</span>
           <p className="subagent-detail-prompt">{subagent.prompt}</p>
         </div>
+        {subagent.agent || subagent.metrics ? (
+          <div className="subagent-live-row">
+            <span>
+              {subagent.agent ? `${subagent.agent} · ` : ""}
+              {subagent.metrics?.turns != null ? `${subagent.metrics.turns} turns · ` : ""}
+              {subagent.metrics?.toolCalls != null ? `${subagent.metrics.toolCalls} tools · ` : ""}
+              {subagent.metrics?.inputTokens != null ? `${subagent.metrics.inputTokens.toLocaleString()} in · ` : ""}
+              {subagent.metrics?.outputTokens != null ? `${subagent.metrics.outputTokens.toLocaleString()} out` : ""}
+            </span>
+          </div>
+        ) : null}
         {subagent.status === "running" ? (
           <div className="subagent-live-row" role="status" aria-live="polite">
             <StatusDot status="running" />
@@ -169,6 +180,12 @@ function SubagentDetailRow({ subagent, now }: { subagent: Subagent; now: number 
               <MarkdownView>{subagent.result}</MarkdownView>
             </div>
           </div>
+        ) : null}
+        {subagent.transcript ? (
+          <details className="subagent-detail-block subagent-result-block">
+            <summary className="subagent-detail-label">Transcript</summary>
+            <pre className="subagent-result-content">{subagent.transcript}</pre>
+          </details>
         ) : null}
       </div> : null}
     </details>

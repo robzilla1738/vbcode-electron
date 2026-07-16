@@ -386,5 +386,18 @@ npm run dev
     submit twice.
 26. Kill/fatal the host (or `fixture:fatal` in e2e) — **New session** recovers;
     Settings → Instructions: switch sections without losing unsaved VIBE.md text.
+27. Present a plan, restart/reconnect the host, and resume the same session. The
+    exact plan approval card must reappear with its sources/assumptions; Accept,
+    revision text through the composer, and Keep planning must each clear the
+    durable pending state without starting a stale plan.
+28. Trigger `ask_user_question` with choices and freeform enabled. Answer it from
+    the decision card, then repeat and abort the turn; the card must settle once,
+    never leak into the next session, and the agent must receive only the chosen
+    answer/freeform text.
+29. Start a background shell job, detached subagent, and durable monitor. Jobs
+    must show all three; wait/cancel through the engine must update status. In
+    Session → Subagents, expand the child and confirm role, metrics, transcript,
+    and result. Restart the engine and continue the child id; prior context must
+    be retained while the child remains absent from the normal Chats list.
 
 Full matrix: [PARITY.md](./PARITY.md).

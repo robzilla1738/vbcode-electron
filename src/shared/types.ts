@@ -75,6 +75,55 @@ export interface AgentInfo {
   model: string | null;
   /** Its default run mode. */
   mode: Mode;
+  persona?: string;
+  capabilities?: AgentCapability[];
+  inputArtifact?: string;
+  outputArtifact?: string;
+}
+
+export type AgentCapability = "research" | "code" | "test" | "review" | "network" | "shell";
+
+export interface GoalContract {
+  goal: string;
+  acceptanceCriteria: string[];
+  verificationPlan: string[];
+  nonGoals: string[];
+  assumedScope: string[];
+  implementationPlan: string[];
+  risks: string[];
+  frozenAt: number;
+}
+
+export interface PlanState {
+  status: "inactive" | "active" | "pending" | "exit_pending";
+  plan?: string;
+  sources?: { url: string; title?: string }[];
+  assumptions?: string[];
+  ungrounded?: boolean;
+  updatedAt: number;
+}
+
+export interface QuestionChoice { label: string; description?: string }
+export interface StructuredQuestion {
+  id: string;
+  question: string;
+  header?: string;
+  choices: QuestionChoice[];
+  multiple: boolean;
+  allowFreeform: boolean;
+  createdAt: number;
+}
+
+export interface ActivityInfo {
+  id: string;
+  kind: "shell" | "subagent" | "tasks" | "monitor";
+  label: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  startedAt?: number;
+  finishedAt?: number;
+  summary?: string;
+  outputTail?: string;
+  metrics?: { turns?: number; toolCalls?: number; inputTokens?: number; outputTokens?: number; contextTokens?: number; contextWindow?: number; errors?: number };
 }
 
 /** A skill the UI can browse/invoke in the `/skills` menu. */
@@ -166,6 +215,9 @@ export interface GoalRunInfo {
   /** Why an inactive run stopped (short, human), or null. */
   pausedReason: string | null;
   met: boolean;
+  contract?: GoalContract;
+  stagnationCount?: number;
+  strategyResets?: number;
 }
 
 /** Static, read-only snapshot of engine state for the UI to render. */
@@ -176,6 +228,9 @@ export interface EngineSnapshot {
   goal: string | null;
   /** Live goal-run state (present whenever a goal is set). */
   goalRun?: GoalRunInfo;
+  planState?: PlanState;
+  pendingQuestion?: StructuredQuestion;
+  activities?: ActivityInfo[];
   history: Message[];
   /** The agent's current working task list (may be empty). */
   tasks: Task[];

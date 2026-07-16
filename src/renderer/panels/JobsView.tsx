@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { belowBreakpoint } from "../../shared/breakpoints";
 import { jobsForDisplay } from "../../shared/live-list-bounds";
-import type { JobInfo } from "../../shared/types";
+import type { ActivityInfo, JobInfo } from "../../shared/types";
 import { CopyButton } from "../CopyButton";
 import { IconLink } from "../icons";
 import { ActivityPanelHeader } from "../layout/ActivityPanelHeader";
@@ -119,12 +119,16 @@ function JobTerminal({
 
 export function JobsView({
   jobs,
+  activities = [],
   totalCount = jobs.length,
   onClose,
+  onCancelActivity,
 }: {
   jobs: JobInfo[];
+  activities?: ActivityInfo[];
   totalCount?: number;
   onClose?: () => void;
+  onCancelActivity?: (id: string) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [isDrawer, setIsDrawer] = useState(() => belowBreakpoint("compact"));
@@ -178,20 +182,22 @@ export function JobsView({
   }, [isDrawer]);
 
   const visibleJobs = jobsForDisplay(jobs);
+  const orchestrationActivities = activities.filter((activity) => activity.kind !== "shell").slice(-100);
+  const combinedTotal = jobs.length + orchestrationActivities.length;
 
   const heading = onClose ? (
     <ActivityPanelHeader
       titleId="jobs-panel-title"
       title="Background jobs"
-      subtitle={totalCount === 0
+      subtitle={combinedTotal === 0
         ? "None yet"
-        : `${totalCount} ${totalCount === 1 ? "process" : "processes"}`}
+        : `${combinedTotal} ${combinedTotal === 1 ? "activity" : "activities"}`}
       onClose={onClose}
       closeLabel="Close jobs"
     />
   ) : null;
 
-  if (totalCount === 0) {
+  if (combinedTotal === 0) {
     return (
       <div
         ref={rootRef}
@@ -202,8 +208,8 @@ export function JobsView({
         {heading}
         <div className="jobs-empty">
           <p>
-            Long-running commands and local servers appear here when started with
-            background mode. Output streams live as the job prints.
+            Background commands, subagents, task batches, and monitors appear here.
+            Output and status update while work is running.
           </p>
         </div>
       </div>
@@ -220,6 +226,36 @@ export function JobsView({
     >
       {heading}
       <div className="jobs-list">
+        {orchestrationActivities.map((activity) => (
+          <article
+            key={activity.id}
+            className={`job-card${activity.status === "running" ? " is-running" : ""}`}
+            aria-labelledby={`activity-label-${activity.id}`}
+          >
+            <div className="job-header">
+              <span className={`job-status job-status-${activity.status === "cancelled" ? "killed" : activity.status === "running" ? "running" : "exited"}`}>
+                {activity.kind} · {activity.status}
+              </span>
+              <span className="job-command" id={`activity-label-${activity.id}`}>{activity.label}</span>
+              {activity.status === "running" && onCancelActivity ? (
+                <button type="button" className="chip" onClick={() => onCancelActivity(activity.id)}>Stop</button>
+              ) : null}
+            </div>
+            {activity.metrics ? (
+              <div className="job-links">
+                {activity.metrics.turns != null ? <span>{activity.metrics.turns} turns</span> : null}
+                {activity.metrics.toolCalls != null ? <span>{activity.metrics.toolCalls} tools</span> : null}
+                {activity.metrics.inputTokens != null ? <span>{activity.metrics.inputTokens.toLocaleString()} in</span> : null}
+                {activity.metrics.outputTokens != null ? <span>{activity.metrics.outputTokens.toLocaleString()} out</span> : null}
+              </div>
+            ) : null}
+            <JobTerminal
+              jobId={activity.id}
+              status={activity.status === "running" ? "running" : activity.status === "cancelled" ? "killed" : "exited"}
+              output={activity.outputTail || activity.summary || ""}
+            />
+          </article>
+        ))}
         {totalCount > visibleJobs.items.length ? (
           <p className="jobs-limit-note">
             Showing {visibleJobs.items.length} entries · {totalCount - visibleJobs.items.length} older entries omitted

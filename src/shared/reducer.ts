@@ -107,6 +107,9 @@ export interface Subagent {
   startedAt?: number;
   /** Total wall-clock once finished (the row's final duration). */
   elapsedMs?: number;
+  agent?: string;
+  transcript?: string;
+  metrics?: import("./types").ActivityInfo["metrics"];
 }
 
 /** A file edited this session, with its cumulative line delta (footer summary). */

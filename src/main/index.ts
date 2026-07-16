@@ -71,6 +71,7 @@ const HANDOFF_CONTROL_COMMANDS = new Set<EngineCommand["type"]>([
   "abort",
   "resolve-permission",
   "resolve-plan",
+  "resolve-question",
   "resolve-external-capability",
 ]);
 

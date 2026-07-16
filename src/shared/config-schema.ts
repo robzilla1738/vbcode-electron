@@ -58,7 +58,14 @@ export interface HookConfig {
     | "step.finish"
     | "assistant.message"
     | "session.idle"
-    | "session.end";
+    | "session.end"
+    | "subagent.start"
+    | "subagent.stop"
+    | "permission.denied"
+    | "compact.before"
+    | "compact.after"
+    | "goal.transition"
+    | "turn.failure";
   matcher?: string;
   command?: string;
   url?: string;

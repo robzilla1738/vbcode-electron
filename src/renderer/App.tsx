@@ -63,7 +63,7 @@ import { WorkspaceDock, type WorkspaceDockTarget } from "./layout/WorkspaceDock"
 import { Inspector } from "./panels/Inspector";
 import { JobsView } from "./panels/JobsView";
 import { KeysOverlay } from "./panels/KeysOverlay";
-import { PermissionCard, PlanCard, QueuePanel } from "./panels/LivePanels";
+import { PermissionCard, PlanCard, QuestionCard, QueuePanel } from "./panels/LivePanels";
 import type { ProviderStatus } from "./panels/OnboardingModal";
 import { ChangedFilesPill } from "./panels/TurnChangesCard";
 import { CloudHandoffSheet } from "./panels/CloudHandoffSheet";
@@ -1174,6 +1174,27 @@ export function App() {
     [commandFitsInboundLimit, session],
   );
 
+  const answerQuestion = useCallback(
+    async (answers: string[], freeform?: string) => {
+      const question = chromeRef.current.question;
+      if (!question || resolvingGate.current) return false;
+      const command: EngineCommand = {
+        type: "resolve-question",
+        id: question.id,
+        answers,
+        ...(freeform ? { freeform } : {}),
+      };
+      if (!commandFitsInboundLimit(command)) return false;
+      resolvingGate.current = true;
+      try {
+        return await session.send(command);
+      } finally {
+        resolvingGate.current = false;
+      }
+    },
+    [commandFitsInboundLimit, session],
+  );
+
   // Centralized catalog presenter (I42): keeps the popover open across
   // loading → ready / error so RPC failures show inline instead of as a
   // vanishing toast. Each call site supplies its cache, fetch, and the
@@ -1842,7 +1863,8 @@ export function App() {
     ...topbarMetaChips.map((chip) => chip.label),
     ...composerMetrics.map((metric) => metric.label),
   ].join(" · ");
-  const planPending = !!chrome.plan && !chrome.perms.length;
+  const questionPending = !!chrome.question && !chrome.perms.length;
+  const planPending = !!chrome.plan && !chrome.perms.length && !questionPending;
   const showGateBanner = chrome.lastGate === "red" && !chrome.busy;
   const contextSummary = formatChromeSummary({
     git: formatGitLine(chrome.git),
@@ -2139,7 +2161,7 @@ export function App() {
             )}
 
             <div className="panels" ref={panelsRef}>
-              {(showOnboarding || providerSetupRequest) && !chrome.perms[0] && !planPending && (
+              {(showOnboarding || providerSetupRequest) && !chrome.perms[0] && !planPending && !questionPending && (
                 <Suspense fallback={null}>
                   <OnboardingModal
                     providers={onboardingProviders}
@@ -2189,6 +2211,12 @@ export function App() {
                   count={chrome.perms.length}
                   denyKick={permDenyKick}
                   onDecide={(decision, feedback) => void answerPerm(decision, feedback)}
+                />
+              )}
+              {questionPending && (
+                <QuestionCard
+                  question={chrome.question!}
+                  onAnswer={(answers, freeform) => void answerQuestion(answers, freeform)}
                 />
               )}
               {planPending && (
@@ -2368,7 +2396,7 @@ export function App() {
               active={renderedEndPanel}
               closing={endPanelPresence.closing}
               changedCount={session.transcript.changedFiles.length}
-              jobCount={chrome.jobsTotal}
+              jobCount={chrome.jobsTotal + chrome.activities.filter((activity) => activity.kind !== "shell").length}
               onSelect={selectActivityTool}
               onClose={closeActiveEndPanel}
             >
@@ -2379,8 +2407,10 @@ export function App() {
                 >
                   <JobsView
                     jobs={chrome.jobs}
+                    activities={chrome.activities}
                     totalCount={chrome.jobsTotal}
                     onClose={() => session.setJobsView(false)}
+                    onCancelActivity={(id) => void session.send({ type: "cancel-activity", id })}
                   />
                 </section>
               )}

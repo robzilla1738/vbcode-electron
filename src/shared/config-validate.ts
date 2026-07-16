@@ -329,6 +329,8 @@ export function validateConfig(config: Record<string, unknown>): string[] {
       errors.push(...checkEnum(hook.event, [
         "session.start", "user.prompt.submit", "tool.before.execute", "tool.after.execute",
         "step.finish", "assistant.message", "session.idle", "session.end",
+        "subagent.start", "subagent.stop", "permission.denied", "compact.before",
+        "compact.after", "goal.transition", "turn.failure",
       ], `hooks[${i}].event`));
       if (hook.event === undefined) errors.push(`hooks[${i}].event: is required`);
       errors.push(...checkString(hook.matcher, `hooks[${i}].matcher`));

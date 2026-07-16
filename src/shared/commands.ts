@@ -70,6 +70,8 @@ export type EngineCommand =
       edit?: string;
       approvals?: "auto";
     }
+  | { type: "resolve-question"; id: string; answers: string[]; freeform?: string }
+  | { type: "cancel-activity"; id: string }
   | { type: "shutdown" };
 
 export type EngineCommandType = EngineCommand["type"];

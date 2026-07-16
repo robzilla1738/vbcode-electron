@@ -23,6 +23,20 @@ coverage/bridge/packaged-host gates.
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
 
+## Durable planning and orchestration
+
+- [x] Pending plan approvals rehydrate from `EngineSnapshot.planState` after a
+  renderer/host restart, including sources, assumptions, and grounding warning.
+- [x] Structured agent questions render in the existing decision-card layer and
+  resolve through typed commands; choice, multiselect, freeform, abort, timeout,
+  and stale-session settlement stay engine-owned.
+- [x] Jobs is the unified background-activity surface for shell jobs, detached
+  agents/task batches, and durable monitors, with status and cancellation.
+- [x] Session → Subagents exposes the worker role, live activity, elapsed time,
+  turn/tool/token/error metrics, final result, and bounded transcript.
+- [x] Goal snapshots carry the frozen acceptance contract plus stagnation and
+  strategy-reset counters; the shell preserves the existing goal presentation.
+
 The parity scripts compare declaration/config ASTs with the exact revision in
 `ENGINE_COMMIT`, read from the repository selected by `VIBE_CODR_ROOT` or
 `~/Code/vibe-codr`. A local sibling checkout may be ahead or dirty without
@@ -615,7 +629,7 @@ npm run dev
 - [x] Project/activity rails, drawer scrims, slash/mention, mode/insert, and
   catalog surfaces retain a short inert closing phase so tokenized exit motion
   completes before unmount; reduced motion skips the delay.
-- [x] Current release gate: 579 unit tests, 12 e2e scenarios, lint, typecheck,
+- [x] Current release gate: 581 unit tests, 12 e2e scenarios, lint, typecheck,
   build, bundle budget, source parity (21 pairs), config-shape parity (40
   fields), coverage floors, bridge smoke, and locked-engine packaged-app smoke.
 - [x] Direct macOS/Windows releases publish GitHub-backed updater feeds. Update

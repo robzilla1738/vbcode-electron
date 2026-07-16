@@ -1,4 +1,4 @@
-import type { GitInfo, GoalRunInfo, JobInfo, Mode, QueuedItem, SessionUsage, Task, Usage } from "./types";
+import type { ActivityInfo, GitInfo, GoalRunInfo, JobInfo, Mode, PlanState, QueuedItem, SessionUsage, StructuredQuestion, Task, Usage } from "./types";
 import type { ExecutionTarget, PendingCapabilityRequest } from "./cloud";
 
 /**
@@ -69,6 +69,10 @@ export type UIEvent =
   // The /goal autonomous run's live state (armed / phase / round / paused / met)
   // — drives the ★ header suffix and bare `/goal`. Always a fresh copy.
   | { type: "goal-run"; sessionId: string; run: GoalRunInfo }
+  | { type: "plan-state-changed"; sessionId: string; state: PlanState }
+  | { type: "question-request"; sessionId: string; question: StructuredQuestion }
+  | { type: "question-settled"; sessionId: string; id: string; reason: "answered" | "aborted" | "shutdown" | "timeout" }
+  | { type: "activities-changed"; sessionId: string; activities: ActivityInfo[] }
   | { type: "theme-changed"; theme: string }
   | { type: "accent-changed"; accent: string }
   | { type: "details-changed"; details: "quiet" | "normal" | "verbose" }
@@ -159,12 +163,12 @@ export type UIEvent =
   | { type: "runtime-handoff-requested"; sessionId: string; target: ExecutionTarget; instruction?: string }
   | { type: "external-capability-pending"; sessionId: string; request: PendingCapabilityRequest }
   | { type: "external-capability-resolved"; sessionId: string; id: string; status: "denied" | "resolved" }
-  | { type: "subagent-started"; sessionId: string; subagentId: string; prompt: string }
+  | { type: "subagent-started"; sessionId: string; subagentId: string; prompt: string; agent?: string; startedAt?: number }
   /** Live one-line activity from a RUNNING subagent (its bus is otherwise
    * isolated): "$ bun test", "edit src/app.js", … — so a minutes-long fan-out
    * shows what each child is doing right now, not just started/finished. */
-  | { type: "subagent-activity"; sessionId: string; subagentId: string; label: string }
-  | { type: "subagent-finished"; sessionId: string; subagentId: string; result: string }
+  | { type: "subagent-activity"; sessionId: string; subagentId: string; label: string; transcriptDelta?: string; metrics?: ActivityInfo["metrics"] }
+  | { type: "subagent-finished"; sessionId: string; subagentId: string; result: string; finishedAt?: number; transcript?: string; metrics?: ActivityInfo["metrics"] }
   | { type: "loop-tick"; loopId: string; iteration: number }
   | { type: "loop-stopped"; loopId: string; reason: string }
   | { type: "notice"; level: "info" | "warn" | "error"; message: string }

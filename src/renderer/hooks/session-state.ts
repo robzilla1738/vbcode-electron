@@ -15,6 +15,7 @@ import {
 } from "../../shared/reducer";
 import { appendRollingText } from "../../shared/stream-cap";
 import type {
+  ActivityInfo,
   EngineSnapshot,
   GitInfo,
   GoalRunInfo,
@@ -22,6 +23,7 @@ import type {
   QueuedItem,
   SessionUsage,
   Task,
+  StructuredQuestion,
 } from "../../shared/types";
 
 const PLAN_MAX_CHARS = 2 * 1024 * 1024;
@@ -108,6 +110,7 @@ export interface SessionChrome {
   tasksUnfinishedTotal: number;
   jobs: JobInfo[];
   jobsTotal: number;
+  activities: ActivityInfo[];
   queueActive: QueuedItem | null;
   queuePending: QueuedItem[];
   queuePendingTotal: number;
@@ -117,6 +120,7 @@ export interface SessionChrome {
     assumptions?: string[];
     ungrounded?: boolean;
   } | null;
+  question: StructuredQuestion | null;
   perms: PendingPerm[];
   subagents: Subagent[];
   thinkingStream: string;
@@ -159,10 +163,12 @@ export function initialChrome(cwd: string): SessionChrome {
     tasksUnfinishedTotal: 0,
     jobs: [],
     jobsTotal: 0,
+    activities: [],
     queueActive: null,
     queuePending: [],
     queuePendingTotal: 0,
     plan: null,
+    question: null,
     perms: [],
     subagents: [],
     thinkingStream: "",
@@ -221,6 +227,16 @@ export function reduceChrome(s: SessionChrome, a: ChromeAction): SessionChrome {
         tasksTotal: tasks.total,
         tasksCompletedTotal: tasks.completed,
         tasksUnfinishedTotal: tasks.unfinished,
+        activities: snap.activities ?? [],
+        question: snap.pendingQuestion ?? null,
+        plan: snap.planState?.status === "pending" && snap.planState.plan
+          ? {
+              text: appendRollingText("", snap.planState.plan, PLAN_MAX_CHARS),
+              sources: snap.planState.sources,
+              assumptions: snap.planState.assumptions,
+              ungrounded: snap.planState.ungrounded,
+            }
+          : null,
         commandNames: retainCommandNames(snap.commandNames ?? []),
       };
     }
@@ -264,6 +280,7 @@ export function reduceChrome(s: SessionChrome, a: ChromeAction): SessionChrome {
       return {
         ...s,
         plan: null,
+        question: null,
         perms: [],
         subagents: [],
         queueActive: null,
@@ -279,6 +296,7 @@ export function reduceChrome(s: SessionChrome, a: ChromeAction): SessionChrome {
         lastGate: null,
         orchestration: [],
         checkpoints: [],
+        activities: [],
       };
     case "event":
       return applyEvent(s, a.event);
@@ -384,6 +402,23 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
           ungrounded: event.ungrounded,
         },
       };
+    case "plan-state-changed":
+      if (event.state.status !== "pending" || !event.state.plan) return { ...s, plan: null };
+      return {
+        ...s,
+        plan: {
+          text: appendRollingText("", event.state.plan, PLAN_MAX_CHARS),
+          sources: event.state.sources,
+          assumptions: event.state.assumptions,
+          ungrounded: event.state.ungrounded,
+        },
+      };
+    case "question-request":
+      return { ...s, question: event.question };
+    case "question-settled":
+      return s.question?.id === event.id ? { ...s, question: null } : s;
+    case "activities-changed":
+      return { ...s, activities: event.activities.slice(-1_000) };
     case "permission-request":
       return {
         ...s,
@@ -447,7 +482,10 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
           status: "running" as const,
           activity: undefined,
           result: undefined,
-          startedAt: Date.now(),
+          startedAt: event.startedAt ?? Date.now(),
+          agent: event.agent,
+          transcript: "",
+          metrics: undefined,
         };
         return { ...s, subagents };
       }
@@ -463,7 +501,9 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
               SUBAGENT_PROMPT_MAX_CHARS,
             ),
             status: "running" as const,
-            startedAt: Date.now(),
+            startedAt: event.startedAt ?? Date.now(),
+            agent: event.agent,
+            transcript: "",
           },
         ].slice(-SUBAGENT_MAX_ROWS),
       };
@@ -482,6 +522,10 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
                   event.label,
                   SUBAGENT_ACTIVITY_MAX_CHARS,
                 ),
+                transcript: event.transcriptDelta
+                  ? appendRollingText(x.transcript ?? "", event.transcriptDelta, SUBAGENT_RESULT_MAX_CHARS)
+                  : x.transcript,
+                metrics: event.metrics ?? x.metrics,
               }
             : x,
         ),
@@ -503,6 +547,10 @@ function applyEvent(s: SessionChrome, event: UIEvent): SessionChrome {
                 activity: undefined,
                 elapsedMs:
                   x.startedAt !== undefined ? Date.now() - x.startedAt : undefined,
+                transcript: event.transcript
+                  ? appendRollingText("", event.transcript, SUBAGENT_RESULT_MAX_CHARS)
+                  : x.transcript,
+                metrics: event.metrics ?? x.metrics,
               }
             : x,
         ),
