@@ -1,7 +1,7 @@
 # Acceptance Spec
 
 > Reference: sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) CLI TUI and `packages/macos-bridge`
-> Last updated: 2026-07-15 (v0.1.9 fail-closed Cloud resume release)
+> Last updated: 2026-07-15 (v0.1.16 provider and subscription auth release)
 > Status: shell product complete for P0 acceptance rows; residual risks and verification methods documented below — do not treat frozen unit/e2e counts as a live baseline
 
 ## Summary
@@ -91,6 +91,14 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | A38 | P1 | Typography | Dense readability | Prose, labels, metadata, and controls use a uniform sans system with normal tracking; monospace is reserved for real code (terminal grids, fences, tool/diff/job output, wordmark). Source cards and memory notices have readable hierarchy. | review: locked tokens + Streamdown Shiki code blocks; preview: `settings`/`git` | pass |
 | A39 | P1 | Interaction | Motion and feedback | Hover, focus, open/close, streaming, folding, and spinner feedback are restrained and interruptible. Dismissible rails/popovers complete a short inert exit before unmount; loading rings rotate continuously; reduced motion removes nonessential travel and skips presence delays while preserving an understandable loading state. | design lint; e2e: focus/working states; review: reduced-motion CSS | pass |
 | A40 | P1 | Polish | Native desktop finish | Chrome tint, continuous full-surface frosted composer + bottom veil, reliable native assistant Copy, optically uniform rail icons, portal menus, dialogs, overlay scrollbars, truncation, source cards, shared activity-sidebar geometry, no decorative divider lines, and an equally inset quiet-grey Environment dock feel intentional while preserving theme semantics. | design lint + renderer code audit + focused visual preview | pass |
+| A41 | P0 | Providers | OpenCode catalog breadth | Every provider published by the pinned current OpenCode/models.dev catalog is discoverable by its exact provider ID, with catalog-derived environment names, endpoint, models, capabilities, and prices; a source-parity test fails on drift. | test: engine provider-manifest parity + Electron provider-manifest parity against pinned source metadata | pass |
+| A42 | P0 | Providers | Arbitrary custom providers | Users can create any valid provider ID (not one shared `custom` slot), set a base URL, optional key, headers, and explicit models, then select `<provider>/<model>` without a code change. | test: config/registry custom provider factory; manual: add two independent compatible endpoints | pass |
+| A43 | P0 | Providers | Custom transport choice | A custom provider can use OpenAI-compatible Chat Completions or OpenAI Responses transport, and the selected transport survives config editing, model discovery, restart, and Cloud handoff. | test: transport-specific provider construction + config parity; manual: one fixture per transport | pass |
+| A44 | P0 | Auth | Codex subscription login | Desktop users can sign in with ChatGPT through the official Codex PKCE browser flow, cancel safely, persist refresh/access/account identity outside project config, refresh automatically, sign out, and call the Codex Responses backend with the required account header. | test: OAuth state/PKCE/callback/refresh/logout + request rewrite; manual: packaged-app ChatGPT login and Codex turn | pass |
+| A45 | P0 | Auth | Grok subscription login | Desktop users can sign in to xAI by browser callback or RFC 8628 device code, cancel safely, persist and rotate refresh tokens, sign out, and use `xai-oauth/grok-build-0.1` through their eligible Grok subscription. | test: browser/device authorization, pending/slow-down/expiry, refresh rotation, logout; manual: packaged-app Grok Build turn | pass |
+| A46 | P0 | Auth | Secure ownership | OAuth secrets are stored in a user-only auth store, never written to project config/logs/transcripts, and Cloud transfer includes only an explicit reviewed provider binding; failed auth or handoff preserves local ownership. | test: file mode/redaction/export boundary; review: Cloud credential binding | pass |
+| A47 | P0 | Providers | Desktop connect UX | Settings and first-run setup show connection state and the applicable API-key, browser-login, or device-code method; browser/device progress, copy code, cancel, retry, refresh failure, and logout are deterministic and keyboard accessible. | test: IPC/auth state helpers + renderer behavior; manual: keyboard-only connect/logout flow | pass |
+| A48 | P0 | Quality | Provider compatibility release gate | The pinned OpenCode commit, provider count/IDs, custom-provider contract, OAuth endpoints/scopes, and focused verification commands are documented; engine and Electron locks/releases advance together only after every provider/auth P0 passes. | docs + focused engine/bridge/Electron tests + release workflow | pass |
 
 ## Audit log
 
@@ -137,6 +145,7 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | 2026-07-15 | Codex | 36/36 | 4/4 | v0.1.4 release closeout: direct-to-workspace launch, macOS-native icon, uniform composer Local/Cloud controls, reviewed handoff/return UI, durable degraded reconnect state, stale-progress reset, recovery-only handling for non-retryable ownership failures, and a notarization-safe Linux cloud runtime. 551 unit + 12 e2e scenarios at the source baseline; Cloud remains experimental pending the paid-provider stable gates above. |
 | 2026-07-15 | Codex | 36/36 | 4/4 | v0.1.5 release hardening: idle project/session mutations use the bundled host without requiring an open chat engine; cloud import and daemon bootstrap share one canonical state root and preserve the exact session ID; only the active model credential is scoped into the sandbox; unusable local-only or unauthenticated provider routes fail before provisioning. Packaged smoke covers the idle-host regression and the locked cloud runtime resumes a real exported session. |
 | 2026-07-15 | Codex | 36/36 | 4/4 | v0.1.8 release closeout: fresh handoffs destroy stale same-name provisional sandboxes before create; the slash palette exposes one model selector with Commands/Skills/System groups; project/activity rails and composer popovers complete inert tokenized exits with reduced-motion collapse. Release gate: 579 unit tests, coverage floors, 21 source pairs, 40 config fields, bridge smoke, production build/bundle budgets, and 12 Electron E2E scenarios. |
+| 2026-07-15 | Codex | 44/44 | 4/4 | v0.1.16 provider closeout: synchronized 166-provider models.dev/OpenCode manifest, arbitrary named Chat Completions or Responses endpoints, built-in Codex PKCE and xAI browser/device subscription auth, Grok Build, main-only Cloud credential export, user-only rotating token store, and clone-safe engine parity tooling. Focused gates: 32 engine tests, 88 Electron tests, 21 source pairs, 40 config fields, typecheck, lint, production build, bundle budget, and locked bridge smoke. Live provider entitlement turns remain the documented packaged-user check. |
 
 **Current verification snapshot (2026-07-15):**
 
@@ -153,4 +162,8 @@ npm run verify                   # pass
 npm run smoke:bridge             # pass; ready, snapshot, and project-list checks
 npm run verify:ci                # verify + coverage + bridge smoke + e2e
 npm run smoke:packaged           # pass without VIBE_CODR_ROOT; no orphan host
+
+# v0.1.16 provider/auth focus
+bun test (engine focus)           # 32/32 OAuth, registry, protocol, host checks
+npm test (Electron focus)         # 88/88 auth, IPC, config, onboarding, Cloud checks
 ```

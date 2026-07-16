@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 
+import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const engineRoot = resolve(root, "../vibe-codr");
+const engineRoot = resolve(process.env.VIBE_CODR_ROOT || [
+  join(root, "..", "cli"),
+  join(root, "..", "vibe-codr"),
+  join(homedir(), "Code", "vibe-codr"),
+  join(homedir(), "code", "vibe-codr"),
+].find((candidate) => existsSync(join(candidate, "package.json"))) || join(root, "..", "vibe-codr"));
 const source = process.argv[2] ?? "https://models.dev/api.json";
 
 const raw = source.startsWith("http://") || source.startsWith("https://")

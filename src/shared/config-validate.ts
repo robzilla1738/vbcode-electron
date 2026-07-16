@@ -234,6 +234,9 @@ export function validateConfig(config: Record<string, unknown>): string[] {
       errors.push(...checkNoNul(prov.tokenFile, `providers.${id}.tokenFile`));
       errors.push(...checkString(prov.tokenPath, `providers.${id}.tokenPath`));
       errors.push(...checkNoNul(prov.tokenPath, `providers.${id}.tokenPath`));
+      errors.push(...checkEnum(prov.transport, ["openai-compatible", "openai-responses"], `providers.${id}.transport`));
+      errors.push(...checkStringArray(prov.models, `providers.${id}.models`));
+      errors.push(...checkNoNulInArray(prov.models, `providers.${id}.models`));
       const urlCheck = httpUrlWithHost(prov.baseURL);
       if (urlCheck !== true) errors.push(`providers.${id}.baseURL: ${urlCheck}`);
       errors.push(...checkStringRecord(

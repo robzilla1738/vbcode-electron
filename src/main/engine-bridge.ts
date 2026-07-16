@@ -158,6 +158,29 @@ export class EngineBridge implements EngineTransport {
     });
   }
 
+  /** Provider OAuth must also work before the first project bootstrap. Keep a
+   * short-lived host alive across begin/status polling so its loopback server or
+   * device-code poller is not killed between renderer calls. */
+  providerAuthRpc(method: RpcMethod, params?: HostRpcParams): Promise<unknown> {
+    if (this.isReady) return this.rpc(method, params);
+    return this.schedule(async () => {
+      if (!this.hasOwnedChild()) this.spawnCurrent();
+      const proc = this.proc;
+      try {
+        const value = await this.rpcUnlocked(method, params);
+        const state = value && typeof value === "object" && "state" in value
+          ? (value as { state?: string }).state
+          : undefined;
+        const retain = method === "beginProviderAuth" || method === "providerAuthStatus" && state === "pending";
+        if (!retain && this.proc === proc) await this.stopCurrent();
+        return value;
+      } catch (error) {
+        if (this.proc === proc) await this.stopCurrent();
+        throw error;
+      }
+    });
+  }
+
   importPortableSession(
     cwd: string,
     archive: import("../shared/handoff").PortableSessionArchiveV1,

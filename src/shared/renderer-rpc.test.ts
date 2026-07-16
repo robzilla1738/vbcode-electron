@@ -6,6 +6,7 @@ describe("renderer RPC boundary", () => {
   it("allows presentation RPCs and rejects every ownership or portable-state RPC", () => {
     expect(isRendererRpcMethod("snapshot")).toBe(true);
     expect(isRendererRpcMethod("listProjects")).toBe(true);
+    expect(isRendererRpcMethod("beginProviderAuth")).toBe(true);
     for (const method of [
       "prepareHandoff",
       "exportPortableSession",
@@ -16,6 +17,7 @@ describe("renderer RPC boundary", () => {
       "abortInterruptedHandoff",
       "commitHandoff",
       "abortHandoff",
+      "exportProviderAuth",
     ] satisfies RpcMethod[]) {
       expect(isRendererRpcMethod(method)).toBe(false);
     }

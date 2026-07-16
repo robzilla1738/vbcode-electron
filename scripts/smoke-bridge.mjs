@@ -7,11 +7,17 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const cwd = process.argv[2] || process.cwd();
-const root =
-  process.env.VIBE_CODR_ROOT || join(homedir(), "Code", "vibe-codr");
+const electronRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = process.env.VIBE_CODR_ROOT || [
+  resolve(electronRoot, "..", "cli"),
+  resolve(electronRoot, "..", "vibe-codr"),
+  join(homedir(), "Code", "vibe-codr"),
+  join(homedir(), "code", "vibe-codr"),
+].find((candidate) => existsSync(join(candidate, "package.json"))) || join(homedir(), "Code", "vibe-codr");
 const bin = join(
   root,
   "dist",

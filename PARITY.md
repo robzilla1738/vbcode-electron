@@ -432,6 +432,13 @@ npm run dev
   save, and dirty tracking
 - [x] Provider management: API keys, base URLs, token files, extra headers per
   provider with expand/collapse cards and inline add form (no window.prompt)
+- [x] Full synchronized models.dev/OpenCode provider manifest plus arbitrary
+  provider IDs, explicit model lists, and selectable Chat Completions or
+  Responses transport
+- [x] Built-in ChatGPT/Codex PKCE and xAI browser/device subscription login with
+  connection state, refresh, cancel, retry, logout, and Grok Build selection
+- [x] Subscription refresh secrets remain main/engine-owned; renderer auth RPCs
+  cannot export them and Cloud receives only the reviewed current access binding
 - [x] MCP server management: stdio + remote (HTTP/SSE) with env-var expansion,
   reversible stdio/remote drafts, and malformed expansion-reference rejection
   draft-preserving environment/header editors, OAuth 2.1 token-store settings,

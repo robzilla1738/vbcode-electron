@@ -6,7 +6,12 @@ import { join, resolve } from "node:path";
 import ts from "typescript";
 
 const electronRoot = resolve(import.meta.dirname, "..");
-const vibeRoot = process.env.VIBE_CODR_ROOT || join(homedir(), "Code", "vibe-codr");
+const vibeRoot = process.env.VIBE_CODR_ROOT || [
+  resolve(electronRoot, "..", "cli"),
+  resolve(electronRoot, "..", "vibe-codr"),
+  join(homedir(), "Code", "vibe-codr"),
+  join(homedir(), "code", "vibe-codr"),
+].find((candidate) => existsSync(join(candidate, ".git"))) || join(homedir(), "Code", "vibe-codr");
 const engineCommit = readFileSync(join(electronRoot, "ENGINE_COMMIT"), "utf8").trim();
 if (!/^[0-9a-f]{40}$/i.test(engineCommit)) {
   console.error("CLI source parity check failed: ENGINE_COMMIT must contain a 40-character git commit");

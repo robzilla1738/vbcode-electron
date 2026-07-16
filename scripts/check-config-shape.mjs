@@ -6,7 +6,12 @@ import { join, resolve } from "node:path";
 import ts from "typescript";
 
 const electronRoot = resolve(import.meta.dirname, "..");
-const vibeRoot = process.env.VIBE_CODR_ROOT || join(homedir(), "Code", "vibe-codr");
+const vibeRoot = process.env.VIBE_CODR_ROOT || [
+  resolve(electronRoot, "..", "cli"),
+  resolve(electronRoot, "..", "vibe-codr"),
+  join(homedir(), "Code", "vibe-codr"),
+  join(homedir(), "code", "vibe-codr"),
+].find((candidate) => existsSync(join(candidate, ".git"))) || join(homedir(), "Code", "vibe-codr");
 const upstreamPath = join(vibeRoot, "packages/config/src/schema.ts");
 const localPath = join(electronRoot, "src/shared/config-schema.ts");
 const upstreamRelativePath = "packages/config/src/schema.ts";

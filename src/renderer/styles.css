@@ -10619,3 +10619,57 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
   flex: 1;
   min-width: 200px;
 }
+
+.provider-auth-list {
+  margin-bottom: var(--space-md);
+}
+
+.provider-auth-card {
+  padding-bottom: var(--space-xs);
+}
+
+.provider-auth-heading {
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  cursor: default;
+}
+
+.provider-auth-heading .setting-card-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+}
+
+.provider-auth-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  padding: 0 var(--space-sm) var(--space-xs);
+}
+
+.provider-auth-model {
+  flex: 1;
+  min-width: 12rem;
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+}
+
+.provider-device-code {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  border: 1px solid color-mix(in oklab, var(--border) 34%, transparent);
+  border-radius: var(--radius-xs);
+  background: var(--surface-subtle);
+  color: var(--assistant);
+  padding: var(--space-2xs) var(--space-xs);
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+.provider-device-code strong {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}

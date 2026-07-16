@@ -17,6 +17,8 @@
 export interface ProviderConfig {
   apiKey?: string;
   baseURL?: string;
+  transport?: "openai-compatible" | "openai-responses";
+  models?: string[];
   tokenFile?: string;
   tokenPath?: string;
   headers?: Record<string, string>;

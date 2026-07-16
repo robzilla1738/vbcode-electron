@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.16 — 2026-07-15
+
+### Added
+
+- Added built-in ChatGPT/Codex sign-in using the official PKCE flow, automatic
+  token refresh, ChatGPT account routing, deterministic connection state, and
+  sign-out from onboarding or Settings.
+- Added xAI browser and device-code sign-in for eligible Grok subscriptions,
+  including Grok Build, refresh-token rotation, cancellation, expiry, and retry.
+- Expanded provider setup to the synchronized 166-provider models.dev catalog
+  and arbitrary named custom providers with Chat Completions or Responses
+  transport, explicit models, headers, base URLs, and deterministic Cloud envs.
+- Subscription Cloud handoff exports only a current access token and optional
+  account routing ID from main; refresh tokens remain in the local user-only
+  credential store and are unavailable to renderer IPC.
+
 ## 0.1.15 — 2026-07-15
 
 ### Fixed

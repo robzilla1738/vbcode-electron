@@ -8,7 +8,7 @@
  * mirrors the CLI's onboarding choices, key URLs, and default models.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildOnboardingPatch,
   configuredCredentialProviderIds,
@@ -20,6 +20,8 @@ import {
 } from "../../shared/providers-catalog";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { IconClose, IconExternalLink } from "../icons";
+import { SubscriptionAuthCard } from "../providers/SubscriptionAuthCard";
+import type { SubscriptionAuthStatus, SubscriptionProviderId } from "../../shared/provider-auth";
 
 export interface ProviderStatus {
   id: string;
@@ -58,11 +60,27 @@ export function OnboardingModal({
   const [apiKey, setApiKey] = useState("");
   const [baseURL, setBaseURL] = useState("");
   const [model, setModel] = useState(PROVIDER_CHOICES[initialIdx]?.defaultModel ?? "");
+  const [connectedSubscriptionId, setConnectedSubscriptionId] = useState<SubscriptionProviderId | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(true, dialogRef, onDismiss);
 
   const choice: ProviderChoice = PROVIDER_CHOICES[selectedIdx] ?? PROVIDER_CHOICES[0]!;
+  const subscriptionProvider = choice.registryId === "codex" || choice.registryId === "openai-codex"
+    ? {
+        id: "openai-codex" as const,
+        title: "ChatGPT · Codex",
+        description: "Sign in with ChatGPT to use your eligible Codex subscription.",
+        model: "openai-codex/gpt-5.3-codex",
+      }
+    : choice.registryId === "xai-oauth"
+      ? {
+          id: "xai-oauth" as const,
+          title: "xAI · Grok",
+          description: "Sign in with xAI to use your eligible Grok subscription, including Grok Build.",
+          model: "xai-oauth/grok-build-0.1",
+        }
+      : null;
   const visibleChoices = useMemo(() => {
     const query = providerQuery.trim().toLocaleLowerCase();
     return PROVIDER_CHOICES
@@ -76,19 +94,26 @@ export function OnboardingModal({
   useEffect(() => {
     setApiKey("");
     setBaseURL("");
-    setModel(choice.defaultModel);
-  }, [selectedIdx, choice.defaultModel]);
+    setModel(subscriptionProvider?.model ?? choice.defaultModel);
+  }, [selectedIdx, choice.defaultModel, subscriptionProvider?.model]);
 
-  const needsKey = providerChoiceNeedsApiKey(choice, configuredIds);
-  const acceptsKey = providerChoiceAcceptsApiKey(choice, configuredIds);
+  const handleSubscriptionStatus = useCallback((status: SubscriptionAuthStatus) => {
+    setConnectedSubscriptionId(status.state === "connected" ? status.providerId : null);
+  }, []);
+
+  const needsKey = !subscriptionProvider && providerChoiceNeedsApiKey(choice, configuredIds);
+  const acceptsKey = !subscriptionProvider && providerChoiceAcceptsApiKey(choice, configuredIds);
   const needsBaseURL = choice.customEndpoint === true || choice.requiresBaseURL === true;
-  const canSave = model.trim().length > 0 && (!needsKey || apiKey.trim().length > 0) && (!needsBaseURL || baseURL.trim().length > 0);
+  const canSave = model.trim().length > 0
+    && (!subscriptionProvider || connectedSubscriptionId === subscriptionProvider.id)
+    && (!needsKey || apiKey.trim().length > 0)
+    && (!needsBaseURL || baseURL.trim().length > 0);
 
   const handleSave = () => {
     if (!canSave || saving) return;
     const patch = buildOnboardingPatch({
       model: model.trim(),
-      providerId: choice.registryId,
+      providerId: subscriptionProvider?.id ?? choice.registryId,
       apiKey: acceptsKey ? apiKey.trim() || undefined : undefined,
       baseURL: needsBaseURL ? baseURL.trim() || undefined : undefined,
     });
@@ -143,6 +168,14 @@ export function OnboardingModal({
             <h3 className="onboarding-detail-title">{choice.label}</h3>
             <p className="onboarding-detail-blurb">{choice.blurb}</p>
             {choice.note && <p className="onboarding-detail-note">{choice.note}</p>}
+
+            {subscriptionProvider && (
+              <SubscriptionAuthCard
+                key={subscriptionProvider.id}
+                provider={subscriptionProvider}
+                onStatusChange={handleSubscriptionStatus}
+              />
+            )}
 
             {acceptsKey && (
               <div className="onboarding-field">

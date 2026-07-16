@@ -750,7 +750,7 @@ if (scenario === "settings" || scenario === "git") {
   }, 400);
 }
 
-const rpcHandlers: Record<string, () => unknown> = {
+const rpcHandlers: Record<string, (params?: Record<string, unknown>) => unknown> = {
   snapshot: () => {
     void runTimeline();
     return baseSnapshot();
@@ -769,15 +769,25 @@ const rpcHandlers: Record<string, () => unknown> = {
   renameSession: () => true,
   deleteSession: () => true,
   archiveSession: () => true,
+  providerAuthStatus: (params) => ({ providerId: params?.providerId, state: "disconnected" }),
+  beginProviderAuth: (params) => ({
+    sessionId: "preview-auth",
+    providerId: params?.providerId,
+    method: params?.authMethod,
+    url: "https://example.com/connect",
+    expiresAt: Date.now() + 300_000,
+  }),
+  cancelProviderAuth: () => null,
+  logoutProviderAuth: () => null,
 };
 
 const mock = {
   bootstrap: async () => ({ ok: true as const, sessionId: SID, launch: "mock" }),
   send: async () => ({ ok: true as const }),
-  rpc: async (method: string) => {
+  rpc: async (method: string, params?: Record<string, unknown>) => {
     const handler = rpcHandlers[method];
     if (!handler) return { ok: false as const, error: `mock rpc: ${method} not implemented` };
-    return { ok: true as const, value: handler() };
+    return { ok: true as const, value: handler(params) };
   },
   listProjects: async () => ({ ok: true as const, value: PROJECTS }),
   renameProject: async () => ({ ok: true as const }),

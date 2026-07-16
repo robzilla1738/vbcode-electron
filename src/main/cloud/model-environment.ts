@@ -57,14 +57,18 @@ export function cloudModelEnvironment(
   };
   const runtime = PROVIDER_RUNTIME_METADATA.find((item) => item.id === providerId);
   const manifest = PROVIDER_MANIFEST.find((item) => item.id === providerId);
-  const authEnvironment = runtime?.env ?? [...new Set([
+  const isArbitraryProvider = !runtime && !manifest && Boolean(providerConfig.baseURL);
+  const authEnvironment = runtime?.env ?? (isArbitraryProvider
+    ? [configProviderEnvironmentName(providerId, "API_KEY")]
+    : [...new Set([
     ...PROVIDER_CHOICES.filter((choice) => choice.registryId === providerId && !choice.localKeyless && choice.env).map((choice) => choice.env!),
     ...(manifest?.env ?? []),
-  ])];
+  ])]);
   const usesLocalCredentialChain = PROVIDER_CHOICES.some((choice) =>
     choice.registryId === providerId && choice.localKeyless,
   );
-  const baseUrlEnvironment = runtime?.baseURLEnv ?? BASE_URL_ENV[providerId];
+  const baseUrlEnvironment = runtime?.baseURLEnv ?? BASE_URL_ENV[providerId]
+    ?? (isArbitraryProvider ? configProviderEnvironmentName(providerId, "BASE_URL") : undefined);
   const environment = { ...boundEnvironment };
   for (const name of authEnvironment) delete environment[name];
   const selectedAuthEnvironment = providerId === "amazon-bedrock"
@@ -96,7 +100,7 @@ export function cloudModelEnvironment(
     environment[name] = providerConfig.apiKey;
   }
   if (providerConfig.baseURL) {
-    const name = BASE_URL_ENV[providerId];
+    const name = baseUrlEnvironment;
     if (!name) {
       throw new Error(`Cloud handoff cannot preserve the custom ${providerId} endpoint yet. Add its base URL as a session credential binding in Settings → Cloud.`);
     }
@@ -129,7 +133,7 @@ export function cloudModelEnvironment(
   if (providerId === "ollama" && !hasProviderCredential) {
     throw new Error("This session uses Ollama on this Mac. Choose Ollama Cloud with an API key or another cloud-accessible model before handing off.");
   }
-  if (authEnvironment.length > 0 && !hasProviderCredential) {
+  if (authEnvironment.length > 0 && !hasProviderCredential && !isArbitraryProvider) {
     throw new Error(`Cloud handoff needs a ${providerId} model credential. Configure the provider key or add a session credential binding in Settings → Cloud.`);
   }
   return environment;
@@ -167,7 +171,8 @@ function effectiveRoute(
   manifestRoute: string | undefined,
   environment: Record<string, string>,
 ): string | undefined {
-  const baseUrlEnvironment = runtime?.baseURLEnv ?? BASE_URL_ENV[providerId];
+  const baseUrlEnvironment = runtime?.baseURLEnv ?? BASE_URL_ENV[providerId]
+    ?? (providerConfig.baseURL ? configProviderEnvironmentName(providerId, "BASE_URL") : undefined);
   const hasRuntimeCredential = runtime?.env.some((name) => Boolean(environment[name])) ?? false;
   return (baseUrlEnvironment ? environment[baseUrlEnvironment] : undefined)
     || providerConfig.baseURL
@@ -175,6 +180,11 @@ function effectiveRoute(
     || runtime?.baseURL
     || manifestRoute
     || undefined;
+}
+
+function configProviderEnvironmentName(id: string, suffix: "API_KEY" | "BASE_URL"): string {
+  const normalized = id.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "CUSTOM";
+  return `VIBE_PROVIDER_${normalized}_${suffix}`;
 }
 
 export function configuredCloudModels(

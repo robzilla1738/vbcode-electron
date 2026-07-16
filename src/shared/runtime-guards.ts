@@ -1,4 +1,5 @@
 import type { UIEvent } from "./events";
+import { isSubscriptionAuthStart, isSubscriptionAuthStatus } from "./provider-auth";
 import {
   isRuntimeIdentifier,
   isUIEvent,
@@ -181,6 +182,18 @@ export function isRpcResult(method: RpcMethod, value: unknown): boolean {
     case "listAgents": return catalogRecords(value, (item) => boundedString(item.name) && boundedDisplayString(item.description) && boundedOptionalStringOrNull(item.model) && (item.mode === "plan" || item.mode === "execute"));
     case "listSkills": return catalogRecords(value, (item) => boundedString(item.name) && boundedDisplayString(item.description));
     case "listMcp": return catalogRecords(value, (item) => boundedString(item.name) && typeof item.connected === "boolean" && typeof item.configured === "boolean" && nonNegative(item.toolCount) && nonNegative(item.resourceCount) && nonNegative(item.promptCount) && boundedOptionalDisplayString(item.error, RPC_CATALOG_ERROR_MAX_CHARS));
+    case "providerAuthStatus": return isSubscriptionAuthStatus(value);
+    case "beginProviderAuth": return isSubscriptionAuthStart(value);
+    case "cancelProviderAuth":
+    case "logoutProviderAuth": return value === null;
+    case "exportProviderAuth": {
+      if (value === null) return true;
+      const credential = record(value);
+      return !!credential
+        && (credential.providerId === "openai-codex" || credential.providerId === "xai-oauth")
+        && typeof credential.access === "string" && credential.access.length > 0
+        && (credential.accountId === undefined || typeof credential.accountId === "string");
+    }
     case "listSessions": return recordsWithRuntimeId(value, "id");
     case "renameProject": return typeof record(value)?.name === "string";
     case "archiveProject":

@@ -1,0 +1,93 @@
+# Model providers
+
+Vibe Codr Desktop ships the complete generated models.dev provider catalog used
+by OpenCode, plus native Bedrock, Vertex, Azure, local-model, and compatibility
+routes. This release is audited against OpenCode commit
+`4a760b5743496942fd821eeafaa7d648a5630973`; the reference is locked in
+`OPENCODE_PROVIDER_COMMIT`. The synchronized manifest currently contains 166
+provider IDs.
+
+## Connect a provider
+
+Open **Settings → Providers**. The first two cards are subscription connections:
+
+- **ChatGPT · Codex** opens the official Codex browser sign-in. Vibe stores the
+  access token, rotating refresh token, and account routing identity in
+  `~/.vibe-codr/auth.json` with user-only permissions. Use a model under
+  `openai-codex/`, such as `openai-codex/gpt-5.3-codex`.
+- **xAI · Grok** supports browser sign-in and RFC 8628 device authorization.
+  Use `xai-oauth/grok-build-0.1` for Grok Build. The app handles pending,
+  slow-down, cancellation, expiry, refresh rotation, retry, and sign-out.
+
+Subscription eligibility, available models, usage, and quota are determined by
+the signed-in provider. An API subscription does not automatically imply a
+ChatGPT or Grok product subscription, or vice versa.
+
+Every catalog provider can still use its documented environment variable or a
+saved API key. The provider list is searchable during first-run setup, while the
+normal model picker is grouped and filtered so the catalog does not become one
+undifferentiated list.
+
+## Custom providers
+
+Choose **Add provider → Custom provider**, enter any provider ID, then configure:
+
+- API key or token file;
+- base URL;
+- additional headers;
+- **Chat Completions (OpenAI compatible)** or **OpenAI Responses** transport;
+- explicit model IDs for endpoints without `/models`.
+
+Custom providers are independent. For example, `team-gateway/model-a` and
+`lab-responses/model-b` can coexist; neither is forced through a shared
+`custom` slot. The underlying configuration is:
+
+```jsonc
+{
+  "providers": {
+    "team-gateway": {
+      "transport": "openai-compatible",
+      "baseURL": "https://gateway.example.com/v1",
+      "apiKey": "...",
+      "headers": { "x-team": "desktop" },
+      "models": ["model-a"]
+    },
+    "lab-responses": {
+      "transport": "openai-responses",
+      "baseURL": "https://responses.example.com/v1",
+      "models": ["model-b"]
+    }
+  }
+}
+```
+
+Arbitrary IDs also receive deterministic environment aliases. `team-gateway`
+maps to `VIBE_PROVIDER_TEAM_GATEWAY_API_KEY` and
+`VIBE_PROVIDER_TEAM_GATEWAY_BASE_URL`.
+
+## Local and Cloud use
+
+The same provider and exact model survive a Local ↔ Cloud handoff. Only the
+selected session receives its reviewed provider binding. For Codex and Grok
+subscription auth, the main process exports a current access token and optional
+non-secret account ID; the refresh token never reaches renderer IPC, project
+config, transcripts, logs, or the Cloud session catalog. A missing or expired
+credential fails before ownership changes and leaves the task Local.
+
+Local-only providers still require a Cloud-accessible route. Ollama Cloud is a
+separate hosted endpoint; a Mac-local Ollama or LM Studio server is not silently
+substituted in Cloud.
+
+## Release verification
+
+Focused checks for this surface:
+
+```bash
+npm test -- --run src/shared/provider-auth.test.ts src/shared/renderer-rpc.test.ts src/shared/providers-catalog.test.ts src/shared/runtime-guards.test.ts src/shared/config-validate.test.ts src/main/cloud/model-environment.test.ts
+npm run typecheck
+npm run verify:source-parity
+```
+
+The engine OAuth, registry, protocol, and host integration tests are run before
+updating `ENGINE_COMMIT`; the Electron release is then built from that exact
+engine revision.

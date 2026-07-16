@@ -175,6 +175,9 @@ export class EngineTransportController implements EngineTransport {
     this.#localLifecycleTail = operation.then(() => undefined, () => undefined);
     return operation;
   }
+  providerAuthRpc(method: RpcMethod, params?: HostRpcParams): Promise<unknown> {
+    return this.local.providerAuthRpc(method, params);
+  }
   listProjectsForIndex(): Promise<unknown> { return this.local.listProjectsForIndex(); }
 
   #wire(transport: EngineTransport): void {

@@ -39,6 +39,18 @@ credential, and exact model are usable before Local releases ownership. It never
 silently substitutes a different provider or model. LM Studio and private/local
 Ollama endpoints remain Local-only.
 
+Codex and Grok subscription sessions are also supported. The desktop main
+process refreshes the selected provider credential and binds only its current
+access token plus optional non-secret account routing metadata to the protected
+Cloud environment. Refresh tokens stay in the Mac's user-only
+`~/.vibe-codr/auth.json`; they are never exposed through renderer IPC, project
+configuration, transcript events, or the Cloud catalog. A missing, expired, or
+ineligible subscription fails before ownership commits and keeps the task Local.
+
+Arbitrary custom provider IDs preserve their exact ID, transport, base URL,
+headers, explicit models, and deterministic provider-specific environment names
+through handoff. Their endpoint must be reachable from the sandbox.
+
 ## What moves
 
 - Session ID, transcript/model history, goal/task/plan state, checkpoints,

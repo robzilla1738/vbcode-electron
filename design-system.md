@@ -72,6 +72,12 @@ the top of the scrolling list. It uses the standard input surface and overlay
 token; provider rows retain the quiet selected/hover treatment rather than
 introducing a second catalog visual language.
 
+Subscription connection cards reuse the existing setting-card surface, badge,
+button, focus, and error roles. They add no provider brand colors or oversized
+logos: provider identity is text, connection state is compact, and device-code
+affordances stay monospace only where the code itself benefits. Custom-provider
+transport and model controls use the standard form rhythm.
+
 The shell has four primary layout regions:
 
 1. **Project rail:** left-edge Projects and Chats navigation, search, project

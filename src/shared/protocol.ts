@@ -20,6 +20,9 @@ export interface HostRpcParams {
   archive?: PortableSessionArchiveV1;
   archivePath?: string;
   provisional?: boolean;
+  providerId?: "openai-codex" | "xai-oauth";
+  authMethod?: "browser" | "device";
+  authSessionId?: string;
 }
 
 /** Electron main → vibecodr-engine-host (mirrors macos-bridge protocol). */
@@ -44,6 +47,11 @@ export type HostInbound =
         | "listAgents"
         | "listSkills"
         | "listMcp"
+        | "providerAuthStatus"
+        | "beginProviderAuth"
+        | "cancelProviderAuth"
+        | "logoutProviderAuth"
+        | "exportProviderAuth"
         | "finalize"
         | "listSessions"
         | "listProjects"
@@ -95,6 +103,8 @@ export type RpcMethod = Extract<HostInbound, { op: "rpc" }>["method"];
 
 const RPC_METHODS = new Set<RpcMethod>([
   "snapshot", "listModels", "listProviders", "listAgents", "listSkills", "listMcp",
+  "providerAuthStatus", "beginProviderAuth", "cancelProviderAuth", "logoutProviderAuth",
+  "exportProviderAuth",
   "finalize", "listSessions", "listProjects", "renameProject", "archiveProject", "deleteProject", "renameSession", "deleteSession", "archiveSession",
   "prepareHandoff", "exportPortableSession", "importPortableSession", "commitPortableImport", "abortPortableImport", "recoverLostCloudOwnership", "abortInterruptedHandoff", "commitHandoff", "abortHandoff",
 ]);
@@ -468,6 +478,9 @@ export function decodeInbound(line: string): HostInbound | null {
         !optionalString(params.nonce) ||
         !optionalString(params.engineRevision) ||
         !optionalString(params.archivePath) ||
+        (params.providerId !== undefined && params.providerId !== "openai-codex" && params.providerId !== "xai-oauth") ||
+        (params.authMethod !== undefined && params.authMethod !== "browser" && params.authMethod !== "device") ||
+        !optionalString(params.authSessionId) ||
         !optionalBoolean(params.provisional) ||
         !optionalSafeNonNegativeInteger(params.expectedGeneration) ||
         !optionalSafeNonNegativeInteger(params.ownershipGeneration) ||

@@ -147,6 +147,22 @@ describe("cloud model environment", () => {
     });
   });
 
+  it("moves arbitrary custom provider credentials through deterministic environment bindings", () => {
+    expect(cloudModelEnvironment("acme-gateway/code", {
+      providers: {
+        "acme-gateway": {
+          apiKey: "acme-secret",
+          baseURL: "https://models.acme.example/v1",
+          transport: "openai-responses",
+          models: ["code"],
+        },
+      },
+    }, undefined, {})).toEqual({
+      VIBE_PROVIDER_ACME_GATEWAY_API_KEY: "acme-secret",
+      VIBE_PROVIDER_ACME_GATEWAY_BASE_URL: "https://models.acme.example/v1",
+    });
+  });
+
   it("blocks local-only model access before a sandbox is created", () => {
     expect(() => cloudModelEnvironment("ollama/gpt-oss:20b", {}, undefined, {}))
       .toThrow("Cloud sandbox cannot reach");

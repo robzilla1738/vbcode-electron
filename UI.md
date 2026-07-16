@@ -68,6 +68,17 @@ followed by the generated models.dev/OpenCode registry and Hermes aliases.
 Provider-specific endpoint fields appear only when required; native AWS/Google
 credential-chain routes explain environment setup instead of asking for a fake key.
 
+Subscription providers use the same compact provider-card grammar in onboarding
+and Settings. ChatGPT/Codex offers one browser sign-in action; xAI/Grok offers
+browser and device-code actions. The card shows disconnected, waiting,
+connected, cancelled, or error state, keeps the device code copyable, and makes
+cancel/retry/sign-out keyboard reachable. First-run Save remains disabled until
+the selected subscription is actually connected.
+
+Custom providers use a free provider ID rather than a shared `custom` slot.
+Their detail editor exposes base URL, API key/token file, headers, explicit
+models, and either Chat Completions-compatible or Responses transport.
+
 The shell has these primary surfaces:
 
 1. **Project rail** (left) — collapsible **Projects** and **Chats** sections,
@@ -326,7 +337,8 @@ snippet. External links go through `ExternalLink` / host bridge.
   new command/endpoint is reviewed, and a remote draft always remains
   engine-schema-valid.
 - MCP environment/header editors preserve invalid partial lines and show the
-  parse error; OAuth settings are honest that first grant is out-of-band. LSP
+  parse error. Provider subscription grants are completed in-app; MCP OAuth
+  configuration remains transport-level and honest about its token store. LSP
   exposes per-language command/args/enabled overrides. Project trust is a
   global-only decision and cannot be enabled by the project being loaded;
   untrusted filtering preserves exact persisted grants and deny/ask rules while

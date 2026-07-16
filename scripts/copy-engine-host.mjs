@@ -93,6 +93,8 @@ function engineRootForBinary(binPath) {
 
 const candidates = [
   process.env.VIBE_CODR_ROOT && join(process.env.VIBE_CODR_ROOT, "dist", binaryName),
+  join(root, "..", "cli", "dist", binaryName),
+  join(root, "..", "vibe-codr", "dist", binaryName),
   join(homedir(), "Code", "vibe-codr", "dist", binaryName),
   join(homedir(), "code", "vibe-codr", "dist", binaryName),
 ].filter(Boolean);
@@ -100,7 +102,7 @@ const candidates = [
 const src = candidates.find((p) => p && existsSync(p));
 if (!src) {
   console.error(
-    "vibecodr-engine-host not found. Run: cd ~/Code/vibe-codr && bun run build:macos-bridge",
+    "vibecodr-engine-host not found. Build the sibling vibe-codr checkout or set VIBE_CODR_ROOT.",
   );
   process.exit(1);
 }

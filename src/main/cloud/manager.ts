@@ -1194,6 +1194,21 @@ export class CloudManager {
       readConfigFile(globalConfigPath()),
       readConfigFile(projectConfigPath(cwd)),
     ]);
+    for (const providerId of [...new Set(models.map((model) => model.split("/", 1)[0]))]) {
+      if (providerId !== "openai-codex" && providerId !== "xai-oauth") continue;
+      const credential = await this.transport.local.rpc("exportProviderAuth", { providerId }) as {
+        providerId: "openai-codex" | "xai-oauth";
+        access: string;
+        accountId?: string;
+      } | null;
+      if (!credential) continue;
+      if (providerId === "openai-codex") {
+        bound.CODEX_API_KEY = credential.access;
+        if (credential.accountId) bound.CODEX_ACCOUNT_ID = credential.accountId;
+      } else {
+        bound.XAI_API_KEY = credential.access;
+      }
+    }
     const environment: Record<string, string> = {};
     const domains = new Set<string>();
     const resolveModel = (model: string): { candidate: Record<string, string>; hostname: string } => {

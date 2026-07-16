@@ -33,4 +33,10 @@ describe("onboarding completion contract", () => {
   it("communicates that save includes engine startup", () => {
     expect(modalSource).toContain('saving ? "Saving & starting…" : "Save & start"');
   });
+
+  it("requires the selected subscription provider to be connected before save", () => {
+    expect(modalSource).toContain("connectedSubscriptionId === subscriptionProvider.id");
+    expect(modalSource).toContain("onStatusChange={handleSubscriptionStatus}");
+    expect(modalSource).toContain("status.state === \"connected\" ? status.providerId : null");
+  });
 });

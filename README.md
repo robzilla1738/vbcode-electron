@@ -43,11 +43,13 @@ Config/state are **shared with the CLI**:
 ## Requirements (development)
 
 - Node 22.12+ (required by the Electron 43 development runtime)
-- Sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) at `~/Code/vibe-codr` **or** `VIBE_CODR_ROOT`
+- A sibling [vibe-codr](https://github.com/robzilla1738/vibe-codr) checkout
+  (`../cli` in the combined workspace, `../vibe-codr` for separate clones, or
+  `~/Code/vibe-codr`), or an explicit `VIBE_CODR_ROOT`
 - Compiled host preferred:
 
 ```bash
-cd ~/Code/vibe-codr && bun install && bun run build:macos-bridge
+cd ../vibe-codr && bun install && bun run build:macos-bridge
 ```
 
 Packaged release builds bundle the revision-locked engine host; end users do
@@ -67,14 +69,16 @@ Installed macOS and Windows builds check GitHub Releases after launch. Updates
 are never installed silently: Vibe Codr asks before downloading and again
 before restarting, and safely stops the engine and terminal processes first.
 
-### What’s new in 0.1.15
+### What’s new in 0.1.16
 
-- Ollama sessions now carry an explicit hosted endpoint and prove the exact
-  model is reachable from inside the sandbox before ownership changes.
-- Returning to Local exports the workspace as its isolated Cloud owner, so the
-  verified return archive can always be written and downloaded.
-- Deleted/changing files no longer abort return packaging, and failures surface
-  the concrete exception instead of a Node.js version footer.
+- ChatGPT/Codex and xAI/Grok subscriptions can now be connected directly in the
+  app, including browser PKCE, xAI device code, refresh, cancel, and sign-out.
+- Grok Build is available as `xai-oauth/grok-build-0.1`, while Codex subscription
+  calls use the official account-routed Responses backend.
+- The synchronized OpenCode/models.dev catalog contains 166 provider IDs, and
+  arbitrary custom IDs can choose Chat Completions or Responses transport.
+- Cloud receives only the selected session's current access token; refresh
+  tokens remain in the local user-only auth store.
 
 ## Clone
 
@@ -86,8 +90,8 @@ cd vbcode-electron
 ## Dev
 
 ```bash
-cd ~/Code/vibe-codr && bun run build:macos-bridge   # once / after engine changes
-cd ~/Code/vbcode-electron                           # or this clone
+cd ../vibe-codr && bun run build:macos-bridge   # once / after engine changes
+cd ../vbcode-electron                           # or this clone
 npm install
 npm run dev
 ```
@@ -254,13 +258,15 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   the same models.dev registry used by OpenCode (166 current catalog providers)
   plus Hermes-compatible aliases and native Bedrock/Vertex/Azure setup (192
   choices / 190 provider ids at this sync), key entry with get-a-key links,
-  endpoint prompts where required, model preselect, and transactional save → re-bootstrap;
+  endpoint prompts where required, built-in ChatGPT/Codex and xAI/Grok
+  subscription sign-in, model preselect, and transactional save → re-bootstrap;
   setup stays open with recovery guidance until the new engine configuration
   actually starts
 - **Full-workspace settings**: 15 sections covering every config field — Models
   (default, planning, fallbacks, reasoning, turn/stream/queue limits,
   pricing/context-window overrides),
-  Providers (full catalog dropdown + free-text), MCP Servers (stdio + remote,
+  Providers (full catalog dropdown, free-text arbitrary IDs, transport and
+  explicit-model controls, subscription connection cards), MCP Servers (stdio + remote,
   reversible transport drafts and strict `${VAR}` / `${VAR:-default}` preflight,
   headers/environment, OAuth token-store settings),
   Permissions (tool plus mutually exclusive glob/exact scope and action), Appearance (16 themes + accent
@@ -288,6 +294,9 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
 - **Bounded capability catalogs**: stale model/provider/agent/skill/MCP RPCs
   cannot reopen or clear a newer picker, and persisted favorite/recent model IDs
   are deduplicated and capped before rendering
+
+Provider authentication, custom endpoints, Grok Build, and the Local/Cloud
+credential boundary are documented in [PROVIDERS.md](./PROVIDERS.md).
 - **Native close safety**: unsaved Settings, custom instructions, and malformed
   local editor drafts are synchronized to main; window close and Cmd/Ctrl+Q
   confirm before discarding or beginning engine/terminal shutdown

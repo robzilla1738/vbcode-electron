@@ -59,6 +59,29 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 
 ## Automated
 
+### Provider and subscription auth focus
+
+```bash
+# Electron IPC/config/catalog/Cloud boundary
+npm test -- --run src/shared/provider-auth.test.ts src/shared/renderer-rpc.test.ts \
+  src/shared/providers-catalog.test.ts src/shared/runtime-guards.test.ts \
+  src/shared/config-validate.test.ts src/main/cloud/model-environment.test.ts
+npm run typecheck
+npm run verify:source-parity
+
+# Locked sibling engine OAuth/registry/bridge contracts
+cd ../cli
+bun test packages/providers/src/oauth.test.ts packages/providers/src/registry.test.ts \
+  packages/macos-bridge/src/protocol.test.ts packages/macos-bridge/src/host.integration.test.ts
+bun run typecheck
+```
+
+The release records the audited OpenCode revision in
+`OPENCODE_PROVIDER_COMMIT`. Manual packaged checks connect an eligible ChatGPT
+account and send one Codex turn, then connect an eligible xAI account and send
+one `xai-oauth/grok-build-0.1` turn. These live entitlement checks are not run
+by CI and must not be represented as automated coverage.
+
 ```bash
 cd ~/Code/vbcode-electron   # or your clone of this repo
 npm test

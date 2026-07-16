@@ -15,6 +15,7 @@ const prebuiltRuntimeDir = process.env.VIBE_CLOUD_RUNTIME_DIR?.trim()
 
 const candidates = [
   process.env.VIBE_CODR_ROOT && resolve(process.env.VIBE_CODR_ROOT),
+  resolve(root, "..", "cli"),
   resolve(root, "..", "vibe-codr"),
   join(homedir(), "Code", "vibe-codr"),
   join(homedir(), "code", "vibe-codr"),

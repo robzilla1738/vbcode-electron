@@ -573,9 +573,15 @@ function registerIpc(): void {
       }
       const isProjectIndexRpc = message.method === "listProjects"
         || PROJECT_INDEX_MUTATIONS.has(message.method);
-      const rawValue = isProjectIndexRpc
-        ? await bridge.projectIndexRpc(message.method, message.params)
-        : await bridge.rpc(message.method, message.params);
+      const isProviderAuthRpc = message.method === "providerAuthStatus"
+        || message.method === "beginProviderAuth"
+        || message.method === "cancelProviderAuth"
+        || message.method === "logoutProviderAuth";
+      const rawValue = isProviderAuthRpc
+        ? await bridge.providerAuthRpc(message.method, message.params)
+        : isProjectIndexRpc
+          ? await bridge.projectIndexRpc(message.method, message.params)
+          : await bridge.rpc(message.method, message.params);
       const value = message.method === "listProjects"
         ? authorizeProjectIndex(rawValue)
         : rawValue;

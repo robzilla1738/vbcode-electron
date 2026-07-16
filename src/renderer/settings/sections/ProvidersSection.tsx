@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import type { ProviderConfig } from "../../../shared/config-schema";
 import { PROVIDER_CHOICES } from "../../../shared/providers-catalog";
-import { KeyValueTextArea, SettingBadge, SettingField, SettingSection, TextInput } from "../FormControls";
+import { SUBSCRIPTION_PROVIDERS, SubscriptionAuthCard } from "../../providers/SubscriptionAuthCard";
+import {
+  KeyValueTextArea,
+  SelectInput,
+  SettingBadge,
+  SettingField,
+  SettingSection,
+  TextArea,
+  TextInput,
+} from "../FormControls";
 import type { SectionProps } from "./types";
 
 export function ProvidersSection({
@@ -64,7 +73,10 @@ export function ProvidersSection({
   };
 
   return (
-    <SettingSection title="Providers" description="API keys, base URLs, and token files for each provider. Env vars take precedence over values here.">
+    <SettingSection title="Providers" description="Connect subscriptions, API keys, and any OpenAI-compatible endpoint. Environment variables take precedence.">
+      <div className="setting-list provider-auth-list">
+        {SUBSCRIPTION_PROVIDERS.map((provider) => <SubscriptionAuthCard key={provider.id} provider={provider} />)}
+      </div>
       {providerIds.length === 0 && !showAdd && (
         <p className="setting-empty">No providers configured. Add one to set credentials.</p>
       )}
@@ -102,6 +114,29 @@ export function ProvidersSection({
                         onChange={(v) => updateProvider(id, { baseURL: v || undefined })}
                         placeholder="https://api.example.com/v1"
                         type="url"
+                        monospace
+                      />
+                    </SettingField>
+                    {!PROVIDER_CHOICES.some((choice) => choice.registryId === id) && (
+                      <SettingField label="Transport" description="Choose the HTTP API dialect exposed by this custom endpoint.">
+                        <SelectInput
+                          value={p.transport ?? "openai-compatible"}
+                          onChange={(transport) => updateProvider(id, { transport })}
+                          options={[
+                            { value: "openai-compatible", label: "Chat Completions (OpenAI compatible)" },
+                            { value: "openai-responses", label: "OpenAI Responses" },
+                          ]}
+                        />
+                      </SettingField>
+                    )}
+                    <SettingField label="Explicit models" description="Optional model IDs, one per line, for endpoints that do not expose /models.">
+                      <TextArea
+                        value={(p.models ?? []).join("\n")}
+                        onChange={(value) => {
+                          const models = value.split("\n").map((model) => model.trim()).filter(Boolean);
+                          updateProvider(id, { models: models.length ? models : undefined });
+                        }}
+                        placeholder="model-id"
                         monospace
                       />
                     </SettingField>
