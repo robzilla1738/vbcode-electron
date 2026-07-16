@@ -352,7 +352,7 @@ export class CloudManager {
         timeoutMs: SETUP_TIMEOUT_MS,
       }, "runtime-incompatible", "verifying");
       this.#emit(snapshot.sessionId, "starting", "Restoring workspace and session state", 0.61, "restoring", handoffStartedAt);
-      await runRequired(provider, sandbox.id, `${base}/runtime/bin/node`, ["vibe-cloud-bootstrap.mjs", `${base}/handoff.json`, `${base}/project`, revision], {
+      await runRequired(provider, sandbox.id, "sh", ["restore-session.sh", `${base}/handoff.json`, `${base}/project`, revision], {
         ...modelEnvironment,
         VIBE_CLOUD_PROVIDER: request.provider,
         VIBE_CLOUD_RUNTIME: "1",

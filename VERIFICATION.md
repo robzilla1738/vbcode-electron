@@ -4,13 +4,13 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 
 ## Experimental cloud gate
 
-- `cd ../vibe-codr && bun test packages/core/src/portable-session.test.ts packages/core/src/session-tools.test.ts`
-- `cd ../vibe-codr && bun run build:cloud-runtime`
-- `cd ../vibe-codr && bun run smoke:cloud-runtime` verifies the archive with
+- `cd ../cli && bun test packages/core/src/portable-session.test.ts packages/core/src/session-tools.test.ts`
+- `cd ../cli && bun run build:cloud-runtime`
+- `cd ../cli && bun run smoke:cloud-runtime` verifies the archive with
   network disabled, loads `node-pty`/`ws`, exports and imports a real engine
-  session into the canonical cloud state root, resumes that exact session ID
-  with a non-default Ollama model and persisted history, starts the daemon under
-  its final isolated workload identity, requires that daemon to preflight the
+  session into the canonical cloud state root as the isolated workload user,
+  resumes that exact session ID with a non-default Ollama model and persisted
+  history, starts the daemon with the same identity, requires it to preflight the
   same ID before authenticated `/health` succeeds, snapshots the same
   model/history, and stops cleanly.
 - Confirm runtime `engineRevision` equals `ENGINE_COMMIT`, outer and internal

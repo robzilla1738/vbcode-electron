@@ -100,9 +100,10 @@ destroyed. A fresh bootstrap can therefore never reconnect to an abandoned
 daemon with a different session identity. The destination snapshot must still
 match session ID, main/subagent model, mode, and conversation identity before
 local ownership can commit.
-The permanent daemon is given the expected session ID and bootstraps it under
-the final isolated workload identity before authenticated health can return
-success. An explicit missing resume is fatal in the engine host; it never falls
+The runtime restores and verifies portable state as the same isolated workload
+identity used by the permanent daemon. The daemon is then given the expected
+session ID before authenticated health can return success. An explicit missing
+resume is fatal in the engine host; it never falls
 through to a newly generated session ID. A final-workload read or ownership
 failure is returned immediately as the handoff error while Local remains the
 owner.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.10 — 2026-07-15
+
+### Fixed
+
+- Cloud handoff now invokes the runtime's identity-safe restore entrypoint, so
+  the imported session is created and verified by the same non-root workload
+  identity that resumes it in the permanent daemon.
+- Eliminated the live E2B root/non-root state boundary that could report
+  `requested session not found` after an otherwise successful import.
+
 ## 0.1.9 — 2026-07-15
 
 ### Fixed

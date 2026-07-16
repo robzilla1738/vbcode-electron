@@ -67,10 +67,10 @@ Installed macOS and Windows builds check GitHub Releases after launch. Updates
 are never installed silently: Vibe Codr asks before downloading and again
 before restarting, and safely stops the engine and terminal processes first.
 
-### What’s new in 0.1.9
+### What’s new in 0.1.10
 
-- The permanent Cloud engine now resumes the imported session under its final
-  isolated workload identity before the daemon can report healthy.
+- Portable restore and the permanent Cloud engine now run as the same isolated
+  workload identity before the daemon can report healthy.
 - An explicit missing resume fails closed in the shared engine host. It can no
   longer silently generate a replacement session or blank chat.
 - Final-workload resume failures surface immediately while the original Local
