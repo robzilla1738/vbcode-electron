@@ -104,6 +104,13 @@ export function cloudModelEnvironment(
   }
 
   const hasProviderCredential = authEnvironment.some((name) => Boolean(environment[name]));
+  // Pin dual local/cloud providers to the reviewed cloud route. The engine can
+  // infer this for Ollama from its API key, but carrying the endpoint makes the
+  // transferred route explicit and prevents an imported local default or a
+  // launcher environment boundary from sending Cloud traffic to localhost.
+  if (baseUrlEnvironment && !environment[baseUrlEnvironment] && hasProviderCredential && runtime?.cloudBaseURL) {
+    environment[baseUrlEnvironment] = runtime.cloudBaseURL;
+  }
   if (providerId === "lmstudio") {
     throw new Error("LM Studio runs only on this Mac. Choose a cloud-accessible model before handing off.");
   }

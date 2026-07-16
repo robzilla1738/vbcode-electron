@@ -8,7 +8,10 @@ describe("cloud model environment", () => {
         ollama: { apiKey: "ollama-secret" },
         openai: { apiKey: "unrelated-secret" },
       },
-    }, undefined, {})).toEqual({ OLLAMA_API_KEY: "ollama-secret" });
+    }, undefined, {})).toEqual({
+      OLLAMA_API_KEY: "ollama-secret",
+      OLLAMA_BASE_URL: "https://ollama.com/v1",
+    });
   });
 
   it("prefers an explicit session binding over the config key", () => {
@@ -104,6 +107,12 @@ describe("cloud model environment", () => {
     expect(cloudModelRouteHostname("ollama/glm-5.2", undefined, undefined, {
       OLLAMA_API_KEY: "secret",
     })).toBe("ollama.com");
+    expect(cloudModelEnvironment("ollama/gemma4:31b", undefined, undefined, {
+      OLLAMA_API_KEY: "secret",
+    })).toEqual({
+      OLLAMA_API_KEY: "secret",
+      OLLAMA_BASE_URL: "https://ollama.com/v1",
+    });
   });
 
   it("collects every model the imported engine can select", () => {

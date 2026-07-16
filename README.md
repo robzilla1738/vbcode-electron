@@ -67,14 +67,14 @@ Installed macOS and Windows builds check GitHub Releases after launch. Updates
 are never installed silently: Vibe Codr asks before downloading and again
 before restarting, and safely stops the engine and terminal processes first.
 
-### What’s new in 0.1.14
+### What’s new in 0.1.15
 
-- The permanent Cloud daemon sends `cloud/e2b` or `cloud/vercel` directly in
-  the engine bootstrap protocol rather than relying on process environment.
-- The authenticated health preflight and reconnect use the same explicit
-  ownership target.
-- Conflicting owners still fail closed, and the original Local session remains
-  intact if restore cannot prove continuity.
+- Ollama sessions now carry an explicit hosted endpoint and prove the exact
+  model is reachable from inside the sandbox before ownership changes.
+- Returning to Local exports the workspace as its isolated Cloud owner, so the
+  verified return archive can always be written and downloaded.
+- Deleted/changing files no longer abort return packaging, and failures surface
+  the concrete exception instead of a Node.js version footer.
 
 ## Clone
 

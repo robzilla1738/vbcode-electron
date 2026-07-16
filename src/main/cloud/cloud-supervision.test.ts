@@ -36,6 +36,27 @@ describe("cloud command supervision", () => {
     });
   });
 
+  test("reports the actual exception instead of a Node.js stack footer", async () => {
+    const provider = providerWithRun({
+      exitCode: 1,
+      stdout: "",
+      stderr: "node:internal/fs/promises:639\nError: EACCES: permission denied, open '/return.json'\n    at async open (node:internal/fs/promises:639:25)\nNode.js v24.18.0\n",
+    });
+
+    await expect(runRequired(
+      provider,
+      "sandbox",
+      "node",
+      ["export.mjs"],
+      undefined,
+      { timeoutMs: 1_000 },
+      "setup-failed",
+      "packaging",
+    )).rejects.toMatchObject({
+      message: "Cloud workspace packaging failed: Error: EACCES: permission denied, open '/return.json'",
+    });
+  });
+
   test("redacts secrets and retains only a bounded output tail", () => {
     const secret = "e2b_extremely_sensitive_value";
     const output = `${"x".repeat(80 * 1024)}\nauthorization: Bearer token-value\n${secret}`;

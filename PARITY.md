@@ -17,6 +17,7 @@ coverage/bridge/packaged-host gates.
 - [x] Cloud import and daemon bootstrap share one canonical state root and prove the exact session ID, model, mode, subagent model, and conversation survive before ownership commits
 - [x] The permanent isolated Cloud workload preflights the imported session before health succeeds; explicit missing resume fails closed and cannot create a replacement chat
 - [x] Only the active model credential is session-scoped into Cloud; missing authentication and local-only routes fail before provisioning
+- [x] Ollama Cloud pins its hosted endpoint and proves exact model access inside the sandbox before ownership commit; Cloud return exports as the isolated workload owner and survives tracked deletions
 - [ ] Stable flag removal: fresh live suites for both providers, durable Mac relay, and Vercel broker verification
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).

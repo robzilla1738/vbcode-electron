@@ -32,6 +32,13 @@ E2B's allowlist API requires `ALL_TRAFFIC` in `denyOut` as the block-all fallbac
 the explicitly listed `allowOut` domains remain reachable and are verified by the
 paid provider contract suite.
 
+For a local Ollama session, Cloud requires an Ollama Cloud key and preserves the
+exact `ollama/<model>` string. Vibe pins the transferred endpoint to
+`https://ollama.com/v1`, then verifies from inside the sandbox that the endpoint,
+credential, and exact model are usable before Local releases ownership. It never
+silently substitutes a different provider or model. LM Studio and private/local
+Ollama endpoints remain Local-only.
+
 ## What moves
 
 - Session ID, transcript/model history, goal/task/plan state, checkpoints,
@@ -141,6 +148,10 @@ deletion-first transaction; protected descendants still force the safe worktree
 path instead of being removed. A verified review worktree is admitted to the
 same protected project IPC allowlist only after return succeeds, so Git, files,
 terminal, settings, and later handoffs work there without broadening access.
+The return snapshot is created as the same isolated workload user that owns the
+Cloud workspace. Tracked deletions and files that disappear during capture are
+encoded as return state rather than aborting the handoff; command failures retain
+the concrete exception instead of displaying a runtime-version footer.
 
 Closing the desktop disconnects only the authenticated WebSocket. The provider
 sandbox, engine, PTYs, replay, and jobs continue. Reopening the same desktop

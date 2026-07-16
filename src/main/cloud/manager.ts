@@ -351,6 +351,10 @@ export class CloudManager {
         privileged: true,
         timeoutMs: SETUP_TIMEOUT_MS,
       }, "runtime-incompatible", "verifying");
+      await runRequired(provider, sandbox.id, `${base}/runtime/bin/node`, ["vibe-cloud-model-probe.mjs", JSON.stringify(models)], modelEnvironment, {
+        cwd: `${base}/runtime`,
+        timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS,
+      }, "setup-failed", "verifying");
       this.#emit(snapshot.sessionId, "starting", "Restoring workspace and session state", 0.61, "restoring", handoffStartedAt);
       await runRequired(provider, sandbox.id, "sh", ["restore-session.sh", `${base}/handoff.json`, `${base}/project`, revision], {
         ...modelEnvironment,
@@ -716,7 +720,8 @@ export class CloudManager {
       }
       const output = `${base}/return-${preparation.ownershipGeneration}.json`;
       this.#emit(sessionId, "syncing-back", "Packaging cloud workspace changes", 0.22);
-      await runRequired(provider, entry.sandboxId, `${base}/runtime/bin/node`, ["vibe-cloud-export.mjs", `${base}/project`, `${base}/handoff.json`, output], undefined, {
+      await runRequired(provider, entry.sandboxId, "sh", ["export-workspace.sh", `${base}/project`, `${base}/handoff.json`, output], undefined, {
+        privileged: true,
         cwd: `${base}/runtime`,
         timeoutMs: SETUP_TIMEOUT_MS,
       }, "setup-failed", "packaging");
@@ -1375,7 +1380,7 @@ export async function runRequired(
   }
   if (result.exitCode === 0) return result;
   const diagnostic = commandDiagnostic(result);
-  throw new CloudOperationError(`Cloud ${stageLabel(stage)} failed${diagnostic ? `: ${lastMeaningfulLine(diagnostic)}` : ` with exit code ${result.exitCode}`}`, {
+  throw new CloudOperationError(`Cloud ${stageLabel(stage)} failed${diagnostic ? `: ${diagnosticSummary(diagnostic)}` : ` with exit code ${result.exitCode}`}`, {
     code,
     stage,
     retryable: true,
@@ -1435,7 +1440,7 @@ export async function superviseCloudAgent(
     });
   }
   const diagnostic = commandDiagnostic(outcome.result);
-  throw new CloudOperationError(`Cloud agent exited before it became healthy${diagnostic ? `: ${lastMeaningfulLine(diagnostic)}` : ` with exit code ${outcome.result.exitCode}`}`, {
+  throw new CloudOperationError(`Cloud agent exited before it became healthy${diagnostic ? `: ${diagnosticSummary(diagnostic)}` : ` with exit code ${outcome.result.exitCode}`}`, {
     code: "daemon-exited",
     stage: "starting-agent",
     retryable: true,
@@ -1476,7 +1481,7 @@ export async function awaitRemoteEngineReady<T>(daemon: CloudCommandHandle, remo
     });
   }
   const diagnostic = commandDiagnostic(outcome.result);
-  throw new CloudOperationError(`Cloud agent exited during the engine connection${diagnostic ? `: ${lastMeaningfulLine(diagnostic)}` : ` with exit code ${outcome.result.exitCode}`}`, {
+  throw new CloudOperationError(`Cloud agent exited during the engine connection${diagnostic ? `: ${diagnosticSummary(diagnostic)}` : ` with exit code ${outcome.result.exitCode}`}`, {
     code: "daemon-exited",
     stage: "connecting",
     retryable: true,
@@ -1613,8 +1618,10 @@ function commandDiagnostic(result: CloudCommandResult): string {
   return (result.stderr.trim() || result.stdout.trim()).slice(-64 * 1024);
 }
 
-function lastMeaningfulLine(value: string): string {
-  return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).at(-1)?.slice(0, 500) || "unknown error";
+function diagnosticSummary(value: string): string {
+  const lines = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const explicitError = [...lines].reverse().find((line) => /^(?:Error|[A-Za-z]+Error)(?:\s*\[[^\]]+\])?:\s+/.test(line));
+  return (explicitError ?? lines.at(-1) ?? "unknown error").slice(0, 500);
 }
 
 function stageLabel(stage: CloudStartupStage): string {

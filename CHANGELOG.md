@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.15 — 2026-07-15
+
+### Fixed
+
+- Ollama Cloud handoff now pins the hosted endpoint and verifies the exact
+  session model from inside the new sandbox before Local ownership commits.
+  A Mac-local endpoint, unreachable route, invalid credential, or unavailable
+  model fails safely without leaving the user in a broken Cloud session.
+- Cloud-to-Local export now runs as the isolated workload owner that owns the
+  restored workspace, handles tracked/concurrent deletions, and reports the
+  real exception instead of the trailing Node.js version from a stack trace.
+- The locked `vibe-codr` 0.5.8 runtime smoke exercises both exact Cloud resume
+  and the protected return-export path.
+
 ## 0.1.14 — 2026-07-15
 
 ### Fixed
