@@ -96,8 +96,9 @@ settings** by default.
 
 The shell has these primary surfaces:
 
-1. **Project rail** (left) — collapsible **Projects** and **Chats** sections,
-   search, session/project menus, Git/Settings footer.
+1. **Project rail** (left) — first-class **Sessions** workspace, collapsible
+   **Projects** and **Chats** sections, search, session/project menus, and the
+   Settings footer.
 2. **Main stage** — topbar (project/session title), transcript (user bubbles,
    compact expandable engine-follow-up context, assistant prose, tools, thinking,
    structured gate/visual-check statuses, notices, sources), floating composer,
@@ -118,6 +119,11 @@ The shell has these primary surfaces:
    than an in-app panel.
 5. **Changed-files footer chip** — after edits, a compact summary shares the
    transcript footer row with Jump to latest and opens the Changes workspace.
+6. **Sessions workspace** — a full main-stage Board/List view over the host-owned
+   project index. Active / Review / Done are user-managed desktop organization;
+   only a truly busy local session or running Cloud session is labeled Working.
+   Search, project/status/mode filters, sorting, inline rename, status movement,
+   archive, delete, and resume all operate on the existing session APIs.
 
 Transcript prose, Thinking/tool activity, notices, approval cards, and the
 composer use the same centered, font-independent `--transcript-measure: 40rem`
@@ -169,7 +175,9 @@ without changing the active chat or scroll position.
 
 ### Project rail
 
-- Two sections, top to bottom: **Projects** (code folders from host
+- **Sessions** is the first workspace row and shows the total indexed session
+  count. It toggles the management workspace without unmounting the conversation.
+- Two hierarchy sections, top to bottom: **Projects** (code folders from host
   `listProjects`) then **Chats** (one-off conversations under `~/.vibe/chats`).
   No divider rules — quiet spacing only.
 - Section headers are **collapsible** (chevron + label). Trailing **+** only:
@@ -190,6 +198,19 @@ without changing the active chat or scroll position.
 - A quiet cloud glyph marks catalog sessions whose remote status is `running`;
   the session label also announces “Running in Cloud” to assistive technology.
 - Desktop resize: pointer + ArrowLeft/ArrowRight + Home/End; width persisted.
+
+### Sessions workspace
+
+- Board and List share one search/filter/sort model and persist the selected view,
+  filters, sort, and per-session Active/Review/Done status across app restarts.
+- Cards keep project identity, title, goal, model, mode, relative activity time,
+  status, and actions scannable without turning each metadata value into a badge.
+- Actual local/Cloud execution temporarily places a card in Active and shows
+  Working; it does not overwrite the user's saved organization state.
+- Rename stays inline. Archive and Delete use a keyboard-safe in-app confirmation
+  dialog, then reuse the same host mutations and transcript-cache cleanup as the rail.
+- Below 48rem, board columns stack and list rows collapse without horizontal scroll;
+  touch targets expand to 44px while pointer layouts retain desktop density.
 
 ### Composer menus
 
@@ -382,6 +403,7 @@ snippet. External links go through `ExternalLink` / host bridge.
 | Composer / mode / menus | `src/renderer/composer/Composer.tsx` |
 | Native dropped-file paths | `src/preload/index.ts` (`webUtils.getPathForFile`) |
 | Project rail | `src/renderer/layout/ProjectRail.tsx` |
+| Sessions workspace | `src/renderer/sessions/SessionsWorkspace.tsx`, `src/shared/session-board.ts` |
 | Workspace dock | `src/renderer/layout/WorkspaceDock.tsx` |
 | Changed-files footer chip | `src/renderer/panels/TurnChangesCard.tsx` |
 | Diff display helpers | `src/shared/diff-view.ts`, `changed-files.ts` |

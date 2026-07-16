@@ -92,6 +92,9 @@ const ChangesView = lazy(() =>
 const SettingsView = lazy(() =>
   import("./settings/SettingsPanel").then((module) => ({ default: module.SettingsView })),
 );
+const SessionsWorkspace = lazy(() =>
+  import("./sessions/SessionsWorkspace").then((module) => ({ default: module.SessionsWorkspace })),
+);
 const OnboardingModal = lazy(() =>
   import("./panels/OnboardingModal").then((module) => ({ default: module.OnboardingModal })),
 );
@@ -158,6 +161,7 @@ export function App() {
   const onboardingProbeGate = useRef(new RequestGate());
   const [keysOpen, setKeysOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [cloudSheetOpen, setCloudSheetOpen] = useState(false);
   const [cloudTransitioning, setCloudTransitioning] = useState(false);
   const [cloudRequest, setCloudRequest] = useState<{ target?: "cloud" | "local"; provider?: CloudProviderId; instruction?: string } | null>(null);
@@ -311,6 +315,7 @@ export function App() {
   }, []);
 
   const openSettings = useCallback(() => {
+    setSessionsOpen(false);
     setSettingsOpen(true);
     setGitOpen(false);
     setTerminalOpen(false);
@@ -328,6 +333,7 @@ export function App() {
     }
     setGitOpen(false);
     setTerminalOpen(false);
+    setSessionsOpen(false);
     session.setInspectorOpen(false);
     session.setJobsView(false);
     setSettingsOpen(true);
@@ -337,6 +343,7 @@ export function App() {
     if (!cwd) return;
     if (!confirmLeaveSettings()) return;
     setGitOpen(true);
+    setSessionsOpen(false);
     setSettingsOpen(false);
     setTerminalOpen(false);
     session.setInspectorOpen(false);
@@ -353,6 +360,7 @@ export function App() {
       return;
     }
     setSettingsOpen(false);
+    setSessionsOpen(false);
     setTerminalOpen(false);
     session.setInspectorOpen(false);
     session.setJobsView(false);
@@ -363,6 +371,7 @@ export function App() {
     if (settingsOpen) {
       if (!confirmLeaveSettings()) return;
       setSettingsOpen(false);
+      setSessionsOpen(false);
       setGitOpen(false);
       setTerminalOpen(false);
       setInspectorFocusPath(null);
@@ -372,6 +381,7 @@ export function App() {
       return;
     }
     setGitOpen(false);
+    setSessionsOpen(false);
     setTerminalOpen(false);
     session.setJobsView(false);
     session.setInspectorOpen((v) => {
@@ -393,6 +403,7 @@ export function App() {
     ) => {
       if (settingsOpen && !confirmLeaveSettings()) return;
       setSettingsOpen(false);
+      setSessionsOpen(false);
       setGitOpen(false);
       setTerminalOpen(false);
       session.setJobsView(false);
@@ -418,6 +429,7 @@ export function App() {
       if (target === "jobs") {
         if (settingsOpen && !confirmLeaveSettings()) return;
         setSettingsOpen(false);
+        setSessionsOpen(false);
         setGitOpen(false);
         setTerminalOpen(false);
         session.setInspectorOpen(false);
@@ -429,6 +441,7 @@ export function App() {
       if (target === "terminal") {
         if (settingsOpen && !confirmLeaveSettings()) return;
         setSettingsOpen(false);
+        setSessionsOpen(false);
         setGitOpen(false);
         session.setInspectorOpen(false);
         session.setJobsView(false);
@@ -482,6 +495,15 @@ export function App() {
       if (detail === "settings") openSettings();
       if (detail === "git") openGit();
       if (detail === "changes") openWorkspaceDock("changes");
+      if (detail === "sessions") {
+        setSettingsOpen(false);
+        setGitOpen(false);
+        setTerminalOpen(false);
+        session.setInspectorOpen(false);
+        session.setJobsView(false);
+        setSessionsOpen(true);
+        if (belowBreakpoint("tablet")) setProjectRailOpen(false);
+      }
       if (detail === "cloud") {
         setCloudRequest({ target: "cloud", provider: "e2b" });
         setCloudProgress(null);
@@ -490,7 +512,7 @@ export function App() {
     };
     window.addEventListener("vibe-preview-open-panel", onOpenPanel);
     return () => window.removeEventListener("vibe-preview-open-panel", onOpenPanel);
-  }, [openSettings, openGit, openWorkspaceDock]);
+  }, [openSettings, openGit, openWorkspaceDock, session]);
 
   // Global keyboard shortcuts for app-owned panels. Native menu accelerators
   // route through the same actions in Electron; this also keeps preview mode
@@ -560,6 +582,17 @@ export function App() {
       if (projectRefreshGate.current.isCurrent(request)) setProjectsLoading(false);
     }
   }, []);
+
+  const openSessions = useCallback(() => {
+    if (settingsOpen && !confirmLeaveSettings()) return;
+    setSettingsOpen(false);
+    setGitOpen(false);
+    setTerminalOpen(false);
+    session.setInspectorOpen(false);
+    session.setJobsView(false);
+    setSessionsOpen(true);
+    void refreshProjects();
+  }, [confirmLeaveSettings, refreshProjects, session, settingsOpen]);
 
   const openProjectAt = useCallback(
     async (path: string): Promise<boolean> => {
@@ -810,6 +843,7 @@ export function App() {
       if (cloudOwned) {
         const connected = await window.vibe.reconnectCloudSession(id);
         if (connected.ok) {
+          setSessionsOpen(false);
           setCwd(projectCwd);
           setCloudSessions(cloudList);
           await session.attachCurrent(projectCwd);
@@ -819,6 +853,7 @@ export function App() {
       }
       const ok = await session.bootstrap({ cwd: projectCwd, resume: id });
       if (ok) {
+        setSessionsOpen(false);
         setCwd(projectCwd);
         await refreshProjects();
       }
@@ -869,6 +904,7 @@ export function App() {
     const ok = await session.bootstrap({ cwd });
     if (ok) {
       setSettingsOpen(false);
+      setSessionsOpen(false);
       setDraft("");
       setFollowSignal((value) => value + 1);
       await refreshProjects();
@@ -923,6 +959,7 @@ export function App() {
     invalidateCatalogs();
     const ok = await session.bootstrap({ cwd: projectCwd });
     if (ok) {
+      setSessionsOpen(false);
       setCwd(projectCwd);
       setDraft("");
       setFollowSignal((value) => value + 1);
@@ -946,6 +983,7 @@ export function App() {
       setGitOpen(false);
       const ok = await session.bootstrap({ cwd: path });
       if (ok) {
+        setSessionsOpen(false);
         setCwd(path);
         setDraft("");
         setFollowSignal((value) => value + 1);
@@ -1645,7 +1683,7 @@ export function App() {
         )
       );
       const inComposer = target?.classList.contains("composer-input") ?? false;
-      const chatShortcutAvailable = !settingsOpen && (!inInput || inComposer);
+      const chatShortcutAvailable = !settingsOpen && !sessionsOpen && (!inInput || inComposer);
 
       // Ctrl/Cmd+T thinking
       if (chatShortcutAvailable && e.key === "t" && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
@@ -1772,6 +1810,10 @@ export function App() {
           closeActiveEndPanel();
           return;
         }
+        if (sessionsOpen) {
+          setSessionsOpen(false);
+          return;
+        }
         if (projectRailOpen && belowBreakpoint("tablet")) {
           setProjectRailOpen(false);
           return;
@@ -1819,7 +1861,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [session, draft, continueLatest, answerPerm, answerPlan, composeInEditor, picker, keysOpen, cwd, projectRailOpen, toggleInspector, endPanelOpen, closeActiveEndPanel, dismissCatalog, settingsOpen]);
+  }, [session, draft, continueLatest, answerPerm, answerPlan, composeInEditor, picker, keysOpen, cwd, projectRailOpen, toggleInspector, endPanelOpen, closeActiveEndPanel, dismissCatalog, settingsOpen, sessionsOpen]);
 
   const chrome = session.chrome;
   const ctxPct = contextUsagePercent(chrome.ctxUsed, chrome.ctxWindow);
@@ -1901,8 +1943,10 @@ export function App() {
   return (
     <div className="app-shell">
       <nav className="skip-links" aria-label="Skip links">
-        <a className="skip-link" href="#main-content">Skip to conversation</a>
-        <a className="skip-link" href="#composer">Skip to composer</a>
+        <a className="skip-link" href="#main-content">
+          {sessionsOpen ? "Skip to sessions" : "Skip to conversation"}
+        </a>
+        {!sessionsOpen ? <a className="skip-link" href="#composer">Skip to composer</a> : null}
         {projectRailPresence.mounted ? (
           <a className="skip-link" href="#project-rail">Skip to projects</a>
         ) : null}
@@ -1955,6 +1999,12 @@ export function App() {
           onClose={() => setProjectRailOpen(false)}
           onOpenSettings={openSettings}
           settingsActive={settingsOpen}
+          onOpenSessions={() => {
+            if (belowBreakpoint("tablet")) setProjectRailOpen(false);
+            if (sessionsOpen) setSessionsOpen(false);
+            else openSessions();
+          }}
+          sessionsActive={sessionsOpen}
           onRetry={() => void refreshProjects()}
           onOpenProject={() => void openProject()}
           onNewChat={() => {
@@ -1985,7 +2035,7 @@ export function App() {
             onClick={() => setProjectRailOpen(false)}
           />
         )}
-        {endPanelPresence.mounted && (
+        {!sessionsOpen && endPanelPresence.mounted && (
           <button
             type="button"
             className={`drawer-scrim${endPanelPresence.closing ? " is-closing" : ""}`}
@@ -1996,8 +2046,30 @@ export function App() {
         )}
 
         <div className={`content-inset${projectRailPresence.mounted ? "" : " is-expanded"}${
-          endPanelOpen ? " end-panel-open" : ""
+          !sessionsOpen && endPanelOpen ? " end-panel-open" : ""
         }`}>
+          {sessionsOpen ? (
+            <Suspense fallback={<section className="sessions-workspace" aria-label="Loading sessions" />}>
+              <SessionsWorkspace
+                projects={projects}
+                cloudSessions={cloudSessions}
+                chatsCwd={chatsCwd}
+                activeCwd={cwd}
+                activeSessionId={chrome.sessionId}
+                busy={chrome.busy || session.booting || cloudTransitioning}
+                loading={projectsLoading}
+                error={projectsError}
+                onRetry={() => void refreshProjects()}
+                onOpen={(projectCwd, id) => void resumeSession(projectCwd, id)}
+                onNewChat={() => void startNewChat()}
+                onRename={renameSession}
+                onArchive={(projectCwd, id) => removeSession(projectCwd, id, "archive")}
+                onDelete={(projectCwd, id) => removeSession(projectCwd, id, "delete")}
+                onClose={() => setSessionsOpen(false)}
+              />
+            </Suspense>
+          ) : (
+          <>
           <header className="topbar">
             <div className="topbar-leading">
               {!projectRailOpen && (
@@ -2390,8 +2462,10 @@ export function App() {
               onOpen={openWorkspaceDock}
             />
           )}
+          </>
+          )}
 
-          {endPanelPresence.mounted && renderedEndPanel && (
+          {!sessionsOpen && endPanelPresence.mounted && renderedEndPanel && (
             <ActivitySidebar
               active={renderedEndPanel}
               closing={endPanelPresence.closing}
@@ -2503,7 +2577,7 @@ export function App() {
             </ActivitySidebar>
           )}
 
-          {endPanelPresence.mounted && renderedEndPanel && (
+          {!sessionsOpen && endPanelPresence.mounted && renderedEndPanel && (
             <SidebarResizeHandle
               side="end"
               cssVar={renderedEndPanel === "changes" ? "--changes-rail-w" : "--activity-rail-w"}

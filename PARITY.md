@@ -128,6 +128,7 @@ whose HEAD equals the lock before it will embed a rebuilt host.
 - [x] Catalog filtering, no-results state, current-model marker, and RPC failure feedback
 - [x] Multi-project + Chats rail with collapsible sections, section +, titles, resume/filter; Continue Latest via ⇧⌘N / menu
 - [x] Project/session rename, archive, and delete menus with in-app confirmation; project menus escape rail clipping
+- [x] Sessions workspace: persistent Board/List views across all projects and Chats, search/filter/sort, explicit Active/Review/Done organization, honest local/Cloud Working state, and open/rename/archive/delete management
 - [x] Workspace dock (Session / Changes / Git / Terminal / Jobs / Files) on chat surface; no topbar duplicates
 - [x] Changed-files chip after edits; dock Changes opens the dedicated master-detail review
 - [x] Host fatal / boot error: primary New session recovery

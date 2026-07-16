@@ -163,7 +163,7 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 ┌────────────┬──────────────────────────────────────────┬────────────┐
 │ Projects   │  Project / session top bar               │ Workspace  │
 │ + Chats    │  Transcript / splash                     │ dock       │
-│ + filter   │  Plan · permissions · queue · spinner    │ Session    │
+│ Sessions   │  Plan · permissions · queue · spinner    │ Session    │
 │ Git·Settings│ Anchored composer + status + pickers    │ Changes /  │
 │            │  Turn-changes card (when files edited)   │ Git /       │
 │            │                                          │ Terminal /  │
@@ -172,7 +172,8 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 ```
 
 - Content max ~130ch; transcript prose, tool activity, notices, approval panels, and the composer share the font-independent `--transcript-measure: 40rem` reading measure
-- **Left rail:** collapsible Projects + Chats sections; project rows reveal icon-only new-chat and ⋯ actions on hover/focus; Git & Settings in the footer
+- **Left rail:** first-class Sessions workspace plus collapsible Projects + Chats sections; project rows reveal icon-only new-chat and ⋯ actions on hover/focus; Settings stays in the footer
+- **Sessions workspace:** persistent Board/List management across every project and Chat, with search/filter/sort, explicit Active/Review/Done organization, honest Working/Cloud signals, and open/rename/archive/delete actions backed by the existing host APIs
 - **Right workspace dock:** full-label Session / Changes / Git / Terminal / Jobs / Files in an equally inset, quietly grey rounded enclosure on the chat surface; compact below ~960px
 - **Shared activity sidebar:** Session, Changes, Git, Terminal, and Jobs open in one full-height, edge-attached right pane with equal switcher tabs, one compact Workspace header, a shared resize handle, and responsive drawer behavior. Horizontal divider rules are omitted; spacing and quiet surface shifts organize the chrome. Changes pairs a recursively expandable file tree with numbered Diff/File review and saturated semantic change colors. It is a structural sibling of chat, never a floating card or overlay on desktop. Files remains a Finder reveal.
 - **Persistent contextual terminal:** project sessions open at the project root;

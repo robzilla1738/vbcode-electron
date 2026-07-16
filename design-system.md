@@ -90,17 +90,21 @@ visible, while technical runtime sections collapse behind one text-and-chevron
 Advanced settings control. Search temporarily reveals matching advanced
 sections, so simplification never makes a capability undiscoverable.
 
-The shell has four primary layout regions:
+The shell has five primary layout regions:
 
-1. **Project rail:** left-edge Projects and Chats navigation, search, project
-   and session actions, plus Git and Settings in the footer.
+1. **Project rail:** left-edge Sessions destination plus Projects and Chats
+   navigation, search, project/session actions, and Settings in the footer.
 2. **Main stage:** project/session topbar, transcript, approvals, queue,
    changed-files card, and composer.
-3. **Workspace dock:** compact navigation that stays on the chat surface and
+3. **Sessions workspace:** a full main-stage Board/List manager that keeps the
+   project rail mounted. It uses flat workflow columns and one bordered record
+   surface per session; Active / Review / Done are desktop organization states,
+   while accent is reserved for actual local or Cloud work.
+4. **Workspace dock:** compact navigation that stays on the chat surface and
    exposes a flat list of **Session**, **Changes**, **Git**, **Terminal**, **Jobs**, and
    **Files** only — no Local/Files double Finder entry and no commit/compare
    shortcuts (those live inside the Git activity view).
-4. **Activity sidebar:** one shared full-height right-side lane for Session,
+5. **Activity sidebar:** one shared full-height right-side lane for Session,
    Changes, Git, Terminal, and Jobs. It is an edge-attached structural grid
    column with a hairline divider, not an inset floating card. Opening one view
    replaces the other in the same geometry. **Files** is a Finder reveal action,
@@ -390,6 +394,7 @@ Panels must remain predictable:
 | Component | Source | Contract |
 |---|---|---|
 | Project rail | `src/renderer/layout/ProjectRail.tsx` | Collapsible Projects/Chats, stable icon/text columns, portal menus, persisted resize |
+| Sessions workspace | `src/renderer/sessions/SessionsWorkspace.tsx`, `src/shared/session-board.ts` | Persistent Board/List, search/filter/sort, explicit workflow states, honest live execution, and session mutations |
 | Workspace dock | `src/renderer/layout/WorkspaceDock.tsx` | Chat-surface navigation for Session/Changes/Git/Terminal/Jobs/Files |
 | Activity sidebar | `src/renderer/layout/ActivitySidebar.tsx`, `src/renderer/panels/Inspector.tsx`, `src/renderer/panels/TerminalPanel.tsx`, `src/renderer/panels/JobsView.tsx`, `src/renderer/git/GitPanel.tsx` | Persistent five-view switcher; full-height edge-attached geometry, compact shared header, rule-free horizontal chrome, and shared resize behavior; content never occludes chat |
 | Contextual terminal | `src/main/terminal-manager.ts`, `src/renderer/panels/TerminalPanel.tsx` | Main-owned PTY at project root or user home for Chats, bounded replay, detach/reconnect across sidebar close and view switches |

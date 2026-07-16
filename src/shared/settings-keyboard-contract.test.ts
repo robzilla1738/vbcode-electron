@@ -27,8 +27,8 @@ describe("settings keyboard ownership contract", () => {
     }
   });
 
-  it("does not route chat shortcuts behind Settings or text editors", () => {
-    expect(app).toContain("const chatShortcutAvailable = !settingsOpen && (!inInput || inComposer)");
+  it("does not route chat shortcuts behind Settings, Sessions, or text editors", () => {
+    expect(app).toContain("const chatShortcutAvailable = !settingsOpen && !sessionsOpen && (!inInput || inComposer)");
     for (const key of ['e.key === "t"', 'e.key === "d"', 'e.key === "o"', 'e.key === "k"']) {
       expect(app).toContain(`chatShortcutAvailable && ${key}`);
     }

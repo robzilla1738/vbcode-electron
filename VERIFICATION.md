@@ -105,12 +105,12 @@ npm run test:e2e       # hermetic Electron host/renderer lifecycle matrix
 ```
 
 Expect: the current Vitest suite green, Playwright Electron E2E
-green (**12** scenarios), all 20 upstream source pairs aligned, Biome and `tsc`
+green (**12** scenarios), all 21 upstream source pairs aligned, Biome and `tsc`
 clean, all 40 engine config fields represented, electron-vite build and
 renderer/host bundle budget OK, and smoke prints
 `ready` + `snapshot ok` and a structurally valid project-list response (which
 may be empty when every project is archived). Prefer live suite output over frozen counts in prose.
-Settings and the xterm runtime must remain in deferred chunks: aggregate
+Settings, Sessions, and the xterm runtime must remain in deferred chunks: aggregate
 renderer payload may include them, but the initial/largest chunk retains its
 budget.
 `npm ci` must finish the `install-electron` prefetch before Vitest starts; this
@@ -277,6 +277,12 @@ npm run dev
    rows after an app restart rather than merging them into assistant prose.
    Keep Changes open in File mode while switching sessions, then return: the
    activity view/mode and each session's transcript position must be preserved.
+   Open **Sessions** from the rail and confirm Board/List, search, project/status/
+   mode filters, and sort all persist after reopening the app. Move a card through
+   Active → Review → Done; verify only a genuinely busy local or running Cloud
+   session shows Working and temporarily appears in Active. Open, rename, archive,
+   and delete records from both Board and List; destructive actions must use the
+   in-app confirmation dialog and the underlying project rail must refresh.
 3. Submit a short prompt — stream text + tools; the project rail spinner appears
    only on the active listed session while AI is working, spins continuously,
    and disappears at idle.

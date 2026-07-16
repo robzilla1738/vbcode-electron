@@ -27,8 +27,11 @@ const largest = sizes.reduce((max, item) => Math.max(max, item.bytes), 0);
 // The complete canonical slash catalog and descriptive value submenus add less
 // than 1 KB to startup. Keep a narrow 2 KB allowance for that user-visible
 // discovery contract rather than dropping command help from the shipped UI.
-const totalBudget = 2_823_000;
-const chunkBudget = 2_102_000;
+// The cross-project Sessions manager is deferred into its own ~33 KB chunk;
+// only route ownership and the rail destination stay in startup. Account for
+// that intentional product surface with the same narrow ~2 KB regression room.
+const totalBudget = 2_874_000;
+const chunkBudget = 2_120_000;
 
 if (total > totalBudget || largest > chunkBudget) {
   console.error(`Renderer bundle budget exceeded: ${total} total bytes, ${largest} largest chunk`);

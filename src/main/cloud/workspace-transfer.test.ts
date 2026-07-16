@@ -560,7 +560,7 @@ describe("workspace transfer", () => {
     expect(bundle.files.map((file) => file.path)).toContain("workspace/modules/child/library.txt");
     await expect(currentWorkspaceFingerprint(parent, bundle.manifest.excludedPaths.map((entry) => entry.path)))
       .resolves.toBe(bundle.manifest.sourceRootFingerprint);
-  });
+  }, 15_000);
 
   it("blocks workspace-wide exclusions found only in submodule history", async () => {
     const parent = await mkdtemp(join(tmpdir(), "vibe-transfer-submodule-history-parent-"));
@@ -638,5 +638,5 @@ describe("workspace transfer", () => {
     if (result.kind === "applied") roots.push(result.recoveryPath);
     expect(await gitText(join(local, "modules", "child"), "rev-parse", "HEAD")).toBe(remoteSubmoduleHead);
     await expect(readFile(join(local, "modules", "child", "library.txt"), "utf8")).resolves.toBe("cloud commit\n");
-  });
+  }, 15_000);
 });

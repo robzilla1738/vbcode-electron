@@ -50,6 +50,8 @@ const SHOTS = [
   ["theme-opencode", "scenario=chat&theme=opencode", { width: 1440, height: 900 }],
   ["settings", "scenario=settings", { width: 1440, height: 900 }],
   ["settings-narrow", "scenario=settings", { width: 900, height: 900 }],
+  ["sessions", "scenario=sessions", { width: 1440, height: 900 }],
+  ["sessions-narrow", "scenario=sessions", { width: 700, height: 900 }],
   ["git", "scenario=git", { width: 1440, height: 900 }],
 ];
 

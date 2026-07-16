@@ -25,6 +25,7 @@
  *   jobs        — background jobs view
  *   inspector   — session inspector rail open
  *   changes     — expanded master-detail changed-files review
+ *   sessions    — cross-project session management board
  *   toast       — finished chat with a toast banner
  *   density-quiet / density-verbose — details density cue in composer
  *   ctx-hot     — high context % (topbar warn chip at laptop width)
@@ -741,8 +742,23 @@ if (scenario === "welcome") {
   window.localStorage.setItem("vibe.lastCwd", CWD);
 }
 
-// Auto-open settings or git panel for preview scenarios.
-if (scenario === "settings" || scenario === "git") {
+if (scenario === "sessions") {
+  window.localStorage.setItem("vibe.session-board.v1", JSON.stringify({
+    view: "board",
+    status: "all",
+    project: "all",
+    mode: "all",
+    sort: "updated",
+    statuses: {
+      [`${CWD}\u0000sess_billing`]: "review",
+      "/Users/rob/Code/vibe-codr\u0000sess_tui5": "review",
+      "/Users/rob/Code/dotfiles\u0000sess_dot1": "done",
+    },
+  }));
+}
+
+// Auto-open full workspace/panel preview scenarios.
+if (scenario === "settings" || scenario === "git" || scenario === "sessions") {
   window.setTimeout(() => {
     window.dispatchEvent(
       new CustomEvent("vibe-preview-open-panel", { detail: scenario }),
@@ -821,7 +837,7 @@ const mock = {
   removeCloudCredentialBinding: async () => mock.cloudSettings(),
   listCloudSessions: async () => ({
     ok: true as const,
-    value: scenario === "mode"
+    value: scenario === "mode" || scenario === "sessions"
       ? [{
           sessionId: "sess_flaky01",
           model: "anthropic/claude-4.6-opus",

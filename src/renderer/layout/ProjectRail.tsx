@@ -25,6 +25,7 @@ import {
   IconDelete,
   IconFolder,
   IconFolderOpen,
+  IconJobs,
   IconMore,
   IconPlus,
   IconRename,
@@ -75,6 +76,8 @@ export function ProjectRail({
   onRenameSession,
   onDeleteSession,
   onArchiveSession,
+  onOpenSessions,
+  sessionsActive,
   onOpenSettings,
   settingsActive,
 }: {
@@ -104,6 +107,8 @@ export function ProjectRail({
   onRenameSession: (cwd: string, id: string, title: string) => Promise<boolean>;
   onDeleteSession: (cwd: string, id: string) => Promise<boolean>;
   onArchiveSession: (cwd: string, id: string) => Promise<boolean>;
+  onOpenSessions: () => void;
+  sessionsActive: boolean;
   onOpenSettings: () => void;
   settingsActive: boolean;
 }) {
@@ -476,6 +481,21 @@ export function ProjectRail({
           <IconSearch size={14} />
         </button>
       </div>
+
+      <nav className="rail-primary-nav" aria-label="Workspaces">
+        <button
+          type="button"
+          className={`rail-primary-row${sessionsActive ? " active" : ""}`}
+          onClick={onOpenSessions}
+          aria-pressed={sessionsActive}
+        >
+          <IconJobs size={14} />
+          <span>Sessions</span>
+          <span className="rail-primary-count">
+            {projects.reduce((total, project) => total + project.sessions.length, 0)}
+          </span>
+        </button>
+      </nav>
 
       <label id="project-filter" className={`rail-filter${searchIsOpen ? " is-open" : ""}`}>
         <span className="sr-only">Filter chats and projects</span>

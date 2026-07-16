@@ -58,7 +58,7 @@ test("keeps empty, focus, and 200% zoom states usable", async () => {
   expect(focusStyle.shadow).toContain("0px 0px 0px 4px");
 
   await jobs.click();
-  await expect(page.getByText(/Long-running commands and local servers appear here/)).toBeVisible();
+  await expect(page.getByText(/Background commands, subagents, task batches, and monitors appear here/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("textbox", { name: "Task message" })).toBeVisible();
 
@@ -200,7 +200,7 @@ test("renders task, subagent, source, job, and checkpoint activity in the correc
   await expect(page.getByRole("region", { name: "Session", exact: true })).toBeHidden();
   // Opening Session closes Jobs; leave Jobs closed so the transcript is interactive.
   await expect(page.getByRole("button", { name: "Dismiss jobs" })).toHaveCount(0);
-  await page.locator("details.thinking-group > summary").first().click();
+  await page.locator("details.thinking-group > summary").last().click();
   await page.getByRole("button", { name: /Expand.*search.*fixture/ }).click();
   await expect(page.getByRole("link", { name: "Fixture search" })).toBeVisible();
 });
