@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildConfigPatch } from "../../shared/config-diff";
 import { CONFIG_SECTIONS, type ConfigScope, type VibeConfig } from "../../shared/config-schema";
 import { mayReloadSettingsContext } from "../../shared/settings-load-guard";
-import { IconChevronLeft, IconClose, IconSearch, IconSidebar } from "../icons";
+import { IconChevron, IconChevronLeft, IconClose, IconSearch, IconSidebar } from "../icons";
 import { AdvancedSection } from "./sections/AdvancedSection";
 import { AppearanceSection } from "./sections/AppearanceSection";
 import { BehaviorSection } from "./sections/BehaviorSection";
@@ -38,12 +38,19 @@ export type SectionId = (typeof CONFIG_SECTIONS)[number]["id"];
 const CLOUD_SECTION = { id: "cloud", label: "Cloud", description: "E2B, Vercel, credentials, lifecycle, transfer policy" } as const;
 const SETTINGS_SECTIONS = [...CONFIG_SECTIONS, CLOUD_SECTION] as const;
 
-const SETTINGS_GROUPS: ReadonlyArray<{ label: string; ids: readonly SectionId[] }> = [
-  { label: "Core", ids: ["models", "providers", "mcp", "permissions"] },
-  { label: "Agent", ids: ["appearance", "behavior", "subagents", "build"] },
-  { label: "Runtime", ids: ["cloud", "memory", "search", "compaction", "budget", "hooks"] },
-  { label: "Project", ids: ["instructions", "advanced"] },
+const SETTINGS_GROUPS: ReadonlyArray<{ label: string; ids: readonly SectionId[]; advanced?: boolean }> = [
+  { label: "Essentials", ids: ["models", "providers", "appearance", "behavior"] },
+  { label: "Workspace", ids: ["permissions", "cloud", "instructions"] },
+  {
+    label: "Advanced settings",
+    ids: ["mcp", "subagents", "build", "memory", "search", "compaction", "budget", "hooks", "advanced"],
+    advanced: true,
+  },
 ];
+
+const ADVANCED_SECTION_IDS = new Set<SectionId>(
+  SETTINGS_GROUPS.find((group) => group.advanced)?.ids ?? [],
+);
 
 interface SettingsState {
   config: VibeConfig;
@@ -84,7 +91,9 @@ function SettingsSidebar({
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const normalizedQuery = query.trim().toLowerCase();
+  const advancedVisible = advancedOpen || ADVANCED_SECTION_IDS.has(activeSection) || Boolean(normalizedQuery);
   const sectionsById = useMemo(() => new Map(SETTINGS_SECTIONS.map((section) => [section.id, section])), []);
   const visibleGroups = useMemo(
     () => SETTINGS_GROUPS
@@ -145,8 +154,25 @@ function SettingsSidebar({
       <nav className="settings-nav-list" aria-label="Settings sections">
         {visibleGroups.map((group) => (
           <div className="settings-nav-group" key={group.label}>
-            <h3 className="settings-nav-group-label">{group.label}</h3>
-            {group.sections.map((section) => (
+            {group.advanced ? (
+              <button
+                type="button"
+                className="settings-advanced-toggle"
+                aria-expanded={advancedVisible}
+                onClick={() => {
+                  if (advancedVisible && ADVANCED_SECTION_IDS.has(activeSection)) {
+                    onSelectSection("models");
+                  }
+                  setAdvancedOpen(!advancedVisible);
+                }}
+              >
+                <IconChevron size={13} open={advancedVisible} />
+                <span>{group.label}</span>
+              </button>
+            ) : (
+              <h3 className="settings-nav-group-label">{group.label}</h3>
+            )}
+            {(!group.advanced || advancedVisible) && group.sections.map((section) => (
               <button key={section.id} type="button" className={`settings-nav-item${activeSection === section.id ? " active" : ""}`} onClick={() => onSelectSection(section.id)}>
                 <span className="settings-nav-label">{section.label}</span>
                 <span className="settings-nav-desc">{section.description}</span>

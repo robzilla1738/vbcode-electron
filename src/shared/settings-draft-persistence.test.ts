@@ -27,6 +27,10 @@ describe("settings draft persistence contract", () => {
     join(process.cwd(), "src/renderer/settings/sections/AdvancedSection.tsx"),
     "utf8",
   );
+  const settingsModels = readFileSync(
+    join(process.cwd(), "src/renderer/settings/sections/ModelsSection.tsx"),
+    "utf8",
+  );
 
   it("keeps config sections mounted across navigation", () => {
     expect(panel).toContain('SETTINGS_SECTIONS.filter(({ id }) => id !== "instructions").map');
@@ -52,5 +56,13 @@ describe("settings draft persistence contract", () => {
     expect(models).toContain("[draftKey, draftResetVersion]");
     expect(advanced).toContain("[scope, cwd, draftResetVersion]");
     expect(panel).toContain("Finish or clear draft fields before saving");
+  });
+
+  it("keeps everyday setup short while preserving searchable advanced controls", () => {
+    expect(panel).toContain("Advanced settings");
+    expect(panel).toContain("advancedVisible");
+    expect(providers).toContain('className="provider-advanced"');
+    expect(providers).toContain("providerChoiceDefaultBaseURL");
+    expect(settingsModels).toContain('className="settings-advanced-panel"');
   });
 });

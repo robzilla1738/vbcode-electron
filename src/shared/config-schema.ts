@@ -255,8 +255,8 @@ export interface ConfigSectionMeta {
 }
 
 export const CONFIG_SECTIONS: readonly ConfigSectionMeta[] = [
-  { id: "models", label: "Models", description: "Default model, planning model, fallbacks, reasoning" },
-  { id: "providers", label: "Providers", description: "API keys, base URLs, token files" },
+  { id: "models", label: "Models", description: "Choose the default model and optional routing" },
+  { id: "providers", label: "Providers", description: "Subscriptions, API keys, and custom endpoints" },
   { id: "mcp", label: "MCP Servers", description: "Model Context Protocol server connections" },
   { id: "permissions", label: "Permissions", description: "Tool allow/deny/ask rules" },
   { id: "appearance", label: "Appearance", description: "Theme, accent, density, mouse" },
@@ -269,5 +269,5 @@ export const CONFIG_SECTIONS: readonly ConfigSectionMeta[] = [
   { id: "budget", label: "Budget & Retry", description: "Spend limits and retry policy" },
   { id: "hooks", label: "Hooks", description: "Lifecycle hooks (shell/HTTP)" },
   { id: "instructions", label: "Custom Instructions", description: "VIBE.md project and global memory" },
-  { id: "advanced", label: "Advanced", description: "Plugins, LSP, caching, vision relay, updates" },
+  { id: "advanced", label: "Runtime", description: "Plugins, LSP, caching, vision relay, updates" },
 ] as const;

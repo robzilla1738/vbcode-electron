@@ -9,7 +9,12 @@ provider IDs.
 
 ## Connect a provider
 
-Open **Settings → Providers**. The first two cards are subscription connections:
+Use `/model` and choose **Set up another provider…**, use `/providers`, or open
+**Settings → Providers**. An unconfigured provider now opens the same guided
+setup instead of prefilling a key command. For a known provider, Vibe fills the
+endpoint and recommended model; the normal path asks only for the credential.
+
+The first two Settings cards are subscription connections:
 
 - **ChatGPT · Codex** opens the official Codex browser sign-in. Vibe stores the
   access token, rotating refresh token, and account routing identity in
@@ -26,11 +31,24 @@ ChatGPT or Grok product subscription, or vice versa.
 Every catalog provider can still use its documented environment variable or a
 saved API key. The provider list is searchable during first-run setup, while the
 normal model picker is grouped and filtered so the catalog does not become one
-undifferentiated list.
+undifferentiated list. Endpoint overrides, token files/paths, explicit model
+lists, headers, and transport selection are grouped under **Advanced settings**.
+
+### CrofAI
+
+CrofAI is a first-class setup choice. Vibe uses `CROF_API_KEY`, fills
+`https://crof.ai/v1`, and suggests `crof/glm-5.2`. Its standard `/models`
+catalog remains available through the normal model picker. Create or manage an
+account at [crof.ai](https://crof.ai/signin).
 
 ## Custom providers
 
-Choose **Add provider → Custom provider**, enter any provider ID, then configure:
+Choose **Set up another provider… → Custom endpoint**, or **Settings →
+Providers → Add provider → Custom endpoint**. Enter a stable provider ID, then
+configure the URL, credential, and model. The setup dialog defaults to Chat
+Completions and keeps Responses transport under **Advanced settings**.
+
+The full Settings editor also supports:
 
 - API key or token file;
 - base URL;
@@ -62,8 +80,9 @@ Custom providers are independent. For example, `team-gateway/model-a` and
 ```
 
 Arbitrary IDs also receive deterministic environment aliases. `team-gateway`
-maps to `VIBE_PROVIDER_TEAM_GATEWAY_API_KEY` and
-`VIBE_PROVIDER_TEAM_GATEWAY_BASE_URL`.
+maps to `VIBE_PROVIDER_TEAM_GATEWAY_API_KEY`,
+`VIBE_PROVIDER_TEAM_GATEWAY_BASE_URL`, and (when needed)
+`VIBE_PROVIDER_TEAM_GATEWAY_TRANSPORT`.
 
 ## Local and Cloud use
 
@@ -77,6 +96,13 @@ credential fails before ownership changes and leaves the task Local.
 Local-only providers still require a Cloud-accessible route. Ollama Cloud is a
 separate hosted endpoint; a Mac-local Ollama or LM Studio server is not silently
 substituted in Cloud.
+
+After restore and before ownership changes, the isolated Cloud workload makes a
+tiny real generation with every active main, plan, subagent, vision, build, and
+usable fallback model. A public `/models` response is not treated as proof of
+authentication. Any credential, endpoint, transport, egress, or exact-model
+failure destroys the provisional sandbox and leaves the task Local. E2B and
+Vercel use this same verification path.
 
 ## Release verification
 

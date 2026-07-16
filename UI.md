@@ -67,6 +67,10 @@ First-run provider onboarding is searchable: common curated choices stay first,
 followed by the generated models.dev/OpenCode registry and Hermes aliases.
 Provider-specific endpoint fields appear only when required; native AWS/Google
 credential-chain routes explain environment setup instead of asking for a fake key.
+Known endpoints are shown as filled automatic values, not empty configuration
+work. The `/model` picker exposes one **Set up another provider…** action, and
+unconfigured `/providers` rows open focused setup without making users compose
+`/model key` commands.
 
 Subscription providers use the same compact provider-card grammar in onboarding
 and Settings. ChatGPT/Codex offers one browser sign-in action; xAI/Grok offers
@@ -77,7 +81,14 @@ the selected subscription is actually connected.
 
 Custom providers use a free provider ID rather than a shared `custom` slot.
 Their detail editor exposes base URL, API key/token file, headers, explicit
-models, and either Chat Completions-compatible or Responses transport.
+models, and either Chat Completions-compatible or Responses transport. API key,
+model, and required URL remain in the primary flow; token files, overrides,
+headers, and transport details sit under **Advanced settings**.
+
+Settings navigation shows the everyday Essentials and Workspace groups first.
+MCP, subagent/runtime tuning, hooks, compaction, pricing, context overrides, and
+similar power-user controls remain searchable but collapsed under **Advanced
+settings** by default.
 
 The shell has these primary surfaces:
 

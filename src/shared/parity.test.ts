@@ -659,7 +659,7 @@ describe("catalog-draft", () => {
       { id: "acme", configured: false, keyless: false, env: ["ACME_KEY"] },
     ]);
     expect(providers[0]?.prefill).toBe("/model openai/");
-    expect(providers[1]?.prefill).toBe("/model key acme ");
+    expect(providers[1]?.setupProviderId).toBe("acme");
 
     const agents = agentCatalogOptions([
       { name: "review", description: "Reviewer", model: null, mode: "execute" },

@@ -29,6 +29,8 @@ export interface ProviderChoice {
   env?: string;
   /** Where to get a key. */
   keyUrl?: string;
+  /** Human-facing endpoint shown during setup. Runtime defaults still live in the engine. */
+  defaultBaseURL?: string;
   /** Local provider that needs no key at all (skip the key prompt entirely). */
   localKeyless?: boolean;
   /** Generic bring-your-own OpenAI-compatible endpoint — prompts for a base URL. */
@@ -37,6 +39,40 @@ export interface ProviderChoice {
   requiresBaseURL?: boolean;
   /** Extra setup note (e.g. "needs `ollama serve`"). */
   note?: string;
+}
+
+const manifestById = new Map(PROVIDER_MANIFEST.map((provider) => [provider.id, provider]));
+const builtinDefaultBaseURLs: Readonly<Record<string, string>> = {
+  anthropic: "https://api.anthropic.com/v1",
+  openai: "https://api.openai.com/v1",
+  google: "https://generativelanguage.googleapis.com/v1beta/openai",
+  moonshot: "https://api.moonshot.ai/v1",
+  groq: "https://api.groq.com/openai/v1",
+  mistral: "https://api.mistral.ai/v1",
+  together: "https://api.together.xyz/v1",
+  cerebras: "https://api.cerebras.ai/v1",
+  fireworks: "https://api.fireworks.ai/inference/v1",
+  perplexity: "https://api.perplexity.ai",
+  deepseek: "https://api.deepseek.com/v1",
+  xai: "https://api.x.ai/v1",
+  deepinfra: "https://api.deepinfra.com/v1/openai",
+  venice: "https://api.venice.ai/api/v1",
+  cohere: "https://api.cohere.com/compatibility/v1",
+};
+
+/** Return the endpoint users will get without an override. Kept pure so every
+ * setup surface explains the same provider default instead of showing an empty
+ * URL field for a provider that is already fully configured by the engine. */
+export function providerChoiceDefaultBaseURL(choice: ProviderChoice): string {
+  if (choice.defaultBaseURL) return choice.defaultBaseURL;
+  return builtinDefaultBaseURLs[choice.registryId]
+    ?? manifestById.get(choice.registryId)?.baseURL
+    ?? "";
+}
+
+/** Best catalog copy for an existing provider id, including arbitrary ids. */
+export function providerChoiceForId(id: string): ProviderChoice | undefined {
+  return PROVIDER_CHOICES.find((choice) => choice.registryId === id);
 }
 
 const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
@@ -176,6 +212,7 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     defaultModel: "ollama/glm-5.2",
     env: "OLLAMA_API_KEY",
     keyUrl: "https://ollama.com/settings/keys",
+    defaultBaseURL: "https://ollama.com/v1",
   },
   {
     key: "ollama-local",
@@ -184,6 +221,7 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     blurb: "Local models served by `ollama serve` — free, no key.",
     defaultModel: "ollama/gpt-oss:20b",
     env: "OLLAMA_BASE_URL",
+    defaultBaseURL: "http://localhost:11434/v1",
     localKeyless: true,
     note: "needs the Ollama app running (`ollama serve`)",
   },
@@ -195,6 +233,17 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     defaultModel: "deepseek/deepseek-v4-pro",
     env: "DEEPSEEK_API_KEY",
     keyUrl: "https://platform.deepseek.com/api_keys",
+  },
+  {
+    key: "crof",
+    registryId: "crof",
+    label: "CrofAI",
+    blurb: "One OpenAI-compatible API for GLM, Kimi, DeepSeek, Greg, and other open models.",
+    defaultModel: "crof/glm-5.2",
+    env: "CROF_API_KEY",
+    keyUrl: "https://crof.ai/signin",
+    defaultBaseURL: "https://crof.ai/v1",
+    note: "The standard /v1 endpoint and live /models catalog are configured automatically.",
   },
   {
     key: "xai",
@@ -475,13 +524,17 @@ export function buildOnboardingPatch(answers: {
   providerId: string;
   apiKey?: string;
   baseURL?: string;
+  transport?: "openai-compatible" | "openai-responses";
+  models?: string[];
 }): Record<string, unknown> {
   const patch: Record<string, unknown> = { model: answers.model };
-  if (answers.providerId && (answers.apiKey || answers.baseURL)) {
+  if (answers.providerId && (answers.apiKey || answers.baseURL || answers.transport || answers.models?.length)) {
     patch.providers = {
       [answers.providerId]: {
         ...(answers.apiKey ? { apiKey: answers.apiKey } : {}),
         ...(answers.baseURL ? { baseURL: answers.baseURL } : {}),
+        ...(answers.transport ? { transport: answers.transport } : {}),
+        ...(answers.models?.length ? { models: answers.models } : {}),
       },
     };
   }

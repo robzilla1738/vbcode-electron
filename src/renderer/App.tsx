@@ -149,6 +149,7 @@ export function App() {
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectOpenError, setProjectOpenError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [providerSetupRequest, setProviderSetupRequest] = useState<{ providerId?: string } | null>(null);
   /** "Skip for now" lasts only for this renderer session, not forever. */
   const onboardingDismissed = useRef(false);
   const [onboardingProviders, setOnboardingProviders] = useState<ProviderStatus[]>([]);
@@ -686,6 +687,7 @@ export function App() {
 
         onboardingDismissed.current = false;
         setShowOnboarding(false);
+        setProviderSetupRequest(null);
       } catch (err) {
         let restoreFailure = "";
         if (wroteConfig && rollbackPatch) {
@@ -1565,6 +1567,14 @@ export function App() {
 
   const onCatalogChoose = useCallback(
     (choice: CatalogChoice) => {
+      if (choice.kind === "setup-provider") {
+        dismissCatalog();
+        setDraft("");
+        setShowOnboarding(false);
+        setOnboardingError(null);
+        setProviderSetupRequest(choice.providerId ? { providerId: choice.providerId } : {});
+        return;
+      }
       if (choice.kind === "command") {
         const cmd = choice.command;
         void (async () => {
@@ -2129,15 +2139,21 @@ export function App() {
             )}
 
             <div className="panels" ref={panelsRef}>
-              {showOnboarding && !chrome.perms[0] && !planPending && (
+              {(showOnboarding || providerSetupRequest) && !chrome.perms[0] && !planPending && (
                 <Suspense fallback={null}>
                   <OnboardingModal
                     providers={onboardingProviders}
+                    initialProviderId={providerSetupRequest?.providerId}
+                    focusedSetup={Boolean(providerSetupRequest)}
                     onSave={saveOnboarding}
                     saving={onboardingSaving}
                     saveError={onboardingError}
                     onDismiss={() => {
-                      onboardingDismissed.current = true;
+                      if (providerSetupRequest) {
+                        setProviderSetupRequest(null);
+                      } else {
+                        onboardingDismissed.current = true;
+                      }
                       setShowOnboarding(false);
                     }}
                   />

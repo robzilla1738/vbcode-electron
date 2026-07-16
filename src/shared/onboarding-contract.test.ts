@@ -39,4 +39,13 @@ describe("onboarding completion contract", () => {
     expect(modalSource).toContain("onStatusChange={handleSubscriptionStatus}");
     expect(modalSource).toContain("status.state === \"connected\" ? status.providerId : null");
   });
+
+  it("supports focused menu setup with automatic endpoints and advanced custom transport", () => {
+    expect(modalSource).toContain("initialProviderId");
+    expect(modalSource).toContain("providerChoiceDefaultBaseURL(choice)");
+    expect(modalSource).toContain('className="provider-endpoint-summary"');
+    expect(modalSource).toContain('className="provider-advanced"');
+    expect(modalSource).toContain('value="openai-responses"');
+    expect(modalSource).toContain("customProviderId");
+  });
 });

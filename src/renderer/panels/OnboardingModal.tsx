@@ -16,6 +16,7 @@ import {
   PROVIDER_CHOICES,
   type ProviderChoice,
   providerChoiceAcceptsApiKey,
+  providerChoiceDefaultBaseURL,
   providerChoiceNeedsApiKey,
 } from "../../shared/providers-catalog";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -36,6 +37,8 @@ export function OnboardingModal({
   onDismiss,
   saving,
   saveError,
+  initialProviderId,
+  focusedSetup = false,
 }: {
   /** Live provider status from the engine's listProviders RPC (may be empty
    * before the first bootstrap completes). */
@@ -44,22 +47,33 @@ export function OnboardingModal({
   onDismiss: () => void;
   saving?: boolean;
   saveError?: string | null;
+  /** Opens a provider selected from `/providers` directly on its setup form. */
+  initialProviderId?: string;
+  /** Uses action-oriented copy when opened from the model/provider menus. */
+  focusedSetup?: boolean;
 }) {
   const configuredIds = useMemo(
     () => configuredCredentialProviderIds(providers ?? []),
     [providers],
   );
 
-  const initialIdx = useMemo(
-    () => initialChoiceIndex(PROVIDER_CHOICES, {}, configuredIds),
-    [configuredIds],
-  );
+  const initialIdx = useMemo(() => {
+    const requested = initialProviderId
+      ? PROVIDER_CHOICES.findIndex((choice) => choice.registryId === initialProviderId)
+      : -1;
+    return requested >= 0
+      ? requested
+      : initialChoiceIndex(PROVIDER_CHOICES, {}, configuredIds);
+  }, [configuredIds, initialProviderId]);
 
   const [selectedIdx, setSelectedIdx] = useState(initialIdx);
   const [providerQuery, setProviderQuery] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseURL, setBaseURL] = useState("");
+  const [customProviderId, setCustomProviderId] = useState("");
   const [model, setModel] = useState(PROVIDER_CHOICES[initialIdx]?.defaultModel ?? "");
+  const [transport, setTransport] = useState<"openai-compatible" | "openai-responses">("openai-compatible");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [connectedSubscriptionId, setConnectedSubscriptionId] = useState<SubscriptionProviderId | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -94,8 +108,15 @@ export function OnboardingModal({
   useEffect(() => {
     setApiKey("");
     setBaseURL("");
+    setCustomProviderId("");
+    setTransport("openai-compatible");
+    setShowAdvanced(false);
     setModel(subscriptionProvider?.model ?? choice.defaultModel);
   }, [selectedIdx, choice.defaultModel, subscriptionProvider?.model]);
+
+  useEffect(() => {
+    setSelectedIdx(initialIdx);
+  }, [initialIdx]);
 
   const handleSubscriptionStatus = useCallback((status: SubscriptionAuthStatus) => {
     setConnectedSubscriptionId(status.state === "connected" ? status.providerId : null);
@@ -104,7 +125,12 @@ export function OnboardingModal({
   const needsKey = !subscriptionProvider && providerChoiceNeedsApiKey(choice, configuredIds);
   const acceptsKey = !subscriptionProvider && providerChoiceAcceptsApiKey(choice, configuredIds);
   const needsBaseURL = choice.customEndpoint === true || choice.requiresBaseURL === true;
+  const defaultBaseURL = providerChoiceDefaultBaseURL(choice);
+  const effectiveProviderId = choice.customEndpoint
+    ? customProviderId.trim()
+    : subscriptionProvider?.id ?? choice.registryId;
   const canSave = model.trim().length > 0
+    && (!choice.customEndpoint || effectiveProviderId.length > 0)
     && (!subscriptionProvider || connectedSubscriptionId === subscriptionProvider.id)
     && (!needsKey || apiKey.trim().length > 0)
     && (!needsBaseURL || baseURL.trim().length > 0);
@@ -113,9 +139,15 @@ export function OnboardingModal({
     if (!canSave || saving) return;
     const patch = buildOnboardingPatch({
       model: model.trim(),
-      providerId: subscriptionProvider?.id ?? choice.registryId,
+      providerId: effectiveProviderId,
       apiKey: acceptsKey ? apiKey.trim() || undefined : undefined,
-      baseURL: needsBaseURL ? baseURL.trim() || undefined : undefined,
+      baseURL: baseURL.trim() || undefined,
+      transport: choice.customEndpoint ? transport : undefined,
+      models: choice.customEndpoint
+        ? [model.trim().startsWith(`${effectiveProviderId}/`)
+            ? model.trim().slice(effectiveProviderId.length + 1)
+            : model.trim()]
+        : undefined,
     });
     void onSave(patch);
   };
@@ -125,9 +157,11 @@ export function OnboardingModal({
       <div className="onboarding-modal" ref={dialogRef}>
         <header className="onboarding-modal-header">
           <div>
-            <h2 id="onboarding-modal-title">Set up a model provider</h2>
+            <h2 id="onboarding-modal-title">{focusedSetup ? "Connect a model provider" : "Set up a model provider"}</h2>
             <p className="onboarding-modal-sub">
-              Choose a provider to start coding. You can change this anytime in Settings.
+              {focusedSetup
+                ? "Add what this model needs, then continue in the same task."
+                : "Choose a provider to start coding. You can change this anytime in Settings."}
             </p>
           </div>
           <button type="button" className="icon-button no-drag" onClick={onDismiss} aria-label="Dismiss setup">
@@ -177,6 +211,22 @@ export function OnboardingModal({
               />
             )}
 
+            {choice.customEndpoint && (
+              <div className="onboarding-field">
+                <label htmlFor="onboarding-provider-id">Provider ID</label>
+                <input
+                  id="onboarding-provider-id"
+                  type="text"
+                  className="setting-input is-mono"
+                  value={customProviderId}
+                  onChange={(event) => setCustomProviderId(event.target.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                  placeholder="team-gateway"
+                  // biome-ignore lint/a11y/noAutofocus: custom provider id is the first required field
+                  autoFocus
+                />
+              </div>
+            )}
+
             {acceptsKey && (
               <div className="onboarding-field">
                 <label htmlFor="onboarding-apikey">API key{needsKey ? "" : " (optional)"}</label>
@@ -186,9 +236,9 @@ export function OnboardingModal({
                   className="setting-input is-mono"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={`${choice.env ?? "API key"}…`}
-                  // biome-ignore lint/a11y/noAutofocus: single autofocus owner in the modal
-                  autoFocus
+                  placeholder={choice.env ?? "Paste API key"}
+                  // biome-ignore lint/a11y/noAutofocus: provider credential is the primary setup action
+                  autoFocus={!choice.customEndpoint}
                 />
                 {choice.keyUrl && (
                   <a
@@ -216,9 +266,9 @@ export function OnboardingModal({
                   className="setting-input is-mono"
                   value={baseURL}
                   onChange={(e) => setBaseURL(e.target.value)}
-                  placeholder="https://api.example.com/v1"
-                  // biome-ignore lint/a11y/noAutofocus: single autofocus owner in the modal
-                  autoFocus
+                  placeholder={defaultBaseURL || "https://api.example.com/v1"}
+                  // biome-ignore lint/a11y/noAutofocus: keyless deployment endpoints start here
+                  autoFocus={!acceptsKey && !choice.customEndpoint}
                 />
               </div>
             )}
@@ -231,9 +281,55 @@ export function OnboardingModal({
                 className="setting-input is-mono"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="provider/model-id"
+                placeholder={`${effectiveProviderId || "provider"}/model-id`}
               />
             </div>
+
+            {!needsBaseURL && defaultBaseURL && (
+              <div className="provider-endpoint-summary">
+                <span>Endpoint</span>
+                <code>{baseURL || defaultBaseURL}</code>
+                <small>{baseURL ? "Custom override" : "Filled automatically"}</small>
+              </div>
+            )}
+
+            <details
+              className="provider-advanced"
+              open={showAdvanced}
+              onToggle={(event) => setShowAdvanced(event.currentTarget.open)}
+            >
+              <summary>Advanced settings</summary>
+              <div className="provider-advanced-body">
+                {!needsBaseURL && (
+                  <div className="onboarding-field">
+                    <label htmlFor="onboarding-baseurl-override">Endpoint override</label>
+                    <input
+                      id="onboarding-baseurl-override"
+                      type="url"
+                      className="setting-input is-mono"
+                      value={baseURL}
+                      onChange={(event) => setBaseURL(event.target.value)}
+                      placeholder={defaultBaseURL || "https://api.example.com/v1"}
+                    />
+                    <small>Leave empty to keep the provider default.</small>
+                  </div>
+                )}
+                {choice.customEndpoint && (
+                  <div className="onboarding-field">
+                    <label htmlFor="onboarding-transport">API format</label>
+                    <select
+                      id="onboarding-transport"
+                      className="setting-select"
+                      value={transport}
+                      onChange={(event) => setTransport(event.target.value as typeof transport)}
+                    >
+                      <option value="openai-compatible">Chat Completions (OpenAI compatible)</option>
+                      <option value="openai-responses">OpenAI Responses</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </details>
 
             {choice.localKeyless && (
               <p className="onboarding-detail-hint">
@@ -255,7 +351,7 @@ export function OnboardingModal({
         </div>
 
         <footer className="onboarding-modal-footer">
-          <button type="button" className="button" onClick={onDismiss}>Skip for now</button>
+          <button type="button" className="button" onClick={onDismiss}>{focusedSetup ? "Cancel" : "Skip for now"}</button>
           <button type="button" className="button primary" onClick={handleSave} disabled={!canSave || saving}>
             {saving ? "Saving & starting…" : "Save & start"}
           </button>

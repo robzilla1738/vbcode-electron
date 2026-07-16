@@ -219,6 +219,8 @@ export interface CatalogOption {
   prefill?: string;
   /** Open models picker after choose (agents → model agent). */
   openModelsForAgent?: string;
+  /** Open guided provider setup instead of asking users to type a key command. */
+  setupProviderId?: string;
   /** Send typed EngineCommand instead of a slash line. */
   command?:
     | { type: "set-model"; model: string }
@@ -381,6 +383,13 @@ export function modelCatalogOptions(
     for (const m of models) out.push(makeRow(m));
   }
 
+  out.unshift({
+    key: "__setup_provider__",
+    primary: "Set up another provider…",
+    secondary: "API key, subscription, or custom endpoint",
+    setupProviderId: "",
+  });
+
   // Fallback: if no grouping produced anything (empty fav/recent only)
   if (out.length === 0) return items.map(makeRow);
   return out;
@@ -397,7 +406,9 @@ export function providerCatalogOptions(items: ProviderInfo[]): CatalogOption[] {
           ? "keyless · local"
           : `key set · ${provider.env[0] ?? ""}`
         : `no key — set ${provider.env[0] ?? "key"}`,
-      prefill: ready ? `/model ${provider.id}/` : `/model key ${provider.id} `,
+      ...(ready
+        ? { prefill: `/model ${provider.id}/` }
+        : { setupProviderId: provider.id }),
     };
   });
 }

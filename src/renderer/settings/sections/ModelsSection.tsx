@@ -14,7 +14,7 @@ export function ModelsSection({
   const reasoning = config.reasoning ?? {};
   return (
     <>
-      <SettingSection title="Model Selection" description="Choose which models the agent uses for different tasks.">
+      <SettingSection title="Model Selection" description="Choose which model new sessions use.">
         <SettingField label="Default model" description="The primary model string (e.g. anthropic/claude-opus-4-8, openai/gpt-5.5, ollama/llama3.3).">
           <TextInput
             value={config.model ?? ""}
@@ -23,6 +23,15 @@ export function ModelsSection({
             monospace
           />
         </SettingField>
+      </SettingSection>
+
+      <details className="settings-advanced-panel">
+        <summary>
+          <span>Advanced model settings</span>
+          <small>Planning, fallbacks, reasoning, timeouts, pricing, and context overrides</small>
+        </summary>
+        <div className="settings-advanced-panel-body">
+      <SettingSection title="Model Routing" description="Optional models for special cases. Most people can keep the default model for everything.">
         <SettingField label="Planning model" description="Dedicated model for plan-mode turns. Unset = same as default.">
           <TextInput
             value={config.planModel ?? ""}
@@ -113,6 +122,8 @@ export function ModelsSection({
           onInvalidDraftChange={onInvalidDraftChange}
         />
       </SettingSection>
+        </div>
+      </details>
     </>
   );
 }

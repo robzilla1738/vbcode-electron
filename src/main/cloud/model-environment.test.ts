@@ -160,6 +160,7 @@ describe("cloud model environment", () => {
     }, undefined, {})).toEqual({
       VIBE_PROVIDER_ACME_GATEWAY_API_KEY: "acme-secret",
       VIBE_PROVIDER_ACME_GATEWAY_BASE_URL: "https://models.acme.example/v1",
+      VIBE_PROVIDER_ACME_GATEWAY_TRANSPORT: "openai-responses",
     });
   });
 

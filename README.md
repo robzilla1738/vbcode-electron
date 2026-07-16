@@ -258,11 +258,18 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
   the same models.dev registry used by OpenCode (166 current catalog providers)
   plus Hermes-compatible aliases and native Bedrock/Vertex/Azure setup (192
   choices / 190 provider ids at this sync), key entry with get-a-key links,
-  endpoint prompts where required, built-in ChatGPT/Codex and xAI/Grok
+  automatic known endpoints, curated CrofAI, endpoint prompts only where required,
+  built-in ChatGPT/Codex and xAI/Grok
   subscription sign-in, model preselect, and transactional save → re-bootstrap;
   setup stays open with recovery guidance until the new engine configuration
   actually starts
-- **Full-workspace settings**: 15 sections covering every config field — Models
+- **Progressive settings**: everyday Models, Providers, Appearance, Behavior,
+  Permissions, Cloud, and Instructions stay visible; the remaining technical
+  sections stay searchable behind **Advanced settings**. Models keeps its default
+  selection primary and collapses planning/fallback/reasoning/performance/pricing
+  and context overrides. Providers keeps credential/model/required URL primary,
+  fills known URLs, and collapses transport/token/header overrides.
+- **Full-workspace coverage**: 15 sections still cover every config field — Models
   (default, planning, fallbacks, reasoning, turn/stream/queue limits,
   pricing/context-window overrides),
   Providers (full catalog dropdown, free-text arbitrary IDs, transport and
@@ -336,7 +343,8 @@ Shell-owned surfaces:
 - Streaming transcript (lightweight plain text while generating; finalized Streamdown GFM with Shiki + line numbers, diffs, tools, thinking, and low-noise notices)
 - Permission + plan approval cards (human titles, soft chrome, deny-reason on demand)
 - Slash palette (one `/model` entry; Commands / Skills / System groups plus custom
-  `commandNames`), catalog pickers (model context window shown)
+  `commandNames`), catalog pickers (model context window shown), and direct
+  guided provider setup from **Set up another provider…** or unconfigured rows
 - Multi-project + Chats rail (collapsible sections, + add project / new chat, resume, filter; Continue Latest via ⇧⌘N)
 - Workspace dock: Session / Changes / Git / Terminal / Jobs / Files on the chat surface;
   Session, Changes, Git, Terminal, and Jobs share one mutually exclusive right-side lane

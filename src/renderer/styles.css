@@ -8848,6 +8848,77 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
   line-height: 1.2;
 }
 
+.settings-advanced-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-xs);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-subtle);
+  font: var(--weight-medium) var(--text-caption)/1.2 var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
+.settings-advanced-toggle:hover {
+  background: color-mix(in oklab, var(--surface) 44%, transparent);
+  color: var(--assistant);
+}
+
+.settings-advanced-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.settings-advanced-panel {
+  overflow: hidden;
+  margin-top: var(--space-base);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--surface-subtle) 36%, transparent);
+  box-shadow: var(--edge-highlight);
+}
+
+.settings-advanced-panel > summary {
+  display: grid;
+  gap: 3px;
+  padding: var(--space-sm) var(--space-base);
+  color: var(--assistant);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.settings-advanced-panel > summary:hover {
+  background: color-mix(in oklab, var(--surface) 40%, transparent);
+}
+
+.settings-advanced-panel > summary:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+
+.settings-advanced-panel > summary span {
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+}
+
+.settings-advanced-panel > summary small {
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+}
+
+.settings-advanced-panel-body {
+  padding: 0 var(--space-base) var(--space-base);
+  border-top: 1px solid var(--border-soft);
+  animation: surface-enter var(--dur-fast) var(--ease-enter);
+}
+
 .settings-nav-item {
   display: flex;
   flex-direction: column;
@@ -10618,6 +10689,112 @@ html[data-scheme="light"] .brand-mark-image { filter: invert(1); }
 .provider-add-row .setting-select {
   flex: 1;
   min-width: 200px;
+}
+
+.provider-setup-intro {
+  display: grid;
+  gap: 3px;
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-base);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  box-shadow: var(--edge-highlight);
+}
+
+.provider-setup-intro strong {
+  color: var(--assistant);
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+}
+
+.provider-setup-intro span {
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+  line-height: 1.4;
+}
+
+.provider-quick-fields {
+  display: grid;
+}
+
+.provider-key-link {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--space-2xs);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: var(--text-caption)/1.3 var(--font-sans);
+  cursor: pointer;
+}
+
+.provider-key-link:hover { text-decoration: underline; }
+.provider-key-link:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}
+
+.provider-endpoint-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-xs) 0 var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid color-mix(in oklab, var(--border) 24%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface-subtle) 52%, transparent);
+}
+
+.provider-endpoint-summary > span,
+.provider-endpoint-summary > small {
+  color: var(--text-subtle);
+  font-size: var(--text-micro);
+}
+
+.provider-endpoint-summary code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font: var(--text-micro)/1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-advanced {
+  margin-top: var(--space-xs);
+  border-top: 1px solid color-mix(in oklab, var(--border) 20%, transparent);
+}
+
+.provider-advanced > summary {
+  width: fit-content;
+  padding: var(--space-sm) 0 var(--space-xs);
+  color: var(--text-subtle);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  user-select: none;
+}
+
+.provider-advanced > summary:hover { color: var(--text); }
+.provider-advanced > summary:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}
+
+.provider-advanced-body {
+  animation: surface-enter var(--dur-fast) var(--ease-enter);
+}
+
+.provider-advanced-body > small {
+  color: var(--text-subtle);
+  font-size: var(--text-micro);
 }
 
 .provider-auth-list {

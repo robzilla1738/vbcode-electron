@@ -72,11 +72,22 @@ the top of the scrolling list. It uses the standard input surface and overlay
 token; provider rows retain the quiet selected/hover treatment rather than
 introducing a second catalog visual language.
 
+Provider setup follows progressive disclosure. The primary rhythm is provider,
+credential, model, and any truly required endpoint. Known endpoints render as a
+quiet filled summary. Overrides, transport, token-file extraction, explicit
+catalog fallbacks, and headers use the shared **Advanced settings** disclosure;
+they do not compete visually with first-run success.
+
 Subscription connection cards reuse the existing setting-card surface, badge,
 button, focus, and error roles. They add no provider brand colors or oversized
 logos: provider identity is text, connection state is compact, and device-code
 affordances stay monospace only where the code itself benefits. Custom-provider
 transport and model controls use the standard form rhythm.
+
+Settings navigation applies the same rule: Essentials and Workspace stay
+visible, while technical runtime sections collapse behind one text-and-chevron
+Advanced settings control. Search temporarily reveals matching advanced
+sections, so simplification never makes a capability undiscoverable.
 
 The shell has four primary layout regions:
 

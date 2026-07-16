@@ -351,10 +351,6 @@ export class CloudManager {
         privileged: true,
         timeoutMs: SETUP_TIMEOUT_MS,
       }, "runtime-incompatible", "verifying");
-      await runRequired(provider, sandbox.id, `${base}/runtime/bin/node`, ["vibe-cloud-model-probe.mjs", JSON.stringify(models)], modelEnvironment, {
-        cwd: `${base}/runtime`,
-        timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS,
-      }, "setup-failed", "verifying");
       this.#emit(snapshot.sessionId, "starting", "Restoring workspace and session state", 0.61, "restoring", handoffStartedAt);
       await runRequired(provider, sandbox.id, "sh", ["restore-session.sh", `${base}/handoff.json`, `${base}/project`, revision], {
         ...modelEnvironment,
@@ -366,6 +362,16 @@ export class CloudManager {
         cwd: `${base}/runtime`,
         timeoutMs: SETUP_TIMEOUT_MS,
       }, "setup-failed", "restoring");
+      this.#emit(snapshot.sessionId, "starting", "Verifying every configured cloud model", 0.68, "verifying", handoffStartedAt);
+      await runRequired(provider, sandbox.id, "sh", ["probe-models.sh", JSON.stringify(models), `${base}/project`], {
+        ...modelEnvironment,
+        VIBE_CLOUD_RUNTIME: "1",
+        VIBE_STATE_DIR: `${base}/state`,
+      }, {
+        privileged: true,
+        cwd: `${base}/runtime`,
+        timeoutMs: SETUP_TIMEOUT_MS,
+      }, "setup-failed", "verifying");
       const daemonEnvironment = {
         ...modelEnvironment,
         VIBE_CLOUD_ACCESS_TOKEN: accessToken,

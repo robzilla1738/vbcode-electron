@@ -106,6 +106,9 @@ export function cloudModelEnvironment(
     }
     environment[name] = providerConfig.baseURL;
   }
+  if (isArbitraryProvider && providerConfig.transport) {
+    environment[configProviderEnvironmentName(providerId, "TRANSPORT")] = providerConfig.transport;
+  }
 
   const hasProviderCredential = authEnvironment.some((name) => Boolean(environment[name]));
   // Pin dual local/cloud providers to the reviewed cloud route. The engine can
@@ -182,7 +185,7 @@ function effectiveRoute(
     || undefined;
 }
 
-function configProviderEnvironmentName(id: string, suffix: "API_KEY" | "BASE_URL"): string {
+function configProviderEnvironmentName(id: string, suffix: "API_KEY" | "BASE_URL" | "TRANSPORT"): string {
   const normalized = id.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "CUSTOM";
   return `VIBE_PROVIDER_${normalized}_${suffix}`;
 }

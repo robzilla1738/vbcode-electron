@@ -17,7 +17,8 @@ coverage/bridge/packaged-host gates.
 - [x] Cloud import and daemon bootstrap share one canonical state root and prove the exact session ID, model, mode, subagent model, and conversation survive before ownership commits
 - [x] The permanent isolated Cloud workload preflights the imported session before health succeeds; explicit missing resume fails closed and cannot create a replacement chat
 - [x] Only the active model credential is session-scoped into Cloud; missing authentication and local-only routes fail before provisioning
-- [x] Ollama Cloud pins its hosted endpoint and proves exact model access inside the sandbox before ownership commit; Cloud return exports as the isolated workload owner and survives tracked deletions
+- [x] Every active model performs a bounded real generation through the imported engine provider registry inside the sandbox before ownership commit; this covers API-key, subscription, Ollama Cloud, and arbitrary Chat Completions/Responses providers on both E2B and Vercel
+- [x] Cloud return exports as the isolated workload owner and survives tracked deletions
 - [ ] Stable flag removal: fresh live suites for both providers, durable Mac relay, and Vercel broker verification
 
 Engine ownership stays in `@vibe/core`; this app is a presentation shell over NDJSON (`macos-bridge` protocol). Public repo: [vbcode-electron](https://github.com/robzilla1738/vbcode-electron).
@@ -102,7 +103,7 @@ whose HEAD equals the lock before it will embed a rebuilt host.
 - [x] Exact-command input cue via `commandNames`
 - [x] Model picker with main ⇄ subagent target toggle + agent target (`/model agent …`)
 - [x] `subagentModel` tracked from snapshot; Clear → inherit for sub/agent
-- [x] Providers: configured → prefill `/model id/`; keyless path → `/model key id `
+- [x] Providers: configured → prefill `/model id/`; unconfigured → guided provider/model setup (no manual key command)
 - [x] Agents: prefill `/model agent name `; New agent prefills `/agents new ` (no empty submit)
 - [x] Skills: prefill `/skill name ` (args editable)
 - [x] MCP roster matches host `listMcp` shape (connected · toolCount · error)
@@ -435,6 +436,11 @@ npm run dev
 - [x] Full synchronized models.dev/OpenCode provider manifest plus arbitrary
   provider IDs, explicit model lists, and selectable Chat Completions or
   Responses transport
+- [x] Progressive provider setup: CrofAI is curated; known endpoints and starter
+  models are filled; credential/model/required URL stay primary; transport,
+  token extraction, headers, and overrides collapse under Advanced settings
+- [x] Settings keeps Essentials/Workspace visible while technical runtime
+  sections and model pricing/context tuning stay searchable behind Advanced settings
 - [x] Built-in ChatGPT/Codex PKCE and xAI browser/device subscription login with
   connection state, refresh, cancel, retry, logout, and Grok Build selection
 - [x] Subscription refresh secrets remain main/engine-owned; renderer auth RPCs

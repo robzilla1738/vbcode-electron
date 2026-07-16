@@ -205,7 +205,7 @@ export function CloudHandoffSheet({
                 <textarea className="setting-textarea" rows={3} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="What should Vibe do after the handoff?" />
                 <small className="cloud-field-help">Leave this empty to continue from the current conversation without starting a new task.</small>
               </label>
-              <p className="cloud-cost-note" role="note"><strong>{providerName} usage may be billed</strong><span>The sandbox follows your Cloud auto-pause and deletion settings.</span></p>
+              <p className="cloud-cost-note" role="note"><strong>{providerName} and model usage may be billed</strong><span>Setup makes a tiny readiness call to each active model. The sandbox follows your Cloud auto-pause and deletion settings.</span></p>
             </>
           )}
           {resumeLocal && !cloudSession && <p className="settings-save-error" role="alert">This session is already running locally.</p>}

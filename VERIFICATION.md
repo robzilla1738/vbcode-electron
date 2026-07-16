@@ -5,6 +5,10 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
 ## Experimental cloud gate
 
 - `cd ../cli && bun test packages/core/src/portable-session.test.ts packages/core/src/session-tools.test.ts`
+- `cd ../cli && bun test packages/cloud-agentd/src/cloud-model-probe.test.ts packages/providers/src/registry.test.ts`
+  proves the sandbox preflight performs a bounded real generation for every
+  exact model, rejects a model-list false positive, and restores arbitrary
+  provider endpoint/transport bindings without a Mac-only config file.
 - `cd ../cli && bun run build:cloud-runtime`
 - `cd ../cli && bun run smoke:cloud-runtime` verifies the archive with
   network disabled, loads `node-pty`/`ws`, exports and imports a real engine
@@ -12,8 +16,9 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
   resumes that exact session ID with a non-default Ollama model and persisted
   history, starts the daemon with the same identity, requires it to preflight the
   same ID before authenticated `/health` succeeds, snapshots the same
-  model/history, stops cleanly, and exports a return snapshot into a directory
-  writable only by the isolated workload identity.
+  model/history, runs the bundled exact-generation probe against two models on
+  a network-isolated mock endpoint, stops cleanly, and exports a return snapshot
+  into a directory writable only by the isolated workload identity.
 - Confirm runtime `engineRevision` equals `ENGINE_COMMIT`, outer and internal
   checksums pass in Linux, and `sbom.spdx.json` is present.
 - Confirm packaging rejects dirty engine runtime inputs and outbound handoff
@@ -25,7 +30,8 @@ Quick gate before shipping Electron shell changes. Repo: [vbcode-electron](https
   identity/model/history continuity before ownership commit, stale same-name
   sandbox destruction before fresh create, finite-command exits,
   output redaction/truncation, daemon early exit,
-  concrete stack-error summaries, explicit hosted Ollama route pinning,
+  concrete stack-error summaries, exact-model generation preflight through the
+  shared provider registry, explicit hosted Ollama route pinning,
   health timeout, immediate final-workload resume rejection, transient retries,
   session-filtered accessible progress,
   renderer RPC privilege separation, and archive verification.
@@ -278,7 +284,8 @@ npm run dev
    Busy must stay false, and the shell must explain that the goal must be cleared.
 8. Catalogs (TUI-faithful):
    - Type `/model clau` — live filter opens; Tab toggles main ⇄ sub; current marked.
-   - `/providers` → configured provider prefills `/model id/`; unconfigured prefills `/model key id `.
+   - `/providers` → configured provider prefills `/model id/`; unconfigured opens guided setup on that provider.
+   - `/model` → **Set up another provider…** opens the same searchable setup; verify CrofAI fills `https://crof.ai/v1` and `crof/glm-5.2`.
    - `/agents` → agent prefills `/model agent name ` then models picker; New agent prefills without submit.
    - `/mcp` — status shows connected/disconnected · N tools (not blank).
    - `/skills` → choose prefills `/skill name ` (add args before Enter).
@@ -330,6 +337,10 @@ npm run dev
     a Hermes alias (`opencode-zen` or `kimi-coding`), and a native cloud route
     (`bedrock`, `vertex`, or `azure`) expose the correct credential/endpoint
     requirements without losing the selected model.
+    Confirm known endpoints render as **Filled automatically**, and confirm
+    custom provider ID / URL / model are primary while transport remains under
+    **Advanced settings**. In Settings, confirm technical sections collapse
+    behind **Advanced settings** but remain discoverable through search.
     Simulate unavailable/blocked IndexedDB and corrupt cache metadata; startup
     must continue without cache, and a late open handle must be closed.
 18. Exercise File/Tools/Help menu actions: New Session, Open Project, Continue

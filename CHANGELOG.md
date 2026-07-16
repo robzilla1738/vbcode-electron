@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.1.17 — 2026-07-16
+
+### Added
+
+- Added CrofAI as a guided provider with its standard endpoint, credential
+  variable, and starter model, while retaining the complete synchronized
+  models.dev/OpenCode catalog and arbitrary custom provider IDs.
+- Unified `/model`, `/providers`, first-run onboarding, and Settings around one
+  guided provider setup flow. Known URLs and starter models are filled
+  automatically; custom endpoint transport, token extraction, headers, and
+  overrides remain available under Advanced settings.
+
+### Improved
+
+- Simplified Settings into clear essentials with technical runtime sections,
+  model pricing/context tuning, and less common provider controls kept
+  discoverable under Advanced settings and search.
+- Updated the model/catalog flow so an unconfigured model opens the exact setup
+  it needs instead of leaving the user with an incomplete key command.
+
+### Fixed
+
+- E2B and Vercel handoff now run a tiny real generation through the imported
+  engine provider registry for every active model before Local ownership
+  commits. The previous Ollama `/models` check could return success without
+  authenticating the generation endpoint, while non-Ollama providers were not
+  remotely checked at all.
+- Exact-model preflight covers main, plan, subagent, named-agent, vision, build,
+  and usable fallback models. A credential, endpoint, egress, transport, or
+  model failure destroys the provisional sandbox and leaves the original task
+  Local.
+- Arbitrary providers preserve their Chat Completions or Responses transport in
+  Cloud, and the bundled Linux Node 24 runtime smoke now executes this path as
+  the final isolated workload identity.
+
 ## 0.1.16 — 2026-07-15
 
 ### Added

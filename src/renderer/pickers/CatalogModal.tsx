@@ -40,6 +40,7 @@ export type CatalogPicker =
 export type CatalogChoice =
   | { kind: "command"; command: EngineCommand }
   | { kind: "prefill"; draft: string; openModelsForAgent?: string }
+  | { kind: "setup-provider"; providerId?: string }
   | { kind: "line"; line: string };
 
 /** Catalog picker plus an inline lifecycle status (I42): the popover stays
@@ -67,6 +68,12 @@ function catalogOptions(picker: CatalogPicker): CatalogOption[] {
 
 function toChoice(option: CatalogOption): CatalogChoice | null {
   if (option.command) return { kind: "command", command: option.command };
+  if (option.setupProviderId !== undefined) {
+    return {
+      kind: "setup-provider",
+      ...(option.setupProviderId ? { providerId: option.setupProviderId } : {}),
+    };
+  }
   if (option.prefill != null) {
     return {
       kind: "prefill",
@@ -88,7 +95,12 @@ const CATALOG_EMPTY_COPY: Record<string, string> = {
 
 function isActionable(option: CatalogOption): boolean {
   if (isSectionOption(option)) return false;
-  return Boolean(option.command || option.prefill != null || option.line);
+  return Boolean(
+    option.command
+      || option.prefill != null
+      || option.setupProviderId !== undefined
+      || option.line,
+  );
 }
 
 function splitSecondary(secondary: string): { tag: string | null; body: string } {

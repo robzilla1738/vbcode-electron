@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import type { ProviderConfig } from "../../../shared/config-schema";
-import { PROVIDER_CHOICES } from "../../../shared/providers-catalog";
+import {
+  PROVIDER_CHOICES,
+  providerChoiceDefaultBaseURL,
+  providerChoiceForId,
+} from "../../../shared/providers-catalog";
+import { IconExternalLink } from "../../icons";
 import { SUBSCRIPTION_PROVIDERS, SubscriptionAuthCard } from "../../providers/SubscriptionAuthCard";
 import {
   KeyValueTextArea,
@@ -56,6 +61,8 @@ export function ProvidersSection({
     const trimmed = id.trim();
     if (!trimmed || providers[trimmed]) return;
     updateProvider(trimmed, {});
+    const choice = providerChoiceForId(trimmed);
+    if (!config.model && choice?.defaultModel) updateConfig({ model: choice.defaultModel });
     setExpanded(trimmed);
     setNewId("");
     setShowAdd(false);
@@ -73,7 +80,11 @@ export function ProvidersSection({
   };
 
   return (
-    <SettingSection title="Providers" description="Connect subscriptions, API keys, and any OpenAI-compatible endpoint. Environment variables take precedence.">
+    <SettingSection title="Providers" description="Connect a provider, choose its model, and start. Vibe fills known endpoints automatically; advanced overrides stay optional.">
+      <div className="provider-setup-intro">
+        <strong>Simple setup</strong>
+        <span>Choose a provider, paste its credential, then save. Environment variables still take precedence.</span>
+      </div>
       <div className="setting-list provider-auth-list">
         {SUBSCRIPTION_PROVIDERS.map((provider) => <SubscriptionAuthCard key={provider.id} provider={provider} />)}
       </div>
@@ -85,12 +96,23 @@ export function ProvidersSection({
           {providerIds.map((id) => {
             const p = providers[id] ?? {};
             const isExpanded = expanded === id;
+            const choice = providerChoiceForId(id);
+            const customProvider = !choice || choice.customEndpoint === true;
+            const needsBaseURL = customProvider || choice?.requiresBaseURL === true;
+            const defaultBaseURL = choice ? providerChoiceDefaultBaseURL(choice) : "";
+            const currentModel = config.model?.startsWith(`${id}/`) ? config.model : "";
             return (
               <div key={id} className={`setting-card${isExpanded ? " expanded" : ""}`}>
                 <div className="setting-card-header">
                   <button type="button" className="setting-card-toggle" onClick={() => setExpanded(isExpanded ? null : id)}>
-                    <span className="setting-card-title">{id}</span>
-                    {p.apiKey ? <SettingBadge>key set</SettingBadge> : p.tokenFile ? <SettingBadge>token file</SettingBadge> : <SettingBadge tone="warn">no saved credential</SettingBadge>}
+                    <span className="setting-card-title">{choice?.label ?? id}</span>
+                    {choice?.localKeyless
+                      ? <SettingBadge>no key needed</SettingBadge>
+                      : p.apiKey
+                        ? <SettingBadge>key set</SettingBadge>
+                        : p.tokenFile
+                          ? <SettingBadge>token file</SettingBadge>
+                          : <SettingBadge tone="warn">needs credential</SettingBadge>}
                   </button>
                   <button type="button" className="button danger" onClick={() => removeProvider(id)}>Remove</button>
                 </div>
@@ -99,25 +121,85 @@ export function ProvidersSection({
                   hidden={!isExpanded}
                   aria-hidden={!isExpanded}
                 >
-                    <SettingField label="API key" description="Provider API key. Env var (e.g. OPENAI_API_KEY) takes precedence.">
+                  <div className="provider-quick-fields">
+                    {!choice?.localKeyless && (
+                    <SettingField
+                      label="API key"
+                      description={choice?.env
+                        ? `Paste a key here, or set ${choice.env} in your environment.`
+                        : "Paste the credential issued by this provider."}
+                    >
                       <TextInput
                         value={p.apiKey ?? ""}
                         onChange={(v) => updateProvider(id, { apiKey: v || undefined })}
-                        placeholder="sk-…"
+                        placeholder={choice?.env ?? "Paste API key"}
                         type="password"
                         monospace
                       />
+                      {choice?.keyUrl && (
+                        <button
+                          type="button"
+                          className="provider-key-link"
+                          onClick={() => void window.vibe.openExternal(choice.keyUrl!).catch(() => {
+                            /* The setup form remains usable when the OS browser cannot open. */
+                          })}
+                        >
+                          <IconExternalLink size={12} /> Get an API key
+                        </button>
+                      )}
                     </SettingField>
-                    <SettingField label="Base URL" description="Override the provider's default endpoint.">
+                    )}
+
+                    <SettingField
+                      label="Default model"
+                      description={currentModel
+                        ? "New sessions use this model."
+                        : "Set a model for new sessions, or keep your current default."}
+                    >
                       <TextInput
-                        value={p.baseURL ?? ""}
-                        onChange={(v) => updateProvider(id, { baseURL: v || undefined })}
-                        placeholder="https://api.example.com/v1"
-                        type="url"
+                        value={currentModel}
+                        onChange={(value) => updateConfig({ model: value || undefined })}
+                        placeholder={choice?.defaultModel || `${id}/model-id`}
                         monospace
                       />
                     </SettingField>
-                    {!PROVIDER_CHOICES.some((choice) => choice.registryId === id) && (
+
+                    {needsBaseURL && (
+                      <SettingField label="Base URL" description="The full API root, usually ending in /v1.">
+                        <TextInput
+                          value={p.baseURL ?? ""}
+                          onChange={(value) => updateProvider(id, { baseURL: value || undefined })}
+                          placeholder="https://api.example.com/v1"
+                          type="url"
+                          monospace
+                        />
+                      </SettingField>
+                    )}
+
+                    {(p.baseURL || defaultBaseURL) && (
+                      <div className="provider-endpoint-summary">
+                        <span>Endpoint</span>
+                        <code>{p.baseURL || defaultBaseURL}</code>
+                        <small>{p.baseURL ? "Custom override" : "Filled automatically"}</small>
+                      </div>
+                    )}
+                  </div>
+
+                  <details className="provider-advanced">
+                    <summary>Advanced settings</summary>
+                    <div className="provider-advanced-body">
+                    {!needsBaseURL && (
+                      <SettingField label="Endpoint override" description="Leave empty to use the filled provider endpoint above.">
+                        <TextInput
+                          value={p.baseURL ?? ""}
+                          onChange={(value) => updateProvider(id, { baseURL: value || undefined })}
+                          placeholder={defaultBaseURL || "https://api.example.com/v1"}
+                          type="url"
+                          monospace
+                        />
+                      </SettingField>
+                    )}
+                    {customProvider && (
                       <SettingField label="Transport" description="Choose the HTTP API dialect exposed by this custom endpoint.">
                         <SelectInput
                           value={p.transport ?? "openai-compatible"}
@@ -166,6 +248,8 @@ export function ProvidersSection({
                         onInvalidDraftChange={onInvalidDraftChange}
                       />
                     </SettingField>
+                    </div>
+                  </details>
                 </div>
               </div>
             );
@@ -179,7 +263,7 @@ export function ProvidersSection({
               type="text"
               className="setting-input is-mono"
               value={newId}
-              placeholder="provider-id (e.g. openai, anthropic, ollama)"
+              placeholder="provider-id (for example team-gateway)"
               onChange={(e) => setNewId(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") confirmAdd();
@@ -216,7 +300,7 @@ export function ProvidersSection({
               ))}
             </select>
             <button type="button" className="button" onClick={() => { setUseCustom(true); setNewId(""); }}>
-              Type manually
+              Custom endpoint
             </button>
             <button type="button" className="button" onClick={() => { setShowAdd(false); setNewId(""); setUseCustom(false); }}>Cancel</button>
           </div>

@@ -6,6 +6,8 @@ import {
   initialChoiceIndex,
   PROVIDER_CHOICES,
   providerChoiceAcceptsApiKey,
+  providerChoiceDefaultBaseURL,
+  providerChoiceForId,
   providerChoiceNeedsApiKey,
 } from "./providers-catalog";
 
@@ -62,6 +64,15 @@ describe("providers-catalog", () => {
     expect(ids).toContain("openai");
     expect(ids).toContain("ollama-local");
     expect(ids).toContain("custom-endpoint");
+    expect(ids).toContain("crof");
+  });
+
+  it("promotes CrofAI with its official automatic endpoint and setup defaults", () => {
+    const crof = providerChoiceForId("crof")!;
+    expect(crof.key).toBe("crof");
+    expect(crof.env).toBe("CROF_API_KEY");
+    expect(crof.defaultModel).toBe("crof/glm-5.2");
+    expect(providerChoiceDefaultBaseURL(crof)).toBe("https://crof.ai/v1");
   });
 
   it("covers the complete OpenCode models.dev registry plus Hermes aliases", () => {
@@ -140,6 +151,27 @@ describe("providers-catalog", () => {
       ).toEqual({
         model: "custom/my-model",
         providers: { custom: { apiKey: "sk-1", baseURL: "https://my.api/v1" } },
+      });
+    });
+
+    it("preserves custom transport and explicit models from guided setup", () => {
+      expect(
+        buildOnboardingPatch({
+          model: "team-gateway/model-a",
+          providerId: "team-gateway",
+          baseURL: "https://gateway.example.com/v1",
+          transport: "openai-responses",
+          models: ["model-a"],
+        }),
+      ).toEqual({
+        model: "team-gateway/model-a",
+        providers: {
+          "team-gateway": {
+            baseURL: "https://gateway.example.com/v1",
+            transport: "openai-responses",
+            models: ["model-a"],
+          },
+        },
       });
     });
 
