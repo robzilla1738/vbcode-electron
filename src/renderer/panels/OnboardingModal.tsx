@@ -23,6 +23,7 @@ import { useFocusTrap } from "../hooks/useFocusTrap";
 import { IconClose, IconExternalLink } from "../icons";
 import { SubscriptionAuthCard } from "../providers/SubscriptionAuthCard";
 import type { SubscriptionAuthStatus, SubscriptionProviderId } from "../../shared/provider-auth";
+import { subscriptionProviderForRegistryId } from "../../shared/subscription-providers";
 
 export interface ProviderStatus {
   id: string;
@@ -58,8 +59,9 @@ export function OnboardingModal({
   );
 
   const initialIdx = useMemo(() => {
-    const requested = initialProviderId
-      ? PROVIDER_CHOICES.findIndex((choice) => choice.registryId === initialProviderId)
+    const requestedId = initialProviderId === "codex" ? "openai-codex" : initialProviderId;
+    const requested = requestedId
+      ? PROVIDER_CHOICES.findIndex((choice) => choice.registryId === requestedId)
       : -1;
     return requested >= 0
       ? requested
@@ -67,6 +69,13 @@ export function OnboardingModal({
   }, [configuredIds, initialProviderId]);
 
   const [selectedIdx, setSelectedIdx] = useState(initialIdx);
+  const [providerView, setProviderView] = useState<"recommended" | "local" | "all">(
+    PROVIDER_CHOICES[initialIdx]?.featured
+      ? "recommended"
+      : PROVIDER_CHOICES[initialIdx]?.localKeyless
+        ? "local"
+        : "all",
+  );
   const [providerQuery, setProviderQuery] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseURL, setBaseURL] = useState("");
@@ -80,29 +89,20 @@ export function OnboardingModal({
   useFocusTrap(true, dialogRef, onDismiss);
 
   const choice: ProviderChoice = PROVIDER_CHOICES[selectedIdx] ?? PROVIDER_CHOICES[0]!;
-  const subscriptionProvider = choice.registryId === "codex" || choice.registryId === "openai-codex"
-    ? {
-        id: "openai-codex" as const,
-        title: "ChatGPT · Codex",
-        description: "Sign in with ChatGPT to use your eligible Codex subscription.",
-        model: "openai-codex/gpt-5.3-codex",
-      }
-    : choice.registryId === "xai-oauth"
-      ? {
-          id: "xai-oauth" as const,
-          title: "xAI · Grok",
-          description: "Sign in with xAI to use your eligible Grok subscription, including Grok Build.",
-          model: "xai-oauth/grok-build-0.1",
-        }
-      : null;
+  const subscriptionProvider = subscriptionProviderForRegistryId(choice.registryId);
   const visibleChoices = useMemo(() => {
     const query = providerQuery.trim().toLocaleLowerCase();
     return PROVIDER_CHOICES
       .map((provider, index) => ({ provider, index }))
-      .filter(({ provider }) =>
-        !query || `${provider.label} ${provider.registryId} ${provider.blurb}`.toLocaleLowerCase().includes(query),
-      );
-  }, [providerQuery]);
+      .filter(({ provider }) => {
+        if (query) {
+          return `${provider.label} ${provider.registryId} ${provider.blurb}`.toLocaleLowerCase().includes(query);
+        }
+        if (providerView === "recommended") return provider.featured === true;
+        if (providerView === "local") return provider.localKeyless === true;
+        return true;
+      });
+  }, [providerQuery, providerView]);
 
   // Reset key/model when switching provider choice.
   useEffect(() => {
@@ -116,6 +116,8 @@ export function OnboardingModal({
 
   useEffect(() => {
     setSelectedIdx(initialIdx);
+    const initialChoice = PROVIDER_CHOICES[initialIdx];
+    setProviderView(initialChoice?.featured ? "recommended" : initialChoice?.localKeyless ? "local" : "all");
   }, [initialIdx]);
 
   const handleSubscriptionStatus = useCallback((status: SubscriptionAuthStatus) => {
@@ -171,12 +173,41 @@ export function OnboardingModal({
 
         <div className="onboarding-modal-body">
           <div className="onboarding-provider-list" ref={listRef}>
+            <div className="onboarding-provider-tabs" role="tablist" aria-label="Provider groups">
+              {([
+                ["recommended", "Recommended"],
+                ["local", "Local"],
+                ["all", "All providers"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={providerView === value}
+                  className={providerView === value ? "selected" : ""}
+                  onClick={() => {
+                    setProviderView(value);
+                    setProviderQuery("");
+                    const first = PROVIDER_CHOICES.findIndex((provider) =>
+                      value === "all"
+                        ? true
+                        : value === "recommended"
+                          ? provider.featured === true
+                          : provider.localKeyless === true,
+                    );
+                    if (first >= 0) setSelectedIdx(first);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <input
               type="search"
               className="setting-input onboarding-provider-search"
               value={providerQuery}
               onChange={(event) => setProviderQuery(event.target.value)}
-              placeholder={`Search ${PROVIDER_CHOICES.length} providers`}
+              placeholder="Search every provider"
               aria-label="Search model providers"
             />
             {visibleChoices.map(({ provider: c, index: i }) => (
@@ -208,6 +239,8 @@ export function OnboardingModal({
                 key={subscriptionProvider.id}
                 provider={subscriptionProvider}
                 onStatusChange={handleSubscriptionStatus}
+                currentModel={model}
+                onSelectModel={setModel}
               />
             )}
 
@@ -273,17 +306,19 @@ export function OnboardingModal({
               </div>
             )}
 
-            <div className="onboarding-field">
-              <label htmlFor="onboarding-model">Model</label>
-              <input
-                id="onboarding-model"
-                type="text"
-                className="setting-input is-mono"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={`${effectiveProviderId || "provider"}/model-id`}
-              />
-            </div>
+            {!subscriptionProvider && (
+              <div className="onboarding-field">
+                <label htmlFor="onboarding-model">Model</label>
+                <input
+                  id="onboarding-model"
+                  type="text"
+                  className="setting-input is-mono"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder={`${effectiveProviderId || "provider"}/model-id`}
+                />
+              </div>
+            )}
 
             {!needsBaseURL && defaultBaseURL && (
               <div className="provider-endpoint-summary">

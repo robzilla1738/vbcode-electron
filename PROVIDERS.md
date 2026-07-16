@@ -14,22 +14,29 @@ Use `/model` and choose **Set up another provider…**, use `/providers`, or ope
 setup instead of prefilling a key command. For a known provider, Vibe fills the
 endpoint and recommended model; the normal path asks only for the credential.
 
-The first two Settings cards are subscription connections:
+Settings opens on two subscription connections first, with API-key, local, and
+custom providers below them:
 
 - **ChatGPT · Codex** opens the official Codex browser sign-in. Vibe stores the
   access token, rotating refresh token, and account routing identity in
   `~/.vibe-codr/auth.json` with user-only permissions. Use a model under
-  `openai-codex/`, such as `openai-codex/gpt-5.3-codex`.
-- **xAI · Grok** supports browser sign-in and RFC 8628 device authorization.
-  Use `xai-oauth/grok-build-0.1` for Grok Build. The app handles pending,
-  slow-down, cancellation, expiry, refresh rotation, retry, and sign-out.
+  `openai-codex/`, such as `openai-codex/gpt-5.3-codex`. The legacy `codex/`
+  alias uses the same subscription backend. Public OpenAI API keys remain under
+  `openai/` and are never mistaken for ChatGPT credentials.
+- **xAI · Grok** uses the RFC 8628 device flow. Choose
+  `xai-oauth/grok-4.5` for Grok 4.5 or `xai-oauth/grok-build-0.1` for Grok
+  Build. Grok 4.5 is routed through xAI Responses with low/medium/high
+  reasoning; Grok Build and earlier models remain on Chat Completions. The app
+  handles pending, slow-down, cancellation, expiry, refresh rotation, retry,
+  and sign-out.
 
 Subscription eligibility, available models, usage, and quota are determined by
 the signed-in provider. An API subscription does not automatically imply a
 ChatGPT or Grok product subscription, or vice versa.
 
 Every catalog provider can still use its documented environment variable or a
-saved API key. The provider list is searchable during first-run setup, while the
+saved API key. Setup starts with **Recommended**, **Local**, and **All providers**
+views; search always covers the complete catalog. The
 normal model picker is grouped and filtered so the catalog does not become one
 undifferentiated list. Endpoint overrides, token files/paths, explicit model
 lists, headers, and transport selection are grouped under **Advanced settings**.
@@ -86,12 +93,19 @@ maps to `VIBE_PROVIDER_TEAM_GATEWAY_API_KEY`,
 
 ## Local and Cloud use
 
-The same provider and exact model survive a Local ↔ Cloud handoff. Only the
-selected session receives its reviewed provider binding. For Codex and Grok
+The same provider and exact model survive a Local ↔ Cloud handoff. The selected
+session receives an encrypted snapshot of every safely representable configured
+provider route and key, so plan/subagent work does not depend on Mac-global
+configuration after the move. For Codex and Grok
 subscription auth, the main process exports a current access token and optional
 non-secret account ID; the refresh token never reaches renderer IPC, project
 config, transcripts, logs, or the Cloud session catalog. A missing or expired
 credential fails before ownership changes and leaves the task Local.
+
+The Cloud daemon reports the names of its inherited provider bindings through
+the authenticated health check. If any reviewed binding was dropped between
+setup and the long-running workload, the provisional sandbox is destroyed and
+the task remains Local.
 
 Local-only providers still require a Cloud-accessible route. Ollama Cloud is a
 separate hosted endpoint; a Mac-local Ollama or LM Studio server is not silently

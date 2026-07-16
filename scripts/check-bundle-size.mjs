@@ -21,13 +21,14 @@ const largest = sizes.reduce((max, item) => Math.max(max, item.bytes), 0);
 // shipped aggregate to include the isolated terminal runtime.
 // The continuity-safe handoff, grouped command palette, and shared presence
 // lifecycle, provider subscription auth, and the guided provider/settings flow
-// bring the current aggregate baseline to ~2.813 MB across startup and lazy
-// activity/settings/terminal/provider-catalog chunks. Keep a narrow 4 KB
+// bring the current aggregate baseline to ~2.822 MB across startup and lazy
+// activity/settings/terminal/provider-catalog chunks. Keep a narrow 1 KB
 // regression allowance;
-// the separate startup/largest-chunk ceiling remains unchanged so this baseline
-// adjustment cannot hide a chat-startup regression.
-const totalBudget = 2_817_000;
-const chunkBudget = 2_100_000;
+// The complete canonical slash catalog and descriptive value submenus add less
+// than 1 KB to startup. Keep a narrow 2 KB allowance for that user-visible
+// discovery contract rather than dropping command help from the shipped UI.
+const totalBudget = 2_823_000;
+const chunkBudget = 2_102_000;
 
 if (total > totalBudget || largest > chunkBudget) {
   console.error(`Renderer bundle budget exceeded: ${total} total bytes, ${largest} largest chunk`);

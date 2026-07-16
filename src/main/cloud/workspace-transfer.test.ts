@@ -177,7 +177,7 @@ describe("workspace transfer", () => {
     }
   });
 
-  it("routes returned ignored files into a safe worktree", async () => {
+  it("includes Git-ignored project files in the default Cloud workspace", async () => {
     const root = await mkdtemp(join(tmpdir(), "vibe-transfer-ignored-return-"));
     roots.push(root);
     const git = async (...args: string[]) => { await promisify(execFile)("git", args, { cwd: root }); };
@@ -188,32 +188,11 @@ describe("workspace transfer", () => {
     await writeFile(join(root, "base.txt"), "base\n");
     await git("add", ".gitignore", "base.txt");
     await git("commit", "-m", "base");
-    await writeFile(join(root, "ignored.txt"), "local private\n");
+    await writeFile(join(root, "ignored.txt"), "local generated input\n");
     const outbound = await createWorkspaceTransfer({ cwd: root, sessionId: "session-test", ownershipGeneration: 1, engineRevision: "abc123", engine });
-    expect(outbound.manifest.excludedPaths).toContainEqual({ path: "ignored.txt", reason: "ignored by Git" });
-    const cloud = Buffer.from("cloud replacement\n");
-    const returned = assembleReturnTransfer({
-      snapshot: {
-        entries: [...outbound.manifest.entries, { path: "ignored.txt", type: "file", bytes: cloud.byteLength, mode: 0o644, sha256: createHash("sha256").update(cloud).digest("hex") }],
-        files: [...outbound.files, { path: "workspace/ignored.txt", contentBase64: cloud.toString("base64") }],
-        git: outbound.manifest.git,
-      },
-      engine,
-      workspaceId: outbound.manifest.workspaceId,
-      sessionId: "session-test",
-      ownershipGeneration: 2,
-      engineRevision: "abc123",
-      sourceRoot: root,
-      baseFingerprint: outbound.manifest.sourceRootFingerprint,
-      excludedPaths: outbound.manifest.excludedPaths,
-    });
-    const result = await applyWorkspaceTransfer(root, returned);
-    expect(result.kind).toBe("diverged");
-    await expect(readFile(join(root, "ignored.txt"), "utf8")).resolves.toBe("local private\n");
-    if (result.kind === "diverged") {
-      roots.push(result.worktreePath);
-      await expect(readFile(join(result.worktreePath, "ignored.txt"), "utf8")).resolves.toBe("cloud replacement\n");
-    }
+    expect(outbound.manifest.entries).toContainEqual(expect.objectContaining({ path: "ignored.txt", type: "file" }));
+    expect(outbound.files.map((file) => file.path)).toContain("workspace/ignored.txt");
+    expect(outbound.manifest.excludedPaths.map((entry) => entry.path)).not.toContain("ignored.txt");
   });
 
   it("durably announces the recovery path before the first workspace mutation", async () => {
@@ -577,7 +556,7 @@ describe("workspace transfer", () => {
     ]);
     expect(bundle.manifest.entries.map((entry) => entry.path)).toContain("modules/child/library.txt");
     expect(bundle.manifest.entries.map((entry) => entry.path)).not.toContain("modules/child/secret.pem");
-    expect(bundle.manifest.excludedPaths).toContainEqual({ path: "modules/child/secret.pem", reason: "ignored by nested Git repository" });
+    expect(bundle.manifest.excludedPaths).toContainEqual({ path: "modules/child/secret.pem", reason: "sensitive or generated default" });
     expect(bundle.files.map((file) => file.path)).toContain("workspace/modules/child/library.txt");
     await expect(currentWorkspaceFingerprint(parent, bundle.manifest.excludedPaths.map((entry) => entry.path)))
       .resolves.toBe(bundle.manifest.sourceRootFingerprint);

@@ -490,7 +490,11 @@ export function decodeInbound(line: string): HostInbound | null {
       return null;
     }
     if (params) {
-      const allowed = new Set(["cwd", "id", "title", "name", "sessionId", "nonce", "engineRevision", "expectedGeneration", "ownershipGeneration", "target", "archive", "archivePath"]);
+      const allowed = new Set([
+        "cwd", "id", "title", "name", "sessionId", "nonce", "engineRevision",
+        "expectedGeneration", "ownershipGeneration", "target", "archive", "archivePath",
+        "providerId", "authMethod", "authSessionId", "provisional",
+      ]);
       if (Object.keys(params).some((key) => !allowed.has(key))) return null;
       if ((typeof params.cwd === "string" && (params.cwd.length > 32_768 || params.cwd.includes("\0")))
         || (typeof params.id === "string" && (params.id.length > 1_024 || params.id.includes("\0")))

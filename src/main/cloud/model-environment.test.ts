@@ -1,7 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { cloudModelEnvironment, cloudModelRouteHostname, configuredCloudFallbackModels, configuredCloudModels } from "./model-environment";
+import {
+  ambientCloudModelEnvironment,
+  cloudModelEnvironment,
+  cloudModelRouteHostname,
+  configuredCloudFallbackModels,
+  configuredCloudModels,
+  subscriptionAuthProviderForModelProvider,
+  subscriptionCredentialEnvironment,
+} from "./model-environment";
 
 describe("cloud model environment", () => {
+  it("automatically selects only ambient credentials used by configured Cloud models", () => {
+    expect(ambientCloudModelEnvironment(
+      ["crof/glm-5.2", "xai-oauth/grok-4.5"],
+      {
+        CROF_API_KEY: "crof-secret",
+        XAI_API_KEY: "xai-secret",
+        XAI_BASE_URL: "https://api.x.ai/v1",
+        OPENAI_API_KEY: "unrelated-secret",
+        SSH_AUTH_SOCK: "/private/socket",
+      },
+    )).toEqual({
+      CROF_API_KEY: "crof-secret",
+      XAI_API_KEY: "xai-secret",
+    });
+  });
+
+  it("maps both Codex aliases and xAI to transferable subscription bindings", () => {
+    expect(subscriptionAuthProviderForModelProvider("codex")).toBe("openai-codex");
+    expect(subscriptionAuthProviderForModelProvider("openai-codex")).toBe("openai-codex");
+    expect(subscriptionAuthProviderForModelProvider("xai-oauth")).toBe("xai-oauth");
+    expect(subscriptionAuthProviderForModelProvider("openai")).toBeNull();
+    expect(subscriptionCredentialEnvironment("openai-codex", {
+      access: "codex-access",
+      accountId: "account-1",
+    })).toEqual({
+      VIBE_CODEX_OAUTH_TOKEN: "codex-access",
+      CODEX_ACCOUNT_ID: "account-1",
+    });
+    expect(subscriptionCredentialEnvironment("xai-oauth", { access: "xai-access" }))
+      .toEqual({ XAI_API_KEY: "xai-access" });
+  });
   it("injects only the active provider credential", () => {
     expect(cloudModelEnvironment("ollama/glm-5.2", {
       providers: {
@@ -12,6 +51,9 @@ describe("cloud model environment", () => {
       OLLAMA_API_KEY: "ollama-secret",
       OLLAMA_BASE_URL: "https://ollama.com/v1",
     });
+    expect(cloudModelEnvironment("crof/glm-5.2", {
+      providers: { crof: { apiKey: "crof-secret" } },
+    }, undefined, {})).toEqual({ CROF_API_KEY: "crof-secret" });
   });
 
   it("prefers an explicit session binding over the config key", () => {
@@ -24,8 +66,8 @@ describe("cloud model environment", () => {
 
   it("keeps documented provider aliases and rejects local credential chains", () => {
     expect(cloudModelEnvironment("codex/gpt-5.3-codex", undefined, undefined, {
-      OPENAI_API_KEY: "openai-secret",
-    })).toEqual({ OPENAI_API_KEY: "openai-secret" });
+      VIBE_CODEX_OAUTH_TOKEN: "codex-oauth-token",
+    })).toEqual({ VIBE_CODEX_OAUTH_TOKEN: "codex-oauth-token" });
     expect(() => cloudModelEnvironment("bedrock/claude", undefined, undefined, {
       AWS_ACCESS_KEY_ID: "local-chain",
     })).toThrow("credential chain from this Mac");
@@ -45,12 +87,13 @@ describe("cloud model environment", () => {
 
   it("keeps explicit integration bindings but selects one provider auth alias", () => {
     expect(cloudModelEnvironment("codex/gpt-5.3-codex", undefined, undefined, {
-      CODEX_API_KEY: "preferred-secret",
-      OPENAI_API_KEY: "fallback-secret",
+      VIBE_CODEX_OAUTH_TOKEN: "subscription-secret",
+      OPENAI_API_KEY: "unrelated-public-api-key",
       GITHUB_TOKEN: "git-secret",
     })).toEqual({
+      OPENAI_API_KEY: "unrelated-public-api-key",
       GITHUB_TOKEN: "git-secret",
-      CODEX_API_KEY: "preferred-secret",
+      VIBE_CODEX_OAUTH_TOKEN: "subscription-secret",
     });
     expect(cloudModelEnvironment("amazon-bedrock/claude", undefined, undefined, {
       AWS_ACCESS_KEY_ID: "access",
@@ -142,8 +185,8 @@ describe("cloud model environment", () => {
   it("lets an explicit key replace local token-file authentication", () => {
     expect(cloudModelEnvironment("codex/gpt-5.3-codex", {
       providers: { codex: { tokenFile: "~/.codex/auth.json" } },
-    }, undefined, { OPENAI_API_KEY: "portable-secret" })).toEqual({
-      OPENAI_API_KEY: "portable-secret",
+    }, undefined, { VIBE_CODEX_OAUTH_TOKEN: "portable-secret" })).toEqual({
+      VIBE_CODEX_OAUTH_TOKEN: "portable-secret",
     });
   });
 
@@ -155,12 +198,14 @@ describe("cloud model environment", () => {
           baseURL: "https://models.acme.example/v1",
           transport: "openai-responses",
           models: ["code"],
+          headers: { "x-team": "platform" },
         },
       },
     }, undefined, {})).toEqual({
       VIBE_PROVIDER_ACME_GATEWAY_API_KEY: "acme-secret",
       VIBE_PROVIDER_ACME_GATEWAY_BASE_URL: "https://models.acme.example/v1",
       VIBE_PROVIDER_ACME_GATEWAY_TRANSPORT: "openai-responses",
+      VIBE_PROVIDER_ACME_GATEWAY_HEADERS_JSON: JSON.stringify({ "x-team": "platform" }),
     });
   });
 

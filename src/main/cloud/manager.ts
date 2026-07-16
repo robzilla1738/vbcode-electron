@@ -25,7 +25,15 @@ import type { EngineTransportController } from "../engine-transport-controller";
 import { CloudSessionCatalog } from "./catalog";
 import { CloudCredentialStore } from "./credential-store";
 import { assertPublicProviderDomains } from "./domain-validation";
-import { cloudModelEnvironment, cloudModelRouteHostname, configuredCloudFallbackModels, configuredCloudModels } from "./model-environment";
+import {
+  ambientCloudModelEnvironment,
+  cloudModelEnvironment,
+  cloudModelRouteHostname,
+  configuredCloudFallbackModels,
+  configuredCloudModels,
+  subscriptionAuthProviderForModelProvider,
+  subscriptionCredentialEnvironment,
+} from "./model-environment";
 import { E2BSandboxProvider, sanitizeCloudCommandOutput, VercelSandboxProvider } from "./providers";
 import { assertCloudSessionContinuity, cloudProjectStateRoot } from "./session-continuity";
 import {
@@ -402,7 +410,14 @@ export class CloudManager {
         () => withDeadline(provider.domain(sandbox.id, CLOUD_PORT), PROVIDER_REQUEST_TIMEOUT_MS, "Cloud endpoint request timed out"),
       );
       this.#emit(snapshot.sessionId, "starting", "Checking the authenticated cloud agent", 0.82, "checking-health", handoffStartedAt);
-      await superviseCloudAgent(daemon, endpoint.url, accessToken, endpoint.headers);
+      await superviseCloudAgent(
+        daemon,
+        endpoint.url,
+        accessToken,
+        endpoint.headers,
+        AGENT_HEALTH_TIMEOUT_MS,
+        Object.keys(modelEnvironment),
+      );
       const url = endpoint.url.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
       this.#emit(snapshot.sessionId, "starting", "Connecting this window to the cloud session", 0.91, "connecting", handoffStartedAt);
       await awaitRemoteEngineReady(
@@ -606,6 +621,7 @@ export class CloudManager {
     }
     const base = entry.provider === "e2b" ? "/home/user/vibe" : "/vercel/sandbox/vibe";
     let daemon: CloudCommandHandle | undefined;
+    let expectedEnvironmentNames: string[] = [];
     if (sandbox.needsDaemonRestart) {
       const models = entry.models?.length ? entry.models : entry.model ? [entry.model] : [];
       if (!models.length && !allowLegacyCredentialless) {
@@ -629,6 +645,7 @@ export class CloudManager {
         || approvedEnvironment.some((name, index) => name !== pinnedEnvironment[index]))) {
         throw new Error("The protected Cloud model-access snapshot no longer matches the reviewed handoff. Return it to Local before reconnecting.");
       }
+      expectedEnvironmentNames = Object.keys(modelEnvironment ?? {});
       if (!allowLegacyCredentialless) await assertPublicProviderDomains(entry.providerDomains ?? []);
       daemon = await provider.start(entry.sandboxId, "sh", ["start.sh", entry.provider], {
         ...(modelEnvironment ?? {}),
@@ -641,7 +658,16 @@ export class CloudManager {
       }, { privileged: true, cwd: `${base}/runtime`, timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS });
     }
     const endpoint = await provider.domain(entry.sandboxId, CLOUD_PORT);
-    if (daemon) await superviseCloudAgent(daemon, endpoint.url, token, endpoint.headers);
+    if (daemon) {
+      await superviseCloudAgent(
+        daemon,
+        endpoint.url,
+        token,
+        endpoint.headers,
+        AGENT_HEALTH_TIMEOUT_MS,
+        expectedEnvironmentNames,
+      );
+    }
     const url = endpoint.url.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
     const reconnect = this.transport.switchToRemote(
       { url, accessToken: token, ...(endpoint.headers ? { headers: endpoint.headers } : {}) },
@@ -1201,22 +1227,55 @@ export class CloudManager {
       readConfigFile(projectConfigPath(cwd)),
     ]);
     for (const providerId of [...new Set(models.map((model) => model.split("/", 1)[0]))]) {
-      if (providerId !== "openai-codex" && providerId !== "xai-oauth") continue;
-      const credential = await this.transport.local.rpc("exportProviderAuth", { providerId }) as {
+      const authProviderId = subscriptionAuthProviderForModelProvider(providerId);
+      if (!authProviderId) continue;
+      const credential = await this.transport.local.rpc("exportProviderAuth", { providerId: authProviderId }) as {
         providerId: "openai-codex" | "xai-oauth";
         access: string;
         accountId?: string;
       } | null;
       if (!credential) continue;
-      if (providerId === "openai-codex") {
-        bound.CODEX_API_KEY = credential.access;
-        if (credential.accountId) bound.CODEX_ACCOUNT_ID = credential.accountId;
-      } else {
-        bound.XAI_API_KEY = credential.access;
+      Object.assign(bound, subscriptionCredentialEnvironment(authProviderId, credential));
+    }
+    Object.assign(bound, ambientCloudModelEnvironment([...models, ...optionalModels], process.env));
+
+    // A Cloud sandbox is a complete continuation environment. Carry every
+    // configured provider route/key that can be represented safely so model,
+    // plan, and subagent work do not depend on a later desktop config lookup.
+    // Required models are still validated below and fail the handoff on error;
+    // unrelated unusable/local-only providers are simply not included.
+    const trustedProjectProviders = globalResult?.config?.security?.trustProjectConfig === true
+      ? projectResult?.config?.providers
+      : undefined;
+    const configuredProviderIds = new Set([
+      ...Object.keys(globalResult?.config?.providers ?? {}),
+      ...Object.keys(trustedProjectProviders ?? {}),
+    ]);
+    const configuredDomains = new Set<string>();
+    for (const providerId of configuredProviderIds) {
+      try {
+        const candidate = cloudModelEnvironment(
+          `${providerId}/__configured-cloud-access__`,
+          globalResult?.config,
+          projectResult?.config,
+          bound,
+        );
+        const hostname = cloudModelRouteHostname(
+          `${providerId}/__configured-cloud-access__`,
+          globalResult?.config,
+          projectResult?.config,
+          candidate,
+        );
+        if (!hostname) continue;
+        await assertPublicProviderDomains([hostname]);
+        Object.assign(bound, candidate);
+        configuredDomains.add(hostname);
+      } catch {
+        // An optional configured provider must not block a valid active model.
       }
     }
     const environment: Record<string, string> = {};
-    const domains = new Set<string>();
+    const domains = new Set<string>(configuredDomains);
     const resolveModel = (model: string): { candidate: Record<string, string>; hostname: string } => {
       const candidate = cloudModelEnvironment(model, globalResult?.config, projectResult?.config, bound);
       for (const [name, value] of Object.entries(candidate)) {
@@ -1435,13 +1494,21 @@ export async function superviseCloudAgent(
   accessToken: string,
   providerHeaders: Record<string, string> = {},
   healthTimeoutMs = AGENT_HEALTH_TIMEOUT_MS,
+  expectedEnvironmentNames: readonly string[] = [],
 ): Promise<void> {
   const healthController = new AbortController();
   const exited = daemon.wait().then(
     (result) => ({ kind: "exit" as const, result }),
     (error) => ({ kind: "wait-error" as const, error }),
   );
-  const healthy = waitForCloudAgent(endpoint, accessToken, providerHeaders, healthTimeoutMs, healthController.signal).then(
+  const healthy = waitForCloudAgent(
+    endpoint,
+    accessToken,
+    providerHeaders,
+    expectedEnvironmentNames,
+    healthTimeoutMs,
+    healthController.signal,
+  ).then(
     () => ({ kind: "healthy" as const }),
     (error) => ({ kind: "health-error" as const, error }),
   );
@@ -1538,6 +1605,7 @@ async function waitForCloudAgent(
   endpoint: string,
   accessToken: string,
   providerHeaders: Record<string, string> = {},
+  expectedEnvironmentNames: readonly string[] = [],
   timeoutMs = AGENT_HEALTH_TIMEOUT_MS,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -1551,8 +1619,28 @@ async function waitForCloudAgent(
         headers: { ...providerHeaders, authorization: `Bearer ${accessToken}` },
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(5_000)]) : AbortSignal.timeout(5_000),
       });
-      if (response.ok) return;
-      const payload = await response.json().catch(() => null) as { error?: unknown } | null;
+      const payload = await response.json().catch(() => null) as {
+        error?: unknown;
+        environment?: unknown;
+      } | null;
+      if (response.ok) {
+        const environment = Array.isArray(payload?.environment)
+          ? payload.environment.filter((name): name is string => typeof name === "string")
+          : [];
+        const missing = expectedEnvironmentNames.filter((name) => !environment.includes(name));
+        if (missing.length) {
+          throw new CloudOperationError(
+            `Cloud agent started without required model access: ${missing.join(", ")}`,
+            {
+              code: "setup-failed",
+              stage: "checking-health",
+              retryable: false,
+              diagnostic: `Missing environment bindings: ${missing.join(", ")}`,
+            },
+          );
+        }
+        return;
+      }
       if (typeof payload?.error === "string" && payload.error.trim()) {
         throw new CloudOperationError(`Cloud agent rejected the imported session: ${payload.error.trim()}`, {
           code: "setup-failed",

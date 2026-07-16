@@ -175,6 +175,29 @@ for (const [upstreamRel, electronRel, allowElectronExtras] of pairs) {
   }
 }
 
+// The Electron palette intentionally groups and describes commands differently
+// from the TUI, so declaration-level parity is too strict. Still require every
+// canonical engine command to remain discoverable except the three documented
+// duplicate aliases: /models (same picker as /model), /new, and /quit.
+try {
+  const upstreamCommands = new Set(
+    [...lockedEngineSource("packages/core/src/commands.ts").matchAll(/name:\s*"([^"]+)"/g)]
+      .map((match) => match[1]),
+  );
+  const electronCommands = new Set(
+    [...readFileSync(join(electronRoot, "src/shared/commands-catalog.ts"), "utf8").matchAll(/name:\s*"([^"]+)"/g)]
+      .map((match) => match[1]),
+  );
+  const hiddenAliases = new Set(["models", "new", "quit"]);
+  for (const name of upstreamCommands) {
+    if (!hiddenAliases.has(name) && !electronCommands.has(name)) {
+      failures.push(`src/shared/commands-catalog.ts: missing engine slash command /${name}`);
+    }
+  }
+} catch (error) {
+  failures.push(error instanceof Error ? error.message : String(error));
+}
+
 if (failures.length) {
   console.error("CLI source parity check failed:\n");
   for (const failure of failures) console.error(`- ${failure}`);

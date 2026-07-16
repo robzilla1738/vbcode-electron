@@ -6,7 +6,11 @@ import {
   providerChoiceForId,
 } from "../../../shared/providers-catalog";
 import { IconExternalLink } from "../../icons";
-import { SUBSCRIPTION_PROVIDERS, SubscriptionAuthCard } from "../../providers/SubscriptionAuthCard";
+import {
+  SUBSCRIPTION_PROVIDERS,
+  subscriptionProviderForRegistryId,
+} from "../../../shared/subscription-providers";
+import { SubscriptionAuthCard } from "../../providers/SubscriptionAuthCard";
 import {
   KeyValueTextArea,
   SelectInput,
@@ -28,14 +32,18 @@ export function ProvidersSection({
 }: SectionProps) {
   const providers = config.providers ?? {};
   const providerIds = Object.keys(providers);
+  const editableProviderIds = providerIds.filter((id) => !subscriptionProviderForRegistryId(id));
   const providerOptions = Array.from(
     new Map(
       PROVIDER_CHOICES
-        .filter((choice) => choice.registryId && !choice.customEndpoint && !providers[choice.registryId])
+        .filter((choice) => choice.registryId
+          && !choice.customEndpoint
+          && !subscriptionProviderForRegistryId(choice.registryId)
+          && !providers[choice.registryId])
         .map((choice) => [choice.registryId, choice]),
     ).values(),
   );
-  const [expanded, setExpanded] = useState<string | null>(providerIds[0] ?? null);
+  const [expanded, setExpanded] = useState<string | null>(editableProviderIds[0] ?? null);
   const [showAdd, setShowAdd] = useState(false);
   const [newId, setNewId] = useState("");
   const [useCustom, setUseCustom] = useState(false);
@@ -82,18 +90,31 @@ export function ProvidersSection({
   return (
     <SettingSection title="Providers" description="Connect a provider, choose its model, and start. Vibe fills known endpoints automatically; advanced overrides stay optional.">
       <div className="provider-setup-intro">
-        <strong>Simple setup</strong>
-        <span>Choose a provider, paste its credential, then save. Environment variables still take precedence.</span>
+        <strong>Connect, choose a model, save</strong>
+        <span>Subscriptions sign in directly. API and local providers keep technical overrides under Advanced settings.</span>
       </div>
       <div className="setting-list provider-auth-list">
-        {SUBSCRIPTION_PROVIDERS.map((provider) => <SubscriptionAuthCard key={provider.id} provider={provider} />)}
+        {SUBSCRIPTION_PROVIDERS.map((provider) => (
+          <SubscriptionAuthCard
+            key={provider.id}
+            provider={provider}
+            currentModel={config.model}
+            onSelectModel={(model) => updateConfig({ model })}
+          />
+        ))}
       </div>
-      {providerIds.length === 0 && !showAdd && (
-        <p className="setting-empty">No providers configured. Add one to set credentials.</p>
+      <div className="settings-subsection-heading">
+        <div>
+          <strong>API key, local, and custom providers</strong>
+          <span>Use these when you have a provider key or run the model on this computer.</span>
+        </div>
+      </div>
+      {editableProviderIds.length === 0 && !showAdd && (
+        <p className="setting-empty">No API-key or local providers configured.</p>
       )}
-      {providerIds.length > 0 && (
+      {editableProviderIds.length > 0 && (
         <div className="setting-list">
-          {providerIds.map((id) => {
+          {editableProviderIds.map((id) => {
             const p = providers[id] ?? {};
             const isExpanded = expanded === id;
             const choice = providerChoiceForId(id);

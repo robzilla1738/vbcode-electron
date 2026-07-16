@@ -379,11 +379,13 @@ describe("palette extras", () => {
       : [];
 
     expect(names(commands)).toContain("model");
+    expect(names(commands)).toContain("vision");
     expect(names(commands)).not.toContain("models");
     expect(names(commands)).not.toContain("deploy-app");
     expect(names(skills)).toContain("deploy-app");
     expect(names(skills)).not.toContain("models");
     expect(names(system)).toContain("settings");
+    expect(names(system)).toContain("sandbox");
     expect(names(system)).not.toContain("model");
   });
 
@@ -396,6 +398,9 @@ describe("palette extras", () => {
     });
     const values = paletteState("/handoff ", ["handoff"]);
     expect(values.open && values.mode === "value" ? values.items : []).toEqual(["cloud", "local"]);
+    expect(values.open && values.mode === "value"
+      ? values.command.valueDescriptions?.cloud
+      : undefined).toBe("Continue this session in an isolated sandbox");
   });
 });
 

@@ -87,6 +87,39 @@ describe("NDJSON protocol runtime validation", () => {
     ).toBeNull();
   });
 
+  it("accepts subscription auth RPC parameters and rejects unknown auth fields", () => {
+    expect(decodeInbound(JSON.stringify({
+      op: "rpc",
+      id: 1,
+      method: "beginProviderAuth",
+      params: { providerId: "openai-codex", authMethod: "browser" },
+    }))).not.toBeNull();
+    expect(decodeInbound(JSON.stringify({
+      op: "rpc",
+      id: 2,
+      method: "providerAuthStatus",
+      params: { providerId: "xai-oauth", authSessionId: "auth-1" },
+    }))).not.toBeNull();
+    expect(decodeInbound(JSON.stringify({
+      op: "rpc",
+      id: 3,
+      method: "cancelProviderAuth",
+      params: { providerId: "xai-oauth", authSessionId: "auth-1" },
+    }))).not.toBeNull();
+    expect(decodeInbound(JSON.stringify({
+      op: "rpc",
+      id: 4,
+      method: "logoutProviderAuth",
+      params: { providerId: "openai-codex" },
+    }))).not.toBeNull();
+    expect(decodeInbound(JSON.stringify({
+      op: "rpc",
+      id: 5,
+      method: "beginProviderAuth",
+      params: { providerId: "openai-codex", authMethod: "browser", callback: "unsafe" },
+    }))).toBeNull();
+  });
+
   it("rejects malformed host messages and UI events", () => {
     expect(decodeOutbound(JSON.stringify({ type: "ready", sessionId: "ses_1" }))).not.toBeNull();
     expect(decodeOutbound(JSON.stringify({ type: "ready", sessionId: 1 }))).toBeNull();

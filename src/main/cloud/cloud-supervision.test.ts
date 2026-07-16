@@ -104,6 +104,33 @@ describe("cloud command supervision", () => {
     expect(detach).not.toHaveBeenCalled();
   });
 
+  test("rejects a healthy daemon that dropped required model credentials", async () => {
+    const server = createServer((_request, response) => {
+      response.statusCode = 200;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ ok: true, environment: ["PATH"] }));
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Test server did not bind");
+    const kill = vi.fn(async () => undefined);
+    const daemon: CloudCommandHandle = { wait: () => new Promise(() => undefined), kill, detach: async () => undefined };
+
+    await expect(superviseCloudAgent(
+      daemon,
+      `http://127.0.0.1:${address.port}`,
+      "secret",
+      {},
+      1_000,
+      ["CROF_API_KEY"],
+    )).rejects.toMatchObject({
+      message: "Cloud agent started without required model access: CROF_API_KEY",
+      details: { code: "setup-failed", stage: "checking-health", retryable: false },
+    });
+    expect(kill).toHaveBeenCalledOnce();
+  });
+
   test("surfaces a final-workload resume failure without waiting for timeout", async () => {
     const server = createServer((_request, response) => {
       response.statusCode = 503;

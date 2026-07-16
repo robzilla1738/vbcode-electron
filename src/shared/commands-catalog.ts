@@ -11,6 +11,8 @@ export interface PaletteCommand {
   description: string;
   /** Enum argument values shown as a second-level menu (e.g. ask|auto). */
   values?: string[];
+  /** Plain-language context for enum values in the second-level menu. */
+  valueDescriptions?: Record<string, string>;
   /** Free-form argument hint (e.g. "<id>"); no value menu. */
   arg?: string;
 }
@@ -18,6 +20,11 @@ export interface PaletteCommand {
 export type PaletteGroup = "commands" | "skills" | "system";
 
 export const PALETTE_GROUPS: readonly PaletteGroup[] = ["commands", "skills", "system"];
+export const PALETTE_GROUP_META: Record<PaletteGroup, { label: string; description: string }> = {
+  commands: { label: "Commands", description: "Session and project actions" },
+  skills: { label: "Skills", description: "Installed skills and custom commands" },
+  system: { label: "System", description: "Configuration, diagnostics, and appearance" },
+};
 
 const SKILL_COMMAND_NAMES = new Set(["skill", "skills"]);
 // Legacy aliases remain dispatchable when typed, but their canonical command
@@ -26,7 +33,7 @@ const HIDDEN_PALETTE_NAMES = new Set(["models", "new", "quit"]);
 const SYSTEM_COMMAND_NAMES = new Set([
   "status", "cost", "context", "init", "approvals", "mouse", "keys",
   "settings", "git", "branches", "theme", "accent", "config", "memory",
-  "permissions", "tools", "agents", "commands", "mcp", "doctor", "exit",
+  "permissions", "tools", "agents", "commands", "mcp", "doctor", "sandbox", "exit",
 ]);
 
 export const PALETTE_COMMANDS: PaletteCommand[] = [
@@ -44,19 +51,53 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
   { name: "export", description: "Export the conversation to Markdown", arg: "[path]" },
   { name: "init", description: "Scaffold .vibe/config.json and VIBE.md" },
   // Model & mode
-  { name: "model", description: "Pick the model (Tab: main ⇄ subagents · /model refresh)", arg: "[filter]" },
-  { name: "providers", description: "Providers + keys (Enter to configure)", arg: "[filter]" },
+  { name: "model", description: "Choose the main or subagent model", arg: "[filter]" },
+  { name: "providers", description: "Connect or configure a model provider", arg: "[filter]" },
   { name: "plan", description: "Read-only plan mode — present a plan for approval" },
   { name: "execute", description: "Gated execute — every action asks (AGENT chip)" },
   { name: "yolo", description: "Execute with approvals off — no prompts" },
-  { name: "approvals", description: "Set approval mode", values: ["ask", "auto"] },
-  { name: "reasoning", description: "Set reasoning effort", values: ["low", "medium", "high", "off"] },
+  {
+    name: "approvals",
+    description: "Choose when actions need approval",
+    values: ["ask", "auto"],
+    valueDescriptions: {
+      ask: "Ask before side-effecting actions",
+      auto: "Approve safe actions automatically",
+    },
+  },
+  {
+    name: "reasoning",
+    description: "Choose reasoning effort",
+    values: ["low", "medium", "high", "off"],
+    valueDescriptions: {
+      low: "Fastest, light reasoning",
+      medium: "Balanced reasoning",
+      high: "Most thorough reasoning",
+      off: "Use the provider default",
+    },
+  },
   {
     name: "details",
     description: "Transcript density (quiet · normal · verbose)",
     values: ["quiet", "normal", "verbose"],
+    valueDescriptions: {
+      quiet: "Show final answers and essential tool state",
+      normal: "Balanced transcript detail",
+      verbose: "Show full reasoning and tool detail",
+    },
   },
-  { name: "mouse", description: "Mouse capture (TUI only — no-op in Electron)", values: ["on", "off"] },
+  {
+    name: "mouse",
+    description: "Mouse capture in the terminal app",
+    values: ["on", "off"],
+    valueDescriptions: { on: "Capture mouse input in the TUI", off: "Keep native terminal selection" },
+  },
+  {
+    name: "vision",
+    description: "Vision relay for non-visual models",
+    values: ["on", "off"],
+    valueDescriptions: { on: "Relay images through the configured visual model", off: "Disable vision relay" },
+  },
   { name: "keys", description: "Essential keyboard shortcuts" },
   { name: "settings", description: "Open the settings panel (models, providers, MCP, permissions)" },
   { name: "git", description: "Open the git panel (branches, changes, history, PRs)" },
@@ -65,6 +106,10 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
     name: "handoff",
     description: "Move this session between Local and Cloud",
     values: ["cloud", "local"],
+    valueDescriptions: {
+      cloud: "Continue this session in an isolated sandbox",
+      local: "Verify and resume this session on your Mac",
+    },
   },
   // Values derive from the palette registry so a new theme/accent shows up here
   // automatically ("dark" is an alias of default — hidden to keep the menu tight).
@@ -104,6 +149,7 @@ export const PALETTE_COMMANDS: PaletteCommand[] = [
   { name: "commands", description: "List custom slash commands" },
   { name: "mcp", description: "Show connected MCP servers" },
   { name: "doctor", description: "Run an environment health check" },
+  { name: "sandbox", description: "Show the active OS sandbox policy" },
   { name: "exit", description: "Exit vibe-codr (alias /quit)" },
 ];
 
@@ -169,7 +215,7 @@ export function paletteState(
     const known = new Set(PALETTE_COMMANDS.map((c) => c.name));
     const extras: PaletteCommand[] = extraNames
       .filter((n) => n && !known.has(n) && !HIDDEN_PALETTE_NAMES.has(n))
-      .map((name) => ({ name, description: "Skill or custom command" }));
+      .map((name) => ({ name, description: "Installed skill or custom command" }));
     const catalog = [...PALETTE_COMMANDS, ...extras].filter((command) => {
       if (group === "skills") return SKILL_COMMAND_NAMES.has(command.name) || extras.includes(command);
       if (group === "system") return SYSTEM_COMMAND_NAMES.has(command.name);

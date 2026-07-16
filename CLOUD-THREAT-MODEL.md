@@ -31,8 +31,11 @@ SDK. There is no Vibe service in the data path.
   escaping symlinks, oversized files/messages, and device objects. Transfer
   files are opened without following symlinks, then rechecked by canonical path
   and inode before their actual bytes are counted.
-- Transfer policy excludes likely secrets by default. Explicit bindings are
-  independently encrypted and never returned through preload.
+- Transfer policy includes Git-ignored project inputs but still excludes likely
+  machine secrets and generated dependency trees by default. Provider bindings
+  are scoped to configured routes, independently encrypted, and never returned
+  through preload; authenticated daemon health proves their names survived the
+  workload identity boundary before ownership commits.
 - Hard and user-configured exclusions are enforced on upload, return entries,
   deletions, and paths reachable from transferred Git history, including
   workspace-relative patterns inside every recursive submodule.

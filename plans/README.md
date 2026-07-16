@@ -31,8 +31,8 @@
 - Optional product work: in-app auto-update channel, true list virtualization,
   Biome formatter enablement, and a larger macOS e2e matrix.
 
-## Verification snapshot (2026-07-13)
+## Verification snapshot (2026-07-16)
 
-466 unit tests, 12 e2e scenarios, 20 source pairs, 40 config fields, coverage
+597 unit tests, 12 e2e scenarios, 21 source pairs, 40 config fields, coverage
 floors, bridge smoke, and locked-engine packaged smoke green. See root
 `VERIFICATION.md` / `ACCEPTANCE.md`.

@@ -85,8 +85,10 @@ bun run typecheck
 The release records the audited OpenCode revision in
 `OPENCODE_PROVIDER_COMMIT`. Manual packaged checks connect an eligible ChatGPT
 account and send one Codex turn, then connect an eligible xAI account and send
-one `xai-oauth/grok-build-0.1` turn. These live entitlement checks are not run
-by CI and must not be represented as automated coverage.
+one `xai-oauth/grok-4.5` turn and one `xai-oauth/grok-build-0.1` turn. Confirm
+Grok 4.5 uses Responses reasoning and Grok Build uses Chat Completions. These
+live entitlement checks are not run by CI and must not be represented as
+automated coverage.
 
 ```bash
 cd ~/Code/vbcode-electron   # or your clone of this repo
@@ -152,7 +154,7 @@ Authenticode signing; without them the workflow clearly warns and produces an
 unsigned installer that may trigger Windows SmartScreen. Local crash
 breadcrumbs remain enabled without upload.
 
-The v0.1.8 source baseline is 579 unit tests and 12 Electron E2E
+The v0.1.18 source baseline is 597 unit tests and 12 Electron E2E
 scenarios. The packaged smoke also stops the active host and proves that an idle
 project-index request transparently starts and reaps the bundled helper host;
 the bridge suite applies the same lifecycle to an exact session mutation.
@@ -165,6 +167,12 @@ For interaction motion, the renderer preview must prove slash, mode/catalog,
 and activity-sidebar surfaces enter `is-closing`, remain inert during the short
 exit, and unmount afterward. Repeat with `prefers-reduced-motion: reduce` and
 confirm the presence delay is skipped.
+
+Slash discovery is also a release contract. `npm run verify:source-parity`
+compares the palette with the canonical command declarations at `ENGINE_COMMIT`
+and fails if a new engine command is missing. In `?scenario=slash`, verify the
+compact 360px surface, Commands/Skills/System Tab cycling, descriptive enum
+submenus, current-value markers, and Escape/Left Arrow return to the root list.
 
 ## UI preview (renderer-only, no engine)
 

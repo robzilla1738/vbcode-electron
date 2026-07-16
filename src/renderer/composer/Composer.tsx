@@ -10,6 +10,7 @@ import {
 import {
   applyPalette,
   isExactCommand,
+  PALETTE_GROUP_META,
   PALETTE_GROUPS,
   type PaletteGroup,
   type PaletteState,
@@ -50,6 +51,7 @@ function ModeIcon({ mode, size = 15 }: { mode: UiMode; size?: number }) {
 
 /** Matches `--composer-input-max` — keep JS clamp and CSS in sync. */
 const COMPOSER_INPUT_MAX_PX = 320;
+const COMPOSER_POPOVER_MAX_PX = 360;
 /** Fast UI ceiling; App performs the authoritative encoded-command byte check. */
 const COMPOSER_DRAFT_MAX_CHARS = 800_000;
 const COMPOSER_MAX_ATTACHMENTS = 32;
@@ -192,6 +194,7 @@ function currentValueFor(
     approvals: "ask" | "auto";
     density: string;
     reasoning?: string;
+    executionTarget?: "local" | "cloud";
   },
 ): string | undefined {
   if (name === "theme") return opts.theme;
@@ -199,6 +202,7 @@ function currentValueFor(
   if (name === "reasoning") return opts.reasoning ?? "off";
   if (name === "details") return opts.density;
   if (name === "mouse") return undefined; // no-op in Electron
+  if (name === "handoff") return opts.executionTarget;
   if (name === "accent") return accentNameOf(opts.accent);
   return undefined;
 }
@@ -240,17 +244,24 @@ function HighlightedBase({ base, query }: { base: string; query: string }) {
   );
 }
 
-function MenuKeyHints({ action, tabAction }: { action: string; tabAction?: string }) {
+function MenuKeyHints({
+  action,
+  tabAction,
+  escapeAction = "close",
+}: {
+  action: string;
+  tabAction?: string;
+  escapeAction?: string;
+}) {
   return (
     <>
       <kbd className="action-kbd">↑↓</kbd>
       <span>navigate</span>
-      <kbd className="action-kbd">Tab</kbd>
-      {tabAction ? <span>{tabAction}</span> : null}
+      {tabAction ? <><kbd className="action-kbd">Tab</kbd><span>{tabAction}</span></> : null}
       <kbd className="action-kbd">Enter</kbd>
       <span>{action}</span>
       <kbd className="action-kbd">Esc</kbd>
-      <span>close</span>
+      <span>{escapeAction}</span>
     </>
   );
 }
@@ -365,7 +376,14 @@ export function Composer({
   const { mention: mentionQuery, files, loading: filesLoading, error: filesError } = useAtMention(draft, cwd);
   const atOpen = mentionQuery != null && !palette.open;
   const currentValue = palette.open && palette.mode === "value"
-    ? currentValueFor(palette.command.name, { theme, accent, approvals, density, reasoning })
+    ? currentValueFor(palette.command.name, {
+        theme,
+        accent,
+        approvals,
+        density,
+        reasoning,
+        executionTarget,
+      })
     : undefined;
 
   useEffect(() => {
@@ -679,9 +697,11 @@ export function Composer({
           return;
         }
       }
-      if (e.key === "Escape") {
+      if (e.key === "Escape" || (palette.mode === "value" && e.key === "ArrowLeft")) {
         e.preventDefault();
-        setDraft("");
+        e.stopPropagation();
+        setDraft(palette.mode === "value" ? "/" : "");
+        setSel(0);
         return;
       }
     }
@@ -918,6 +938,10 @@ export function Composer({
 
   const renderedMention = slashPresentation?.kind === "mention" ? slashPresentation : null;
   const renderedPaletteView = slashPresentation?.kind === "palette" ? slashPresentation : null;
+  const renderedValuePalette = renderedPaletteView?.palette.mode === "value"
+    ? renderedPaletteView.palette
+    : null;
+  const renderedValueDescriptions = renderedValuePalette?.command.valueDescriptions;
 
   const slashMenu =
     slashPresence.mounted && renderedMention && slashBox
@@ -934,7 +958,7 @@ export function Composer({
               left: slashBox.left,
               width: slashBox.width,
               bottom: window.innerHeight - slashBox.top + 10,
-              maxHeight: Math.min(440, Math.max(160, slashBox.top - 24)),
+              maxHeight: Math.min(COMPOSER_POPOVER_MAX_PX, Math.max(160, slashBox.top - 24)),
             }}
           >
             <div className="slash-menu-header popover-header">
@@ -989,14 +1013,16 @@ export function Composer({
               className={`slash-menu slash-menu-portal slash-menu-${renderedPaletteView.palette.mode === "command" ? "command" : "values"} popover-surface${slashPresence.closing ? " is-closing" : ""}`}
               ref={menuRef}
               role="listbox"
-              aria-label="Slash commands"
+              aria-label={renderedPaletteView.palette.mode === "command"
+                ? "Slash commands"
+                : `Options for /${renderedPaletteView.palette.command.name}`}
               aria-hidden={slashPresence.closing || undefined}
               inert={slashPresence.closing}
               style={{
                 left: slashBox.left,
                 width: slashBox.width,
                 bottom: window.innerHeight - slashBox.top + 10,
-                maxHeight: Math.min(440, Math.max(160, slashBox.top - 24)),
+                maxHeight: Math.min(COMPOSER_POPOVER_MAX_PX, Math.max(160, slashBox.top - 24)),
               }}
             >
               <div className="slash-menu-header popover-header">
@@ -1015,17 +1041,32 @@ export function Composer({
                           setSel(0);
                         }}
                       >
-                        {group.slice(0, 1).toUpperCase() + group.slice(1)}
+                        {PALETTE_GROUP_META[group].label}
                       </button>
                     ))}
                   </div>
-                ) : <span>/{renderedPaletteView.palette.command.name}</span>}
-                <span className="slash-menu-hint">{renderedPaletteView.palette.mode === "value" ? "options" : "Tab to cycle"}</span>
+                ) : (
+                  <div className="slash-submenu-title">
+                    <button
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        setDraft("/");
+                        setSel(0);
+                      }}
+                    >
+                      {PALETTE_GROUP_META[paletteGroup].label}
+                    </button>
+                    <span aria-hidden>/</span>
+                    <span>{renderedPaletteView.palette.command.name}</span>
+                  </div>
+                )}
+                <span className="slash-menu-hint">{renderedPaletteView.palette.mode === "value" ? "Esc to go back" : "Tab / ⇧Tab"}</span>
               </div>
               <div className="slash-menu-body popover-body">
                 {renderedPaletteView.palette.mode === "command" && renderedPaletteView.palette.items.length === 0 ? (
                   <div className="slash-state" role="status">
-                    No matching {renderedPaletteView.paletteGroup === "skills" ? "skills" : renderedPaletteView.paletteGroup}.
+                    No matches in {PALETTE_GROUP_META[renderedPaletteView.paletteGroup].label}. Try another tab or search.
                   </div>
                 ) : null}
                 {renderedPaletteView.palette.mode === "command" &&
@@ -1037,6 +1078,7 @@ export function Composer({
                       className={`slash-item${i === sel ? " selected" : ""}`}
                       role="option"
                       aria-selected={i === sel}
+                      onMouseEnter={() => setSel(i)}
                       onMouseDown={(ev) => {
                         ev.preventDefault();
                         const applied = applyPalette(renderedPaletteView.palette, i);
@@ -1052,8 +1094,7 @@ export function Composer({
                       </span>
                     </button>
                   ))}
-                {renderedPaletteView.palette.mode === "value" &&
-                  renderedPaletteView.palette.items.map((value, i) => (
+                {renderedValuePalette?.items.map((value, i) => (
                     <button
                       type="button"
                       id={`composer-slash-menu-option-${i}`}
@@ -1064,6 +1105,7 @@ export function Composer({
                       role="option"
                       aria-selected={i === sel}
                       aria-current={renderedPaletteView.currentValue === value ? "true" : undefined}
+                      onMouseEnter={() => setSel(i)}
                       onMouseDown={(ev) => {
                         ev.preventDefault();
                         const applied = applyPalette(renderedPaletteView.palette, i);
@@ -1073,13 +1115,20 @@ export function Composer({
                     >
                       <span className="slash-item-copy">
                         <span className="name">{value}</span>
+                        {renderedValueDescriptions?.[value] ? (
+                          <span className="desc">{renderedValueDescriptions[value]}</span>
+                        ) : null}
                       </span>
                       {renderedPaletteView.currentValue === value ? <span className="slash-badge">Current</span> : null}
                     </button>
                   ))}
               </div>
               <div className="slash-menu-footer popover-footer">
-                <MenuKeyHints action={renderedPaletteView.palette.mode === "command" ? "run" : "select"} tabAction={renderedPaletteView.palette.mode === "command" ? "groups" : undefined} />
+                <MenuKeyHints
+                  action={renderedPaletteView.palette.mode === "command" ? "run" : "select"}
+                  tabAction={renderedPaletteView.palette.mode === "command" ? "groups" : undefined}
+                  escapeAction={renderedPaletteView.palette.mode === "command" ? "close" : "back"}
+                />
               </div>
             </div>,
             document.body,

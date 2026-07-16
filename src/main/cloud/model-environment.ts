@@ -42,6 +42,62 @@ const BASE_URL_ENV: Record<string, string> = {
   gemini: "GOOGLE_BASE_URL",
 };
 
+export type SubscriptionAuthProviderId = "openai-codex" | "xai-oauth";
+
+export function subscriptionAuthProviderForModelProvider(
+  providerId: string,
+): SubscriptionAuthProviderId | null {
+  if (providerId === "codex" || providerId === "openai-codex") return "openai-codex";
+  if (providerId === "xai-oauth") return "xai-oauth";
+  return null;
+}
+
+export function subscriptionCredentialEnvironment(
+  providerId: SubscriptionAuthProviderId,
+  credential: { access: string; accountId?: string },
+): Record<string, string> {
+  if (providerId === "xai-oauth") return { XAI_API_KEY: credential.access };
+  return {
+    VIBE_CODEX_OAUTH_TOKEN: credential.access,
+    ...(credential.accountId ? { CODEX_ACCOUNT_ID: credential.accountId } : {}),
+  };
+}
+
+/** Select only provider-scoped values that the local engine could already use.
+ * The Cloud manager never copies the ambient process environment wholesale. */
+export function ambientCloudModelEnvironment(
+  models: readonly string[],
+  source: NodeJS.ProcessEnv,
+): Record<string, string> {
+  const environment: Record<string, string> = {};
+  for (const providerId of new Set(models.map((model) => model.split("/", 1)[0]?.trim()).filter(Boolean))) {
+    const runtime = PROVIDER_RUNTIME_METADATA.find((item) => item.id === providerId);
+    const manifest = PROVIDER_MANIFEST.find((item) => item.id === providerId);
+    const names = new Set([
+      ...(runtime?.env ?? []),
+      ...(manifest?.env ?? []),
+      ...PROVIDER_CHOICES.filter((choice) => choice.registryId === providerId && choice.env).map((choice) => choice.env!),
+      ...(runtime?.baseURLEnv ? [runtime.baseURLEnv] : []),
+      ...(BASE_URL_ENV[providerId] ? [BASE_URL_ENV[providerId]!] : []),
+    ]);
+    if (providerId === "amazon-bedrock" || providerId === "bedrock") {
+      for (const name of [
+        "AWS_BEARER_TOKEN_BEDROCK",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "AWS_REGION",
+        "AWS_DEFAULT_REGION",
+      ]) names.add(name);
+    }
+    for (const name of names) {
+      const value = source[name]?.trim();
+      if (value) environment[name] = value;
+    }
+  }
+  return environment;
+}
+
 export function cloudModelEnvironment(
   model: string,
   globalConfig: VibeConfig | undefined,
@@ -92,7 +148,7 @@ export function cloudModelEnvironment(
     throw new Error(`${providerId} uses a credential chain from this Mac that cannot be transferred safely. Choose an API-key provider before handing off.`);
   }
   if (providerConfig.headers && Object.keys(providerConfig.headers).length > 0) {
-    throw new Error(`Cloud handoff cannot safely infer the custom authentication headers for ${providerId}. Add the required values as session credential bindings in Settings → Cloud.`);
+    environment[configProviderEnvironmentName(providerId, "HEADERS_JSON")] = JSON.stringify(providerConfig.headers);
   }
   if (providerConfig.apiKey && !authEnvironment.some((name) => environment[name])) {
     const name = authEnvironment[0];
@@ -185,7 +241,10 @@ function effectiveRoute(
     || undefined;
 }
 
-function configProviderEnvironmentName(id: string, suffix: "API_KEY" | "BASE_URL" | "TRANSPORT"): string {
+function configProviderEnvironmentName(
+  id: string,
+  suffix: "API_KEY" | "BASE_URL" | "TRANSPORT" | "HEADERS_JSON",
+): string {
   const normalized = id.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "CUSTOM";
   return `VIBE_PROVIDER_${normalized}_${suffix}`;
 }

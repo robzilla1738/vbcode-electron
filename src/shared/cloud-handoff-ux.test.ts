@@ -48,7 +48,8 @@ describe("cloud handoff progress UX", () => {
     expect(sheet).toContain("Close and recover in Settings");
     expect(sheet).toContain("working || recoveryRequired");
     expect(sheet).toContain("Move work to Cloud");
-    expect(sheet).toContain("Only portable project state moves");
+    expect(sheet).toContain("Your complete working project moves");
+    expect(sheet).toContain("All project files, including Git-ignored files");
     expect(sheet).toContain("Stays on this Mac");
     expect(sheet).toContain('role="radiogroup"');
   });

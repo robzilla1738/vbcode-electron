@@ -47,5 +47,8 @@ describe("onboarding completion contract", () => {
     expect(modalSource).toContain('className="provider-advanced"');
     expect(modalSource).toContain('value="openai-responses"');
     expect(modalSource).toContain("customProviderId");
+    expect(modalSource).toContain('"recommended", "Recommended"');
+    expect(modalSource).toContain('"local", "Local"');
+    expect(modalSource).toContain('"all", "All providers"');
   });
 });

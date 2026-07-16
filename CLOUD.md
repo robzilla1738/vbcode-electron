@@ -15,9 +15,10 @@ of a release before the flag can be removed.
 2. Connect and test E2B, Vercel, or both. Provider credentials are encrypted by
    Electron `safeStorage`; setup and unattended handoff are refused when
    OS-protected storage is unavailable.
-3. Add only explicit environment credential bindings the remote engine needs,
-   such as `OPENAI_API_KEY`. Local token files and credential directories are
-   never copied.
+3. Vibe automatically snapshots configured provider access for the active,
+   plan, subagent, and other Cloud-capable models. Add explicit environment
+   bindings only for extra tools or integrations. Local credential directories
+   are never copied.
 4. Set allowed egress domains and transfer exclusions. Project rules may also
    be added to `.vibe/cloudignore`.
 5. Choose Cloud when opening a project, click **Continue in Cloud**, run
@@ -56,8 +57,9 @@ through handoff. Their endpoint must be reachable from the sandbox.
 - Session ID, transcript/model history, goal/task/plan state, checkpoints,
   orchestration journals, pending capability metadata, and engine state.
 - A deterministic Git bundle, staged and unstaged binary patches, deletions,
-  untracked files, executable modes, safe relative symlinks, and recursive
-  submodule bundles in both directions, including cloud-only commit objects.
+  untracked and Git-ignored project files, executable modes, safe relative
+  symlinks, and recursive submodule bundles in both directions, including
+  cloud-only commit objects.
 - Non-Git directories as a deterministic snapshot.
 - Portable instructions, memory state, skills, agents, plugins, hooks, HTTP MCP
   configuration, portable stdio MCP configuration, jobs metadata, and settings.
@@ -67,9 +69,9 @@ OS identity. The engine, terminals, tools, and project commands run as a
 dedicated non-root workload user; the one-time control bearer is never inherited
 by those processes, and startup fails if the boundary cannot be established.
 
-Ignored files, every `.env*` variant (including `.envrc` and `.env-secret`),
-SSH/cloud credential material, `node_modules`, nested repository metadata,
-sockets, devices, escaping or absolute symlinks, files over 64 MiB, and transfers over
+Every `.env*` variant (including `.envrc` and `.env-secret`), SSH/cloud
+credential material, private-key files, `node_modules`, nested repository
+metadata, sockets, devices, escaping or absolute symlinks, files over 64 MiB, and transfers over
 128 MiB are excluded or rejected by default. This symmetric limit leaves room
 for the return snapshot's base64 encoding inside its bounded 256 MiB channel.
 Portable engine state is capped at

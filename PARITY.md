@@ -98,8 +98,10 @@ whose HEAD equals the lock before it will embed a rebuilt host.
 
 ## Catalogs & chrome
 
-- [x] Slash palette (`/` / ⌘K) with enum submenus + custom commands; one
-  discoverable `/model` action and Tab-cycled Commands / Skills / System groups
+- [x] Slash palette (`/` / ⌘K) with descriptive enum submenus + custom commands;
+  one discoverable `/model` action, Tab-cycled Commands / Skills / System
+  groups, current-value markers, breadcrumb/back navigation, and a source-parity
+  gate requiring every canonical engine command
 - [x] Exact-command input cue via `commandNames`
 - [x] Model picker with main ⇄ subagent target toggle + agent target (`/model agent …`)
 - [x] `subagentModel` tracked from snapshot; Clear → inherit for sub/agent
@@ -441,8 +443,9 @@ npm run dev
   token extraction, headers, and overrides collapse under Advanced settings
 - [x] Settings keeps Essentials/Workspace visible while technical runtime
   sections and model pricing/context tuning stay searchable behind Advanced settings
-- [x] Built-in ChatGPT/Codex PKCE and xAI browser/device subscription login with
-  connection state, refresh, cancel, retry, logout, and Grok Build selection
+- [x] Built-in ChatGPT/Codex PKCE and xAI device subscription login with
+  human connection state, refresh, cancel, retry, logout, direct Codex/Grok 4.5/
+  Grok Build selection, and a strict renderer RPC parameter contract
 - [x] Subscription refresh secrets remain main/engine-owned; renderer auth RPCs
   cannot export them and Cloud receives only the reviewed current access binding
 - [x] MCP server management: stdio + remote (HTTP/SSE) with env-var expansion,

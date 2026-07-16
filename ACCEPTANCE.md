@@ -70,7 +70,7 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | A17 | P0 | Transcript | Reasoning and folding | Reasoning is collapsed by default, Cmd-T toggles it, user messages fold individually by click/keyboard without a persistent arrow, Cmd-O folds all, and density matches CLI semantics without rendering redundant density acknowledgement notices. | test: density/folding helpers; manual: toggle during and after a turn | pass |
 | A18 | P0 | Transcript | Streaming anchor | Output follows only near the bottom; upward scrolling disengages follow; Jump to latest restores it without losing content and shares one footer row with the changed-files chip. Scroll position is preserved independently per resumed session. | test:`parity.test.ts` scroll threshold + session-view preservation; review:`TranscriptView.tsx` anchor restoration | pass |
 | A19 | P0 | Transcript | Long-session resilience | Transcript windowing preserves active work and exposes earlier turns without unbounded DOM growth or losing resumed history; assistant/user text, reasoning, plans, subagent/orchestration data, tool bodies, diffs, host lines, and stdin backlog are explicitly bounded. | test:`parity.test.ts` turn/item/output bounds + bridge queue/line limits; review:`useSession.ts` progressive reveal | pass |
-| A20 | P0 | Catalogs | Command palette | Slash/Cmd-K palette includes live engine command names, enum values, filtering, no-results, keyboard navigation, and correct input cues. It shows one `/model` action and groups discovery into Tab-cycled Commands, Skills, and System. | test: command catalog and draft detectors; manual: keyboard-only palette tour | pass |
+| A20 | P0 | Catalogs | Command palette | Slash/Cmd-K palette includes every canonical engine command, live custom names, descriptive enum values, filtering, no-results, keyboard navigation, and correct input cues. It shows one `/model` action, groups discovery into Tab-cycled Commands, Skills, and System, marks current values, and supports Escape/Left Arrow back navigation. | test: command source-parity gate and catalog cases; manual: keyboard-only palette tour | pass |
 | A21 | P0 | Catalogs | Models/providers/agents | Main/subagent/agent targets, current markers, inherit clearing, configured/keyless provider flows, and new-agent prefills produce valid CLI commands. | test: catalog option builders; manual: each target/provider path | pass |
 | A22 | P0 | Catalogs | Skills and MCP | Skills prefill editable invocations; MCP status reflects connected state, tool count, and error data from host RPC. | test: catalog normalization; manual: live skills and MCP rosters | pass |
 | A23 | P0 | Catalogs | Dialog semantics | Catalog dialogs trap focus, support arrows/Enter/Escape, restore focus, report RPC failure, and never submit empty placeholders. | e2e: all live catalogs + Escape; review:`CatalogModal.tsx` native dialog semantics | pass |
@@ -146,11 +146,12 @@ Prefer `npm run verify` / `verify:ci` + CI for automated gates; do not treat fro
 | 2026-07-15 | Codex | 36/36 | 4/4 | v0.1.5 release hardening: idle project/session mutations use the bundled host without requiring an open chat engine; cloud import and daemon bootstrap share one canonical state root and preserve the exact session ID; only the active model credential is scoped into the sandbox; unusable local-only or unauthenticated provider routes fail before provisioning. Packaged smoke covers the idle-host regression and the locked cloud runtime resumes a real exported session. |
 | 2026-07-15 | Codex | 36/36 | 4/4 | v0.1.8 release closeout: fresh handoffs destroy stale same-name provisional sandboxes before create; the slash palette exposes one model selector with Commands/Skills/System groups; project/activity rails and composer popovers complete inert tokenized exits with reduced-motion collapse. Release gate: 579 unit tests, coverage floors, 21 source pairs, 40 config fields, bridge smoke, production build/bundle budgets, and 12 Electron E2E scenarios. |
 | 2026-07-15 | Codex | 44/44 | 4/4 | v0.1.16 provider closeout: synchronized 166-provider models.dev/OpenCode manifest, arbitrary named Chat Completions or Responses endpoints, built-in Codex PKCE and xAI browser/device subscription auth, Grok Build, main-only Cloud credential export, user-only rotating token store, and clone-safe engine parity tooling. Focused gates: 32 engine tests, 88 Electron tests, 21 source pairs, 40 config fields, typecheck, lint, production build, bundle budget, and locked bridge smoke. Live provider entitlement turns remain the documented packaged-user check. |
+| 2026-07-16 | Codex | 44/44 | 4/4 | v0.1.18 release closeout: the complete canonical slash catalog is release-gated and grouped into compact Commands/Skills/System tabs with descriptive current-value submenus; Codex and Grok subscription setup is model-aware; Grok 4.5 uses Responses; Cloud transfers the complete usable project tree plus every safe configured provider route and verifies those bindings inside the daemon before ownership moves. Gates: 1,570 engine tests, 597 Electron tests with coverage floors, 21 source pairs, 40 config fields, typecheck, lint, production build/bundle budgets, bridge smoke, 12 Electron scenarios, cloud-runtime smoke, unsigned native package, packaged-host boot, and zero npm audit findings. Paid provider entitlement turns remain the packaged-user check. |
 
-**Current verification snapshot (2026-07-15):**
+**Current verification snapshot (2026-07-16):**
 
 ```text
-npm test                         # 579/579 pass (2 paid-provider tests skipped)
+npm test                         # 597/597 pass (2 paid-provider tests skipped)
 npm run test:coverage            # floors on shared + bridge modules
 npm run lint                     # clean
 npm run typecheck                # pass
@@ -163,7 +164,8 @@ npm run smoke:bridge             # pass; ready, snapshot, and project-list check
 npm run verify:ci                # verify + coverage + bridge smoke + e2e
 npm run smoke:packaged           # pass without VIBE_CODR_ROOT; no orphan host
 
-# v0.1.16 provider/auth focus
-bun test (engine focus)           # 32/32 OAuth, registry, protocol, host checks
-npm test (Electron focus)         # 88/88 auth, IPC, config, onboarding, Cloud checks
+# v0.1.18 engine/provider/cloud release
+bun run test (engine workspace)   # 1,570/1,570 pass
+bun run smoke:cloud-runtime       # exact session/model/history + daemon smoke
+npm audit --audit-level=low       # 0 vulnerabilities
 ```

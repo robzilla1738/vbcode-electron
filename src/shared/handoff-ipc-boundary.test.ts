@@ -60,7 +60,8 @@ describe("cloud release invariants", () => {
     expect(providers).toContain("needsDaemonRestart: true");
     expect(manager).toContain("if (sandbox.needsDaemonRestart)");
     expect(manager).toContain('provider.start(entry.sandboxId, "sh", ["start.sh", entry.provider]');
-    expect(manager).toContain("await superviseCloudAgent(daemon, endpoint.url, token, endpoint.headers)");
+    expect(manager).toContain("expectedEnvironmentNames");
+    expect(manager).toContain("await superviseCloudAgent(");
     expect(manager).toContain("getSessionEnvironment(sessionId)");
     expect(manager).toContain("entry.providerDomains");
     expect(manager).not.toContain("refreshedEnvironment");
@@ -79,7 +80,7 @@ describe("cloud release invariants", () => {
   });
 
   it("health-checks the daemon before the initial remote transport switch", () => {
-    const health = manager.indexOf("await superviseCloudAgent(daemon, endpoint.url, accessToken, endpoint.headers)");
+    const health = manager.indexOf("await superviseCloudAgent(");
     const supervisedSwitch = manager.indexOf("await awaitRemoteEngineReady(", health);
     const remoteSwitch = manager.indexOf("this.transport.switchToRemote(", supervisedSwitch);
     expect(health).toBeGreaterThan(-1);
@@ -140,14 +141,14 @@ describe("cloud release invariants", () => {
     expect(manager).toContain("excludedPaths: transfer.manifest.excludedPaths");
     expect(manager).toContain("excludedPaths: entry.excludedPaths");
     expect(transfer).toContain("returnTouchesProtectedLocalPath");
-    expect(transfer).toContain('reason: "ignored by Git"');
+    expect(transfer).toContain('reason: hard ? "sensitive or generated default" : ".vibe/cloudignore"');
   });
 
   it("rechecks divergence at mutation time and preserves later rollback edits", () => {
     expect(transfer).toContain("const finalFingerprint = await currentWorkspaceFingerprint");
     expect(transfer).toContain('durableWriteFile(join(recoveryPath, "applied-fingerprint")');
     expect(transfer).toContain("preserveAffectedWorkspace");
-    expect(transfer).toContain("ignored by nested Git repository");
+    expect(transfer).toContain("const nestedCandidates = await walkCandidates(absolute)");
   });
 
   it("surfaces durable local capability requests with an explicit denial path", () => {

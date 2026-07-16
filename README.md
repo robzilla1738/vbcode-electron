@@ -6,7 +6,9 @@ macOS-first **Electron** shell for [vibe-codr](https://github.com/robzilla1738/v
 
 Experimental BYO E2B/Vercel execution and verified Local ↔ Cloud handoff are
 documented in [CLOUD.md](./CLOUD.md), with trust boundaries and remaining stable
-gates in [CLOUD-THREAT-MODEL.md](./CLOUD-THREAT-MODEL.md).
+gates in [CLOUD-THREAT-MODEL.md](./CLOUD-THREAT-MODEL.md). Handoff includes the
+complete usable project tree (including Git-ignored files) and automatically
+snapshots configured model access before Local ownership is released.
 
 **Repo:** [github.com/robzilla1738/vbcode-electron](https://github.com/robzilla1738/vbcode-electron)
 
@@ -75,6 +77,8 @@ before restarting, and safely stops the engine and terminal processes first.
   app, including browser PKCE, xAI device code, refresh, cancel, and sign-out.
 - Grok Build is available as `xai-oauth/grok-build-0.1`, while Codex subscription
   calls use the official account-routed Responses backend.
+- Grok 4.5 is available to eligible xAI subscriptions as
+  `xai-oauth/grok-4.5` through the Responses API with configurable reasoning.
 - The synchronized OpenCode/models.dev catalog contains 166 provider IDs, and
   arbitrary custom IDs can choose Chat Completions or Responses transport.
 - Cloud receives only the selected session's current access token; refresh
@@ -187,8 +191,10 @@ Scenarios: `welcome`, `splash`, `chat`, `table`, `docs`, `sources`, `busy`,
 - Themes via `/theme` (same 16 palettes as OpenTUI); accents via `/accent`
 - Modes: explained **Plan / Agent / Yolo** menu with neutral icons and a current check in the composer (Shift+Tab still cycles)
 - Execution: **Local / Cloud** selection in the composer; changing it opens the same reviewed handoff as `/handoff local|cloud`
-- Slash discovery: one model selector, with compact Commands / Skills / System
-  groups cycled by Tab or selected directly
+- Slash discovery: one model selector and the complete canonical command set,
+  with compact Commands / Skills / System groups cycled by Tab or selected
+  directly; descriptive value submenus show the current setting and support
+  Escape or Left Arrow to return
 
 ### Design system
 
@@ -254,21 +260,23 @@ Full list: type `/keys` in the composer. See also [PARITY.md](./PARITY.md).
 
 ## Settings & onboarding
 
-- **First-run onboarding wizard**: searchable provider catalog generated from
+- **First-run onboarding wizard**: Recommended / Local / All provider views plus
+  full-catalog search, generated from
   the same models.dev registry used by OpenCode (166 current catalog providers)
   plus Hermes-compatible aliases and native Bedrock/Vertex/Azure setup (192
   choices / 190 provider ids at this sync), key entry with get-a-key links,
   automatic known endpoints, curated CrofAI, endpoint prompts only where required,
-  built-in ChatGPT/Codex and xAI/Grok
-  subscription sign-in, model preselect, and transactional save → re-bootstrap;
+  built-in ChatGPT/Codex and xAI/Grok subscription sign-in, direct Codex 5.3 /
+  Grok 4.5 / Grok Build selection, and transactional save → re-bootstrap;
   setup stays open with recovery guidance until the new engine configuration
   actually starts
-- **Progressive settings**: everyday Models, Providers, Appearance, Behavior,
+- **Progressive settings**: everyday Providers, Models, Appearance, Behavior,
   Permissions, Cloud, and Instructions stay visible; the remaining technical
   sections stay searchable behind **Advanced settings**. Models keeps its default
   selection primary and collapses planning/fallback/reasoning/performance/pricing
-  and context overrides. Providers keeps credential/model/required URL primary,
-  fills known URLs, and collapses transport/token/header overrides.
+  and context overrides. Providers opens first, separates subscriptions from
+  API/local/custom routes, keeps credential/model/required URL primary, fills
+  known URLs, and collapses transport/token/header overrides.
 - **Full-workspace coverage**: 15 sections still cover every config field — Models
   (default, planning, fallbacks, reasoning, turn/stream/queue limits,
   pricing/context-window overrides),
@@ -342,8 +350,9 @@ Shell-owned surfaces:
 
 - Streaming transcript (lightweight plain text while generating; finalized Streamdown GFM with Shiki + line numbers, diffs, tools, thinking, and low-noise notices)
 - Permission + plan approval cards (human titles, soft chrome, deny-reason on demand)
-- Slash palette (one `/model` entry; Commands / Skills / System groups plus custom
-  `commandNames`), catalog pickers (model context window shown), and direct
+- Slash palette (one `/model` entry; complete canonical Commands / Skills /
+  System groups plus custom `commandNames`; descriptive value submenus), catalog
+  pickers (model context window shown), and direct
   guided provider setup from **Set up another provider…** or unconfigured rows
 - Multi-project + Chats rail (collapsible sections, + add project / new chat, resume, filter; Continue Latest via ⇧⌘N)
 - Workspace dock: Session / Changes / Git / Terminal / Jobs / Files on the chat surface;
@@ -383,7 +392,7 @@ Manual smoke steps: **[VERIFICATION.md](./VERIFICATION.md)**. Agent notes:
 npm run verify && npm run smoke:bridge && npm run test:e2e
 ```
 
-Current baseline: **579 unit tests**, **12 Electron E2E scenarios**, 21 source
+Current baseline: **597 unit tests**, **12 Electron E2E scenarios**, 21 source
 parity pairs, 40 top-level config fields, Biome, typecheck, production build,
 and renderer bundle budget pass in the current checkout. Settings, Terminal,
 Git, and Changes are isolated from the initial renderer chunk. CI runs `verify` +

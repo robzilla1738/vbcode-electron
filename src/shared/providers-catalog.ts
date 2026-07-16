@@ -12,6 +12,7 @@
  */
 
 import { PROVIDER_MANIFEST } from "./provider-manifest";
+
 export { hasUsableOnboardingProvider } from "./provider-readiness";
 
 export interface ProviderChoice {
@@ -39,6 +40,8 @@ export interface ProviderChoice {
   requiresBaseURL?: boolean;
   /** Extra setup note (e.g. "needs `ollama serve`"). */
   note?: string;
+  /** Shown in the short Recommended view before the complete provider catalog. */
+  featured?: boolean;
 }
 
 const manifestById = new Map(PROVIDER_MANIFEST.map((provider) => [provider.id, provider]));
@@ -55,6 +58,8 @@ const builtinDefaultBaseURLs: Readonly<Record<string, string>> = {
   perplexity: "https://api.perplexity.ai",
   deepseek: "https://api.deepseek.com/v1",
   xai: "https://api.x.ai/v1",
+  "xai-oauth": "https://api.x.ai/v1",
+  "openai-codex": "https://chatgpt.com/backend-api/codex",
   deepinfra: "https://api.deepinfra.com/v1/openai",
   venice: "https://api.venice.ai/api/v1",
   cohere: "https://api.cohere.com/compatibility/v1",
@@ -84,6 +89,7 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     defaultModel: "anthropic/claude-opus-4-8",
     env: "ANTHROPIC_API_KEY",
     keyUrl: "https://console.anthropic.com/settings/keys",
+    featured: true,
   },
   {
     key: "openai",
@@ -93,16 +99,16 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     defaultModel: "openai/gpt-5.5",
     env: "OPENAI_API_KEY",
     keyUrl: "https://platform.openai.com/api-keys",
+    featured: true,
   },
   {
-    key: "codex",
-    registryId: "codex",
-    label: "OpenAI · Codex (ChatGPT login)",
-    blurb: "Sign in with ChatGPT here, reuse an official Codex login, or use an API key.",
-    defaultModel: "codex/gpt-5.3-codex",
-    env: "CODEX_API_KEY",
-    keyUrl: "https://github.com/openai/codex",
-    note: "connect ChatGPT in Settings → Providers; official Codex CLI sessions and CODEX_API_KEY remain supported",
+    key: "openai-codex",
+    registryId: "openai-codex",
+    label: "ChatGPT · Codex subscription",
+    blurb: "Use an eligible ChatGPT plan through the official Codex sign-in.",
+    defaultModel: "openai-codex/gpt-5.3-codex",
+    note: "No API key needed. Existing official Codex CLI sign-ins are detected automatically.",
+    featured: true,
   },
   {
     key: "google",
@@ -112,6 +118,7 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     defaultModel: "google/gemini-3.1-pro-preview",
     env: "GEMINI_API_KEY",
     keyUrl: "https://aistudio.google.com/apikey",
+    featured: true,
   },
   {
     key: "zai",
@@ -122,6 +129,7 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     env: "ZAI_API_KEY",
     keyUrl: "https://z.ai/manage-apikey/apikey-list",
     note: "coding-plan subscribers: set ZAI_BASE_URL=https://api.z.ai/api/coding/paas/v4",
+    featured: true,
   },
   {
     key: "moonshot",
@@ -224,6 +232,7 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     defaultBaseURL: "http://localhost:11434/v1",
     localKeyless: true,
     note: "needs the Ollama app running (`ollama serve`)",
+    featured: true,
   },
   {
     key: "deepseek",
@@ -244,15 +253,26 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     keyUrl: "https://crof.ai/signin",
     defaultBaseURL: "https://crof.ai/v1",
     note: "The standard /v1 endpoint and live /models catalog are configured automatically.",
+    featured: true,
+  },
+  {
+    key: "xai-oauth",
+    registryId: "xai-oauth",
+    label: "xAI · Grok subscription",
+    blurb: "Use an eligible Grok/X plan with Grok 4.5 or Grok Build.",
+    defaultModel: "xai-oauth/grok-4.5",
+    note: "Connect xAI once, then choose Grok 4.5 or Grok Build without an API key.",
+    featured: true,
   },
   {
     key: "xai",
     registryId: "xai",
-    label: "xAI · Grok",
-    blurb: "Grok models from console.x.ai.",
-    defaultModel: "xai/grok-4.3",
+    label: "xAI API · Grok",
+    blurb: "Grok 4.5 and other xAI models using an API key.",
+    defaultModel: "xai/grok-4.5",
     env: "XAI_API_KEY",
     keyUrl: "https://console.x.ai",
+    featured: true,
   },
   {
     key: "meta",
@@ -272,6 +292,7 @@ const CURATED_PROVIDER_CHOICES: ProviderChoice[] = [
     defaultModel: "openrouter/anthropic/claude-sonnet-5",
     env: "OPENROUTER_API_KEY",
     keyUrl: "https://openrouter.ai/keys",
+    featured: true,
   },
   {
     key: "baseten",
@@ -486,7 +507,14 @@ export function providerChoiceNeedsApiKey(
   choice: ProviderChoice,
   configuredIds: ReadonlySet<string> = new Set(),
 ): boolean {
-  return !choice.localKeyless && !choice.customEndpoint && choice.registryId !== "" && !configuredIds.has(choice.registryId);
+  const subscription = choice.registryId === "codex"
+    || choice.registryId === "openai-codex"
+    || choice.registryId === "xai-oauth";
+  return !subscription
+    && !choice.localKeyless
+    && !choice.customEndpoint
+    && choice.registryId !== ""
+    && !configuredIds.has(choice.registryId);
 }
 
 /** Whether onboarding should offer a credential field, required or optional. */

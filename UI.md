@@ -27,10 +27,13 @@ separate pill or circle shapes; state and contrast carry their hierarchy.
 The Cloud review begins with a Local → Cloud route, then uses flat provider rows,
 an explicit Moves/Stays boundary, an optional next-task field, and one billing
 note. It does not use a grid of rounded selection cards or repeat policy prose.
-Credentials for the main, subagent, and named-agent models configured for the
-session are transferred only for that cloud session; unrelated credentials
-remain local unless the user explicitly saved them as Cloud bindings. Missing cloud authentication and local-only providers are rejected
-before a sandbox is created, with a direct setup action.
+The complete usable project tree, including Git-ignored files, moves by default;
+hard machine-secret and generated-dependency exclusions remain explicit in the
+review. Configured Cloud-capable provider access is encrypted for that session,
+while unrelated process environment and machine credential stores remain Local.
+Missing Cloud authentication and local-only providers are rejected before a
+sandbox is created, with a direct setup action. Authenticated daemon health also
+proves every reviewed environment binding survived startup before ownership moves.
 Changing main, subagent, or named-agent model access requires returning Local so
 the running cloud daemon never gains an undisclosed credential mid-session.
 Returning to Local mirrors the route and explains verified sync plus the safe
@@ -63,8 +66,9 @@ Chats root. The normal launch path never stops at project selection; the picker
 is reserved for switching projects or recovering when every automatic path
 fails. Local/Cloud selection belongs to the main composer, not a launch gate.
 
-First-run provider onboarding is searchable: common curated choices stay first,
-followed by the generated models.dev/OpenCode registry and Hermes aliases.
+First-run provider onboarding opens on a short **Recommended** view, with
+separate **Local** and **All providers** views; search spans the complete
+generated models.dev/OpenCode registry and Hermes aliases.
 Provider-specific endpoint fields appear only when required; native AWS/Google
 credential-chain routes explain environment setup instead of asking for a fake key.
 Known endpoints are shown as filled automatic values, not empty configuration
@@ -73,11 +77,11 @@ unconfigured `/providers` rows open focused setup without making users compose
 `/model key` commands.
 
 Subscription providers use the same compact provider-card grammar in onboarding
-and Settings. ChatGPT/Codex offers one browser sign-in action; xAI/Grok offers
-browser and device-code actions. The card shows disconnected, waiting,
-connected, cancelled, or error state, keeps the device code copyable, and makes
-cancel/retry/sign-out keyboard reachable. First-run Save remains disabled until
-the selected subscription is actually connected.
+and Settings. ChatGPT/Codex offers one browser sign-in action; xAI/Grok uses one
+device-code action. Human status labels replace raw state names, the device code
+stays copyable, and cancel/retry/sign-out remain keyboard reachable. Each card
+offers its eligible default models directly: Codex 5.3, Grok 4.5, and Grok Build.
+First-run Save remains disabled until the selected subscription is connected.
 
 Custom providers use a free provider ID rather than a shared `custom` slot.
 Their detail editor exposes base URL, API key/token file, headers, explicit
@@ -191,8 +195,11 @@ without changing the active chat or scroll position.
 
 - `/` and ⌘K open one compact palette with Commands, Skills, and System tabs.
   Tab/Shift+Tab cycle groups; arrows move within the active group; Enter runs;
-  Escape closes. `/model` is the only model selector shown, while legacy aliases
-  remain typeable for compatibility.
+  Escape closes. Commands with fixed values open a descriptive breadcrumb
+  submenu that marks the current value; Escape or Left Arrow returns to `/`.
+  `/model` is the only model selector shown, while legacy aliases remain
+  typeable for compatibility. Source parity fails if a new canonical engine
+  command is not discoverable here.
 - Slash/mention, mode, insert, and catalog surfaces share the same quiet
   opacity/translation enter and exit grammar. Closing removes pointer, focus,
   and accessibility ownership before the visual surface leaves.

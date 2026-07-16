@@ -35,6 +35,8 @@ const HARD_EXCLUDES = [
   /(^|\/)\.git-credentials$/,
   /(^|\/)\.gitcookies$/,
   /(^|\/)credentials(?:\.json)?$/i,
+  /(^|\/)(?:id_rsa|id_ed25519|id_ecdsa|id_dsa)(?:\.[^/]*)?$/i,
+  /(^|\/)[^/]+\.(?:pem|key|p12|pfx)$/i,
   /(^|\/)node_modules(?:\/|$)/,
   /(^|\/)\.DS_Store$/,
 ];
@@ -103,26 +105,12 @@ export async function createWorkspaceTransfer(options: CreateTransferOptions): P
   const exclusionGlobs = [...cloudignore, ...(options.additionalExclusions ?? [])];
   const patterns = exclusionGlobs.map(globRegex);
   const excludedPaths: WorkspaceTransferManifestV1["excludedPaths"] = [];
-  if (git.isRepository) {
-    for (const raw of await gitIgnoredCandidates(cwd)) {
-      const path = toPortablePath(raw.replace(/\/$/, ""));
-      excludedPaths.push({ path, reason: "ignored by Git" });
-    }
-    for (const submodule of git.submodules) {
-      try {
-        for (const raw of await gitIgnoredCandidates(join(cwd, submodule.path))) {
-          const path = posix.join(submodule.path, toPortablePath(raw.replace(/\/$/, "")));
-          excludedPaths.push({ path, reason: "ignored by nested Git repository" });
-        }
-      } catch { /* missing submodules are handled by the portable bundle path */ }
-    }
-  }
-  const initialCandidates = git.isRepository ? await gitCandidates(cwd) : await walkCandidates(cwd);
+  // Cloud gets the complete usable project tree, including Git-ignored files.
+  // Git ignore rules are about source control, not sandbox portability. Hard
+  // machine-secret/generated exclusions and .vibe/cloudignore still apply.
+  const initialCandidates = await walkCandidates(cwd);
   const candidates = [...new Set(initialCandidates)].sort();
   const queuedCandidates = new Set(candidates);
-  const gitIgnoredPaths = excludedPaths
-    .filter((entry) => entry.reason === "ignored by Git" || entry.reason === "ignored by nested Git repository")
-    .map((entry) => entry.path);
   const entries: WorkspaceFileEntryV1[] = [];
   const files: WorkspaceTransferBundleV1["files"] = [];
   let totalBytes = 0;
@@ -130,7 +118,6 @@ export async function createWorkspaceTransfer(options: CreateTransferOptions): P
   for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
     const raw = candidates[candidateIndex]!;
     const path = toPortablePath(raw);
-    if (gitIgnoredPaths.some((ignored) => path === ignored || path.startsWith(`${ignored}/`))) continue;
     const hard = HARD_EXCLUDES.find((pattern) => pattern.test(path));
     if (hard || patterns.some((pattern) => pattern.test(path))) {
       excludedPaths.push({ path, reason: hard ? "sensitive or generated default" : ".vibe/cloudignore" });
@@ -144,14 +131,7 @@ export async function createWorkspaceTransfer(options: CreateTransferOptions): P
       if (canonical !== canonicalCwd && !canonical.startsWith(`${canonicalCwd}${sep}`)) {
         throw new Error(`Workspace directory escaped root while scanning: ${path}`);
       }
-      const nestedRepository = await isGitRepositoryRoot(absolute);
-      if (nestedRepository) {
-        for (const ignored of await gitIgnoredCandidates(absolute)) {
-          const ignoredPath = posix.join(path, toPortablePath(ignored.replace(/\/$/, "")));
-          excludedPaths.push({ path: ignoredPath, reason: "ignored by nested Git repository" });
-        }
-      }
-      const nestedCandidates = nestedRepository ? await gitCandidates(absolute) : await walkCandidates(absolute);
+      const nestedCandidates = await walkCandidates(absolute);
       for (const nested of nestedCandidates) {
         const candidate = posix.join(path, nested);
         if (queuedCandidates.has(candidate)) continue;
@@ -386,7 +366,7 @@ export function verifyWorkspaceTransfer(bundle: WorkspaceTransferBundleV1, addit
 export async function currentWorkspaceFingerprint(cwd: string, excluded: readonly string[] = []): Promise<string> {
   const root = resolve(cwd);
   const git = await gitMetadata(root);
-  const candidates = git.isRepository ? await gitCandidates(root) : await walkCandidates(root);
+  const candidates = await walkCandidates(root);
   const queuedCandidates = new Set(candidates);
   const entries: WorkspaceFileEntryV1[] = [];
   const excludedPatterns = excluded.map(globRegex);
@@ -908,19 +888,6 @@ async function gitMetadata(cwd: string): Promise<WorkspaceTransferManifestV1["gi
   } catch {
     return { isRepository: false, head: null, branch: null, deleted: [], submodules: [], syntheticBase: hash(cwd) };
   }
-}
-
-async function gitCandidates(cwd: string): Promise<string[]> {
-  return splitNul(await gitRaw(cwd, ["ls-files", "-co", "--exclude-standard", "-z"]));
-}
-
-async function gitIgnoredCandidates(cwd: string): Promise<string[]> {
-  return splitNul(await gitRaw(cwd, ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"]));
-}
-
-async function isGitRepositoryRoot(cwd: string): Promise<boolean> {
-  try { return resolve(await gitText(cwd, ["rev-parse", "--show-toplevel"])) === resolve(cwd); }
-  catch { return false; }
 }
 
 async function walkCandidates(root: string, prefix = ""): Promise<string[]> {

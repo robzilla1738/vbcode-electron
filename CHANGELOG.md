@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+## 0.1.18 — 2026-07-16
+
+### Fixed
+
+- Cloud handoff now includes Git-ignored project files, automatically snapshots
+  configured provider access, and rejects a daemon that starts without any
+  reviewed model credential instead of failing on the first Cloud turn.
+- Subscription sign-in RPCs now accept their reviewed provider, method, and
+  session parameters instead of failing every ChatGPT and xAI connection with
+  `Invalid RPC request`.
+- `codex/` and `openai-codex/` now both use the ChatGPT subscription backend,
+  including official Codex CLI account routing. Public OpenAI API keys can no
+  longer be mistaken for ChatGPT subscription credentials.
+- Eligible xAI subscriptions now expose Grok 4.5 as
+  `xai-oauth/grok-4.5` through Responses with configurable reasoning, alongside
+  Grok Build on Chat Completions.
+
+### Improved
+
+- Provider setup now opens on Recommended, Local, and All providers views,
+  leads Settings with subscription connections, uses one clear action per
+  sign-in flow, and offers Codex, Grok 4.5, and Grok Build model choices inline.
+- The slash palette now release-gates every canonical engine command, keeps one
+  `/model` entry, and organizes the complete list into compact Commands,
+  Skills, and System tabs. Enum submenus explain each choice, identify the
+  current value, and return to the command list with Escape or Left Arrow.
+
 ## 0.1.17 — 2026-07-16
 
 ### Added

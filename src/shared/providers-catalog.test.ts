@@ -24,10 +24,13 @@ describe("providers-catalog", () => {
     });
 
     it("accepts detected credentials, local providers, and optional custom keys", () => {
-      const codex = PROVIDER_CHOICES.find((c) => c.key === "codex")!;
+      const codex = PROVIDER_CHOICES.find((c) => c.key === "openai-codex")!;
       const ollama = PROVIDER_CHOICES.find((c) => c.key === "ollama-local")!;
       const custom = PROVIDER_CHOICES.find((c) => c.key === "custom-endpoint")!;
-      expect(providerChoiceNeedsApiKey(codex, new Set(["codex"]))).toBe(false);
+      const grok = PROVIDER_CHOICES.find((c) => c.key === "xai-oauth")!;
+      expect(providerChoiceNeedsApiKey(codex, new Set(["openai-codex"]))).toBe(false);
+      expect(providerChoiceNeedsApiKey(codex)).toBe(false);
+      expect(providerChoiceNeedsApiKey(grok)).toBe(false);
       expect(providerChoiceNeedsApiKey(ollama)).toBe(false);
       expect(providerChoiceNeedsApiKey(custom)).toBe(false);
       expect(providerChoiceAcceptsApiKey(custom)).toBe(true);
@@ -65,6 +68,16 @@ describe("providers-catalog", () => {
     expect(ids).toContain("ollama-local");
     expect(ids).toContain("custom-endpoint");
     expect(ids).toContain("crof");
+    expect(ids).toContain("xai-oauth");
+  });
+
+  it("keeps subscription providers in the short recommended setup view", () => {
+    const codex = providerChoiceForId("openai-codex")!;
+    const grok = providerChoiceForId("xai-oauth")!;
+    expect(codex.featured).toBe(true);
+    expect(codex.defaultModel).toBe("openai-codex/gpt-5.3-codex");
+    expect(grok.featured).toBe(true);
+    expect(grok.defaultModel).toBe("xai-oauth/grok-4.5");
   });
 
   it("promotes CrofAI with its official automatic endpoint and setup defaults", () => {

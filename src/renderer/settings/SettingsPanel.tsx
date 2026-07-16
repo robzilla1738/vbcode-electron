@@ -39,7 +39,7 @@ const CLOUD_SECTION = { id: "cloud", label: "Cloud", description: "E2B, Vercel, 
 const SETTINGS_SECTIONS = [...CONFIG_SECTIONS, CLOUD_SECTION] as const;
 
 const SETTINGS_GROUPS: ReadonlyArray<{ label: string; ids: readonly SectionId[]; advanced?: boolean }> = [
-  { label: "Essentials", ids: ["models", "providers", "appearance", "behavior"] },
+  { label: "Essentials", ids: ["providers", "models", "appearance", "behavior"] },
   { label: "Workspace", ids: ["permissions", "cloud", "instructions"] },
   {
     label: "Advanced settings",
@@ -534,7 +534,7 @@ export function SettingsView({
   /** Lets the shell confirm before unmounting settings (⌘,, git, inspector, slash). */
   onBindDirty?: (isDirty: () => boolean) => void;
 }) {
-  const [activeSection, setActiveSection] = useState<SectionId>("models");
+  const [activeSection, setActiveSection] = useState<SectionId>("providers");
   const [scope, setScope] = useState<ConfigScope>("global");
   const requestCloseRef = useRef(onClose);
   const isDirtyRef = useRef<() => boolean>(() => false);

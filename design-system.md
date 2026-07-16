@@ -67,9 +67,10 @@ The design voice is:
 
 ## Surfaces and ownership
 
-The onboarding provider list may be long, so its search field stays pinned to
-the top of the scrolling list. It uses the standard input surface and overlay
-token; provider rows retain the quiet selected/hover treatment rather than
+The onboarding provider list may be long, so compact Recommended / Local / All
+tabs and its search field stay pinned to the top of the scrolling list. Search
+always spans the complete catalog. The controls use standard input/overlay
+tokens; provider rows retain the quiet selected/hover treatment rather than
 introducing a second catalog visual language.
 
 Provider setup follows progressive disclosure. The primary rhythm is provider,
@@ -79,7 +80,7 @@ catalog fallbacks, and headers use the shared **Advanced settings** disclosure;
 they do not compete visually with first-run success.
 
 Subscription connection cards reuse the existing setting-card surface, badge,
-button, focus, and error roles. They add no provider brand colors or oversized
+button, focus, model-choice, and compact error roles. They add no provider brand colors or oversized
 logos: provider identity is text, connection state is compact, and device-code
 affordances stay monospace only where the code itself benefits. Custom-provider
 transport and model controls use the standard form rhythm.
