@@ -31,6 +31,7 @@ export type HostInbound =
       continue?: boolean;
       model?: string;
       mode?: "plan" | "execute" | "yolo";
+      executionTarget?: ExecutionTarget;
     }
   | { op: "send"; command: EngineCommand }
   | {
@@ -443,7 +444,7 @@ export function decodeInbound(line: string): HostInbound | null {
   if (!msg || typeof msg.op !== "string") return null;
   if (msg.op === "shutdown") return { op: "shutdown" };
   if (msg.op === "bootstrap") {
-    if (typeof msg.cwd !== "string" || !msg.cwd.trim() || !optionalRuntimeIdentifier(msg.resume) || !optionalString(msg.model)) return null;
+    if (typeof msg.cwd !== "string" || !msg.cwd.trim() || !optionalRuntimeIdentifier(msg.resume) || !optionalString(msg.model) || (msg.executionTarget !== undefined && !executionTarget(msg.executionTarget))) return null;
     if (msg.continue !== undefined && typeof msg.continue !== "boolean") return null;
     if (msg.mode !== undefined && msg.mode !== "plan" && msg.mode !== "execute" && msg.mode !== "yolo") return null;
     return value as HostInbound;

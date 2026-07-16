@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.14 — 2026-07-15
+
+### Fixed
+
+- The Cloud daemon now sends its validated `cloud/e2b` or `cloud/vercel`
+  execution target directly in the engine bootstrap command. The final health
+  preflight no longer reconstructs ownership authority from process environment.
+- Ownership failures include the expected target, and the locked engine adds a
+  regression test that resumes a Cloud-owned session with no Cloud environment.
+
 ## 0.1.13 — 2026-07-15
 
 ### Fixed

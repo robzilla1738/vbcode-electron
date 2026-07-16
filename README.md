@@ -67,11 +67,12 @@ Installed macOS and Windows builds check GitHub Releases after launch. Updates
 are never installed silently: Vibe Codr asks before downloading and again
 before restarting, and safely stops the engine and terminal processes first.
 
-### What’s new in 0.1.13
+### What’s new in 0.1.14
 
-- The permanent Cloud daemon receives `e2b` or `vercel` as an explicit,
-  validated startup identity rather than an ambient background-process value.
-- Both fresh handoff and reconnect use that deterministic ownership path.
+- The permanent Cloud daemon sends `cloud/e2b` or `cloud/vercel` directly in
+  the engine bootstrap protocol rather than relying on process environment.
+- The authenticated health preflight and reconnect use the same explicit
+  ownership target.
 - Conflicting owners still fail closed, and the original Local session remains
   intact if restore cannot prove continuity.
 

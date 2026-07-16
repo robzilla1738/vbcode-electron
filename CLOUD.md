@@ -108,8 +108,9 @@ than ambient ownership environment variables that a sandbox identity boundary
 may scrub. The archive session, workspace, provider, and ownership generation
 must still agree; unrelated or conflicting owners remain rejected. The daemon
 receives the expected session ID before authenticated health can return
-success, and receives its provider identity as a validated startup argument so
-background-command environment handling cannot change the expected owner. An explicit missing
+success, and sends that validated provider identity directly in the engine
+bootstrap command so no process environment participates in the ownership
+decision. An explicit missing
 resume is fatal in the engine host; it never falls
 through to a newly generated session ID. A final-workload read or ownership
 failure is returned immediately as the handoff error while Local remains the

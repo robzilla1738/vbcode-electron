@@ -34,6 +34,20 @@ describe("NDJSON protocol runtime validation", () => {
     ).toBeNull();
   });
 
+  it("validates an explicit cloud bootstrap execution target", () => {
+    expect(decodeInbound(JSON.stringify({
+      op: "bootstrap",
+      cwd: "/repo",
+      resume: "ses_cloud",
+      executionTarget: { kind: "cloud", provider: "e2b" },
+    }))).toMatchObject({ executionTarget: { kind: "cloud", provider: "e2b" } });
+    expect(decodeInbound(JSON.stringify({
+      op: "bootstrap",
+      cwd: "/repo",
+      executionTarget: { kind: "cloud", provider: "unknown" },
+    }))).toBeNull();
+  });
+
   it("rejects rpc params with non-string name", () => {
     expect(
       decodeInbound(
