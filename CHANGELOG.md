@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.11 — 2026-07-15
+
+### Fixed
+
+- Cloud restore verification now authorizes the exact imported session and
+  `cloud/e2b` target from the portable archive itself instead of depending on
+  ownership environment variables surviving the sandbox identity boundary.
+- The bundled runtime smoke removes those ambient ownership variables before
+  resuming, preventing this production-only `session is owned by cloud/e2b`
+  false rejection from recurring.
+
 ## 0.1.10 — 2026-07-15
 
 ### Fixed

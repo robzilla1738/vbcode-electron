@@ -102,7 +102,13 @@ match session ID, main/subagent model, mode, and conversation identity before
 local ownership can commit.
 The runtime restores and verifies portable state as the same isolated workload
 identity used by the permanent daemon. The daemon is then given the expected
-session ID before authenticated health can return success. An explicit missing
+session identity explicitly. The one-shot verification host derives its resume
+authorization from the exact portable archive it successfully imported, rather
+than ambient ownership environment variables that a sandbox identity boundary
+may scrub. The archive session, workspace, provider, and ownership generation
+must still agree; unrelated or conflicting owners remain rejected. The daemon
+receives the expected session ID before authenticated health can return
+success. An explicit missing
 resume is fatal in the engine host; it never falls
 through to a newly generated session ID. A final-workload read or ownership
 failure is returned immediately as the handoff error while Local remains the
