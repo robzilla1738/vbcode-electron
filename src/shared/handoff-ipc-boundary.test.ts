@@ -59,7 +59,7 @@ describe("cloud release invariants", () => {
   it("restarts and health-checks the daemon after a Vercel cold resume", () => {
     expect(providers).toContain("needsDaemonRestart: true");
     expect(manager).toContain("if (sandbox.needsDaemonRestart)");
-    expect(manager).toContain('provider.start(entry.sandboxId, "sh", ["start.sh"]');
+    expect(manager).toContain('provider.start(entry.sandboxId, "sh", ["start.sh", entry.provider]');
     expect(manager).toContain("await superviseCloudAgent(daemon, endpoint.url, token, endpoint.headers)");
     expect(manager).toContain("getSessionEnvironment(sessionId)");
     expect(manager).toContain("entry.providerDomains");
