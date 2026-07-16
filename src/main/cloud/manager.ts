@@ -376,7 +376,7 @@ export class CloudManager {
         "starting-agent",
         "provider-unavailable",
         () => withAbortDeadline(
-          (signal) => provider.start(sandbox.id, "sh", ["start.sh"], daemonEnvironment, {
+          (signal) => provider.start(sandbox.id, "sh", ["start.sh", request.provider], daemonEnvironment, {
             privileged: true,
             cwd: `${base}/runtime`,
             timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS,
@@ -620,7 +620,7 @@ export class CloudManager {
         throw new Error("The protected Cloud model-access snapshot no longer matches the reviewed handoff. Return it to Local before reconnecting.");
       }
       if (!allowLegacyCredentialless) await assertPublicProviderDomains(entry.providerDomains ?? []);
-      daemon = await provider.start(entry.sandboxId, "sh", ["start.sh"], {
+      daemon = await provider.start(entry.sandboxId, "sh", ["start.sh", entry.provider], {
         ...(modelEnvironment ?? {}),
         VIBE_CLOUD_ACCESS_TOKEN: token,
         VIBE_CLOUD_PROVIDER: entry.provider,

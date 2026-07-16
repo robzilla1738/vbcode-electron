@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.12 — 2026-07-15
+
+### Fixed
+
+- The permanent Cloud daemon now receives the selected provider as an explicit,
+  validated startup argument. E2B background-process environment handling can
+  no longer make an imported `cloud/e2b` session appear locally owned during
+  the authenticated health check.
+- Fresh handoff and reconnect use the same explicit provider path, while owner,
+  generation, session ID, model, and transcript checks remain fail-closed.
+
 ## 0.1.11 — 2026-07-15
 
 ### Fixed
